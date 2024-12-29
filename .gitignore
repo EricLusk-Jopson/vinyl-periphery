@@ -1,0 +1,11 @@
+# Dependencies
+node_modules/
+/frontend/node_modules/
+
+# Environment
+.env
+
+# Build Outputs
+/backend/dist/
+/frontend/build/
+/frontend/dist/

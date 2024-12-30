@@ -35,3 +35,26 @@ export interface SearchResult {
 export interface DiscogsSearchResponse {
   results: SearchResult[];
 }
+
+export interface RawArtist {
+  name: string;
+  id: number;
+  role: string | string[];
+}
+
+export interface ProcessedArtist {
+  name: string;
+  id: number;
+}
+
+export interface ContributorSet {
+  artists: Map<number, ProcessedArtist>;
+  roleMapping: Map<number, Set<string>>;
+}
+
+export interface Track {
+  duration: string;
+  position: number;
+  title: string;
+  extraartists?: RawArtist[];
+}

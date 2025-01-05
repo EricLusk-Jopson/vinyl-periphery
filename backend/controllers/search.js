@@ -1,5 +1,12 @@
-// controllers/search.js
+// controllers/search.controller.js
 import expressAsyncHandler from "express-async-handler";
+import DiscogsService from "../services/discogs.service.js";
+
+const discogsService = new DiscogsService({
+  consumerKey: process.env.CONSUMER_KEY,
+  consumerSecret: process.env.CONSUMER_SECRET,
+  userAgent: "VinylPeriphery/1.0.0",
+});
 
 /**
  * Search for a record in Discogs database
@@ -10,53 +17,30 @@ import expressAsyncHandler from "express-async-handler";
 const searchForRecord = expressAsyncHandler(async (req, res) => {
   const { album, band } = req.query;
 
-  // Validate required fields
   if (!album || !band) {
-    res.status(400);
-    throw new Error("Please provide both band name and album name");
+    res.status(400).json({
+      error: "Please provide both band name and album name",
+    });
+    return;
   }
 
   try {
-    const url = new URL("https://api.discogs.com/database/search");
+    const { data, rateLimitRemaining } = await discogsService.searchRelease(
+      album,
+      band
+    );
 
-    // Add search parameters
-    const params = {
-      release_title: album,
-      artist: band,
-      type: "release",
-      credit: "",
-      sort: "have",
-      sort_order: "desc",
-      key: process.env.CONSUMER_KEY,
-      secret: process.env.CONSUMER_SECRET,
-    };
-
-    url.search = new URLSearchParams(params).toString();
-    console.log(url.search);
-
-    const response = await fetch(url);
-    console.log(response);
-
-    // Check if the response was ok
-    if (!response.ok) {
-      throw new Error(`Discogs API error: ${response.statusText}`);
+    if (rateLimitRemaining) {
+      res.set("X-Ratelimit-Remaining", rateLimitRemaining);
     }
 
-    const results = await response.json();
-
-    // Check if we got rate limited
-    if (response.headers.get("X-Discogs-Ratelimit-Remaining")) {
-      res.set(
-        "X-Ratelimit-Remaining",
-        response.headers.get("X-Discogs-Ratelimit-Remaining")
-      );
-    }
-
-    res.status(200).json(results);
+    res.status(200).json(data);
   } catch (error) {
     console.error("Search error:", error);
-    res.status(error.status || 500);
-    throw new Error(error.message || "Error fetching from Discogs API");
+
+    res.status(error.status || 500).json({
+      error: error.message || "Internal server error",
+    });
   }
 });
 

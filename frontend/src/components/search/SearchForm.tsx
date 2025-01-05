@@ -6,9 +6,15 @@ import {
   Label,
   Input,
   SubmitButton,
-  ErrorMessage,
+  ResultItem,
+  ResultMeta,
+  ResultTitle,
+  ResultsList,
 } from "./styles";
-import { useReleaseSearch } from "../../api/mutations";
+import {
+  useDiscogsSearch,
+  useListReleaseContributors,
+} from "../../api/mutations";
 import { SearchResults } from "./SearchResults";
 
 export const SearchForm: React.FC = () => {
@@ -18,12 +24,13 @@ export const SearchForm: React.FC = () => {
   });
 
   const {
-    mutate,
+    mutateAsync: mutateDiscogsSearch,
     data: searchResults,
-    isPending,
-    isError,
-    error,
-  } = useReleaseSearch();
+    ...discogsSearch
+  } = useDiscogsSearch();
+
+  const { mutateAsync: mutateListReleases, data: releaseContributors } =
+    useListReleaseContributors();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -35,7 +42,23 @@ export const SearchForm: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    mutate({ artist: formData.artist, album: formData.album });
+    try {
+      const results = await mutateDiscogsSearch({
+        artist: formData.artist,
+        album: formData.album,
+      });
+
+      if (results) {
+        await mutateListReleases({
+          releases: results,
+          maxReleases: 5,
+        });
+      }
+      // TODO: Need Better Error Handling
+    } catch (error) {
+      console.log(error);
+      // Handle error appropriately
+    }
   };
 
   return (
@@ -67,15 +90,25 @@ export const SearchForm: React.FC = () => {
           />
         </InputGroup>
 
-        <SubmitButton type="submit" disabled={isPending}>
-          {isPending ? "Searching..." : "Search"}
+        <SubmitButton type="submit" disabled={discogsSearch.isPending}>
+          {discogsSearch.isPending ? "Searching..." : "Search"}
         </SubmitButton>
-
-        {isError && (
+        {/* 
+        {discogsSearch.isError && (
           <ErrorMessage>
-            {error instanceof Error ? error.message : "An error occurred"}
+            {formError instanceof Error
+              ? formError.message
+              : "An error occurred"}
           </ErrorMessage>
-        )}
+        )} */}
+        <ResultsList>
+          {releaseContributors?.map((contributor) => (
+            <ResultItem key={contributor.id}>
+              <ResultTitle>{contributor.name}</ResultTitle>
+              <ResultMeta>{contributor.roles.join(", ")}</ResultMeta>
+            </ResultItem>
+          ))}
+        </ResultsList>
 
         <SearchResults results={searchResults} />
       </Form>

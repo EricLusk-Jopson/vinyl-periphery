@@ -1,4 +1,3 @@
-// controllers/search.controller.js
 import expressAsyncHandler from "express-async-handler";
 import DiscogsService from "../services/discogs.service.js";
 

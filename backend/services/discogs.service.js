@@ -1,5 +1,3 @@
-// services/discogs.service.js
-
 class DiscogsAPIError extends Error {
   constructor(message, status, rateLimitRemaining) {
     super(message);

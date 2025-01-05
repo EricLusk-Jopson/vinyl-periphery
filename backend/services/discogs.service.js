@@ -13,6 +13,47 @@ class DiscogsService {
     this.consumerKey = config.consumerKey;
     this.consumerSecret = config.consumerSecret;
     this.userAgent = config.userAgent || "VinylPeriphery/1.0.0";
+
+    if (!this.consumerKey || !this.consumerSecret) {
+      throw new Error("Consumer key and secret are required");
+    }
+  }
+
+  async fetchWithRetry(url, options, retries = 3, baseDelay = 1000) {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => {
+        controller.abort();
+        console.log(
+          `Request timed out after ${options.timeout}ms on attempt ${attempt}`
+        );
+      }, options.timeout);
+
+      try {
+        console.log(`Attempt ${attempt} of ${retries}`);
+        const response = await fetch(url, {
+          ...options,
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeout);
+        return response;
+      } catch (error) {
+        clearTimeout(timeout);
+
+        if (attempt === retries) {
+          throw error;
+        }
+
+        // Exponential backoff with jitter
+        const delay =
+          baseDelay * Math.pow(2, attempt - 1) * (0.5 + Math.random());
+        console.log(
+          `Attempt ${attempt} failed, retrying in ${Math.round(delay)}ms`
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
   }
 
   async searchRelease(album, band) {
@@ -24,24 +65,43 @@ class DiscogsService {
       credit: "",
       sort: "have",
       sort_order: "desc",
-      key: this.consumerKey,
-      secret: this.consumerSecret,
     };
 
     url.search = new URLSearchParams(params).toString();
 
+    // Create Authorization header using Base64 encoding
+    const authString = Buffer.from(
+      `${this.consumerKey}:${this.consumerSecret}`
+    ).toString("base64");
+
+    // Log the request details (without sensitive info)
+    console.log("Attempting Discogs API request:", {
+      url: url.toString(),
+      hasConsumerKey: !!this.consumerKey,
+      hasConsumerSecret: !!this.consumerSecret,
+      userAgent: this.userAgent,
+    });
+
     try {
-      const response = await fetch(url, {
-        timeout: 8000,
+      const response = await this.fetchWithRetry(url, {
         headers: {
           "User-Agent": this.userAgent,
           Accept: "application/json",
+          Authorization: `Basic ${authString}`,
         },
+        timeout: 15000, // Increased timeout to 15 seconds
       });
 
       const rateLimitRemaining = response.headers.get(
         "X-Discogs-Ratelimit-Remaining"
       );
+
+      console.log("Discogs API Response:", {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        rateLimitRemaining,
+      });
 
       if (!response.ok) {
         throw new DiscogsAPIError(
@@ -57,17 +117,25 @@ class DiscogsService {
         rateLimitRemaining,
       };
     } catch (error) {
+      console.error("Detailed error information:", {
+        name: error.name,
+        message: error.message,
+        cause: error.cause,
+        stack: error.stack,
+        isDiscogsAPIError: error instanceof DiscogsAPIError,
+        isAbortError: error.name === "AbortError",
+      });
+
       if (error instanceof DiscogsAPIError) {
         throw error;
       }
 
-      // Handle network errors
       if (error.name === "AbortError") {
         throw new DiscogsAPIError("Request timeout", 504);
       }
 
       throw new DiscogsAPIError(
-        error.message || "Failed to fetch from Discogs API",
+        `Failed to fetch from Discogs API: ${error.message}`,
         500
       );
     }

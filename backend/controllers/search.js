@@ -7,6 +7,13 @@ const discogsService = new DiscogsService({
   userAgent: "VinylPeriphery/1.0.0",
 });
 
+// Log initial configuration
+console.log("Discogs service initialized:", {
+  hasConsumerKey: !!process.env.CONSUMER_KEY,
+  hasConsumerSecret: !!process.env.CONSUMER_SECRET,
+  baseURL: discogsService.baseURL,
+});
+
 /**
  * Search for a record in Discogs database
  * @desc    Get search results from a band and album string
@@ -14,6 +21,12 @@ const discogsService = new DiscogsService({
  * @access  Public
  */
 const searchForRecord = expressAsyncHandler(async (req, res) => {
+  console.log("Received search request:", {
+    album: req.query.album,
+    band: req.query.band,
+    headers: req.headers,
+  });
+
   const { album, band } = req.query;
 
   if (!album || !band) {

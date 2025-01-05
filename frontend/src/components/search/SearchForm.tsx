@@ -6,7 +6,6 @@ import {
   Label,
   Input,
   SubmitButton,
-  ErrorMessage,
   ResultItem,
   ResultMeta,
   ResultTitle,
@@ -30,11 +29,8 @@ export const SearchForm: React.FC = () => {
     ...discogsSearch
   } = useDiscogsSearch();
 
-  const {
-    mutateAsync: mutateListReleases,
-    data: releaseContributors,
-    ...listContributors
-  } = useListReleaseContributors();
+  const { mutateAsync: mutateListReleases, data: releaseContributors } =
+    useListReleaseContributors();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -58,7 +54,9 @@ export const SearchForm: React.FC = () => {
           maxReleases: 5,
         });
       }
+      // TODO: Need Better Error Handling
     } catch (error) {
+      console.log(error);
       // Handle error appropriately
     }
   };

@@ -24,6 +24,32 @@ interface ArtistWithRoles {
   roles: string[];
 }
 
+interface DiscographyParams {
+  contributors: ArtistWithRoles[];
+}
+
+interface DiscogsRelease {
+  id: number;
+  title: string;
+  year: string;
+  artist: string;
+  role: string;
+  thumb: string;
+  resource_url: string;
+}
+
+interface DiscogsArtistReleases {
+  releases: DiscogsRelease[];
+  pagination: {
+    pages: number;
+    items: number;
+  };
+}
+
+interface EnrichedRelease extends DiscogsRelease {
+  contributorIds: Set<number>;
+}
+
 async function discogsSearch({ artist, album }: SearchParams) {
   const response = await fetch(
     `/api/search?band=${encodeURIComponent(artist)}&album=${encodeURIComponent(
@@ -85,30 +111,66 @@ async function listReleaseContributors({
         });
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 2500));
+      await new Promise((resolve) => setTimeout(resolve, 3000));
     } catch (error) {
       console.error(`Error fetching release ${release.id}:`, error);
     }
   }
-
-  // For debugging, log the final set
-  console.log("Contributor Set:", {
-    artistCount: contributorSet.artists.size,
-    artists: Array.from(contributorSet.artists.values()),
-    roles: Array.from(contributorSet.roleMapping.entries()).map(
-      ([id, roles]) => ({
-        artistId: id,
-        artistName: contributorSet.artists.get(id)?.name,
-        roles: Array.from(roles),
-      })
-    ),
-  });
 
   return Array.from(contributorSet.artists.entries()).map(([id, artist]) => ({
     id: artist.id,
     name: artist.name,
     roles: Array.from(contributorSet.roleMapping.get(id) || []),
   }));
+}
+
+async function listContributorReleases({
+  contributors,
+}: DiscographyParams): Promise<Map<number, EnrichedRelease>> {
+  const releaseMap = new Map<number, EnrichedRelease>();
+
+  for (const contributor of contributors) {
+    try {
+      console.log(
+        `Fetching releases for contributor: ${contributor.name} (${contributor.id})`
+      );
+      const response = await fetch(
+        `https://api.discogs.com/artists/${contributor.id}/releases`
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch releases for artist ${contributor.id}`
+        );
+      }
+
+      const data: DiscogsArtistReleases = await response.json();
+
+      // Process each release from this contributor
+      for (const release of data.releases) {
+        const existingRelease = releaseMap.get(release.id);
+        if (existingRelease) {
+          existingRelease.contributorIds.add(contributor.id);
+        } else {
+          // New release, create entry with initial contributor
+          releaseMap.set(release.id, {
+            ...release,
+            contributorIds: new Set([contributor.id]),
+          });
+        }
+      }
+
+      // Respect rate limits
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+    } catch (error) {
+      console.error(
+        `Error processing releases for ${contributor.name}:`,
+        error
+      );
+    }
+  }
+
+  return releaseMap;
 }
 
 export function useDiscogsSearch() {
@@ -120,5 +182,11 @@ export function useDiscogsSearch() {
 export function useListReleaseContributors() {
   return useMutation({
     mutationFn: listReleaseContributors,
+  });
+}
+
+export function useListContributorReleases() {
+  return useMutation({
+    mutationFn: listContributorReleases,
   });
 }

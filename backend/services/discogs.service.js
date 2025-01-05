@@ -45,7 +45,6 @@ class DiscogsService {
           throw error;
         }
 
-        // Exponential backoff with jitter
         const delay =
           baseDelay * Math.pow(2, attempt - 1) * (0.5 + Math.random());
         console.log(
@@ -65,18 +64,17 @@ class DiscogsService {
       credit: "",
       sort: "have",
       sort_order: "desc",
+      key: this.consumerKey,
+      secret: this.consumerSecret,
     };
 
     url.search = new URLSearchParams(params).toString();
 
-    // Create Authorization header using Base64 encoding
-    const authString = Buffer.from(
-      `${this.consumerKey}:${this.consumerSecret}`
-    ).toString("base64");
-
-    // Log the request details (without sensitive info)
     console.log("Attempting Discogs API request:", {
-      url: url.toString(),
+      url: url
+        .toString()
+        .replace(/key=.*?&/, "key=REDACTED&")
+        .replace(/secret=.*$/, "secret=REDACTED"),
       hasConsumerKey: !!this.consumerKey,
       hasConsumerSecret: !!this.consumerSecret,
       userAgent: this.userAgent,
@@ -87,9 +85,8 @@ class DiscogsService {
         headers: {
           "User-Agent": this.userAgent,
           Accept: "application/json",
-          Authorization: `Basic ${authString}`,
         },
-        timeout: 15000, // Increased timeout to 15 seconds
+        timeout: 15000,
       });
 
       const rateLimitRemaining = response.headers.get(

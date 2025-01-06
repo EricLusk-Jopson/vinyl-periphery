@@ -71,11 +71,7 @@ export interface EnrichedRelease {
   artist: string;
   thumb: string;
   resource_url: string;
-  contributors: {
-    fromCredits: Set<number>;
-    fromArtists: Set<number>;
-    fromMembers: Set<number>;
-  };
+  contributorIds: Set<number>;
 }
 
 export interface SearchParams {

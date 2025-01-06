@@ -110,8 +110,7 @@ export const SearchForm: React.FC = () => {
     if (!contributorReleases || !contributorSet) return [];
 
     const releasesArray = Array.from(contributorReleases.entries()).map(
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      ([id, release]) => {
+      ([, release]) => {
         const { score, confidence } = calculateReleaseScore(
           release,
           contributorSet
@@ -120,11 +119,7 @@ export const SearchForm: React.FC = () => {
           ...release,
           score,
           confidence,
-          totalContributors: new Set([
-            ...release.contributors.fromCredits,
-            ...release.contributors.fromArtists,
-            ...release.contributors.fromMembers,
-          ]).size,
+          totalContributors: release.contributorIds.size,
         };
       }
     );
@@ -138,18 +133,15 @@ export const SearchForm: React.FC = () => {
 
       switch (sortConfig.field) {
         case "contributors": {
-          // Weight by both quantity and confidence
-          const aValue = a.totalContributors * a.confidence;
-          const bValue = b.totalContributors * b.confidence;
+          // Sort by weighted score (number of contributors * confidence)
+          const aValue = a.totalContributors * a.score;
+          const bValue = b.totalContributors * b.score;
           return sortMultiplier * (aValue - bValue);
         }
-
-        case "year": {
+        case "year":
           return sortMultiplier * (parseInt(a.year) - parseInt(b.year));
-        }
-        case "title": {
+        case "title":
           return sortMultiplier * a.title.localeCompare(b.title);
-        }
         default:
           return 0;
       }
@@ -164,49 +156,22 @@ export const SearchForm: React.FC = () => {
   }, [contributorReleases]);
 
   const renderContributorInfo = (release: EnrichedRelease) => {
-    const renderContributorGroup = (
-      contributors: Set<number>,
-      label: string,
-      className: string
-    ) => {
-      if (!contributorSet || contributors.size === 0) return null;
+    if (!contributorSet) return null;
 
-      return (
-        <div className={className}>
-          <span className="font-bold">{label}:</span>{" "}
-          {Array.from(contributors)
-            .map((id) => {
-              const contributor = contributorSet.contributors.get(id);
-              return contributor
-                ? `${contributor.name} (${Array.from(contributor.roles).join(
-                    ", "
-                  )})`
-                : null;
-            })
-            .filter(Boolean)
-            .join(", ")}
-        </div>
-      );
-    };
+    if (release.contributorIds.size === 0) return null;
 
     return (
-      <>
-        {renderContributorGroup(
-          release.contributors.fromCredits,
-          "Direct Contributors",
-          "text-green-700"
-        )}
-        {renderContributorGroup(
-          release.contributors.fromArtists,
-          "Artists",
-          "text-blue-700"
-        )}
-        {renderContributorGroup(
-          release.contributors.fromMembers,
-          "Band Members",
-          "text-gray-700"
-        )}
-      </>
+      <div className="mt-2">
+        <span className="font-bold">Contributors:</span>{" "}
+        {Array.from(release.contributorIds)
+          .map((id) => {
+            const contributor = contributorSet.contributors.get(id);
+            if (!contributor) return null;
+            return contributor.name;
+          })
+          .filter(Boolean)
+          .join(", ")}
+      </div>
     );
   };
 

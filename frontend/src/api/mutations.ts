@@ -52,14 +52,13 @@ async function listReleaseContributors({
         });
       }
 
-      // Process extraartists
+      // Process credits and extraartists
       if (releaseData.extraartists) {
         releaseData.extraartists.forEach((artist: RawArtist) => {
           addContributorToSet(contributorSet, artist, "credits");
         });
       }
 
-      // Process credits
       if (releaseData.credits) {
         releaseData.credits.forEach((artist: RawArtist) => {
           addContributorToSet(contributorSet, artist, "credits");
@@ -105,7 +104,6 @@ async function listReleaseContributors({
     }
   }
 
-  console.log(contributorSet);
   return contributorSet;
 }
 
@@ -132,40 +130,18 @@ async function listContributorReleases({
       }
 
       const data: {
-        releases: Array<Omit<EnrichedRelease, "contributors">>;
+        releases: Array<Omit<EnrichedRelease, "contributorIds">>;
         pagination: { pages: number; items: number };
       } = await response.json();
 
       for (const release of data.releases) {
         const existingRelease = releaseMap.get(release.id);
         if (existingRelease) {
-          contributor.sources.forEach((source) => {
-            switch (source) {
-              case "credits":
-                existingRelease.contributors.fromCredits.add(contributor.id);
-                break;
-              case "artist":
-                existingRelease.contributors.fromArtists.add(contributor.id);
-                break;
-              case "member":
-                existingRelease.contributors.fromMembers.add(contributor.id);
-                break;
-            }
-          });
+          existingRelease.contributorIds.add(contributor.id);
         } else {
           const newRelease: EnrichedRelease = {
             ...release,
-            contributors: {
-              fromCredits: new Set(
-                contributor.sources.has("credits") ? [contributor.id] : []
-              ),
-              fromArtists: new Set(
-                contributor.sources.has("artist") ? [contributor.id] : []
-              ),
-              fromMembers: new Set(
-                contributor.sources.has("member") ? [contributor.id] : []
-              ),
-            },
+            contributorIds: new Set([contributor.id]),
           };
           releaseMap.set(release.id, newRelease);
         }
@@ -179,7 +155,7 @@ async function listContributorReleases({
       );
     }
   }
-  console.log(releaseMap);
+
   return releaseMap;
 }
 

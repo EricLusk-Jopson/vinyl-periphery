@@ -67,28 +67,22 @@ export function calculateReleaseScore(
   release: EnrichedRelease,
   originalContributors: ContributorSet
 ): { score: number; confidence: number } {
-  const releaseContributorIds = new Set([
-    ...release.contributors.fromCredits,
-    ...release.contributors.fromArtists,
-    ...release.contributors.fromMembers,
-  ]);
-
-  let totalScore = 0;
+  const size = release.contributorIds.size;
+  const totalSize = originalContributors.contributors.size;
   let totalConfidence = 0;
 
-  console.log(release, releaseContributorIds, originalContributors);
+  console.log(release, originalContributors);
 
-  releaseContributorIds.forEach((id) => {
+  release.contributorIds.forEach((id) => {
     const contributor = originalContributors.contributors.get(id);
     if (contributor) {
       const confidence = getContributorConfidence(contributor);
-      totalScore += 1;
       totalConfidence += confidence;
     }
   });
 
   return {
-    score: totalScore / originalContributors.contributors.size,
-    confidence: totalConfidence / releaseContributorIds.size,
+    score: size > 0 ? size / totalSize : 0,
+    confidence: size > 0 ? totalConfidence / size : 0,
   };
 }

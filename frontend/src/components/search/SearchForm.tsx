@@ -17,6 +17,11 @@ import {
   useListContributorReleases,
 } from "../../api/mutations";
 import { SearchResults } from "./SearchResults";
+import { ContributorSet, EnrichedRelease } from "../../api/types";
+import {
+  calculateReleaseScore,
+  getContributorConfidence,
+} from "../../api/contributorSet";
 
 type SortField = "contributors" | "year" | "title";
 type SortOrder = "asc" | "desc";
@@ -38,6 +43,9 @@ export const SearchForm: React.FC = () => {
   });
 
   const [filterYear, setFilterYear] = useState<string>("");
+  const [contributorSet, setContributorSet] = useState<ContributorSet | null>(
+    null
+  );
 
   const {
     mutateAsync: mutateDiscogsSearch,
@@ -45,12 +53,13 @@ export const SearchForm: React.FC = () => {
     ...discogsSearch
   } = useDiscogsSearch();
 
-  const { mutateAsync: mutateListReleases, data: releaseContributors } =
+  const { mutateAsync: mutateListReleases, isPending: isLoadingContributors } =
     useListReleaseContributors();
 
   const {
     mutateAsync: mutateListContributorReleases,
     data: contributorReleases,
+    isPending: isLoadingReleases,
   } = useListContributorReleases();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -75,14 +84,16 @@ export const SearchForm: React.FC = () => {
           maxReleases: 5,
         });
 
+        setContributorSet(contributors);
+
         if (contributors) {
           await mutateListContributorReleases({
-            contributors,
+            contributorSet: contributors,
           });
         }
       }
     } catch (error) {
-      console.log(error);
+      console.error("Search error:", error);
     }
   };
 
@@ -93,14 +104,29 @@ export const SearchForm: React.FC = () => {
     }));
   };
 
+  console.log(contributorReleases);
+
   const sortedReleases = useMemo(() => {
-    if (!contributorReleases) return [];
+    if (!contributorReleases || !contributorSet) return [];
 
     const releasesArray = Array.from(contributorReleases.entries()).map(
-      ([id, release]) => ({
-        ...release,
-        contributorCount: release.contributorIds.size,
-      })
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      ([id, release]) => {
+        const { score, confidence } = calculateReleaseScore(
+          release,
+          contributorSet
+        );
+        return {
+          ...release,
+          score,
+          confidence,
+          totalContributors: new Set([
+            ...release.contributors.fromCredits,
+            ...release.contributors.fromArtists,
+            ...release.contributors.fromMembers,
+          ]).size,
+        };
+      }
     );
 
     const filteredReleases = filterYear
@@ -111,17 +137,24 @@ export const SearchForm: React.FC = () => {
       const sortMultiplier = sortConfig.order === "desc" ? -1 : 1;
 
       switch (sortConfig.field) {
-        case "contributors":
-          return sortMultiplier * (a.contributorCount - b.contributorCount);
-        case "year":
+        case "contributors": {
+          // Weight by both quantity and confidence
+          const aValue = a.totalContributors * a.confidence;
+          const bValue = b.totalContributors * b.confidence;
+          return sortMultiplier * (aValue - bValue);
+        }
+
+        case "year": {
           return sortMultiplier * (parseInt(a.year) - parseInt(b.year));
-        case "title":
+        }
+        case "title": {
           return sortMultiplier * a.title.localeCompare(b.title);
+        }
         default:
           return 0;
       }
     });
-  }, [contributorReleases, sortConfig, filterYear]);
+  }, [contributorReleases, sortConfig, filterYear, contributorSet]);
 
   const uniqueYears = useMemo(() => {
     if (!contributorReleases) return new Set<string>();
@@ -130,8 +163,57 @@ export const SearchForm: React.FC = () => {
     );
   }, [contributorReleases]);
 
+  const renderContributorInfo = (release: EnrichedRelease) => {
+    const renderContributorGroup = (
+      contributors: Set<number>,
+      label: string,
+      className: string
+    ) => {
+      if (!contributorSet || contributors.size === 0) return null;
+
+      return (
+        <div className={className}>
+          <span className="font-bold">{label}:</span>{" "}
+          {Array.from(contributors)
+            .map((id) => {
+              const contributor = contributorSet.contributors.get(id);
+              return contributor
+                ? `${contributor.name} (${Array.from(contributor.roles).join(
+                    ", "
+                  )})`
+                : null;
+            })
+            .filter(Boolean)
+            .join(", ")}
+        </div>
+      );
+    };
+
+    return (
+      <>
+        {renderContributorGroup(
+          release.contributors.fromCredits,
+          "Direct Contributors",
+          "text-green-700"
+        )}
+        {renderContributorGroup(
+          release.contributors.fromArtists,
+          "Artists",
+          "text-blue-700"
+        )}
+        {renderContributorGroup(
+          release.contributors.fromMembers,
+          "Band Members",
+          "text-gray-700"
+        )}
+      </>
+    );
+  };
+
+  console.log(sortedReleases);
+
   const renderContributorReleases = () => {
-    // if (!sortedReleases.length) return null;
+    // if (!contributorReleases || !contributorSet) return null;
 
     return (
       <div>
@@ -202,14 +284,12 @@ export const SearchForm: React.FC = () => {
                 Artist: {release.artist} • Year: {release.year}
               </ResultMeta>
               <ResultMeta>
-                Shared Contributors ({release.contributorIds.size}):{" "}
-                {Array.from(release.contributorIds)
-                  .map(
-                    (id) => releaseContributors?.find((c) => c.id === id)?.name
-                  )
-                  .filter(Boolean)
-                  .join(", ")}
+                Similarity Score: {(release.score * 100).toFixed(1)}%
               </ResultMeta>
+              <ResultMeta>
+                Confidence Score: {(release.confidence * 100).toFixed(1)}%
+              </ResultMeta>
+              {renderContributorInfo(release)}
             </ResultItem>
           ))}
         </ResultsList>
@@ -246,20 +326,43 @@ export const SearchForm: React.FC = () => {
           />
         </InputGroup>
 
-        <SubmitButton type="submit" disabled={discogsSearch.isPending}>
-          {discogsSearch.isPending ? "Searching..." : "Search"}
+        <SubmitButton
+          type="submit"
+          disabled={
+            discogsSearch.isPending ||
+            isLoadingContributors ||
+            isLoadingReleases
+          }
+        >
+          {discogsSearch.isPending || isLoadingContributors || isLoadingReleases
+            ? "Searching..."
+            : "Search"}
         </SubmitButton>
 
         {renderContributorReleases()}
 
-        <ResultsList>
-          {releaseContributors?.map((contributor) => (
-            <ResultItem key={contributor.id}>
-              <ResultTitle>{contributor.name}</ResultTitle>
-              <ResultMeta>{contributor.roles.join(", ")}</ResultMeta>
-            </ResultItem>
-          ))}
-        </ResultsList>
+        {contributorSet && (
+          <ResultsList>
+            <ResultTitle as="h2">Found Contributors</ResultTitle>
+            {Array.from(contributorSet.contributors.values()).map(
+              (contributor) => (
+                <ResultItem key={contributor.id}>
+                  <ResultTitle>{contributor.name}</ResultTitle>
+                  {/* <ResultMeta>
+                    Roles: {Array.from(contributor.roles).join(", ")}
+                  </ResultMeta> */}
+                  <ResultMeta>
+                    Source: {Array.from(contributor.sources).join(", ")}
+                  </ResultMeta>
+                  <ResultMeta>
+                    Confidence:{" "}
+                    {(getContributorConfidence(contributor) * 100).toFixed(1)}%
+                  </ResultMeta>
+                </ResultItem>
+              )
+            )}
+          </ResultsList>
+        )}
 
         <SearchResults results={searchResults} />
       </Form>

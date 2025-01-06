@@ -1,23 +1,94 @@
-import { ContributorSet, RawArtist } from "./types";
+import {
+  ContributorSet,
+  RawArtist,
+  ContributorSource,
+  Contributor,
+  EnrichedRelease,
+} from "./types";
 
-export function addArtistToSet(set: ContributorSet, artist: RawArtist) {
-  // Only store id and name in the artists map
-  if (!set.artists.has(artist.id)) {
-    set.artists.set(artist.id, {
+export function addContributorToSet(
+  set: ContributorSet,
+  artist: RawArtist,
+  source: ContributorSource,
+  role?: string
+): void {
+  const existing = set.contributors.get(artist.id);
+
+  if (existing) {
+    existing.sources.add(source);
+    if (role) {
+      existing.roles.add(role);
+    }
+    if (Array.isArray(artist.role)) {
+      artist.role.forEach((r) => r && existing.roles.add(r));
+    } else if (artist.role) {
+      existing.roles.add(artist.role);
+    }
+  } else {
+    const roles = new Set<string>();
+    if (role) {
+      roles.add(role);
+    }
+    if (Array.isArray(artist.role)) {
+      artist.role.forEach((r) => r && roles.add(r));
+    } else if (artist.role) {
+      roles.add(artist.role);
+    }
+
+    set.contributors.set(artist.id, {
       id: artist.id,
       name: artist.name,
+      roles,
+      sources: new Set([source]),
+      resourceUrl: artist.resource_url,
     });
   }
+}
 
-  // Handle roles separately
-  if (!set.roleMapping.has(artist.id)) {
-    set.roleMapping.set(artist.id, new Set());
+export function getContributorConfidence(contributor: Contributor): number {
+  let confidence = 0;
+
+  if (contributor.sources.has("credits"))
+    confidence = Math.max(confidence, 1.0);
+  if (contributor.sources.has("artist")) confidence = Math.max(confidence, 0.7);
+  if (contributor.sources.has("member")) confidence = Math.max(confidence, 0.4);
+
+  if (contributor.sources.size > 1) {
+    confidence = Math.min(
+      1.0,
+      confidence + 0.1 * (contributor.sources.size - 1)
+    );
   }
 
-  const roles = Array.isArray(artist.role) ? artist.role : [artist.role];
-  roles.forEach((role) => {
-    if (role) {
-      set.roleMapping.get(artist.id)?.add(role);
+  return confidence;
+}
+
+export function calculateReleaseScore(
+  release: EnrichedRelease,
+  originalContributors: ContributorSet
+): { score: number; confidence: number } {
+  const releaseContributorIds = new Set([
+    ...release.contributors.fromCredits,
+    ...release.contributors.fromArtists,
+    ...release.contributors.fromMembers,
+  ]);
+
+  let totalScore = 0;
+  let totalConfidence = 0;
+
+  console.log(release, releaseContributorIds, originalContributors);
+
+  releaseContributorIds.forEach((id) => {
+    const contributor = originalContributors.contributors.get(id);
+    if (contributor) {
+      const confidence = getContributorConfidence(contributor);
+      totalScore += 1;
+      totalConfidence += confidence;
     }
   });
+
+  return {
+    score: totalScore / originalContributors.contributors.size,
+    confidence: totalConfidence / releaseContributorIds.size,
+  };
 }

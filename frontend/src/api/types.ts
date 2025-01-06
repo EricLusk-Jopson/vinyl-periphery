@@ -37,19 +37,10 @@ export interface DiscogsSearchResponse {
 }
 
 export interface RawArtist {
-  name: string;
   id: number;
-  role: string | string[];
-}
-
-export interface ProcessedArtist {
   name: string;
-  id: number;
-}
-
-export interface ContributorSet {
-  artists: Map<number, ProcessedArtist>;
-  roleMapping: Map<number, Set<string>>;
+  role?: string | string[];
+  resource_url: string;
 }
 
 export interface Track {
@@ -57,4 +48,42 @@ export interface Track {
   position: number;
   title: string;
   extraartists?: RawArtist[];
+}
+
+export type ContributorSource = "credits" | "artist" | "member";
+
+export interface Contributor {
+  id: number;
+  name: string;
+  roles: Set<string>;
+  sources: Set<ContributorSource>;
+  resourceUrl: string;
+}
+
+export interface ContributorSet {
+  contributors: Map<number, Contributor>;
+}
+
+export interface EnrichedRelease {
+  id: number;
+  title: string;
+  year: string;
+  artist: string;
+  thumb: string;
+  resource_url: string;
+  contributors: {
+    fromCredits: Set<number>;
+    fromArtists: Set<number>;
+    fromMembers: Set<number>;
+  };
+}
+
+export interface SearchParams {
+  artist: string;
+  album: string;
+}
+
+export interface ReleasesParams {
+  releases: SearchResult[];
+  maxReleases: number;
 }

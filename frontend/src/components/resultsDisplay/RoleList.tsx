@@ -3,7 +3,8 @@ import { Section, SectionTitle, Grid, FilterToggle } from "./styles";
 
 export const RoleList: React.FC<{ searchId: string }> = ({ searchId }) => {
   const { searches } = useCache();
-  const { toggleRole, isRoleActive } = useSearchFilters(searchId);
+  const { toggleRole, isRoleActive, isRoleDisabled } =
+    useSearchFilters(searchId);
   const search = searches[searchId];
 
   if (!search) return null;
@@ -17,7 +18,7 @@ export const RoleList: React.FC<{ searchId: string }> = ({ searchId }) => {
             key={role}
             onClick={() => toggleRole(role)}
             $isActive={isRoleActive(role)}
-            disabled={!search.filterState.roles[role]}
+            disabled={isRoleDisabled(role)}
           >
             {role}
           </FilterToggle>

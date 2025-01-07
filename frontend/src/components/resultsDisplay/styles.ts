@@ -35,16 +35,21 @@ export const FilterToggle = styled.button<{ $isActive: boolean }>`
   font-family: ${({ theme }) => theme.typography.fontFamily.secondary};
   font-size: ${({ theme }) => theme.typography.fontSize.sm};
   cursor: pointer;
-  opacity: ${({ disabled }) => (disabled ? 0.5 : 1)};
-  transition: all 0.2s ease-in-out;
   white-space: nowrap;
+  transition: all 0.2s ease-in-out;
 
   &:hover:not(:disabled) {
     background: ${({ theme }) => theme.colors.primary.dark};
   }
 
   &:disabled {
+    opacity: 0.5;
     cursor: not-allowed;
+    background: ${({ theme }) => theme.colors.background.primary};
+    border-color: ${({ theme }) => theme.colors.text.disabled};
+    &:hover {
+      background: ${({ theme }) => theme.colors.background.primary};
+    }
   }
 `;
 

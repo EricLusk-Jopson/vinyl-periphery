@@ -225,11 +225,41 @@ export const useSearchFilters = (searchId: string) => {
     [search]
   );
 
+  const isContributorDisabled = useCallback(
+    (contributorId: number): boolean => {
+      if (!search) return true;
+      const contributor = search.contributors[contributorId];
+      if (!contributor) return true;
+
+      // A contributor is disabled only if all their roles are inactive
+      return !contributor.roles.some((role) => search.filterState.roles[role]);
+    },
+    [search]
+  );
+
+  const isRoleDisabled = useCallback(
+    (roleName: string): boolean => {
+      if (!search) return true;
+
+      // A role is disabled if all contributors with this role are inactive
+      return !Object.entries(search.contributors).some(([id, contributor]) => {
+        const contributorId = Number(id);
+        return (
+          contributor.roles.includes(roleName) &&
+          search.filterState.contributors[contributorId]
+        );
+      });
+    },
+    [search]
+  );
+
   return {
     toggleContributor,
     toggleRole,
     isContributorActive,
     isRoleActive,
+    isContributorDisabled,
+    isRoleDisabled,
     filterState: search?.filterState,
   };
 };

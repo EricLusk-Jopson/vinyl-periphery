@@ -5,7 +5,8 @@ export const ContributorList: React.FC<{ searchId: string }> = ({
   searchId,
 }) => {
   const { searches } = useCache();
-  const { toggleContributor, isContributorActive } = useSearchFilters(searchId);
+  const { toggleContributor, isContributorActive, isContributorDisabled } =
+    useSearchFilters(searchId);
   const search = searches[searchId];
 
   if (!search) return null;
@@ -15,13 +16,13 @@ export const ContributorList: React.FC<{ searchId: string }> = ({
       <SectionTitle>Contributors</SectionTitle>
       <Grid>
         {Object.entries(search.contributors).map(([idStr, contributor]) => {
-          const id = Number(idStr); // Convert string id to number
+          const id = Number(idStr);
           return (
             <FilterToggle
               key={id}
               onClick={() => toggleContributor(id)}
               $isActive={isContributorActive(id)}
-              disabled={!search.filterState.contributors[id]}
+              disabled={isContributorDisabled(id)}
             >
               {contributor.name}
               <span style={{ fontSize: "0.8em", marginLeft: "8px" }}>

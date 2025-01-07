@@ -20,22 +20,37 @@ export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
     if (!search) return [];
 
     return Object.values(search.releases)
-      .filter((release) =>
-        Object.keys(release.contributorIds).some((id) =>
-          isContributorActive(Number(id))
-        )
-      )
+      .filter((release) => {
+        // Deduplicate contributorIds first
+        const uniqueContributorIds = Array.from(
+          new Set(release.contributorIds)
+        );
+        return uniqueContributorIds.some((id) => isContributorActive(id));
+      })
       .map((release) => {
-        const { score, confidence } = calculateReleaseScore(release, {
-          contributors: search.contributors,
-        });
+        // Ensure we're working with unique contributor IDs
+        const uniqueContributorIds = Array.from(
+          new Set(release.contributorIds)
+        );
+
+        const { score, confidence } = calculateReleaseScore(
+          { ...release, contributorIds: uniqueContributorIds },
+          {
+            contributors: search.contributors,
+            isContributorActive,
+          }
+        );
+
         return {
           ...release,
           score,
           confidence,
-          activeContributors: Object.keys(release.contributorIds)
-            .map(Number)
-            .filter((id) => isContributorActive(id)),
+          // Store unique active contributors
+          activeContributors: Array.from(
+            new Set(
+              uniqueContributorIds.filter((id) => isContributorActive(id))
+            )
+          ),
         };
       })
       .sort((a, b) => b.score * b.confidence - a.score * a.confidence);
@@ -45,7 +60,7 @@ export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
 
   return (
     <Section>
-      <SectionTitle>Filtered Releases</SectionTitle>
+      <SectionTitle>Filtered Releases ({filteredReleases.length})</SectionTitle>
       <Grid>
         {filteredReleases.map((release) => (
           <ReleaseCard key={release.id}>
@@ -62,10 +77,14 @@ export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
 
             <ContributorList>
               Active Contributors:{" "}
-              {release.activeContributors
-                .filter((id: number): id is number => id in search.contributors)
-                .map((id: number) => search.contributors[id].name)
-                .join(", ")}
+              {/* Ensure we only show each contributor once */}
+              {Array.from(
+                new Set(
+                  release.activeContributors
+                    .filter((id) => id in search.contributors)
+                    .map((id) => search.contributors[id].name)
+                )
+              ).join(", ")}
             </ContributorList>
           </ReleaseCard>
         ))}

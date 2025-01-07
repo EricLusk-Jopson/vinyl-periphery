@@ -1,5 +1,4 @@
 import {
-  ContributorSet,
   RawArtist,
   ContributorSource,
   Contributor,
@@ -68,24 +67,45 @@ export function getContributorConfidence(contributor: Contributor): number {
 
 export function calculateReleaseScore(
   release: EnrichedRelease,
-  originalContributors: ContributorSet
+  context: {
+    contributors: Record<number, Contributor>;
+    isContributorActive: (id: number) => boolean;
+  }
 ): { score: number; confidence: number } {
-  const size = release.contributorIds.length;
-  const totalSize = Object.keys(originalContributors.contributors).length;
+  // Filter to only active contributors
+  const activeContributors = release.contributorIds.filter((id) =>
+    context.isContributorActive(id)
+  );
+
+  const totalActiveContributors = Object.keys(context.contributors).filter(
+    (id) => context.isContributorActive(Number(id))
+  ).length;
   let totalConfidence = 0;
 
-  console.log(release, originalContributors);
-
-  release.contributorIds.forEach((id) => {
-    const contributor = originalContributors.contributors[id];
+  activeContributors.forEach((id) => {
+    const contributor = context.contributors[id];
     if (contributor) {
       const confidence = getContributorConfidence(contributor);
       totalConfidence += confidence;
     }
   });
 
+  // If there are no active contributors, score should be 0
+  if (activeContributors.length === 0) {
+    return { score: 0, confidence: 0 };
+  }
+
+  if (release.title === "Imaginal Disk") {
+    console.log(
+      context.contributors,
+      activeContributors,
+      totalActiveContributors
+    );
+  }
   return {
-    score: size > 0 ? size / totalSize : 0,
-    confidence: size > 0 ? totalConfidence / size : 0,
+    // Score is based on how many active contributors this release shares
+    score: activeContributors.length / totalActiveContributors,
+    // Confidence is the average confidence of active contributors
+    confidence: totalConfidence / activeContributors.length,
   };
 }

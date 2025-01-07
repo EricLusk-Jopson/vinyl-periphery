@@ -159,7 +159,10 @@ async function listContributorReleases({
       for (const release of data.releases) {
         const existingRelease = releaseMap.get(release.id);
         if (existingRelease) {
-          existingRelease.contributorIds.push(contributor.id);
+          // Use a Set to ensure unique contributor IDs
+          const contributorIds = new Set(existingRelease.contributorIds);
+          contributorIds.add(contributor.id);
+          existingRelease.contributorIds = Array.from(contributorIds);
         } else {
           const newRelease: EnrichedRelease = {
             ...release,

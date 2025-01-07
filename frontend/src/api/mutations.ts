@@ -3,52 +3,13 @@ import {
   ContributorSet,
   DiscogsSearchResponse,
   RawArtist,
-  SearchResult,
   Track,
+  EnrichedRelease,
+  SearchParams,
+  ReleasesParams,
+  ContributorSetInternal,
 } from "./types";
-import { addArtistToSet } from "./contributorSet";
-
-interface SearchParams {
-  artist: string;
-  album: string;
-}
-
-interface ReleasesParams {
-  releases: SearchResult[];
-  maxReleases: number;
-}
-
-interface ArtistWithRoles {
-  id: number;
-  name: string;
-  roles: string[];
-}
-
-interface DiscographyParams {
-  contributors: ArtistWithRoles[];
-}
-
-interface DiscogsRelease {
-  id: number;
-  title: string;
-  year: string;
-  artist: string;
-  role: string;
-  thumb: string;
-  resource_url: string;
-}
-
-interface DiscogsArtistReleases {
-  releases: DiscogsRelease[];
-  pagination: {
-    pages: number;
-    items: number;
-  };
-}
-
-interface EnrichedRelease extends DiscogsRelease {
-  contributorIds: Set<number>;
-}
+import { addContributorToSet } from "./contributorSet";
 
 async function discogsSearch({ artist, album }: SearchParams) {
   const response = await fetch(
@@ -68,16 +29,18 @@ async function discogsSearch({ artist, album }: SearchParams) {
 async function listReleaseContributors({
   releases,
   maxReleases = 5,
-}: ReleasesParams): Promise<ArtistWithRoles[]> {
+}: ReleasesParams): Promise<ContributorSet> {
   maxReleases = Math.min(maxReleases, releases.length);
   const selectedReleases = releases.slice(0, maxReleases);
 
-  const contributorSet: ContributorSet = {
-    artists: new Map(),
-    roleMapping: new Map(),
+  // Use Map and Sets during collection phase
+  const internalSet: ContributorSetInternal = {
+    contributors: new Map(),
   };
 
-  // Process one at a time to respect rate limits
+  // Track processed artist IDs to avoid duplicate fetches
+  const processedArtistIds = new Set<number>();
+
   for (const release of selectedReleases) {
     try {
       console.log(`Fetching details for release: ${release.id}`);
@@ -86,17 +49,23 @@ async function listReleaseContributors({
       );
       const releaseData = await response.json();
 
-      // Process extraartists
-      if (releaseData.extraartists) {
-        releaseData.extraartists.forEach((artist: RawArtist) => {
-          addArtistToSet(contributorSet, artist);
+      // Process main artists
+      if (releaseData.artists) {
+        releaseData.artists.forEach((artist: RawArtist) => {
+          addContributorToSet(internalSet, artist, "artist", "Main Artist");
         });
       }
 
-      // Process credits
+      // Process credits and extraartists
+      if (releaseData.extraartists) {
+        releaseData.extraartists.forEach((artist: RawArtist) => {
+          addContributorToSet(internalSet, artist, "credits");
+        });
+      }
+
       if (releaseData.credits) {
         releaseData.credits.forEach((artist: RawArtist) => {
-          addArtistToSet(contributorSet, artist);
+          addContributorToSet(internalSet, artist, "credits");
         });
       }
 
@@ -105,10 +74,36 @@ async function listReleaseContributors({
         releaseData.tracklist.forEach((track: Track) => {
           if (track.extraartists) {
             track.extraartists.forEach((artist: RawArtist) => {
-              addArtistToSet(contributorSet, artist);
+              addContributorToSet(internalSet, artist, "credits");
             });
           }
         });
+      }
+
+      // Fetch and process band members only for new artists
+      if (releaseData.artists) {
+        for (const artist of releaseData.artists) {
+          if (!processedArtistIds.has(artist.id)) {
+            processedArtistIds.add(artist.id);
+
+            const memberResponse = await fetch(
+              `https://api.discogs.com/artists/${artist.id}`
+            );
+            const memberData = await memberResponse.json();
+
+            if (memberData.members) {
+              memberData.members.forEach((member: RawArtist) => {
+                addContributorToSet(
+                  internalSet,
+                  member,
+                  "member",
+                  "Band Member"
+                );
+              });
+            }
+            await new Promise((resolve) => setTimeout(resolve, 3000));
+          }
+        }
       }
 
       await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -117,19 +112,31 @@ async function listReleaseContributors({
     }
   }
 
-  return Array.from(contributorSet.artists.entries()).map(([id, artist]) => ({
-    id: artist.id,
-    name: artist.name,
-    roles: Array.from(contributorSet.roleMapping.get(id) || []),
-  }));
+  // Convert internal Map/Set structure to expected Record format
+  return {
+    contributors: Object.fromEntries(
+      Array.from(internalSet.contributors.entries()).map(
+        ([id, contributor]) => [
+          id,
+          {
+            ...contributor,
+            roles: Array.from(contributor.roles),
+            sources: Array.from(contributor.sources),
+          },
+        ]
+      )
+    ),
+  };
 }
 
 async function listContributorReleases({
-  contributors,
-}: DiscographyParams): Promise<Map<number, EnrichedRelease>> {
+  contributorSet,
+}: {
+  contributorSet: ContributorSet;
+}): Promise<Map<number, EnrichedRelease>> {
   const releaseMap = new Map<number, EnrichedRelease>();
 
-  for (const contributor of contributors) {
+  for (const contributor of Object.values(contributorSet.contributors)) {
     try {
       console.log(
         `Fetching releases for contributor: ${contributor.name} (${contributor.id})`
@@ -144,23 +151,27 @@ async function listContributorReleases({
         );
       }
 
-      const data: DiscogsArtistReleases = await response.json();
+      const data: {
+        releases: Array<Omit<EnrichedRelease, "contributorIds">>;
+        pagination: { pages: number; items: number };
+      } = await response.json();
 
-      // Process each release from this contributor
       for (const release of data.releases) {
         const existingRelease = releaseMap.get(release.id);
         if (existingRelease) {
-          existingRelease.contributorIds.add(contributor.id);
+          // Use a Set to ensure unique contributor IDs
+          const contributorIds = new Set(existingRelease.contributorIds);
+          contributorIds.add(contributor.id);
+          existingRelease.contributorIds = Array.from(contributorIds);
         } else {
-          // New release, create entry with initial contributor
-          releaseMap.set(release.id, {
+          const newRelease: EnrichedRelease = {
             ...release,
-            contributorIds: new Set([contributor.id]),
-          });
+            contributorIds: [contributor.id],
+          };
+          releaseMap.set(release.id, newRelease);
         }
       }
 
-      // Respect rate limits
       await new Promise((resolve) => setTimeout(resolve, 3000));
     } catch (error) {
       console.error(

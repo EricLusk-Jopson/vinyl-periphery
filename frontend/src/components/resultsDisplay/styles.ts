@@ -19,11 +19,14 @@ export const SectionTitle = styled.h2`
 `;
 
 export const Grid = styled.div`
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: ${({ theme }) => theme.spacing.md};
 `;
 
 export const FilterToggle = styled.button<{ $isActive: boolean }>`
+  display: inline-flex;
+  align-items: center;
   padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.md};
   background: ${({ theme, $isActive }) =>
     $isActive ? theme.colors.primary.main : theme.colors.background.primary};
@@ -33,7 +36,8 @@ export const FilterToggle = styled.button<{ $isActive: boolean }>`
   font-size: ${({ theme }) => theme.typography.fontSize.sm};
   cursor: pointer;
   opacity: ${({ disabled }) => (disabled ? 0.5 : 1)};
-  transition: background-color 0.2s ease-in-out;
+  transition: all 0.2s ease-in-out;
+  white-space: nowrap;
 
   &:hover:not(:disabled) {
     background: ${({ theme }) => theme.colors.primary.dark};

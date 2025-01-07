@@ -34,7 +34,7 @@ async function listReleaseContributors({
   const selectedReleases = releases.slice(0, maxReleases);
 
   const contributorSet: ContributorSet = {
-    contributors: new Map(),
+    contributors: {},
   };
 
   for (const release of selectedReleases) {
@@ -114,7 +114,7 @@ async function listContributorReleases({
 }): Promise<Map<number, EnrichedRelease>> {
   const releaseMap = new Map<number, EnrichedRelease>();
 
-  for (const contributor of contributorSet.contributors.values()) {
+  for (const contributor of Object.values(contributorSet.contributors)) {
     try {
       console.log(
         `Fetching releases for contributor: ${contributor.name} (${contributor.id})`
@@ -137,11 +137,11 @@ async function listContributorReleases({
       for (const release of data.releases) {
         const existingRelease = releaseMap.get(release.id);
         if (existingRelease) {
-          existingRelease.contributorIds.add(contributor.id);
+          existingRelease.contributorIds.push(contributor.id);
         } else {
           const newRelease: EnrichedRelease = {
             ...release,
-            contributorIds: new Set([contributor.id]),
+            contributorIds: [contributor.id],
           };
           releaseMap.set(release.id, newRelease);
         }

@@ -55,13 +55,13 @@ export type ContributorSource = "credits" | "artist" | "member";
 export interface Contributor {
   id: number;
   name: string;
-  roles: Set<string>;
-  sources: Set<ContributorSource>;
+  roles: string[];
+  sources: ContributorSource[];
   resourceUrl: string;
 }
 
 export interface ContributorSet {
-  contributors: Map<number, Contributor>;
+  contributors: Record<number, Contributor>;
 }
 
 export interface EnrichedRelease {
@@ -71,7 +71,7 @@ export interface EnrichedRelease {
   artist: string;
   thumb: string;
   resource_url: string;
-  contributorIds: Set<number>;
+  contributorIds: number[];
 }
 
 export interface SearchParams {

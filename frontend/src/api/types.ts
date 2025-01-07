@@ -64,6 +64,19 @@ export interface ContributorSet {
   contributors: Record<number, Contributor>;
 }
 
+export interface ContributorSetInternal {
+  contributors: Map<
+    number,
+    {
+      id: number;
+      name: string;
+      roles: Set<string>;
+      sources: Set<ContributorSource>;
+      resourceUrl: string;
+    }
+  >;
+}
+
 export interface EnrichedRelease {
   id: number;
   title: string;

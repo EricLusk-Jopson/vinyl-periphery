@@ -1,4 +1,3 @@
-// mutations.ts
 import { useMutation } from "@tanstack/react-query";
 import {
   ContributorSet,
@@ -8,6 +7,7 @@ import {
   EnrichedRelease,
   SearchParams,
   ReleasesParams,
+  ContributorSetInternal,
 } from "./types";
 import { addContributorToSet } from "./contributorSet";
 
@@ -33,9 +33,13 @@ async function listReleaseContributors({
   maxReleases = Math.min(maxReleases, releases.length);
   const selectedReleases = releases.slice(0, maxReleases);
 
-  const contributorSet: ContributorSet = {
-    contributors: {},
+  // Use Map and Sets during collection phase
+  const internalSet: ContributorSetInternal = {
+    contributors: new Map(),
   };
+
+  // Track processed artist IDs to avoid duplicate fetches
+  const processedArtistIds = new Set<number>();
 
   for (const release of selectedReleases) {
     try {
@@ -48,20 +52,20 @@ async function listReleaseContributors({
       // Process main artists
       if (releaseData.artists) {
         releaseData.artists.forEach((artist: RawArtist) => {
-          addContributorToSet(contributorSet, artist, "artist", "Main Artist");
+          addContributorToSet(internalSet, artist, "artist", "Main Artist");
         });
       }
 
       // Process credits and extraartists
       if (releaseData.extraartists) {
         releaseData.extraartists.forEach((artist: RawArtist) => {
-          addContributorToSet(contributorSet, artist, "credits");
+          addContributorToSet(internalSet, artist, "credits");
         });
       }
 
       if (releaseData.credits) {
         releaseData.credits.forEach((artist: RawArtist) => {
-          addContributorToSet(contributorSet, artist, "credits");
+          addContributorToSet(internalSet, artist, "credits");
         });
       }
 
@@ -70,31 +74,35 @@ async function listReleaseContributors({
         releaseData.tracklist.forEach((track: Track) => {
           if (track.extraartists) {
             track.extraartists.forEach((artist: RawArtist) => {
-              addContributorToSet(contributorSet, artist, "credits");
+              addContributorToSet(internalSet, artist, "credits");
             });
           }
         });
       }
 
-      // Fetch and process band members
+      // Fetch and process band members only for new artists
       if (releaseData.artists) {
         for (const artist of releaseData.artists) {
-          const memberResponse = await fetch(
-            `https://api.discogs.com/artists/${artist.id}`
-          );
-          const memberData = await memberResponse.json();
+          if (!processedArtistIds.has(artist.id)) {
+            processedArtistIds.add(artist.id);
 
-          if (memberData.members) {
-            memberData.members.forEach((member: RawArtist) => {
-              addContributorToSet(
-                contributorSet,
-                member,
-                "member",
-                "Band Member"
-              );
-            });
+            const memberResponse = await fetch(
+              `https://api.discogs.com/artists/${artist.id}`
+            );
+            const memberData = await memberResponse.json();
+
+            if (memberData.members) {
+              memberData.members.forEach((member: RawArtist) => {
+                addContributorToSet(
+                  internalSet,
+                  member,
+                  "member",
+                  "Band Member"
+                );
+              });
+            }
+            await new Promise((resolve) => setTimeout(resolve, 3000));
           }
-          await new Promise((resolve) => setTimeout(resolve, 3000));
         }
       }
 
@@ -104,7 +112,21 @@ async function listReleaseContributors({
     }
   }
 
-  return contributorSet;
+  // Convert internal Map/Set structure to expected Record format
+  return {
+    contributors: Object.fromEntries(
+      Array.from(internalSet.contributors.entries()).map(
+        ([id, contributor]) => [
+          id,
+          {
+            ...contributor,
+            roles: Array.from(contributor.roles),
+            sources: Array.from(contributor.sources),
+          },
+        ]
+      )
+    ),
+  };
 }
 
 async function listContributorReleases({

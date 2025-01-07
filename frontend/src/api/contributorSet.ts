@@ -4,25 +4,26 @@ import {
   ContributorSource,
   Contributor,
   EnrichedRelease,
+  ContributorSetInternal,
 } from "./types";
 
 export function addContributorToSet(
-  set: ContributorSet,
+  set: ContributorSetInternal,
   artist: RawArtist,
   source: ContributorSource,
   role?: string
 ): void {
-  const existing = set.contributors[artist.id];
+  const existing = set.contributors.get(artist.id);
 
   if (existing) {
-    existing.sources.push(source);
+    existing.sources.add(source);
     if (role) {
-      existing.roles.push(role);
+      existing.roles.add(role);
     }
     if (Array.isArray(artist.role)) {
-      artist.role.forEach((r) => r && existing.roles.push(r));
+      artist.role.forEach((r) => r && existing.roles.add(r));
     } else if (artist.role) {
-      existing.roles.push(artist.role);
+      existing.roles.add(artist.role);
     }
   } else {
     const roles = new Set<string>();
@@ -35,13 +36,13 @@ export function addContributorToSet(
       roles.add(artist.role);
     }
 
-    set.contributors[artist.id] = {
+    set.contributors.set(artist.id, {
       id: artist.id,
       name: artist.name,
-      roles: Array.from(roles),
-      sources: [source],
+      roles,
+      sources: new Set([source]),
       resourceUrl: artist.resource_url,
-    };
+    });
   }
 }
 

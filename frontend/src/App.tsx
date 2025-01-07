@@ -1,4 +1,3 @@
-// App.tsx
 import React from "react";
 import { ThemeProvider } from "styled-components";
 import { GlobalStyles } from "./styles/GlobalStyles";
@@ -78,6 +77,8 @@ const SearchContainer: React.FC = () => {
           },
         ])
       ) as Record<number, EnrichedRelease>;
+
+      console.log(searchResults, contributorSet, releasesMap, releasesRecord);
 
       // Add to cache
       addSearch(params, contributorSet, releasesRecord);

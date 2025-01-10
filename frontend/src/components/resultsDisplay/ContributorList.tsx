@@ -1,4 +1,5 @@
 import { useCache, useSearchFilters } from "../../contexts/cache/CacheContext";
+import { defaultContributorDisplayPipeline } from "../../lib/transformers/contributorProcessor";
 import { Section, SectionTitle, Grid, FilterToggle } from "./styles";
 
 export const ContributorList: React.FC<{ searchId: string }> = ({
@@ -24,10 +25,7 @@ export const ContributorList: React.FC<{ searchId: string }> = ({
               $isActive={isContributorActive(id)}
               disabled={isContributorDisabled(id)}
             >
-              {contributor.name}
-              {/* <span style={{ fontSize: "0.8em", marginLeft: "8px" }}>
-                ({contributor.roles.join(", ")})
-              </span> */}
+              {defaultContributorDisplayPipeline(contributor.name)}
             </FilterToggle>
           );
         })}

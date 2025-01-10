@@ -1,3 +1,4 @@
-export type RoleTransformer = (roles: string[]) => string[];
-export type SingleRoleTransformer = (role: string) => string;
-export type Pipeline = (roles: string[]) => string[];
+export type StringTransformer = (strs: string[]) => string[];
+export type SingleStringTransformer = (str: string) => string;
+export type Pipeline = (strs: string[]) => string[];
+export type SingleStringPipeline = (str: string) => string;

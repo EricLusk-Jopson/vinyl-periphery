@@ -1,13 +1,10 @@
-import {
-  defaultPipeline,
-  createPipeline,
-  createSingleRoleTransformer,
-} from "./roleProcessor";
+import { createSingleStringTransformer, createPipeline } from "./processor";
+import { defaultRolePipeline } from "./roleProcessor";
 
 describe("Role Processing Pipeline", () => {
   // Individual transformer tests
   describe("removeBracketContent", () => {
-    const removeBracketContent = createSingleRoleTransformer((role) => {
+    const removeBracketContent = createSingleStringTransformer((role) => {
       let result = role;
       let previousResult;
       do {
@@ -37,7 +34,7 @@ describe("Role Processing Pipeline", () => {
   });
 
   describe("trimWhitespace", () => {
-    const trimWhitespace = createSingleRoleTransformer((role) => role.trim());
+    const trimWhitespace = createSingleStringTransformer((role) => role.trim());
     const pipeline = createPipeline([trimWhitespace]);
 
     it("trims leading and trailing whitespace", () => {
@@ -54,7 +51,7 @@ describe("Role Processing Pipeline", () => {
   });
 
   describe("replaceHyphensWithSpaces", () => {
-    const replaceHyphensWithSpaces = createSingleRoleTransformer((role) =>
+    const replaceHyphensWithSpaces = createSingleStringTransformer((role) =>
       role.replace(/[-–—]/g, " ").replace(/\s+/g, " ")
     );
     const pipeline = createPipeline([replaceHyphensWithSpaces]);
@@ -79,7 +76,7 @@ describe("Role Processing Pipeline", () => {
   });
 
   describe("capitalizeAfterSpace", () => {
-    const capitalizeAfterSpace = createSingleRoleTransformer((role) => {
+    const capitalizeAfterSpace = createSingleStringTransformer((role) => {
       const result = role.charAt(0).toUpperCase() + role.slice(1);
       return result.replace(/\s+[a-z]/g, (match) => match.toUpperCase());
     });
@@ -183,7 +180,7 @@ describe("Role Processing Pipeline", () => {
     });
   });
 
-  describe("defaultPipeline", () => {
+  describe("defaultRolePipeline", () => {
     it("processes complex roles correctly", () => {
       const input = [
         "Lead Vocals [backing]",
@@ -202,7 +199,7 @@ describe("Role Processing Pipeline", () => {
         "Backing Vocals",
       ];
 
-      expect(defaultPipeline(input).sort()).toEqual(expected.sort());
+      expect(defaultRolePipeline(input).sort()).toEqual(expected.sort());
     });
 
     it("handles edge cases", () => {
@@ -216,14 +213,14 @@ describe("Role Processing Pipeline", () => {
 
       const expected = ["Guitar Bass", "Drums", "Percussion"];
 
-      expect(defaultPipeline(input).sort()).toEqual(expected.sort());
+      expect(defaultRolePipeline(input).sort()).toEqual(expected.sort());
     });
   });
 
   describe("createPipeline", () => {
     it("allows custom transformer combinations", () => {
       const customPipeline = createPipeline([
-        createSingleRoleTransformer((role) => role.toLowerCase()),
+        createSingleStringTransformer((role) => role.toLowerCase()),
         (roles) => Array.from(new Set(roles)),
       ]);
 

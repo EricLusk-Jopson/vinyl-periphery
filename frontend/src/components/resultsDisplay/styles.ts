@@ -3,11 +3,16 @@ import styled from "styled-components";
 export const ResultsContainer = styled.div`
   display: grid;
   gap: ${({ theme }) => theme.spacing.lg};
+  margin: 0 auto;
+  width: 100%;
 `;
 
 export const Section = styled.section`
   background: ${({ theme }) => theme.colors.background.secondary};
   padding: ${({ theme }) => theme.spacing.lg};
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 `;
 
 export const SectionTitle = styled.h2`

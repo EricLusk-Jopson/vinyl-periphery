@@ -30,11 +30,13 @@ const Title = styled.h1`
 `;
 
 const MainContent = styled.main`
-  max-width: 1200px;
+  width: 100%;
   margin: 0 auto;
   padding: ${({ theme }) => theme.spacing.lg};
-  display: grid;
   gap: ${({ theme }) => theme.spacing.xl};
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 `;
 
 // Separate component to handle search logic

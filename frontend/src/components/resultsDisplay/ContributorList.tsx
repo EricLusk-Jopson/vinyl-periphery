@@ -25,9 +25,9 @@ export const ContributorList: React.FC<{ searchId: string }> = ({
               disabled={isContributorDisabled(id)}
             >
               {contributor.name}
-              <span style={{ fontSize: "0.8em", marginLeft: "8px" }}>
+              {/* <span style={{ fontSize: "0.8em", marginLeft: "8px" }}>
                 ({contributor.roles.join(", ")})
-              </span>
+              </span> */}
             </FilterToggle>
           );
         })}

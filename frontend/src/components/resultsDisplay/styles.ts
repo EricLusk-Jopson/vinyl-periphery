@@ -5,14 +5,24 @@ export const ResultsContainer = styled.div`
   gap: ${({ theme }) => theme.spacing.lg};
   margin: 0 auto;
   width: 100%;
+  max-width: ${({ theme }) => theme.breakpoints.xl};
 `;
 
-export const Section = styled.section`
+// New component for the top filters section
+export const FiltersContainer = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: ${({ theme }) => theme.spacing.lg};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+export const Section = styled.section<{ $fullWidth?: boolean }>`
   background: ${({ theme }) => theme.colors.background.secondary};
   padding: ${({ theme }) => theme.spacing.lg};
   width: 100%;
-  max-width: 100%;
-  overflow-x: hidden;
 `;
 
 export const SectionTitle = styled.h2`
@@ -32,7 +42,7 @@ export const Grid = styled.div`
 export const FilterToggle = styled.button<{ $isActive: boolean }>`
   display: inline-flex;
   align-items: center;
-  padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.md};
+  padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.sm};
   background: ${({ theme, $isActive }) =>
     $isActive ? theme.colors.primary.main : theme.colors.background.primary};
   color: ${({ theme }) => theme.colors.text.primary};

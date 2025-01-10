@@ -1,3 +1,4 @@
+import { defaultPipeline } from "../lib/transformers/roleProcessor";
 import {
   RawArtist,
   ContributorSource,
@@ -6,39 +7,41 @@ import {
   ContributorSetInternal,
 } from "./types";
 
+// Helper to process all roles through pipeline and convert to Set
+const processRolesToSet = (roles: (string | undefined)[]): Set<string> => {
+  const filteredRoles = roles.filter((r): r is string => !!r);
+  return new Set(defaultPipeline(filteredRoles));
+};
+
 export function addContributorToSet(
   set: ContributorSetInternal,
   artist: RawArtist,
   source: ContributorSource,
-  role?: string
+  defaultRole?: string
 ): void {
+  // Guard against invalid artist IDs
+  if (!artist.id || artist.id === 0) {
+    return;
+  }
+
+  // Collect all roles into a single array for processing
+  const rolesToProcess: (string | undefined)[] = [
+    defaultRole,
+    ...(Array.isArray(artist.role) ? artist.role : [artist.role]),
+  ];
+
   const existing = set.contributors.get(artist.id);
+  const processedRoles = processRolesToSet(rolesToProcess);
 
   if (existing) {
     existing.sources.add(source);
-    if (role) {
-      existing.roles.add(role);
-    }
-    if (Array.isArray(artist.role)) {
-      artist.role.forEach((r) => r && existing.roles.add(r));
-    } else if (artist.role) {
-      existing.roles.add(artist.role);
-    }
+    // Add all processed roles to existing Set
+    processedRoles.forEach((role) => existing.roles.add(role));
   } else {
-    const roles = new Set<string>();
-    if (role) {
-      roles.add(role);
-    }
-    if (Array.isArray(artist.role)) {
-      artist.role.forEach((r) => r && roles.add(r));
-    } else if (artist.role) {
-      roles.add(artist.role);
-    }
-
     set.contributors.set(artist.id, {
       id: artist.id,
       name: artist.name,
-      roles,
+      roles: processedRoles,
       sources: new Set([source]),
       resourceUrl: artist.resource_url,
     });

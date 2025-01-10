@@ -9,8 +9,8 @@ export const ResultsDisplay: React.FC<{ searchId: string }> = ({
   return (
     <ResultsContainer>
       <FiltersContainer>
-        <RoleList searchId={searchId} />
         <ContributorList searchId={searchId} />
+        <RoleList searchId={searchId} />
       </FiltersContainer>
       <ReleaseList searchId={searchId} />
     </ResultsContainer>

@@ -1,6 +1,7 @@
-import React, { useRef, useEffect, useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { TooltipContainer, TooltipContent } from "./styles";
 import { TooltipPosition } from "./types";
+import { theme } from "../../../styles/theme";
 
 interface TooltipProps {
   content: React.ReactNode;
@@ -10,6 +11,11 @@ interface TooltipProps {
   maxHeight?: string;
 }
 
+interface PositionOffset {
+  position: TooltipPosition;
+  offset: number;
+}
+
 export const Tooltip: React.FC<TooltipProps> = ({
   content,
   children,
@@ -17,8 +23,10 @@ export const Tooltip: React.FC<TooltipProps> = ({
   maxWidth,
   maxHeight,
 }) => {
-  const [tooltipPosition, setTooltipPosition] =
-    useState<TooltipPosition>(position);
+  const [positionData, setPositionData] = useState<PositionOffset>({
+    position,
+    offset: -50, // Default 50% left offset
+  });
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -34,32 +42,41 @@ export const Tooltip: React.FC<TooltipProps> = ({
       };
 
       let newPosition = position;
+      let offsetPx = 0; // Start with no offset
 
-      // Check if tooltip would go off screen in current position
-      switch (position) {
-        case "top":
-          if (container.top - content.height < 0) {
-            newPosition = "bottom";
-          }
-          break;
-        case "bottom":
-          if (container.bottom + content.height > viewport.height) {
-            newPosition = "top";
-          }
-          break;
-        case "left":
-          if (container.left - content.width < 0) {
-            newPosition = "right";
-          }
-          break;
-        case "right":
-          if (container.right + content.width > viewport.width) {
-            newPosition = "left";
-          }
-          break;
+      // Check vertical overflow
+      if (position === "top" && container.top - content.height < 0) {
+        newPosition = "bottom";
+      } else if (
+        position === "bottom" &&
+        container.bottom + content.height > viewport.height
+      ) {
+        newPosition = "top";
       }
 
-      setTooltipPosition(newPosition);
+      // Handle horizontal overflow for top/bottom positions
+      if (["top", "bottom"].includes(newPosition)) {
+        const buffer = parseInt(theme.spacing.lg); // Get buffer from theme
+        const contentHalfWidth = content.width / 2;
+        const containerCenterX = container.left + container.width / 2;
+
+        // Check if tooltip would overflow right
+        if (containerCenterX + contentHalfWidth > viewport.width) {
+          // Just move it in by the overflow amount plus buffer
+          offsetPx =
+            viewport.width - (containerCenterX + contentHalfWidth) - buffer;
+        }
+        // Check if tooltip would overflow left
+        else if (containerCenterX - contentHalfWidth < 0) {
+          // Just move it out by the overflow amount plus buffer
+          offsetPx = contentHalfWidth - containerCenterX + buffer;
+        }
+      }
+
+      setPositionData({
+        position: newPosition,
+        offset: offsetPx,
+      });
     };
 
     // Update position on mount and window resize
@@ -73,7 +90,8 @@ export const Tooltip: React.FC<TooltipProps> = ({
       {children}
       <TooltipContent
         ref={contentRef}
-        $position={tooltipPosition}
+        $position={positionData.position}
+        $offsetPx={positionData.offset}
         $maxWidth={maxWidth}
         $maxHeight={maxHeight}
       >

@@ -37,7 +37,7 @@ export const RoleList: React.FC<{ searchId: string }> = ({ searchId }) => {
             <Tooltip
               key={role}
               content={tooltipContent}
-              position="left"
+              position="top"
               maxWidth="500px"
               maxHeight="400px"
             >

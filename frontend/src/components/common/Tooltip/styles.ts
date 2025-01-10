@@ -2,29 +2,29 @@ import styled, { css } from "styled-components";
 import { TooltipStyleProps } from "./types";
 
 const positionStyles = {
-  top: css`
+  top: css<TooltipStyleProps>`
     bottom: 100%;
     left: 50%;
-    transform: translateX(-50%);
+    transform: translateX(calc(-50% + ${(props) => props.$offsetPx}px));
     margin-bottom: ${({ theme }) => theme.spacing.sm};
 
     &::after {
       top: 100%;
-      left: 50%;
+      left: calc(50% - ${(props) => props.$offsetPx}px);
       transform: translateX(-50%);
       border-color: ${({ theme }) => theme.colors.primary.main} transparent
         transparent transparent;
     }
   `,
-  bottom: css`
+  bottom: css<TooltipStyleProps>`
     top: 100%;
     left: 50%;
-    transform: translateX(-50%);
+    transform: translateX(calc(-50% + ${(props) => props.$offsetPx}px));
     margin-top: ${({ theme }) => theme.spacing.sm};
 
     &::after {
       bottom: 100%;
-      left: 50%;
+      left: calc(50% - ${(props) => props.$offsetPx}px);
       transform: translateX(-50%);
       border-color: transparent transparent
         ${({ theme }) => theme.colors.primary.main} transparent;

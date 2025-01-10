@@ -7,9 +7,17 @@ import {
 describe("Role Processing Pipeline", () => {
   // Individual transformer tests
   describe("removeBracketContent", () => {
-    const pipeline = createPipeline([
-      createSingleRoleTransformer((role) => role.replace(/\[.*?\]/g, "")),
-    ]);
+    const removeBracketContent = createSingleRoleTransformer((role) => {
+      let result = role;
+      let previousResult;
+      do {
+        previousResult = result;
+        result = result.replace(/\[[^[\]]*\]/g, "");
+      } while (result !== previousResult);
+      return result;
+    });
+
+    const pipeline = createPipeline([removeBracketContent]);
 
     it("removes content within square brackets", () => {
       expect(pipeline(["Vocals [lead]"])).toEqual(["Vocals "]);
@@ -29,9 +37,8 @@ describe("Role Processing Pipeline", () => {
   });
 
   describe("trimWhitespace", () => {
-    const pipeline = createPipeline([
-      createSingleRoleTransformer((role) => role.trim()),
-    ]);
+    const trimWhitespace = createSingleRoleTransformer((role) => role.trim());
+    const pipeline = createPipeline([trimWhitespace]);
 
     it("trims leading and trailing whitespace", () => {
       expect(pipeline(["  Vocals  "])).toEqual(["Vocals"]);
@@ -47,9 +54,10 @@ describe("Role Processing Pipeline", () => {
   });
 
   describe("replaceHyphensWithSpaces", () => {
-    const pipeline = createPipeline([
-      createSingleRoleTransformer((role) => role.replace(/[-–—]/g, " ")),
-    ]);
+    const replaceHyphensWithSpaces = createSingleRoleTransformer((role) =>
+      role.replace(/[-–—]/g, " ").replace(/\s+/g, " ")
+    );
+    const pipeline = createPipeline([replaceHyphensWithSpaces]);
 
     it("replaces standard hyphens", () => {
       expect(pipeline(["Lead-Guitar"])).toEqual(["Lead Guitar"]);
@@ -71,19 +79,19 @@ describe("Role Processing Pipeline", () => {
   });
 
   describe("capitalizeAfterSpace", () => {
-    const pipeline = createPipeline([
-      createSingleRoleTransformer((role) =>
-        role.replace(/\s+[a-z]/g, (match) => match.toUpperCase())
-      ),
-    ]);
+    const capitalizeAfterSpace = createSingleRoleTransformer((role) => {
+      const result = role.charAt(0).toUpperCase() + role.slice(1);
+      return result.replace(/\s+[a-z]/g, (match) => match.toUpperCase());
+    });
+    const pipeline = createPipeline([capitalizeAfterSpace]);
 
     it("capitalizes words after spaces", () => {
-      expect(pipeline(["lead guitar"])).toEqual(["lead Guitar"]);
+      expect(pipeline(["lead guitar"])).toEqual(["Lead Guitar"]);
     });
 
     it("handles multiple words", () => {
       expect(pipeline(["rhythm and bass guitar"])).toEqual([
-        "rhythm And Bass Guitar",
+        "Rhythm And Bass Guitar",
       ]);
     });
 
@@ -93,15 +101,15 @@ describe("Role Processing Pipeline", () => {
 
     it("handles multiple spaces", () => {
       expect(pipeline(["drums  and  percussion"])).toEqual([
-        "drums  And  Percussion",
+        "Drums  And  Percussion",
       ]);
     });
   });
 
   describe("splitCommaDelimited", () => {
-    const pipeline = createPipeline([
-      (roles) => roles.flatMap((role) => role.split(",").map((r) => r.trim())),
-    ]);
+    const splitCommaDelimited = (roles: string[]): string[] =>
+      roles.flatMap((role) => role.split(",").map((r) => r.trim()));
+    const pipeline = createPipeline([splitCommaDelimited]);
 
     it("splits comma-separated roles", () => {
       expect(pipeline(["Guitar, Bass"])).toEqual(["Guitar", "Bass"]);
@@ -133,9 +141,9 @@ describe("Role Processing Pipeline", () => {
   });
 
   describe("removeEmptyRoles", () => {
-    const pipeline = createPipeline([
-      (roles) => roles.filter((role) => role.length > 0),
-    ]);
+    const removeEmptyRoles = (roles: string[]): string[] =>
+      roles.filter((role) => role.trim().length > 0);
+    const pipeline = createPipeline([removeEmptyRoles]);
 
     it("removes empty strings", () => {
       expect(pipeline(["", "Guitar", ""])).toEqual(["Guitar"]);
@@ -151,7 +159,9 @@ describe("Role Processing Pipeline", () => {
   });
 
   describe("removeDuplicates", () => {
-    const pipeline = createPipeline([(roles) => Array.from(new Set(roles))]);
+    const removeDuplicates = (roles: string[]): string[] =>
+      Array.from(new Set(roles));
+    const pipeline = createPipeline([removeDuplicates]);
 
     it("removes duplicate roles", () => {
       expect(pipeline(["Guitar", "Bass", "Guitar"])).toEqual([
@@ -173,7 +183,6 @@ describe("Role Processing Pipeline", () => {
     });
   });
 
-  // Full pipeline integration tests
   describe("defaultPipeline", () => {
     it("processes complex roles correctly", () => {
       const input = [
@@ -211,7 +220,6 @@ describe("Role Processing Pipeline", () => {
     });
   });
 
-  // Custom pipeline creation tests
   describe("createPipeline", () => {
     it("allows custom transformer combinations", () => {
       const customPipeline = createPipeline([

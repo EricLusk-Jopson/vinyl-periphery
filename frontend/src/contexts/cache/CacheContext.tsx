@@ -3,6 +3,7 @@ import React, {
   useContext,
   useCallback,
   useEffect,
+  useMemo,
 } from "react";
 import {
   Contributor,
@@ -11,6 +12,7 @@ import {
   EnrichedRelease,
 } from "../../api/types";
 import { CacheContextValue, CacheState, SearchCache } from "./types";
+import { calculateReleaseScore } from "@/api/contributorSet";
 
 const CacheContext = createContext<CacheContextValue | null>(null);
 
@@ -262,4 +264,60 @@ export const useSearchFilters = (searchId: string) => {
     isRoleDisabled,
     filterState: search?.filterState,
   };
+};
+
+// Custom hook for filtered results
+export const useFilteredAndScoredReleases = (searchId: string) => {
+  const { searches } = useCache();
+  const { isContributorActive } = useSearchFilters(searchId);
+  const search = searches[searchId];
+
+  return useMemo(() => {
+    if (!search)
+      return {
+        releases: [],
+        count: 0,
+      };
+
+    const processedReleases = Object.values(search.releases)
+      .map((release) => {
+        // Deduplicate contributor IDs once
+        const uniqueContributorIds = Array.from(
+          new Set(release.contributorIds)
+        );
+
+        // Check if this release should be included
+        const hasActiveContributor = uniqueContributorIds.some((id) =>
+          isContributorActive(id)
+        );
+
+        if (!hasActiveContributor) return null;
+
+        const { score, confidence } = calculateReleaseScore(
+          { ...release, contributorIds: uniqueContributorIds },
+          {
+            contributors: search.contributors,
+            isContributorActive,
+          }
+        );
+
+        return {
+          ...release,
+          score,
+          confidence,
+          activeContributors: uniqueContributorIds.filter((id) =>
+            isContributorActive(id)
+          ),
+        };
+      })
+      .filter(
+        (release): release is NonNullable<typeof release> => release !== null
+      )
+      .sort((a, b) => b.score * b.confidence - a.score * a.confidence);
+
+    return {
+      releases: processedReleases,
+      count: processedReleases.length,
+    };
+  }, [search, isContributorActive]);
 };

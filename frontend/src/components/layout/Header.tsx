@@ -17,13 +17,17 @@ import {
 } from "./styles";
 import { ContributorList } from "../resultsDisplay/ContributorList";
 import { RoleList } from "../resultsDisplay/RoleList";
-import { useCache } from "../../contexts/cache/CacheContext";
+import {
+  useCache,
+  useFilteredAndScoredReleases,
+} from "../../contexts/cache/CacheContext";
 
 export const Header: React.FC = () => {
   const [isVisible, setIsVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
   const { getActiveSearch } = useCache();
   const activeSearch = getActiveSearch();
+  const { count } = useFilteredAndScoredReleases(activeSearch?.searchId || "");
 
   useEffect(() => {
     const handleScroll = () => {
@@ -71,7 +75,7 @@ export const Header: React.FC = () => {
           </SheetTrigger>
           <StyledSheetContent side="right">
             <SheetHeader>
-              <SheetTitle>Filters</SheetTitle>
+              <SheetTitle>Filters ({count} matches)</SheetTitle>
             </SheetHeader>
             <CloseButton>
               <X size={24} />

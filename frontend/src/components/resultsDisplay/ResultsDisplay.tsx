@@ -1,12 +1,11 @@
 import { ReleaseList } from "./ReleaseList";
-import { ResultsContainer } from "./styles";
 
 export const ResultsDisplay: React.FC<{ searchId: string }> = ({
   searchId,
 }) => {
   return (
-    <ResultsContainer>
+    <div className="grid gap-lg mx-auto w-full max-w-xl">
       <ReleaseList searchId={searchId} />
-    </ResultsContainer>
+    </div>
   );
 };

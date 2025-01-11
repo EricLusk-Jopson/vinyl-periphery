@@ -1,13 +1,12 @@
-// In ContributorList.tsx
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Section, SectionTitle, Grid, FilterToggle } from "./styles";
 import { useCache, useSearchFilters } from "@/contexts/cache/CacheContext";
 import { defaultContributorDisplayPipeline } from "@/lib/transformers/contributorProcessor";
+import { FilterButton } from "../common/FilterButton";
 
 export const ContributorList: React.FC<{ searchId: string }> = ({
   searchId,
@@ -20,9 +19,11 @@ export const ContributorList: React.FC<{ searchId: string }> = ({
   if (!search) return null;
 
   return (
-    <Section>
-      <SectionTitle>Contributors</SectionTitle>
-      <Grid>
+    <section className="w-full overflow-x-hidden bg-bg-secondary p-lg">
+      <h2 className="font-primary text-lg tracking-normal text-text-primary mb-md">
+        Contributors
+      </h2>
+      <div className="flex flex-wrap gap-md w-full">
         <TooltipProvider>
           {Object.entries(search.contributors).map(([idStr, contributor]) => {
             const id = Number(idStr);
@@ -31,13 +32,13 @@ export const ContributorList: React.FC<{ searchId: string }> = ({
             return (
               <Tooltip key={id} delayDuration={500}>
                 <TooltipTrigger asChild>
-                  <FilterToggle
+                  <FilterButton
                     onClick={() => toggleContributor(id)}
-                    $isActive={isContributorActive(id)}
+                    isActive={isContributorActive(id)}
                     disabled={isContributorDisabled(id)}
                   >
                     {name}
-                  </FilterToggle>
+                  </FilterButton>
                 </TooltipTrigger>
                 <TooltipContent className="max-w-[400px]">
                   <div className="flex flex-col gap-1">
@@ -50,7 +51,7 @@ export const ContributorList: React.FC<{ searchId: string }> = ({
             );
           })}
         </TooltipProvider>
-      </Grid>
-    </Section>
+      </div>
+    </section>
   );
 };

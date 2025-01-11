@@ -58,7 +58,7 @@ export const Header: React.FC = () => {
           </SheetTrigger>
           <SheetContent
             side="left"
-            className="bg-bg-primary border-r border-primary-main z-modal overflow-y-auto overflow-x-hidden p-xl"
+            className="bg-bg-primary border-r border-primary-main z-modal overflow-y-auto overflow-x-hidden p-xl w-[300px]"
           >
             <SheetHeader>
               <SheetTitle>Menu</SheetTitle>
@@ -81,11 +81,16 @@ export const Header: React.FC = () => {
           </SheetTrigger>
           <SheetContent
             side="right"
-            className="bg-bg-primary border-l border-primary-main z-modal overflow-y-auto overflow-x-hidden p-xl"
+            className={cn(
+              "bg-bg-primary border-l border-primary-main z-modal",
+              "p-xl fixed top-0 right-0 h-full",
+              "w-full",
+              "overflow-y-auto overflow-x-hidden"
+            )}
           >
-            <SheetHeader>
+            <SheetHeader className="relative">
               <SheetTitle>Filters ({count} matches)</SheetTitle>
-              <SheetClose className="absolute right-md top-md bg-transparent border-none text-text-primary p-sm hover:text-primary-main">
+              <SheetClose className="absolute right-0 top-0 bg-transparent border-none text-text-primary p-sm hover:text-primary-main">
                 <X size={24} />
               </SheetClose>
             </SheetHeader>

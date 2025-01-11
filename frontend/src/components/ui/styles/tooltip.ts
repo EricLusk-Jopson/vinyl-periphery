@@ -5,7 +5,7 @@ export const StyledTooltipContent = styled(TooltipPrimitive.Content)`
   z-index: 50;
   overflow: hidden;
   border-radius: ${({ theme }) => theme.borderRadius.sm};
-  border: 2px solid ${({ theme }) => theme.colors.border.light};
+  border: 2px solid ${({ theme }) => theme.colors.border.dark};
   background-color: ${({ theme }) => theme.colors.background.primary};
   color: ${({ theme }) => theme.colors.text.primary};
   padding: ${({ theme }) => `${theme.spacing.xs} ${theme.spacing.sm}`};

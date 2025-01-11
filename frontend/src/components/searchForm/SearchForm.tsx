@@ -38,7 +38,7 @@ export const SearchForm: React.FC<SearchFormProps> = ({
     <form
       onSubmit={handleSubmit}
       aria-busy={isSearching}
-      className="grid gap-md max-w-[600px] mx-auto my-lg p-lg bg-bg-secondary"
+      className="grid gap-md max-w-[600px] mx-auto my-2xl p-lg bg-bg-secondary"
     >
       <div className="grid gap-sm">
         <Label

@@ -8,8 +8,8 @@ import {
 } from "./api/mutations";
 import { EnrichedRelease, SearchParams } from "./api/types";
 import { useCache, CacheProvider } from "./contexts/cache/CacheContext";
-import { ResultsDisplay } from "./components/resultsDisplay/ResultsDisplay";
 import { Header } from "./components/layout/Header";
+import { ReleaseList } from "./components/resultsDisplay/ReleaseList";
 
 // Separate component to handle search logic
 const SearchContainer: React.FC = () => {
@@ -64,7 +64,7 @@ const SearchContainer: React.FC = () => {
   return (
     <main className="flex-1 container mx-auto px-4 py-8">
       <SearchForm onSearch={handleSearch} isSearching={isSearching} />
-      {activeSearch && <ResultsDisplay searchId={activeSearch.searchId} />}
+      {activeSearch && <ReleaseList searchId={activeSearch.searchId} />}
     </main>
   );
 };

@@ -21,21 +21,20 @@ export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
         {releases.map((release) => (
           <Card
             key={release.id}
-            className="max-w-[80%] w-[700px] mx-auto border-primary-main bg-bg-primary"
+            className="max-w-[80%] w-[1000px] mx-auto border-primary-main bg-bg-primary"
           >
             <CardHeader className="pb-0">
-              <CardTitle className="font-primary text-md tracking-normal text-text-primary mb-sm">
-                {release.title}
+              <CardTitle className="font-primary text-md tracking-normal text-text-primary mb-sm flex justify-between">
+                <span>
+                  {release.artist} - {release.title}{" "}
+                </span>
+                <span>
+                  {(release.score * 100).toFixed(0)} /
+                  {(release.confidence * 100).toFixed(0)}
+                </span>
               </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-sm">
-              <p className="text-text-secondary font-secondary text-sm">
-                {release.artist} • {release.year}
-              </p>
-              <p className="text-text-secondary font-secondary text-sm">
-                Match Score: {(release.score * 100).toFixed(1)}% • Confidence:{" "}
-                {(release.confidence * 100).toFixed(1)}%
-              </p>
               <p className="text-text-secondary font-secondary text-sm mt-md">
                 Active Contributors:{" "}
                 {Array.from(

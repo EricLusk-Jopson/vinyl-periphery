@@ -1,7 +1,5 @@
 import React from "react";
-import { ThemeProvider } from "styled-components";
-import { GlobalStyles } from "./styles/GlobalStyles";
-import { theme } from "./styles/theme";
+import "./styles/globals.css";
 import { SearchForm } from "./components/searchForm/SearchForm";
 import {
   useDiscogsSearch,
@@ -10,9 +8,8 @@ import {
 } from "./api/mutations";
 import { EnrichedRelease, SearchParams } from "./api/types";
 import { useCache, CacheProvider } from "./contexts/cache/CacheContext";
-import { ResultsDisplay } from "./components/resultsDisplay/ResultsDisplay";
-import { AppContainer, MainContent } from "./components/layout/styles";
 import { Header } from "./components/layout/Header";
+import { ReleaseList } from "./components/resultsDisplay/ReleaseList";
 
 // Separate component to handle search logic
 const SearchContainer: React.FC = () => {
@@ -50,12 +47,10 @@ const SearchContainer: React.FC = () => {
           id,
           {
             ...release,
-            contributorIds: Array.from(release.contributorIds), // Also convert Set to array
+            contributorIds: Array.from(release.contributorIds),
           },
         ])
       ) as Record<number, EnrichedRelease>;
-
-      console.log(searchResults, contributorSet, releasesMap, releasesRecord);
 
       // Add to cache
       addSearch(params, contributorSet, releasesRecord);
@@ -67,26 +62,21 @@ const SearchContainer: React.FC = () => {
   const activeSearch = getActiveSearch();
 
   return (
-    <MainContent>
+    <main className="flex-1 container mx-auto px-4 py-8">
       <SearchForm onSearch={handleSearch} isSearching={isSearching} />
-      {activeSearch && <ResultsDisplay searchId={activeSearch.searchId} />}
-    </MainContent>
+      {activeSearch && <ReleaseList searchId={activeSearch.searchId} />}
+    </main>
   );
 };
 
 const App: React.FC = () => {
   return (
-    <ThemeProvider theme={theme}>
-      <GlobalStyles theme={theme} />
-      <CacheProvider>
-        <AppContainer>
-          <Header />
-          <MainContent>
-            <SearchContainer />
-          </MainContent>
-        </AppContainer>
-      </CacheProvider>
-    </ThemeProvider>
+    <CacheProvider>
+      <div className="min-h-screen bg-background flex flex-col">
+        <Header />
+        <SearchContainer />
+      </div>
+    </CacheProvider>
   );
 };
 

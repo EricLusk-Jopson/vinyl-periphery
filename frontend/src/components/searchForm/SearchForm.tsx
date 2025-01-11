@@ -1,14 +1,10 @@
 import React, { useState } from "react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { SearchParams } from "../../api/types";
-import {
-  Form,
-  Input,
-  InputGroup,
-  Label,
-  SearchingIndicator,
-  SubmitButton,
-} from "./styles";
 import { SearchFormProps } from "./types";
+import { cn } from "@/lib/utils";
 
 export const SearchForm: React.FC<SearchFormProps> = ({
   onSearch,
@@ -34,15 +30,23 @@ export const SearchForm: React.FC<SearchFormProps> = ({
     try {
       await onSearch(formData);
     } catch (error) {
-      // Error handling is done at the App level
       console.error("Search error:", error);
     }
   };
 
   return (
-    <Form onSubmit={handleSubmit} aria-busy={isSearching}>
-      <InputGroup>
-        <Label htmlFor="artist">Artist</Label>
+    <form
+      onSubmit={handleSubmit}
+      aria-busy={isSearching}
+      className="grid gap-md max-w-[600px] mx-auto my-2xl p-lg bg-bg-secondary"
+    >
+      <div className="grid gap-sm">
+        <Label
+          htmlFor="artist"
+          className="text-text-primary text-sm font-secondary tracking-normal"
+        >
+          Artist
+        </Label>
         <Input
           id="artist"
           name="artist"
@@ -53,11 +57,21 @@ export const SearchForm: React.FC<SearchFormProps> = ({
           required
           autoComplete="off"
           aria-label="Artist name"
+          className={cn(
+            "bg-bg-primary text-text-primary text-md font-secondary w-full",
+            "border-primary-main focus:border-primary-dark",
+            "placeholder:text-text-secondary"
+          )}
         />
-      </InputGroup>
+      </div>
 
-      <InputGroup>
-        <Label htmlFor="album">Album</Label>
+      <div className="grid gap-sm">
+        <Label
+          htmlFor="album"
+          className="text-text-primary text-sm font-secondary tracking-normal"
+        >
+          Album
+        </Label>
         <Input
           id="album"
           name="album"
@@ -68,23 +82,34 @@ export const SearchForm: React.FC<SearchFormProps> = ({
           required
           autoComplete="off"
           aria-label="Album name"
+          className={cn(
+            "bg-bg-primary text-text-primary text-md font-secondary w-full",
+            "border-primary-main focus:border-primary-dark",
+            "placeholder:text-text-secondary"
+          )}
         />
-      </InputGroup>
+      </div>
 
-      <SubmitButton
+      <Button
         type="submit"
         disabled={isSearching}
-        $isSearching={isSearching}
+        className={cn(
+          "w-full p-md font-primary text-md tracking-normal",
+          "bg-primary-main hover:bg-primary-dark text-text-primary",
+          "transition-colors duration-200",
+          "disabled:opacity-70 disabled:cursor-not-allowed",
+          isSearching && "bg-text-disabled cursor-wait"
+        )}
         aria-label={isSearching ? "Searching..." : "Search"}
       >
         {isSearching ? "Searching..." : "Search"}
-      </SubmitButton>
+      </Button>
 
       {isSearching && (
-        <SearchingIndicator>
+        <div className="text-center text-text-secondary text-sm font-secondary mt-sm">
           Searching through album credits... This may take a moment.
-        </SearchingIndicator>
+        </div>
       )}
-    </Form>
+    </form>
   );
 };

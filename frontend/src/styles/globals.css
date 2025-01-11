@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Font loading optimization */
+  html {
+    font-family: system-ui, sans-serif;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Ensure the fonts are declared with proper fallbacks */
+  .font-primary {
+    font-family: "Bebas Neue", Impact, "Arial Narrow Bold", sans-serif;
+    /* Impact and Arial Narrow Bold are visually similar to Bebas Neue */
+  }
+
+  .font-secondary {
+    font-family: "Monda", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    /* Modern system fonts that are similar to Monda */
+  }
+
+  :root {
+    /* Theme variables */
+    --background: 0 0% 0%;
+    --foreground: 0 0% 100%;
+    --primary: 1 74% 46%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 7%;
+    --secondary-foreground: 0 0% 100%;
+    --card: 0 0% 13%;
+    --card-foreground: 0 0% 100%;
+    --popover: 0 0% 13%;
+    --popover-foreground: 0 0% 100%;
+    --muted: 0 0% 7%;
+    --muted-foreground: 0 0% 80%;
+    --accent: 0 0% 7%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 4 89% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 1 74% 46%;
+    --ring: 1 74% 46%;
+    --input: 0 0% 7%;
+    --radius: 0.5rem;
+
+    /* Font feature settings for better typography */
+    font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1, "ss02" 1;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Font loading optimization */
+@layer components {
+  .font-loading {
+    /* Style while fonts are loading */
+    font-family: system-ui, sans-serif;
+    @apply animate-pulse;
+  }
+}
+
+/* Optional: Add CSS Font Loading API support */
+@supports (font-variation-settings: normal) {
+  html {
+    /* If variable fonts are supported, we can optimize further */
+    font-optical-sizing: auto;
+  }
+}

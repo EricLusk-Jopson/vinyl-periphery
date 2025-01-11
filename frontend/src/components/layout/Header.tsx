@@ -5,22 +5,16 @@ import {
   SheetHeader,
   SheetTitle,
   SheetTrigger,
+  SheetContent,
+  SheetClose,
 } from "@/components/ui/sheet";
-import {
-  HeaderWrapper,
-  HeaderContent,
-  HeaderButton,
-  StyledSheetContent,
-  CloseButton,
-  StyledTitle,
-  FilterContainer,
-} from "./styles";
 import { ContributorList } from "../resultsDisplay/ContributorList";
 import { RoleList } from "../resultsDisplay/RoleList";
 import {
   useCache,
   useFilteredAndScoredReleases,
 } from "../../contexts/cache/CacheContext";
+import { cn } from "@/lib/utils";
 
 export const Header: React.FC = () => {
   const [isVisible, setIsVisible] = useState(true);
@@ -47,48 +41,68 @@ export const Header: React.FC = () => {
   }, [lastScrollY]);
 
   return (
-    <HeaderWrapper $visible={isVisible}>
-      <HeaderContent>
+    <header
+      className={cn(
+        "fixed top-0 left-0 right-0 bg-bg-primary border-b border-primary-main",
+        "transition-transform duration-normal",
+        "z-header",
+        isVisible ? "translate-y-0" : "-translate-y-full"
+      )}
+    >
+      <div className="flex justify-between items-center px-md py-md max-w-lg mx-auto w-full">
         <Sheet>
           <SheetTrigger asChild>
-            <HeaderButton>
+            <button className="bg-transparent border-none text-text-primary p-sm hover:text-primary-main">
               <Menu size={24} />
-            </HeaderButton>
+            </button>
           </SheetTrigger>
-          <StyledSheetContent side="left">
+          <SheetContent
+            side="left"
+            className="bg-bg-primary border-r border-primary-main z-modal overflow-y-auto overflow-x-hidden p-xl w-[300px]"
+          >
             <SheetHeader>
               <SheetTitle>Menu</SheetTitle>
+              <SheetClose className="absolute right-md top-md bg-transparent border-none text-text-primary p-sm hover:text-primary-main">
+                <X size={24} />
+              </SheetClose>
             </SheetHeader>
-            <CloseButton>
-              <X size={24} />
-            </CloseButton>
-          </StyledSheetContent>
+          </SheetContent>
         </Sheet>
 
-        <StyledTitle>Vinyl Periphery</StyledTitle>
+        <h1 className="font-primary text-lg tracking-wide text-primary-main m-0">
+          Vinyl Periphery
+        </h1>
 
         <Sheet>
           <SheetTrigger asChild>
-            <HeaderButton>
+            <button className="bg-transparent border-none text-text-primary p-sm hover:text-primary-main">
               <SlidersHorizontal size={24} />
-            </HeaderButton>
+            </button>
           </SheetTrigger>
-          <StyledSheetContent side="right">
-            <SheetHeader>
+          <SheetContent
+            side="right"
+            className={cn(
+              "bg-bg-primary border-l border-primary-main z-modal",
+              "p-xl fixed top-0 right-0 h-full",
+              "w-full",
+              "overflow-y-auto overflow-x-hidden"
+            )}
+          >
+            <SheetHeader className="relative">
               <SheetTitle>Filters ({count} matches)</SheetTitle>
+              <SheetClose className="absolute right-0 top-0 bg-transparent border-none text-text-primary p-sm hover:text-primary-main">
+                <X size={24} />
+              </SheetClose>
             </SheetHeader>
-            <CloseButton>
-              <X size={24} />
-            </CloseButton>
             {activeSearch && (
-              <FilterContainer>
+              <div className="flex flex-col gap-lg mt-xl w-full">
                 <ContributorList searchId={activeSearch.searchId} />
                 <RoleList searchId={activeSearch.searchId} />
-              </FilterContainer>
+              </div>
             )}
-          </StyledSheetContent>
+          </SheetContent>
         </Sheet>
-      </HeaderContent>
-    </HeaderWrapper>
+      </div>
+    </header>
   );
 };

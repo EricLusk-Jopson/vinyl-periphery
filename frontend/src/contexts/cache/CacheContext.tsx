@@ -80,6 +80,8 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
           acc[role] = true;
           return acc;
         }, {} as Record<string, boolean>),
+        excludeMainArtist: false,
+        collaborationsOnly: false,
       };
 
       setState((prev) => ({
@@ -202,7 +204,6 @@ export const useSearchFilters = (searchId: string) => {
     [search, searchId, updateFilterState]
   );
 
-  // In useSearchFilters hook
   const resetAllFilters = useCallback(() => {
     if (!search) return;
     updateFilterState(searchId, {
@@ -312,6 +313,20 @@ export const useSearchFilters = (searchId: string) => {
     );
   }, [search]);
 
+  const toggleExcludeMainArtist = useCallback(() => {
+    if (!search) return;
+    updateFilterState(searchId, {
+      excludeMainArtist: !search.filterState.excludeMainArtist,
+    });
+  }, [search, searchId, updateFilterState]);
+
+  const toggleCollaborationsOnly = useCallback(() => {
+    if (!search) return;
+    updateFilterState(searchId, {
+      collaborationsOnly: !search.filterState.collaborationsOnly,
+    });
+  }, [search, searchId, updateFilterState]);
+
   return {
     toggleContributor,
     toggleRole,
@@ -324,6 +339,8 @@ export const useSearchFilters = (searchId: string) => {
     isRoleDisabled,
     areAllRolesInactive,
     areAllContributorsInactive,
+    toggleExcludeMainArtist,
+    toggleCollaborationsOnly,
     filterState: search?.filterState,
   };
 };
@@ -335,25 +352,41 @@ export const useFilteredAndScoredReleases = (searchId: string) => {
   const search = searches[searchId];
 
   return useMemo(() => {
-    if (!search)
-      return {
-        releases: [],
-        count: 0,
-      };
+    if (!search) return { releases: [], count: 0 };
 
     const processedReleases = Object.values(search.releases)
       .map((release) => {
-        // Deduplicate contributor IDs once
+        // Deduplicate contributors
         const uniqueContributorIds = Array.from(
           new Set(release.contributorIds)
         );
 
-        // Check if this release should be included
-        const hasActiveContributor = uniqueContributorIds.some((id) =>
+        // Get active contributors for this release
+        const activeContributors = uniqueContributorIds.filter((id) =>
           isContributorActive(id)
         );
 
-        if (!hasActiveContributor) return null;
+        // Skip if no active contributors
+        if (activeContributors.length === 0) return null;
+
+        // Apply collaborations only filter
+        if (
+          search.filterState.collaborationsOnly &&
+          activeContributors.length < 2
+        ) {
+          return null;
+        }
+
+        // Apply exclude main artist filter
+        if (search.filterState.excludeMainArtist) {
+          // Assuming the first word in the search params is the main artist
+          const searchArtist = search.searchParams.artist
+            .split(" ")[0]
+            .toLowerCase();
+          if (release.artist.toLowerCase().includes(searchArtist)) {
+            return null;
+          }
+        }
 
         const { score, confidence } = calculateReleaseScore(
           { ...release, contributorIds: uniqueContributorIds },
@@ -367,9 +400,7 @@ export const useFilteredAndScoredReleases = (searchId: string) => {
           ...release,
           score,
           confidence,
-          activeContributors: uniqueContributorIds.filter((id) =>
-            isContributorActive(id)
-          ),
+          activeContributors,
         };
       })
       .filter(

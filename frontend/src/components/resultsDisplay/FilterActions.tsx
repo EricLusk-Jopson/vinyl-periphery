@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { useSearchFilters } from "@/contexts/cache/CacheContext";
+import { cn } from "@/lib/utils";
 
 export const FilterActions: React.FC<{ searchId: string }> = ({ searchId }) => {
   const {
@@ -8,6 +9,9 @@ export const FilterActions: React.FC<{ searchId: string }> = ({ searchId }) => {
     excludeAllContributors,
     areAllRolesInactive,
     areAllContributorsInactive,
+    toggleExcludeMainArtist,
+    toggleCollaborationsOnly,
+    filterState,
   } = useSearchFilters(searchId);
 
   return (
@@ -31,6 +35,30 @@ export const FilterActions: React.FC<{ searchId: string }> = ({ searchId }) => {
           className="w-fit"
         >
           Exclude All Contributors
+        </Button>
+      </div>
+      <div className="flex flex-row gap-sm w-full flex-wrap mt-sm">
+        <Button
+          variant="outline"
+          onClick={toggleExcludeMainArtist}
+          className={cn(
+            "w-fit",
+            filterState?.excludeMainArtist &&
+              "bg-primary-main text-white hover:bg-primary-main/90"
+          )}
+        >
+          Exclude Main Artist
+        </Button>
+        <Button
+          variant="outline"
+          onClick={toggleCollaborationsOnly}
+          className={cn(
+            "w-fit",
+            filterState?.collaborationsOnly &&
+              "bg-primary-main text-white hover:bg-primary-main/90"
+          )}
+        >
+          Collaborations Only
         </Button>
       </div>
     </section>

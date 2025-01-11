@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Menu, SlidersHorizontal, X } from "lucide-react";
+import { History, SlidersHorizontal, X } from "lucide-react";
 import {
   Sheet,
   SheetHeader,
@@ -16,6 +16,7 @@ import {
 } from "../../contexts/cache/CacheContext";
 import { cn } from "@/lib/utils";
 import { FilterActions } from "../resultsDisplay/FilterActions";
+import HistoryPanel from "../resultsDisplay/HistoryPanel";
 
 export const Header: React.FC = () => {
   const [isVisible, setIsVisible] = useState(true);
@@ -54,19 +55,20 @@ export const Header: React.FC = () => {
         <Sheet>
           <SheetTrigger asChild>
             <button className="bg-transparent border-none text-text-primary p-sm hover:text-primary-main">
-              <Menu size={24} />
+              <History size={24} />
             </button>
           </SheetTrigger>
           <SheetContent
             side="left"
-            className="bg-bg-primary border-r border-primary-main z-modal overflow-y-auto overflow-x-hidden p-xl w-[300px]"
+            className="bg-bg-primary border-r border-primary-main z-modal overflow-y-auto overflow-x-hidden p-xl w-[500px]"
           >
             <SheetHeader>
-              <SheetTitle>Menu</SheetTitle>
+              <SheetTitle>History</SheetTitle>
               <SheetClose className="absolute right-md top-md bg-transparent border-none text-text-primary p-sm hover:text-primary-main">
                 <X size={24} />
               </SheetClose>
             </SheetHeader>
+            <HistoryPanel />
           </SheetContent>
         </Sheet>
 

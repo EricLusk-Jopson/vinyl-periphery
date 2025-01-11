@@ -8,23 +8,6 @@ export const ResultsContainer = styled.div`
   max-width: ${({ theme }) => theme.breakpoints.xl};
 `;
 
-// New component for the top filters section
-export const FiltersContainer = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: ${({ theme }) => theme.spacing.lg};
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
-    grid-template-columns: 1fr;
-  }
-`;
-
-export const Section = styled.section<{ $fullWidth?: boolean }>`
-  background: ${({ theme }) => theme.colors.background.secondary};
-  padding: ${({ theme }) => theme.spacing.lg};
-  width: 100%;
-`;
-
 export const SectionTitle = styled.h2`
   font-family: ${({ theme }) => theme.typography.fontFamily.primary};
   font-size: ${({ theme }) => theme.typography.fontSize.lg};
@@ -33,46 +16,11 @@ export const SectionTitle = styled.h2`
   margin-bottom: ${({ theme }) => theme.spacing.md};
 `;
 
-export const Grid = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: ${({ theme }) => theme.spacing.md};
-`;
-
 export const Stack = styled.div`
   display: flex;
   flex-direction: column;
   padding: ${({ theme }) => theme.spacing.md};
   gap: ${({ theme }) => theme.spacing.md};
-`;
-
-export const FilterToggle = styled.button<{ $isActive: boolean }>`
-  display: inline-flex;
-  align-items: center;
-  padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.sm};
-  background: ${({ theme, $isActive }) =>
-    $isActive ? theme.colors.primary.main : theme.colors.background.primary};
-  color: ${({ theme }) => theme.colors.text.primary};
-  border: 1px solid ${({ theme }) => theme.colors.primary.main};
-  font-family: ${({ theme }) => theme.typography.fontFamily.secondary};
-  font-size: ${({ theme }) => theme.typography.fontSize.sm};
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.2s ease-in-out;
-
-  &:hover:not(:disabled) {
-    background: ${({ theme }) => theme.colors.primary.dark};
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    background: ${({ theme }) => theme.colors.background.primary};
-    border-color: ${({ theme }) => theme.colors.text.disabled};
-    &:hover {
-      background: ${({ theme }) => theme.colors.background.primary};
-    }
-  }
 `;
 
 export const ReleaseCard = styled.div`
@@ -103,4 +51,63 @@ export const ReleaseInfo = styled.p`
 
 export const ContributorList = styled(ReleaseInfo)`
   margin-top: ${({ theme }) => theme.spacing.md};
+`;
+
+export const Grid = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: ${({ theme }) => theme.spacing.md};
+  width: 100%;
+  height: auto; // Allow grid to grow as needed
+`;
+
+export const FilterToggle = styled.button<{ $isActive: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  padding: ${({ theme }) => theme.spacing.xs} ${({ theme }) => theme.spacing.xs};
+  background: ${({ theme, $isActive }) =>
+    $isActive ? theme.colors.primary.main : theme.colors.background.primary};
+  color: ${({ theme }) => theme.colors.text.primary};
+  border: 1px solid ${({ theme }) => theme.colors.primary.main};
+  font-family: ${({ theme }) => theme.typography.fontFamily.secondary};
+  font-size: ${({ theme }) => theme.typography.fontSize.xs};
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: calc(100%); // Leave room for gap
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all 0.2s ease-in-out;
+
+  &:hover:not(:disabled) {
+    background: ${({ theme }) => theme.colors.primary.dark};
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: ${({ theme }) => theme.colors.background.primary};
+    border-color: ${({ theme }) => theme.colors.text.disabled};
+    &:hover {
+      background: ${({ theme }) => theme.colors.background.primary};
+    }
+  }
+`;
+
+// Update Section to have proper padding and prevent overflow
+export const Section = styled.section<{ $fullWidth?: boolean }>`
+  background: ${({ theme }) => theme.colors.background.secondary};
+  padding: ${({ theme }) => theme.spacing.lg};
+  width: 100%;
+  overflow-x: hidden;
+`;
+
+// Update FiltersContainer to handle overflow properly
+export const FiltersContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing.lg};
+  width: 100%;
+  overflow-x: hidden;
+  padding-right: ${({ theme }) =>
+    theme.spacing.sm}; // Add some padding to account for scrollbar
 `;

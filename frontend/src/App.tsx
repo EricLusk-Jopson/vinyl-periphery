@@ -8,36 +8,11 @@ import {
   useListReleaseContributors,
   useListContributorReleases,
 } from "./api/mutations";
-import styled from "styled-components";
 import { EnrichedRelease, SearchParams } from "./api/types";
 import { useCache, CacheProvider } from "./contexts/cache/CacheContext";
 import { ResultsDisplay } from "./components/resultsDisplay/ResultsDisplay";
-
-const AppContainer = styled.div`
-  min-height: 100vh;
-  background-color: ${({ theme }) => theme.colors.background.primary};
-`;
-
-const Header = styled.header`
-  padding: ${({ theme }) => theme.spacing.lg};
-  text-align: center;
-`;
-
-const Title = styled.h1`
-  color: ${({ theme }) => theme.colors.primary.main};
-  font-family: ${({ theme }) => theme.typography.fontFamily.primary};
-  letter-spacing: ${({ theme }) => theme.typography.letterSpacing.wide};
-`;
-
-const MainContent = styled.main`
-  width: 100%;
-  margin: 0 auto;
-  padding: ${({ theme }) => theme.spacing.lg};
-  gap: ${({ theme }) => theme.spacing.xl};
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-`;
+import { AppContainer, MainContent } from "./components/layout/styles";
+import { Header } from "./components/layout/Header";
 
 // Separate component to handle search logic
 const SearchContainer: React.FC = () => {
@@ -105,10 +80,10 @@ const App: React.FC = () => {
       <GlobalStyles theme={theme} />
       <CacheProvider>
         <AppContainer>
-          <Header>
-            <Title>Vinyl Periphery</Title>
-          </Header>
-          <SearchContainer />
+          <Header />
+          <MainContent>
+            <SearchContainer />
+          </MainContent>
         </AppContainer>
       </CacheProvider>
     </ThemeProvider>

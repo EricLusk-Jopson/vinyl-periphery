@@ -15,6 +15,7 @@ import {
   useFilteredAndScoredReleases,
 } from "../../contexts/cache/CacheContext";
 import { cn } from "@/lib/utils";
+import { FilterActions } from "../resultsDisplay/FilterActions";
 
 export const Header: React.FC = () => {
   const [isVisible, setIsVisible] = useState(true);
@@ -96,6 +97,7 @@ export const Header: React.FC = () => {
             </SheetHeader>
             {activeSearch && (
               <div className="flex flex-col gap-lg mt-xl w-full">
+                <FilterActions searchId={activeSearch.searchId} />
                 <ContributorList searchId={activeSearch.searchId} />
                 <RoleList searchId={activeSearch.searchId} />
               </div>

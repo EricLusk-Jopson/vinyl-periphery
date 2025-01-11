@@ -202,6 +202,49 @@ export const useSearchFilters = (searchId: string) => {
     [search, searchId, updateFilterState]
   );
 
+  // In useSearchFilters hook
+  const resetAllFilters = useCallback(() => {
+    if (!search) return;
+    updateFilterState(searchId, {
+      contributors: Object.keys(search.contributors).reduce((acc, id) => {
+        acc[Number(id)] = true;
+        return acc;
+      }, {} as Record<number, boolean>),
+      roles: Object.keys(search.roles).reduce((acc, role) => {
+        acc[role] = true;
+        return acc;
+      }, {} as Record<string, boolean>),
+    });
+  }, [search, searchId, updateFilterState]);
+
+  const excludeAllRoles = useCallback(() => {
+    if (!search) return;
+    updateFilterState(searchId, {
+      contributors: Object.keys(search.contributors).reduce((acc, id) => {
+        acc[Number(id)] = true;
+        return acc;
+      }, {} as Record<number, boolean>),
+      roles: Object.keys(search.roles).reduce((acc, role) => {
+        acc[role] = false;
+        return acc;
+      }, {} as Record<string, boolean>),
+    });
+  }, [search, searchId, updateFilterState]);
+
+  const excludeAllContributors = useCallback(() => {
+    if (!search) return;
+    updateFilterState(searchId, {
+      contributors: Object.keys(search.contributors).reduce((acc, id) => {
+        acc[Number(id)] = false;
+        return acc;
+      }, {} as Record<number, boolean>),
+      roles: Object.keys(search.roles).reduce((acc, role) => {
+        acc[role] = true;
+        return acc;
+      }, {} as Record<string, boolean>),
+    });
+  }, [search, searchId, updateFilterState]);
+
   const isContributorActive = useCallback(
     (contributorId: number): boolean => {
       if (!search) return false;
@@ -255,13 +298,32 @@ export const useSearchFilters = (searchId: string) => {
     [search]
   );
 
+  const areAllRolesInactive = useCallback((): boolean => {
+    if (!search) return true;
+    return Object.keys(search.roles).every(
+      (role) => !search.filterState.roles[role]
+    );
+  }, [search]);
+
+  const areAllContributorsInactive = useCallback((): boolean => {
+    if (!search) return true;
+    return Object.keys(search.contributors).every(
+      (id) => !search.filterState.contributors[Number(id)]
+    );
+  }, [search]);
+
   return {
     toggleContributor,
     toggleRole,
+    resetAllFilters,
+    excludeAllRoles,
+    excludeAllContributors,
     isContributorActive,
     isRoleActive,
     isContributorDisabled,
     isRoleDisabled,
+    areAllRolesInactive,
+    areAllContributorsInactive,
     filterState: search?.filterState,
   };
 };

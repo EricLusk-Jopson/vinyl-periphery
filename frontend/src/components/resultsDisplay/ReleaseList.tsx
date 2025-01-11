@@ -4,12 +4,13 @@ import { useCache, useSearchFilters } from "../../contexts/cache/CacheContext";
 import {
   Section,
   SectionTitle,
-  Grid,
+  Stack,
   ContributorList,
   ReleaseCard,
   ReleaseInfo,
   ReleaseTitle,
 } from "./styles";
+import { defaultContributorDisplayPipeline } from "../../lib/transformers/contributorProcessor";
 
 export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
   const { searches } = useCache();
@@ -61,7 +62,7 @@ export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
   return (
     <Section>
       <SectionTitle>Filtered Releases ({filteredReleases.length})</SectionTitle>
-      <Grid>
+      <Stack>
         {filteredReleases.map((release) => (
           <ReleaseCard key={release.id}>
             <ReleaseTitle>{release.title}</ReleaseTitle>
@@ -82,13 +83,17 @@ export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
                 new Set(
                   release.activeContributors
                     .filter((id) => id in search.contributors)
-                    .map((id) => search.contributors[id].name)
+                    .map((id) =>
+                      defaultContributorDisplayPipeline(
+                        search.contributors[id].name
+                      )
+                    )
                 )
               ).join(", ")}
             </ContributorList>
           </ReleaseCard>
         ))}
-      </Grid>
+      </Stack>
     </Section>
   );
 };

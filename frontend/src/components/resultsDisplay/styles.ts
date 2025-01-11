@@ -39,6 +39,13 @@ export const Grid = styled.div`
   gap: ${({ theme }) => theme.spacing.md};
 `;
 
+export const Stack = styled.div`
+  display: flex;
+  flex-direction: column;
+  padding: ${({ theme }) => theme.spacing.md};
+  gap: ${({ theme }) => theme.spacing.md};
+`;
+
 export const FilterToggle = styled.button<{ $isActive: boolean }>`
   display: inline-flex;
   align-items: center;
@@ -71,6 +78,9 @@ export const FilterToggle = styled.button<{ $isActive: boolean }>`
 export const ReleaseCard = styled.div`
   padding: ${({ theme }) => theme.spacing.md};
   border: 1px solid ${({ theme }) => theme.colors.primary.main};
+  max-width: 80%;
+  width: 700px;
+  margin: 0 auto;
 `;
 
 export const ReleaseTitle = styled.h3`

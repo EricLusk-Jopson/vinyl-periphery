@@ -3,11 +3,26 @@ import styled from "styled-components";
 export const ResultsContainer = styled.div`
   display: grid;
   gap: ${({ theme }) => theme.spacing.lg};
+  margin: 0 auto;
+  width: 100%;
+  max-width: ${({ theme }) => theme.breakpoints.xl};
 `;
 
-export const Section = styled.section`
+// New component for the top filters section
+export const FiltersContainer = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: ${({ theme }) => theme.spacing.lg};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+export const Section = styled.section<{ $fullWidth?: boolean }>`
   background: ${({ theme }) => theme.colors.background.secondary};
   padding: ${({ theme }) => theme.spacing.lg};
+  width: 100%;
 `;
 
 export const SectionTitle = styled.h2`
@@ -24,10 +39,17 @@ export const Grid = styled.div`
   gap: ${({ theme }) => theme.spacing.md};
 `;
 
+export const Stack = styled.div`
+  display: flex;
+  flex-direction: column;
+  padding: ${({ theme }) => theme.spacing.md};
+  gap: ${({ theme }) => theme.spacing.md};
+`;
+
 export const FilterToggle = styled.button<{ $isActive: boolean }>`
   display: inline-flex;
   align-items: center;
-  padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.md};
+  padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.sm};
   background: ${({ theme, $isActive }) =>
     $isActive ? theme.colors.primary.main : theme.colors.background.primary};
   color: ${({ theme }) => theme.colors.text.primary};
@@ -56,6 +78,9 @@ export const FilterToggle = styled.button<{ $isActive: boolean }>`
 export const ReleaseCard = styled.div`
   padding: ${({ theme }) => theme.spacing.md};
   border: 1px solid ${({ theme }) => theme.colors.primary.main};
+  max-width: 80%;
+  width: 700px;
+  margin: 0 auto;
 `;
 
 export const ReleaseTitle = styled.h3`

@@ -1,15 +1,17 @@
 import { ContributorList } from "./ContributorList";
 import { ReleaseList } from "./ReleaseList";
 import { RoleList } from "./RoleList";
-import { ResultsContainer } from "./styles";
+import { FiltersContainer, ResultsContainer } from "./styles";
 
 export const ResultsDisplay: React.FC<{ searchId: string }> = ({
   searchId,
 }) => {
   return (
     <ResultsContainer>
-      <RoleList searchId={searchId} />
-      <ContributorList searchId={searchId} />
+      <FiltersContainer>
+        <ContributorList searchId={searchId} />
+        <RoleList searchId={searchId} />
+      </FiltersContainer>
       <ReleaseList searchId={searchId} />
     </ResultsContainer>
   );

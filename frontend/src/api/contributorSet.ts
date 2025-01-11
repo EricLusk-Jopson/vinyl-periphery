@@ -1,4 +1,4 @@
-import { defaultPipeline } from "../lib/transformers/roleProcessor";
+import { defaultRolePipeline } from "../lib/transformers/roleProcessor";
 import {
   RawArtist,
   ContributorSource,
@@ -10,7 +10,7 @@ import {
 // Helper to process all roles through pipeline and convert to Set
 const processRolesToSet = (roles: (string | undefined)[]): Set<string> => {
   const filteredRoles = roles.filter((r): r is string => !!r);
-  return new Set(defaultPipeline(filteredRoles));
+  return new Set(defaultRolePipeline(filteredRoles));
 };
 
 export function addContributorToSet(

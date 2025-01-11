@@ -31,9 +31,18 @@ export const theme = {
     },
   },
   spacing: {
+    xxs: "5px",
+    xs: "7px",
     sm: "10px",
     md: "15px",
     lg: "20px",
+    xl: "50px",
+    xxl: "75px",
+  },
+  breakpoints: {
+    sm: "400px",
+    md: "700px",
+    lg: "1200px",
   },
 } as const;
 

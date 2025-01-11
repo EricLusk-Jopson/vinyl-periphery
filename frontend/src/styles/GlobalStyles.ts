@@ -16,6 +16,7 @@ export const GlobalStyles = createGlobalStyle<{ theme: Theme }>`
     font-family: ${({ theme }) => theme.typography.fontFamily.secondary};
     letter-spacing: ${({ theme }) => theme.typography.letterSpacing.normal};
     line-height: 1.5;
+    max-width: 100vw;
   }
 
   h1, h2, h3, h4, h5, h6 {

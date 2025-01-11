@@ -4,7 +4,7 @@ export const Form = styled.form`
   display: grid;
   gap: ${({ theme }) => theme.spacing.md};
   max-width: 600px;
-  margin: 0 auto;
+  margin: ${({ theme }) => theme.spacing.lg} auto;
   padding: ${({ theme }) => theme.spacing.lg};
   background: ${({ theme }) => theme.colors.background.secondary};
 `;

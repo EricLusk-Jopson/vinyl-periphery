@@ -1,5 +1,5 @@
 import React from "react";
-import { Star, ChevronDown } from "lucide-react";
+import { Star, ChevronDown, Trash2 } from "lucide-react";
 import { useCache } from "@/contexts/cache/CacheContext";
 import {
   Collapsible,
@@ -7,12 +7,24 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface HistoryItemProps {
   searchId: string;
   artist: string;
   album: string;
   onSelect: () => void;
+  onDelete: () => void;
   isActive: boolean;
 }
 
@@ -20,38 +32,74 @@ const HistoryItem: React.FC<HistoryItemProps> = ({
   artist,
   album,
   onSelect,
+  onDelete,
   isActive,
 }) => {
   return (
     <div
       onClick={onSelect}
       className={cn(
-        "flex items-center justify-between p-md hover:bg-bg-secondary cursor-pointer rounded-md",
+        "flex items-center justify-between p-md hover:bg-bg-secondary cursor-pointer rounded-md group",
         isActive && "bg-bg-secondary"
       )}
     >
-      <div className="flex flex-col">
-        <span className="text-text-primary font-medium">{artist}</span>
-        <span className="text-text-secondary text-sm">{album}</span>
+      <div className="flex flex-col flex-grow min-w-0">
+        <span className="text-text-primary font-medium truncate">{artist}</span>
+        <span className="text-text-secondary text-sm truncate">{album}</span>
       </div>
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          // TODO: Implement save functionality
-        }}
-        className="p-2 hover:text-primary-main"
-      >
-        <Star
-          size={16}
-          className={cn("transition-colors", isActive && "text-primary-main")}
-        />
-      </button>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            // TODO: Implement save functionality
+          }}
+          className="p-2 hover:text-primary-main opacity-0 group-hover:opacity-100 transition-opacity"
+          aria-label="Save search"
+        >
+          <Star
+            size={16}
+            className={cn("transition-colors", isActive && "text-primary-main")}
+          />
+        </button>
+
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+              className="p-2 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+              aria-label="Delete search"
+            >
+              <Trash2 size={16} />
+            </button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Search History Entry?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete the search for "{album}" by{" "}
+                {artist}? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={onDelete}
+                className="bg-destructive hover:bg-destructive/90"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </div>
   );
 };
 
 const HistoryPanel: React.FC = () => {
-  const { searches, setActiveSearch, activeSearchId } = useCache();
+  const { searches, setActiveSearch, activeSearchId, clearSearch } = useCache();
   const [savedOpen, setSavedOpen] = React.useState(false);
   const [historyOpen, setHistoryOpen] = React.useState(true);
 
@@ -66,6 +114,13 @@ const HistoryPanel: React.FC = () => {
         }))
         .sort((a, b) => b.timestamp - a.timestamp),
     [searches]
+  );
+
+  const handleDelete = React.useCallback(
+    (searchId: string) => {
+      clearSearch(searchId);
+    },
+    [clearSearch]
   );
 
   return (
@@ -117,6 +172,7 @@ const HistoryPanel: React.FC = () => {
                   artist={artist}
                   album={album}
                   onSelect={() => setActiveSearch(id)}
+                  onDelete={() => handleDelete(id)}
                   isActive={id === activeSearchId}
                 />
               ))

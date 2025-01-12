@@ -14,6 +14,8 @@ export interface SearchCache {
   filterState: {
     contributors: Record<number, boolean>;
     roles: Record<string, boolean>;
+    excludeMainArtist: boolean;
+    collaborationsOnly: boolean;
   };
 }
 

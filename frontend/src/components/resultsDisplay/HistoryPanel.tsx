@@ -18,6 +18,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { SheetClose } from "../ui/sheet";
 
 interface HistoryItemProps {
   searchId: string;
@@ -54,70 +55,76 @@ const HistoryItem: React.FC<HistoryItemProps> = ({
   };
 
   return (
-    <div
-      onClick={onSelect}
-      className={cn(
-        "flex items-center justify-between p-md hover:bg-bg-secondary cursor-pointer rounded-md group",
-        isActive && "bg-bg-secondary"
-      )}
-    >
-      <div className="flex flex-col flex-grow min-w-0">
-        <span className="text-text-primary font-medium truncate">{artist}</span>
-        <span className="text-text-secondary text-sm truncate">{album}</span>
-      </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <button
-          onClick={handleSaveClick}
-          disabled={isSaving}
-          className={cn(
-            "p-2 hover:text-primary-main transition-all",
-            "opacity-0 group-hover:opacity-100",
-            isSaving && "opacity-50 cursor-not-allowed"
-          )}
-          aria-label={isSaved ? "Unsave search" : "Save search"}
-        >
-          <Star
-            size={16}
+    <SheetClose asChild>
+      <div
+        onClick={onSelect}
+        className={cn(
+          "flex items-center justify-between p-md hover:bg-bg-secondary cursor-pointer rounded-md group",
+          isActive && "bg-bg-secondary"
+        )}
+      >
+        <div className="flex flex-col flex-grow min-w-0">
+          <span className="text-text-primary font-medium truncate">
+            {artist}
+          </span>
+          <span className="text-text-secondary text-sm truncate">{album}</span>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={handleSaveClick}
+            disabled={isSaving}
             className={cn(
-              "transition-colors",
-              isSaved && "fill-primary-main text-primary-main"
+              "p-2 hover:text-primary-main transition-all",
+              "opacity-0 group-hover:opacity-100",
+              isSaving && "opacity-50 cursor-not-allowed"
             )}
-          />
-        </button>
+            aria-label={isSaved ? "Unsave search" : "Save search"}
+          >
+            <Star
+              size={16}
+              className={cn(
+                "transition-colors",
+                isSaved && "fill-primary-main text-primary-main"
+              )}
+            />
+          </button>
 
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-              }}
-              className="p-2 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-              aria-label="Delete search"
-            >
-              <Trash2 size={16} />
-            </button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete Search History Entry?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to delete the search for "{album}" by{" "}
-                {artist}? This action cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={onDelete}
-                className="bg-destructive hover:bg-destructive/90"
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
+                className="p-2 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                aria-label="Delete search"
               >
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+                <Trash2 size={16} />
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Delete Search History Entry?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete the search for "{album}" by{" "}
+                  {artist}? This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={onDelete}
+                  className="bg-destructive hover:bg-destructive/90"
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
-    </div>
+    </SheetClose>
   );
 };
 
@@ -216,7 +223,9 @@ const HistoryPanel: React.FC = () => {
                   searchId={id}
                   artist={artist}
                   album={album}
-                  onSelect={() => setActiveSearch(id)}
+                  onSelect={() => {
+                    setActiveSearch(id);
+                  }}
                   onDelete={() => handleDelete(id)}
                   onToggleSave={() => handleToggleSave(id)}
                   isActive={id === activeSearchId}

@@ -116,8 +116,8 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
           acc[role] = true;
           return acc;
         }, {} as Record<string, boolean>),
-        excludeMainArtist: false,
-        collaborationsOnly: false,
+        excludeMainArtist: true,
+        collaborationsOnly: true,
         excludeVarious: false,
       };
 
@@ -134,7 +134,7 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
             timestamp: Date.now(),
           },
         },
-        activeSearchId: searchId,
+        activeSearchId: prev.activeSearchId, // Maintain current active search
         savedSearchIds: prev.savedSearchIds,
       }));
 

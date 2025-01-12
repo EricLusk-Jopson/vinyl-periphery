@@ -66,7 +66,7 @@ async function listReleaseContributors(
   for (const release of selectedReleases) {
     callbacks?.onProgress?.({
       id: "contributors",
-      label: "Processing Release Credits",
+      label: "Building Contributor List",
       current: currentRelease + 1,
       total: maxReleases,
     });
@@ -174,7 +174,7 @@ async function listContributorReleases(
   for (const contributor of contributors) {
     callbacks?.onProgress?.({
       id: "releases",
-      label: "Finding Related Albums",
+      label: "Processing Discographies",
       current: currentContributor + 1,
       total: contributors.length,
     });

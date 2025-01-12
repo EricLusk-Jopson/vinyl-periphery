@@ -34,6 +34,7 @@ export const SearchForm: React.FC<SearchFormProps> = ({
       console.error("Search error:", error);
     } finally {
       setCurrentStage(null);
+      setFormData({ artist: "", album: "" });
     }
   };
 

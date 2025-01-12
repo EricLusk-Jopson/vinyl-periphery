@@ -6,12 +6,11 @@ import {
   useListReleaseContributors,
   useListContributorReleases,
 } from "./api/mutations";
-import { EnrichedRelease, SearchParams } from "./api/types";
+import { EnrichedRelease, SearchParams, SearchStage } from "./api/types";
 import { useCache, CacheProvider } from "./contexts/cache/CacheContext";
 import { Header } from "./components/layout/Header";
 import { ReleaseList } from "./components/resultsDisplay/ReleaseList";
 
-// Separate component to handle search logic
 const SearchContainer: React.FC = () => {
   const { addSearch, getActiveSearch } = useCache();
 
@@ -24,21 +23,36 @@ const SearchContainer: React.FC = () => {
     contributorsMutation.isPending ||
     releasesMutation.isPending;
 
-  const handleSearch = async (params: SearchParams) => {
+  const handleSearch = async (
+    params: SearchParams,
+    onProgress?: (stage: SearchStage) => void
+  ) => {
     try {
       // Initial search
-      const searchResults = await searchMutation.mutateAsync(params);
+      const searchResults = await searchMutation.mutateAsync({
+        params,
+        callbacks: {
+          onProgress,
+        },
+      });
+
       if (!searchResults) return;
 
       // Get contributors
       const contributorSet = await contributorsMutation.mutateAsync({
         releases: searchResults,
         maxReleases: 5,
+        callbacks: {
+          onProgress,
+        },
       });
 
       // Get releases
       const releasesMap = await releasesMutation.mutateAsync({
         contributorSet,
+        callbacks: {
+          onProgress,
+        },
       });
 
       // Convert Map to Record before adding to cache

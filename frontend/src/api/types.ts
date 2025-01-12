@@ -96,3 +96,30 @@ export interface ReleasesParams {
   releases: SearchResult[];
   maxReleases: number;
 }
+
+export interface SearchStage {
+  id: "initial" | "contributors" | "releases";
+  label: string;
+  current: number;
+  total: number;
+}
+
+export interface MutationCallbacks {
+  onProgress?: (stage: SearchStage) => void;
+}
+
+export interface SearchMutationParams {
+  params: SearchParams;
+  callbacks?: MutationCallbacks;
+}
+
+export interface ContributorMutationParams {
+  releases: SearchResult[];
+  maxReleases: number;
+  callbacks?: MutationCallbacks;
+}
+
+export interface ReleaseMutationParams {
+  contributorSet: ContributorSet;
+  callbacks?: MutationCallbacks;
+}

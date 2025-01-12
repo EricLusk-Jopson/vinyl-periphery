@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { SearchParams } from "../../api/types";
+import { SearchParams, SearchStage } from "../../api/types";
 import { SearchFormProps } from "./types";
 import { cn } from "@/lib/utils";
+import ProgressButton from "../common/ProgressButton";
 
 export const SearchForm: React.FC<SearchFormProps> = ({
   onSearch,
@@ -14,6 +14,7 @@ export const SearchForm: React.FC<SearchFormProps> = ({
     artist: "",
     album: "",
   });
+  const [currentStage, setCurrentStage] = useState<SearchStage | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -28,9 +29,11 @@ export const SearchForm: React.FC<SearchFormProps> = ({
     if (!formData.artist.trim() || !formData.album.trim()) return;
 
     try {
-      await onSearch(formData);
+      await onSearch(formData, setCurrentStage);
     } catch (error) {
       console.error("Search error:", error);
+    } finally {
+      setCurrentStage(null);
     }
   };
 
@@ -90,26 +93,11 @@ export const SearchForm: React.FC<SearchFormProps> = ({
         />
       </div>
 
-      <Button
-        type="submit"
-        disabled={isSearching}
-        className={cn(
-          "w-full p-md font-primary text-md tracking-normal",
-          "bg-primary-main hover:bg-primary-dark text-text-primary",
-          "transition-colors duration-200",
-          "disabled:opacity-70 disabled:cursor-not-allowed",
-          isSearching && "bg-text-disabled cursor-wait"
-        )}
-        aria-label={isSearching ? "Searching..." : "Search"}
-      >
-        {isSearching ? "Searching..." : "Search"}
-      </Button>
-
-      {isSearching && (
-        <div className="text-center text-text-secondary text-sm font-secondary mt-sm">
-          Searching through album credits... This may take a moment.
-        </div>
-      )}
+      <ProgressButton
+        stage={currentStage}
+        isSearching={isSearching}
+        disabled={!formData.artist.trim() || !formData.album.trim()}
+      />
     </form>
   );
 };

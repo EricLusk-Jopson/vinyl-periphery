@@ -7,17 +7,6 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { SheetClose } from "../ui/sheet";
 
 interface HistoryItemProps {
@@ -88,44 +77,20 @@ const HistoryItem: React.FC<HistoryItemProps> = ({
               )}
             />
           </button>
-
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                }}
-                className={cn(
-                  "p-2 hover:text-destructive transition-all",
-                  !isActive && "opacity-0 group-hover:opacity-100",
-                  isSaving && "opacity-50 cursor-not-allowed"
-                )}
-                aria-label="Delete search"
-              >
-                <Trash2 size={16} />
-              </button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>
-                  Delete Search History Entry?
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to delete the search for "{album}" by{" "}
-                  {artist}? This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={onDelete}
-                  className="bg-destructive hover:bg-destructive/90"
-                >
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className={cn(
+              "p-2 hover:text-destructive transition-all",
+              !isActive && "opacity-0 group-hover:opacity-100",
+              isSaving && "opacity-50 cursor-not-allowed"
+            )}
+            aria-label="Delete search"
+          >
+            <Trash2 size={16} />
+          </button>
         </div>
       </div>
     </SheetClose>

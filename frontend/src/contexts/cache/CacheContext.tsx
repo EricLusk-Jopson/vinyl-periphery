@@ -118,6 +118,7 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
         }, {} as Record<string, boolean>),
         excludeMainArtist: false,
         collaborationsOnly: false,
+        excludeVarious: false,
       };
 
       setState((prev) => ({
@@ -477,6 +478,13 @@ export const useSearchFilters = (searchId: string) => {
     });
   }, [search, searchId, updateFilterState]);
 
+  const toggleExcludeVarious = useCallback(() => {
+    if (!search) return;
+    updateFilterState(searchId, {
+      excludeVarious: !search.filterState.excludeVarious,
+    });
+  }, [search, searchId, updateFilterState]);
+
   return {
     toggleContributor,
     toggleRole,
@@ -491,6 +499,7 @@ export const useSearchFilters = (searchId: string) => {
     areAllContributorsInactive,
     toggleExcludeMainArtist,
     toggleCollaborationsOnly,
+    toggleExcludeVarious,
     filterState: search?.filterState,
   };
 };
@@ -536,6 +545,10 @@ export const useFilteredAndScoredReleases = (searchId: string) => {
           if (release.artist.toLowerCase().includes(searchArtist)) {
             return null;
           }
+        }
+
+        if (search.filterState.excludeVarious && release.artist === "Various") {
+          return null;
         }
 
         const { score, confidence } = calculateReleaseScore(

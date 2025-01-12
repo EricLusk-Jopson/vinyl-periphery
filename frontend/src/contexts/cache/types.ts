@@ -16,6 +16,7 @@ export interface SearchCache {
     roles: Record<string, boolean>;
     excludeMainArtist: boolean;
     collaborationsOnly: boolean;
+    excludeVarious: boolean;
   };
   savedAt?: number;
 }

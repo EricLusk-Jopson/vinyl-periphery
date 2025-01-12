@@ -55,13 +55,26 @@ export type ContributorSource = "credits" | "artist" | "member";
 export interface Contributor {
   id: number;
   name: string;
-  roles: Set<string>;
-  sources: Set<ContributorSource>;
+  roles: string[];
+  sources: ContributorSource[];
   resourceUrl: string;
 }
 
 export interface ContributorSet {
-  contributors: Map<number, Contributor>;
+  contributors: Record<number, Contributor>;
+}
+
+export interface ContributorSetInternal {
+  contributors: Map<
+    number,
+    {
+      id: number;
+      name: string;
+      roles: Set<string>;
+      sources: Set<ContributorSource>;
+      resourceUrl: string;
+    }
+  >;
 }
 
 export interface EnrichedRelease {
@@ -71,7 +84,7 @@ export interface EnrichedRelease {
   artist: string;
   thumb: string;
   resource_url: string;
-  contributorIds: Set<number>;
+  contributorIds: number[];
 }
 
 export interface SearchParams {
@@ -82,4 +95,31 @@ export interface SearchParams {
 export interface ReleasesParams {
   releases: SearchResult[];
   maxReleases: number;
+}
+
+export interface SearchStage {
+  id: "initial" | "contributors" | "releases";
+  label: string;
+  current: number;
+  total: number;
+}
+
+export interface MutationCallbacks {
+  onProgress?: (stage: SearchStage) => void;
+}
+
+export interface SearchMutationParams {
+  params: SearchParams;
+  callbacks?: MutationCallbacks;
+}
+
+export interface ContributorMutationParams {
+  releases: SearchResult[];
+  maxReleases: number;
+  callbacks?: MutationCallbacks;
+}
+
+export interface ReleaseMutationParams {
+  contributorSet: ContributorSet;
+  callbacks?: MutationCallbacks;
 }

@@ -75,7 +75,7 @@ const HistoryItem: React.FC<HistoryItemProps> = ({
             disabled={isSaving}
             className={cn(
               "p-2 hover:text-primary-main transition-all",
-              "opacity-0 group-hover:opacity-100",
+              !isActive && "opacity-0 group-hover:opacity-100",
               isSaving && "opacity-50 cursor-not-allowed"
             )}
             aria-label={isSaved ? "Unsave search" : "Save search"}
@@ -95,7 +95,11 @@ const HistoryItem: React.FC<HistoryItemProps> = ({
                 onClick={(e) => {
                   e.stopPropagation();
                 }}
-                className="p-2 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                className={cn(
+                  "p-2 hover:text-destructive transition-all",
+                  !isActive && "opacity-0 group-hover:opacity-100",
+                  isSaving && "opacity-50 cursor-not-allowed"
+                )}
                 aria-label="Delete search"
               >
                 <Trash2 size={16} />

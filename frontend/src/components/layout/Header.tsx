@@ -51,16 +51,19 @@ export const Header: React.FC = () => {
         isVisible ? "translate-y-0" : "-translate-y-full"
       )}
     >
-      <div className="flex justify-between items-center px-md py-md max-w-lg mx-auto w-full">
+      <div className="flex justify-between items-center px-md py-md mx-auto w-full">
         <Sheet>
           <SheetTrigger asChild>
-            <button className="bg-transparent border-none text-text-primary p-sm hover:text-primary-main">
-              <History size={24} />
+            <button className="bg-transparent border-none text-text-primary p-2 hover:text-primary-main transition-colors flex items-center gap-2">
+              <span className="hidden md:inline text-base font-medium">
+                History
+              </span>{" "}
+              <History className="w-5 h-5 md:w-6 md:h-6" />
             </button>
           </SheetTrigger>
           <SheetContent
             side="left"
-            className="bg-bg-primary border-r border-primary-main z-modal overflow-y-auto overflow-x-hidden p-xl w-[500px]"
+            className="bg-bg-primary border-r border-primary-main z-modal overflow-y-auto overflow-x-hidden p-xl w-fit max-w-full "
           >
             <SheetHeader>
               <SheetTitle>History</SheetTitle>
@@ -78,8 +81,11 @@ export const Header: React.FC = () => {
 
         <Sheet>
           <SheetTrigger asChild>
-            <button className="bg-transparent border-none text-text-primary p-sm hover:text-primary-main">
-              <SlidersHorizontal size={24} />
+            <button className="bg-transparent border-none text-text-primary p-2 hover:text-primary-main transition-colors flex items-center gap-2">
+              <SlidersHorizontal className="w-5 h-5 md:w-6 md:h-6" />{" "}
+              <span className="hidden md:inline text-base font-medium">
+                Filters ({count})
+              </span>{" "}
             </button>
           </SheetTrigger>
           <SheetContent

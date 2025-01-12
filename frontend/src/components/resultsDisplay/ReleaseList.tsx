@@ -33,10 +33,12 @@ export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
             <CardHeader className="pb-0">
               <CardTitle className="font-primary text-sm sm:text-md tracking-normal text-text-primary mb-sm">
                 <div className="flex flex-col sm:flex-row justify-between gap-1 sm:gap-4">
-                  <span className="truncate">
-                    {release.artist} - {release.title}
-                  </span>
-                  <span className="whitespace-nowrap">
+                  <div>
+                    <div className="truncate text-wrap">{release.title}</div>
+                    <div className="truncate">{release.artist}</div>
+                  </div>
+
+                  <span className="whitespace-nowrap hidden md:inline">
                     Match Score:{" "}
                     {(100 * release.score * release.confidence).toFixed(0)}%
                   </span>

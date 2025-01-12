@@ -88,6 +88,9 @@ const SearchContainer: React.FC = () => {
 
       // Add to cache without making it active
       const searchId = addSearch(params, contributorSet, releasesRecord);
+      if (!activeSearch) {
+        setActiveSearch(searchId);
+      }
 
       // Show completion toast
       toast({

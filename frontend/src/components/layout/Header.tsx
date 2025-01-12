@@ -97,9 +97,9 @@ export const Header: React.FC = () => {
               "overflow-y-auto overflow-x-hidden"
             )}
           >
-            <SheetHeader className="relative">
-              <SheetTitle>Filters ({count} matches)</SheetTitle>
-              <SheetClose className="absolute right-0 top-0 bg-transparent border-none text-text-primary p-sm hover:text-primary-main">
+            <SheetHeader>
+              <SheetTitle>Filters ({count})</SheetTitle>
+              <SheetClose className="absolute right-md top-md bg-transparent border-none text-text-primary p-sm hover:text-primary-main">
                 <X size={24} />
               </SheetClose>
             </SheetHeader>

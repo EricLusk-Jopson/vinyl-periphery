@@ -14,9 +14,14 @@ export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
 
   return (
     <section className="w-full bg-bg-secondary p-lg">
-      <h2 className="font-primary text-lg tracking-normal text-text-primary mb-md">
-        Filtered Releases ({count})
-      </h2>
+      <span className="flex justify-between">
+        <h2 className="font-primary text-lg tracking-normal text-text-primary mb-md">
+          {search.searchParams.artist} - {search.searchParams.album}
+        </h2>
+        <h2 className="font-primary text-lg tracking-normal text-text-primary mb-md">
+          {count} Filtered Releases
+        </h2>
+      </span>
       <div className="flex flex-col p-md gap-md">
         {releases.map((release) => (
           <Card

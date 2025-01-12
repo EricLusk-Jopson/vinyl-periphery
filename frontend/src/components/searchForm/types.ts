@@ -1,6 +1,9 @@
-import { SearchParams } from "../../api/types";
+import { SearchParams, SearchStage } from "../../api/types";
 
 export interface SearchFormProps {
-  onSearch: (params: SearchParams) => Promise<void>;
+  onSearch: (
+    params: SearchParams,
+    onProgress?: (stage: SearchStage) => void
+  ) => Promise<void>;
   isSearching: boolean;
 }

@@ -25,7 +25,9 @@ interface HistoryItemProps {
   album: string;
   onSelect: () => void;
   onDelete: () => void;
+  onToggleSave: () => Promise<void>;
   isActive: boolean;
+  isSaved: boolean;
 }
 
 const HistoryItem: React.FC<HistoryItemProps> = ({
@@ -33,8 +35,24 @@ const HistoryItem: React.FC<HistoryItemProps> = ({
   album,
   onSelect,
   onDelete,
+  onToggleSave,
   isActive,
+  isSaved,
 }) => {
+  const [isSaving, setIsSaving] = React.useState(false);
+
+  const handleSaveClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isSaving) return;
+
+    setIsSaving(true);
+    try {
+      await onToggleSave();
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div
       onClick={onSelect}
@@ -49,16 +67,21 @@ const HistoryItem: React.FC<HistoryItemProps> = ({
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            // TODO: Implement save functionality
-          }}
-          className="p-2 hover:text-primary-main opacity-0 group-hover:opacity-100 transition-opacity"
-          aria-label="Save search"
+          onClick={handleSaveClick}
+          disabled={isSaving}
+          className={cn(
+            "p-2 hover:text-primary-main transition-all",
+            "opacity-0 group-hover:opacity-100",
+            isSaving && "opacity-50 cursor-not-allowed"
+          )}
+          aria-label={isSaved ? "Unsave search" : "Save search"}
         >
           <Star
             size={16}
-            className={cn("transition-colors", isActive && "text-primary-main")}
+            className={cn(
+              "transition-colors",
+              isSaved && "fill-primary-main text-primary-main"
+            )}
           />
         </button>
 
@@ -99,37 +122,79 @@ const HistoryItem: React.FC<HistoryItemProps> = ({
 };
 
 const HistoryPanel: React.FC = () => {
-  const { searches, setActiveSearch, activeSearchId, clearSearch } = useCache();
+  const {
+    searches,
+    setActiveSearch,
+    activeSearchId,
+    clearSearch,
+    savedSearchIds,
+    saveSearch,
+    unsaveSearch,
+  } = useCache();
+
   const [savedOpen, setSavedOpen] = React.useState(false);
   const [historyOpen, setHistoryOpen] = React.useState(true);
 
-  const searchHistory = React.useMemo(
+  // Get all searches and sort them by timestamp
+  const allSearches = React.useMemo(
     () =>
       Object.entries(searches)
         .map(([id, search]) => ({
           id,
           artist: search.searchParams.artist,
           album: search.searchParams.album,
-          timestamp: parseInt(id.split("-").pop() || "0", 10),
         }))
-        .sort((a, b) => b.timestamp - a.timestamp),
+        .sort((a, b) => b.id.localeCompare(a.id)), // Sort by ID which contains timestamp
     [searches]
   );
 
+  // Filter saved searches
+  const savedSearches = React.useMemo(
+    () => allSearches.filter((search) => savedSearchIds.has(search.id)),
+    [allSearches, savedSearchIds]
+  );
+
+  // Filter session-only searches
+  const sessionSearches = React.useMemo(
+    () => allSearches.filter((search) => !savedSearchIds.has(search.id)),
+    [allSearches, savedSearchIds]
+  );
+
   const handleDelete = React.useCallback(
-    (searchId: string) => {
-      clearSearch(searchId);
+    async (searchId: string) => {
+      try {
+        // If it's a saved search, remove from IndexedDB first
+        if (savedSearchIds.has(searchId)) {
+          await unsaveSearch(searchId);
+        }
+        // Then clear from session state
+        clearSearch(searchId);
+      } catch (error) {
+        console.error("Failed to delete search:", error);
+        // You might want to show an error notification here
+      }
     },
-    [clearSearch]
+    [clearSearch, unsaveSearch, savedSearchIds]
+  );
+
+  const handleToggleSave = React.useCallback(
+    async (searchId: string) => {
+      if (savedSearchIds.has(searchId)) {
+        await unsaveSearch(searchId);
+      } else {
+        await saveSearch(searchId);
+      }
+    },
+    [saveSearch, unsaveSearch, savedSearchIds]
   );
 
   return (
-    <div className="flex flex-col gap-lg">
+    <div className="flex flex-col gap-lg mt-xl">
       <Collapsible open={savedOpen} onOpenChange={setSavedOpen}>
         <CollapsibleTrigger className="flex items-center justify-between w-full p-md text-left">
           <span className="font-medium">Saved Searches</span>
           <div className="flex items-center gap-2">
-            <span className="text-text-secondary">0</span>
+            <span className="text-text-secondary">{savedSearches.length}</span>
             <ChevronDown
               className={cn(
                 "w-4 h-4 transition-transform duration-200",
@@ -138,9 +203,27 @@ const HistoryPanel: React.FC = () => {
             />
           </div>
         </CollapsibleTrigger>
-        <CollapsibleContent className="data-[state=open]:animate-collapsible-down data-[state=closed]:animate-collapsible-up">
-          <div className="py-sm px-md text-text-secondary">
-            No saved searches yet
+        <CollapsibleContent>
+          <div className="flex flex-col gap-sm">
+            {savedSearches.length === 0 ? (
+              <div className="py-sm px-md text-text-secondary">
+                No saved searches yet
+              </div>
+            ) : (
+              savedSearches.map(({ id, artist, album }) => (
+                <HistoryItem
+                  key={id}
+                  searchId={id}
+                  artist={artist}
+                  album={album}
+                  onSelect={() => setActiveSearch(id)}
+                  onDelete={() => handleDelete(id)}
+                  onToggleSave={() => handleToggleSave(id)}
+                  isActive={id === activeSearchId}
+                  isSaved={true}
+                />
+              ))
+            )}
           </div>
         </CollapsibleContent>
       </Collapsible>
@@ -149,7 +232,9 @@ const HistoryPanel: React.FC = () => {
         <CollapsibleTrigger className="flex items-center justify-between w-full p-md text-left">
           <span className="font-medium">Session History</span>
           <div className="flex items-center gap-2">
-            <span className="text-text-secondary">{searchHistory.length}</span>
+            <span className="text-text-secondary">
+              {sessionSearches.length}
+            </span>
             <ChevronDown
               className={cn(
                 "w-4 h-4 transition-transform duration-200",
@@ -158,14 +243,14 @@ const HistoryPanel: React.FC = () => {
             />
           </div>
         </CollapsibleTrigger>
-        <CollapsibleContent className="data-[state=open]:animate-collapsible-down data-[state=closed]:animate-collapsible-up">
+        <CollapsibleContent>
           <div className="flex flex-col gap-sm">
-            {searchHistory.length === 0 ? (
+            {sessionSearches.length === 0 ? (
               <div className="py-sm px-md text-text-secondary">
                 No search history yet
               </div>
             ) : (
-              searchHistory.map(({ id, artist, album }) => (
+              sessionSearches.map(({ id, artist, album }) => (
                 <HistoryItem
                   key={id}
                   searchId={id}
@@ -173,7 +258,9 @@ const HistoryPanel: React.FC = () => {
                   album={album}
                   onSelect={() => setActiveSearch(id)}
                   onDelete={() => handleDelete(id)}
+                  onToggleSave={() => handleToggleSave(id)}
                   isActive={id === activeSearchId}
+                  isSaved={false}
                 />
               ))
             )}

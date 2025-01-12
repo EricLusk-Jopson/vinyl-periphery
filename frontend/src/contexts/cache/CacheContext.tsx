@@ -11,36 +11,63 @@ import {
   SearchParams,
   EnrichedRelease,
 } from "../../api/types";
+import { db } from "@/services/db";
 import { CacheContextValue, CacheState, SearchCache } from "./types";
 import { calculateReleaseScore } from "@/api/contributorSet";
 
 const CacheContext = createContext<CacheContextValue | null>(null);
 
-const STORAGE_KEY = "vinyl-periphery-cache";
+const SESSION_STORAGE_KEY = "vinyl-periphery-cache";
 
 export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   // Initialize state from session storage or with defaults
   const [state, setState] = React.useState<CacheState>(() => {
-    const stored = sessionStorage.getItem(STORAGE_KEY);
-    if (stored) {
+    // Try to load from session storage first
+    const sessionData = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (sessionData) {
       try {
-        return JSON.parse(stored);
+        const parsed = JSON.parse(sessionData);
+        return {
+          ...parsed,
+          savedSearchIds: new Set(parsed.savedSearchIds || []),
+        };
       } catch (e) {
         console.error("Failed to parse stored cache:", e);
       }
     }
+
     return {
       searches: {},
       activeSearchId: null,
+      savedSearchIds: new Set(),
     };
   });
 
-  // Sync to session storage whenever state changes
+  // Load saved searches from IndexedDB on mount
   useEffect(() => {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [state]);
+    const loadSavedSearches = async () => {
+      try {
+        const saved = await db.getAllSavedSearches();
+        setState((prev) => ({
+          ...prev,
+          searches: {
+            ...prev.searches,
+            ...Object.fromEntries(saved.map((s) => [s.searchId, s])),
+          },
+          savedSearchIds: new Set([
+            ...prev.savedSearchIds,
+            ...saved.map((s) => s.searchId),
+          ]),
+        }));
+      } catch (error) {
+        console.error("Failed to load saved searches:", error);
+      }
+    };
+
+    loadSavedSearches();
+  }, []);
 
   const setActiveSearch = useCallback((searchId: string) => {
     setState((prev) => ({
@@ -48,6 +75,15 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
       activeSearchId: searchId,
     }));
   }, []);
+
+  // Sync to session storage whenever state changes
+  useEffect(() => {
+    const toStore = {
+      ...state,
+      savedSearchIds: Array.from(state.savedSearchIds),
+    };
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(toStore));
+  }, [state]);
 
   const addSearch = useCallback(
     (
@@ -94,14 +130,72 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
             roles,
             releases,
             filterState,
+            timestamp: Date.now(),
           },
         },
         activeSearchId: searchId,
+        savedSearchIds: prev.savedSearchIds,
       }));
 
       return searchId;
     },
     []
+  );
+
+  const saveSearch = useCallback(
+    async (searchId: string) => {
+      const search = state.searches[searchId];
+      if (!search) return;
+
+      try {
+        const savedSearch = { ...search, savedAt: Date.now() };
+        await db.saveSearch(savedSearch);
+        setState((prev) => ({
+          ...prev,
+          searches: {
+            ...prev.searches,
+            [searchId]: savedSearch,
+          },
+          savedSearchIds: new Set([...prev.savedSearchIds, searchId]),
+        }));
+      } catch (error) {
+        console.error("Failed to save search:", error);
+        throw error;
+      }
+    },
+    [state.searches]
+  );
+
+  const unsaveSearch = useCallback(async (searchId: string) => {
+    try {
+      await db.deleteSavedSearch(searchId);
+      setState((prev) => {
+        const newSavedIds = new Set(prev.savedSearchIds);
+        newSavedIds.delete(searchId);
+
+        // Keep the search in memory but remove savedAt
+        const { ...searchWithoutSaved } = prev.searches[searchId];
+
+        return {
+          ...prev,
+          searches: {
+            ...prev.searches,
+            [searchId]: searchWithoutSaved,
+          },
+          savedSearchIds: newSavedIds,
+        };
+      });
+    } catch (error) {
+      console.error("Failed to unsave search:", error);
+      throw error;
+    }
+  }, []);
+
+  const isSearchSaved = useCallback(
+    (searchId: string) => {
+      return state.savedSearchIds.has(searchId);
+    },
+    [state.savedSearchIds]
   );
 
   const updateFilterState = useCallback(
@@ -132,29 +226,85 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
     setState((prev) => {
       const { ...remaining } = prev.searches;
       delete remaining[searchId];
+
+      // Create new savedSearchIds set without the cleared search
+      const newSavedSearchIds = new Set(prev.savedSearchIds);
+      newSavedSearchIds.delete(searchId);
+
       return {
         searches: remaining,
         activeSearchId:
           prev.activeSearchId === searchId ? null : prev.activeSearchId,
+        savedSearchIds: newSavedSearchIds,
       };
     });
   }, []);
 
-  const clearAllSearches = useCallback(() => {
-    setState({
-      searches: {},
-      activeSearchId: null,
+  const clearSessionHistory = useCallback(() => {
+    setState((prev) => {
+      // Keep only saved searches
+      const savedSearches = Object.entries(prev.searches)
+        .filter(([id]) => prev.savedSearchIds.has(id))
+        .reduce(
+          (acc, [id, search]) => ({
+            ...acc,
+            [id]: search,
+          }),
+          {}
+        );
+
+      return {
+        searches: savedSearches,
+        activeSearchId: prev.savedSearchIds.has(prev.activeSearchId || "")
+          ? prev.activeSearchId
+          : null,
+        savedSearchIds: prev.savedSearchIds,
+      };
     });
+  }, []);
+
+  const clearSavedSearches = useCallback(async () => {
+    try {
+      await db.clearAll();
+
+      setState((prev) => {
+        // Keep only non-saved searches
+        const sessionSearches = Object.entries(prev.searches)
+          .filter(([id]) => !prev.savedSearchIds.has(id))
+          .reduce(
+            (acc, [id, search]) => ({
+              ...acc,
+              [id]: search,
+            }),
+            {}
+          );
+
+        return {
+          searches: sessionSearches,
+          activeSearchId: prev.savedSearchIds.has(prev.activeSearchId || "")
+            ? null
+            : prev.activeSearchId,
+          savedSearchIds: new Set(),
+        };
+      });
+    } catch (error) {
+      console.error("Failed to clear saved searches:", error);
+      throw error;
+    }
   }, []);
 
   const value: CacheContextValue = {
     ...state,
     setActiveSearch,
     addSearch,
+    saveSearch,
+    unsaveSearch,
+    isSearchSaved,
     updateFilterState,
     getActiveSearch,
     clearSearch,
-    clearAllSearches,
+    clearSessionHistory,
+    clearSavedSearches,
   };
 
   return (

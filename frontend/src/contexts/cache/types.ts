@@ -17,27 +17,32 @@ export interface SearchCache {
     excludeMainArtist: boolean;
     collaborationsOnly: boolean;
   };
+  savedAt?: number;
 }
 
 export interface CacheState {
   searches: Record<string, SearchCache>;
   activeSearchId: string | null;
+  savedSearchIds: Set<string>;
 }
 
-export interface CacheContextValue {
-  searches: Record<string, SearchCache>; // Changed from Map to Record
-  activeSearchId: string | null;
+export interface CacheContextValue extends CacheState {
+  // Action methods
   setActiveSearch: (searchId: string) => void;
   addSearch: (
     params: SearchParams,
     contributorSet: ContributorSet,
     releases: Record<number, EnrichedRelease>
-  ) => string; // Note: returns the searchId
+  ) => string;
   updateFilterState: (
     searchId: string,
     updates: Partial<SearchCache["filterState"]>
   ) => void;
   getActiveSearch: () => SearchCache | null;
   clearSearch: (searchId: string) => void;
-  clearAllSearches: () => void;
+  clearSessionHistory: () => void;
+  clearSavedSearches: () => void;
+  saveSearch: (searchId: string) => Promise<void>;
+  unsaveSearch: (searchId: string) => Promise<void>;
+  isSearchSaved: (searchId: string) => boolean;
 }

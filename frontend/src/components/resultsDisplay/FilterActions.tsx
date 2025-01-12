@@ -11,6 +11,7 @@ export const FilterActions: React.FC<{ searchId: string }> = ({ searchId }) => {
     areAllContributorsInactive,
     toggleExcludeMainArtist,
     toggleCollaborationsOnly,
+    toggleExcludeVarious,
     filterState,
   } = useSearchFilters(searchId);
 
@@ -59,6 +60,17 @@ export const FilterActions: React.FC<{ searchId: string }> = ({ searchId }) => {
           )}
         >
           Collaborations Only
+        </Button>
+        <Button
+          variant="outline"
+          onClick={toggleExcludeVarious}
+          className={cn(
+            "w-fit",
+            filterState?.excludeVarious &&
+              "bg-primary-main text-white hover:bg-primary-main/90"
+          )}
+        >
+          Exclude Various Artists
         </Button>
       </div>
     </section>

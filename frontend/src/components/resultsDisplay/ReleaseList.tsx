@@ -15,10 +15,8 @@ export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
   return (
     <section className="w-full bg-bg-secondary p-4 sm:p-lg">
       <span className="flex flex-col sm:flex-row justify-between gap-2 sm:gap-0 mt-4 mb-6">
-        <h2 className="font-primary text-base sm:text-lg tracking-normal text-text-primary">
-          <span className="line-clamp-1">
-            {search.searchParams.artist} - {search.searchParams.album}
-          </span>
+        <h2 className="font-primary text-base sm:text-lg tracking-normal text-text-primary w-9/12">
+          <span className="line-clamp-1">{search.searchParams.album}</span>
         </h2>
         <h2 className="font-primary text-base sm:text-lg tracking-normal text-text-primary whitespace-nowrap">
           {count} Filtered Releases

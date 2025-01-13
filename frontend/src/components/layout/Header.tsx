@@ -63,10 +63,10 @@ export const Header: React.FC = () => {
           </SheetTrigger>
           <SheetContent
             side="left"
-            className="bg-bg-primary border-r border-primary-main z-modal overflow-y-auto overflow-x-hidden p-xl w-fit max-w-full "
+            className="bg-bg-primary border-r border-primary-main z-modal overflow-y-auto overflow-x-hidden pl-md md:p-xl w-screen md:w-fit max-w-full "
           >
             <SheetHeader>
-              <SheetTitle>History</SheetTitle>
+              <SheetTitle className="m-[26px]">History</SheetTitle>
               <SheetClose className="absolute right-md top-md bg-transparent border-none text-text-primary p-sm hover:text-primary-main">
                 <X size={24} />
               </SheetClose>

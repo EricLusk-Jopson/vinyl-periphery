@@ -48,15 +48,15 @@ const HistoryItem: React.FC<HistoryItemProps> = ({
       <div
         onClick={onSelect}
         className={cn(
-          "flex items-center justify-between p-md hover:bg-bg-secondary cursor-pointer rounded-md group",
+          "flex items-center gap-3 justify-between p-md hover:bg-bg-secondary cursor-pointer rounded-md group",
           isActive && "bg-bg-secondary"
         )}
       >
-        <div className="flex flex-col flex-grow min-w-0">
+        <div className="flex flex-col flex-grow w-[200px]">
           <span className="text-text-primary font-medium truncate">
-            {artist}
+            {album}
           </span>
-          <span className="text-text-secondary text-sm truncate">{album}</span>
+          <span className="text-text-secondary text-sm truncate">{artist}</span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
@@ -165,15 +165,15 @@ const HistoryPanel: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col gap-lg mt-xl">
+    <div className="flex flex-col gap-lg mt-xl w-full md:w-[320px]">
       <Collapsible open={savedOpen} onOpenChange={setSavedOpen}>
-        <CollapsibleTrigger className="flex items-center justify-between w-full p-md text-left">
-          <span className="font-medium">Saved Searches</span>
+        <CollapsibleTrigger className="flex items-center justify-between w-full p-md text-left font-bold text-md">
+          <span>Saved Searches</span>
           <div className="flex items-center gap-2">
             <span className="text-text-secondary">{savedSearches.length}</span>
             <ChevronDown
               className={cn(
-                "w-4 h-4 transition-transform duration-200",
+                "w-5 h-5 transition-transform duration-200",
                 savedOpen && "transform rotate-180"
               )}
             />
@@ -207,15 +207,15 @@ const HistoryPanel: React.FC = () => {
       </Collapsible>
 
       <Collapsible open={historyOpen} onOpenChange={setHistoryOpen}>
-        <CollapsibleTrigger className="flex items-center justify-between w-full p-md text-left">
-          <span className="font-medium">Session History</span>
+        <CollapsibleTrigger className="flex items-center justify-between w-full p-md text-left font-bold text-md">
+          <span className="font-bold">Session History</span>
           <div className="flex items-center gap-2">
             <span className="text-text-secondary">
               {sessionSearches.length}
             </span>
             <ChevronDown
               className={cn(
-                "w-4 h-4 transition-transform duration-200",
+                "w-5 h-5 transition-transform duration-200",
                 historyOpen && "transform rotate-180"
               )}
             />

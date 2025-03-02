@@ -12,6 +12,7 @@ import { Header } from "./components/layout/Header";
 import { ReleaseList } from "./components/resultsDisplay/ReleaseList";
 import { ToastAction } from "./components/ui/toast";
 import { useToast } from "./hooks/use-toast";
+import { Footer } from "./components/layout/Footer";
 
 const SearchContainer: React.FC = () => {
   const { addSearch, getActiveSearch, setActiveSearch } = useCache();
@@ -131,6 +132,7 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-background flex flex-col">
         <Header />
         <SearchContainer />
+        <Footer />
       </div>
     </CacheProvider>
   );

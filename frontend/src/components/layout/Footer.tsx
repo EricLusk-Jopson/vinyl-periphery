@@ -3,8 +3,11 @@ export const Footer: React.FC = () => (
     <div className="text-center"></div>
     <ul className="flex items-center gap-6 mx-auto text-sm">
       <li>
-        <a href="/contact" className="hover:text-accent-red">
-          Contact Form
+        <a
+          href="https://linktr.ee/ericluskjopson"
+          className="hover:text-primary-main"
+        >
+          Get In Touch
         </a>
       </li>
       <li>
@@ -12,7 +15,7 @@ export const Footer: React.FC = () => (
           href="https://github.com/EricLusk-Jopson/vinyl-periphery-feedback/issues/"
           target="_blank"
           rel="noopener noreferrer"
-          className="hover:text-accent-red"
+          className="hover:text-primary-main"
         >
           Report an Issue
         </a>
@@ -22,7 +25,7 @@ export const Footer: React.FC = () => (
           href="https://github.com/EricLusk-Jopson/vinyl-periphery-feedback/discussions"
           target="_blank"
           rel="noopener noreferrer"
-          className="hover:text-red-700"
+          className="hover:text-primary-main"
         >
           Feature Requests
         </a>

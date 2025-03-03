@@ -18,6 +18,7 @@ export interface SearchCache {
     collaborationsOnly: boolean;
     excludeVarious: boolean;
   };
+  thumb: string;
   savedAt?: number;
 }
 
@@ -33,7 +34,8 @@ export interface CacheContextValue extends CacheState {
   addSearch: (
     params: SearchParams,
     contributorSet: ContributorSet,
-    releases: Record<number, EnrichedRelease>
+    releases: Record<number, EnrichedRelease>,
+    thumb: string
   ) => string;
   updateFilterState: (
     searchId: string,

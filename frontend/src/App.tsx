@@ -61,7 +61,8 @@ const SearchContainer: React.FC = () => {
       });
 
       if (!searchResults) return;
-      const thumb = searchResults[0]?.thumb ?? searchResults[0]?.cover_image;
+      const thumb =
+        searchResults[0]?.thumb ?? searchResults[0]?.cover_image ?? "";
       console.log(thumb);
 
       // Get contributors
@@ -94,7 +95,7 @@ const SearchContainer: React.FC = () => {
       console.log(releasesRecord);
 
       // Add to cache without making it active
-      const searchId = addSearch(params, contributorSet, releasesRecord);
+      const searchId = addSearch(params, contributorSet, releasesRecord, thumb);
       const activeSearch = getActiveSearch();
       if (!activeSearch) {
         setActiveSearch(searchId);
@@ -133,29 +134,22 @@ const SearchContainer: React.FC = () => {
   );
 };
 
-const extractPaletteWithDelay = (imageUrl, delay) => {
-  return new Promise<Color[]>((resolve) => {
-    setTimeout(() => {
-      extractColorPalette(imageUrl).then((result) => resolve(result));
-    }, delay);
-  });
-};
-
 const App: React.FC = () => {
   const [colorPalette, setColorPalette] = useState<Color[]>();
+  const { getActiveSearch } = useCache();
+  const activeSearch = getActiveSearch();
 
   useEffect(() => {
+    if (!activeSearch) return;
+
     const getPalette = async () => {
-      const palette = await extractPaletteWithDelay(
-        "https://i.discogs.com/Ft21hD1op7eJI1gBZdACEZDwhazLqDexmL--rz--kkc/rs:fit/g:sm/q:40/h:150/w:150/czM6Ly9kaXNjb2dz/LWRhdGFiYXNlLWlt/YWdlcy9SLTMwODkx/MTQ0LTE3MjcwNjgz/ODctMzU4OS5qcGVn.jpeg",
-        3000
-      );
-      console.log(palette);
+      if (!activeSearch.thumb) return;
+      const palette = await extractColorPalette(activeSearch.thumb);
       setColorPalette(palette);
     };
 
     getPalette();
-  }, []);
+  }, [activeSearch]);
 
   return (
     <div className="min-h-screen flex flex-col relative">
@@ -163,7 +157,7 @@ const App: React.FC = () => {
       <TVStaticEffect
         scaleFactor={2.5}
         sampleCount={36}
-        fps={13}
+        fps={8}
         colorIntensity={0.005}
         colorPalette={colorPalette}
       />
@@ -171,7 +165,7 @@ const App: React.FC = () => {
       {/* Content overlay */}
       <div className="flex flex-col min-h-screen relative z-10">
         <Header />
-        <ColorExtractor externalUrl="https://i.discogs.com/Ft21hD1op7eJI1gBZdACEZDwhazLqDexmL--rz--kkc/rs:fit/g:sm/q:40/h:150/w:150/czM6Ly9kaXNjb2dz/LWRhdGFiYXNlLWlt/YWdlcy9SLTMwODkx/MTQ0LTE3MjcwNjgz/ODctMzU4OS5qcGVn.jpeg" />
+        {/* <ColorExtractor externalUrl="https://i.discogs.com/Ft21hD1op7eJI1gBZdACEZDwhazLqDexmL--rz--kkc/rs:fit/g:sm/q:40/h:150/w:150/czM6Ly9kaXNjb2dz/LWRhdGFiYXNlLWlt/YWdlcy9SLTMwODkx/MTQ0LTE3MjcwNjgz/ODctMzU4OS5qcGVn.jpeg" /> */}
         <SearchContainer />
         <Footer />
       </div>

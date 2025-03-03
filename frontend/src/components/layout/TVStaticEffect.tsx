@@ -1,5 +1,26 @@
 import React, { useRef, useEffect } from "react";
 
+// Import your Color interface or redefine it here
+interface Color {
+  r: number;
+  g: number;
+  b: number;
+}
+
+// Default color palette moved outside the component
+const defaultColorPalette: Color[] = [
+  // White (original grayscale)
+  { r: 1, g: 1, b: 1 },
+  // #D9325E (pink/red)
+  { r: 217, g: 50, b: 94 },
+  // #6865BF (purple)
+  { r: 104, g: 101, b: 191 },
+  // #AAA7F2 (light purple)
+  { r: 170, g: 167, b: 242 },
+  // #F2695C (coral/orange)
+  { r: 242, g: 105, b: 92 },
+];
+
 interface TVStaticEffectProps {
   className?: string;
   scaleFactor?: number;
@@ -7,6 +28,7 @@ interface TVStaticEffectProps {
   fps?: number;
   scanSpeed?: number;
   colorIntensity?: number; // Controls how much color vs grayscale (0-1)
+  colorPalette?: Color[]; // New prop to accept external color palette
 }
 
 const TVStaticEffect: React.FC<TVStaticEffectProps> = ({
@@ -16,8 +38,25 @@ const TVStaticEffect: React.FC<TVStaticEffectProps> = ({
   fps = 30,
   scanSpeed = 0, // seconds from top to bottom
   colorIntensity = 0.0005, // Very subtle color by default
+  colorPalette, // Optional color palette
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Use a ref to store the current palette so we can update it without
+  // triggering a full component re-render
+  const paletteRef = useRef<Color[]>(colorPalette || defaultColorPalette);
+
+  // Update the palette ref when the prop changes
+  useEffect(() => {
+    if (colorPalette) {
+      paletteRef.current = [
+        { r: 1, g: 1, b: 1 },
+        { r: 255, g: 255, b: 255 },
+        ...colorPalette,
+      ];
+    }
+    console.log(paletteRef.current);
+  }, [colorPalette]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -25,20 +64,6 @@ const TVStaticEffect: React.FC<TVStaticEffectProps> = ({
 
     const context = canvas.getContext("2d", { alpha: false });
     if (!context) return;
-
-    // Pre-define color palette to reduce object creation during rendering
-    const colorPalette = [
-      // White (original grayscale)
-      { r: 1, g: 1, b: 1 },
-      // #D9325E (pink/red)
-      { r: 217, g: 50, b: 94 },
-      // #6865BF (purple)
-      { r: 104, g: 101, b: 191 },
-      // #AAA7F2 (light purple)
-      { r: 170, g: 167, b: 242 },
-      // #F2695C (coral/orange)
-      { r: 242, g: 105, b: 92 },
-    ];
 
     let samples: ImageData[] = [];
     let sampleIndex = 0;
@@ -92,6 +117,9 @@ const TVStaticEffect: React.FC<TVStaticEffectProps> = ({
       const imageData = ctx.createImageData(w, h);
       const data = imageData.data;
 
+      // Get the current color palette from the ref
+      const currentPalette = paletteRef.current;
+
       // Process by row to better utilize cache locality
       for (let y = 0; y < h; y++) {
         const rowIntensity = intensity[y];
@@ -107,8 +135,8 @@ const TVStaticEffect: React.FC<TVStaticEffectProps> = ({
           const colorIndex =
             Math.random() < 1 - colorIntensity
               ? 0
-              : Math.floor(1 + Math.random() * 4);
-          const selectedColor = colorPalette[colorIndex];
+              : Math.floor(1 + Math.random() * (currentPalette.length - 1));
+          const selectedColor = currentPalette[colorIndex];
 
           if (colorIndex === 0) {
             // Original grayscale mode - single assignment is faster
@@ -143,7 +171,19 @@ const TVStaticEffect: React.FC<TVStaticEffectProps> = ({
 
           // Update sample index - simple counter
           sampleIndex += 20 / fps;
-          if (sampleIndex >= samples.length) sampleIndex = 0;
+
+          // If we've cycled through all samples, regenerate one sample
+          if (sampleIndex >= samples.length) {
+            sampleIndex = 0;
+
+            // Replace one sample with a new one to gradually introduce new colors
+            const randomIndex = Math.floor(Math.random() * samples.length);
+            samples[randomIndex] = generateRandomSample(
+              context,
+              canvas.width,
+              canvas.height
+            );
+          }
 
           // Only process scan line if speed > 0
           if (scanSpeed > 0) {

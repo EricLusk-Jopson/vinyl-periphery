@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import "./styles/globals.css";
 import { SearchForm } from "./components/searchForm/SearchForm";
 import {
@@ -15,6 +15,7 @@ import { useToast } from "./hooks/use-toast";
 import { Footer } from "./components/layout/Footer";
 import TVStaticEffect from "./components/layout/TVStaticEffect";
 import ColorExtractor from "./components/layout/ColorExtractor";
+import { Color, extractColorPalette } from "./lib/colors/paletteExtractor";
 
 const SearchContainer: React.FC = () => {
   const { addSearch, getActiveSearch, setActiveSearch } = useCache();
@@ -132,15 +133,39 @@ const SearchContainer: React.FC = () => {
   );
 };
 
+const extractPaletteWithDelay = (imageUrl, delay) => {
+  return new Promise<Color[]>((resolve) => {
+    setTimeout(() => {
+      extractColorPalette(imageUrl).then((result) => resolve(result));
+    }, delay);
+  });
+};
+
 const App: React.FC = () => {
+  const [colorPalette, setColorPalette] = useState<Color[]>();
+
+  useEffect(() => {
+    const getPalette = async () => {
+      const palette = await extractPaletteWithDelay(
+        "https://i.discogs.com/Ft21hD1op7eJI1gBZdACEZDwhazLqDexmL--rz--kkc/rs:fit/g:sm/q:40/h:150/w:150/czM6Ly9kaXNjb2dz/LWRhdGFiYXNlLWlt/YWdlcy9SLTMwODkx/MTQ0LTE3MjcwNjgz/ODctMzU4OS5qcGVn.jpeg",
+        3000
+      );
+      console.log(palette);
+      setColorPalette(palette);
+    };
+
+    getPalette();
+  }, []);
+
   return (
     <div className="min-h-screen flex flex-col relative">
       {/* Static background */}
       <TVStaticEffect
         scaleFactor={2.5}
-        sampleCount={20}
-        fps={50}
-        colorIntensity={0.005}
+        sampleCount={36}
+        fps={13}
+        colorIntensity={0.02}
+        colorPalette={colorPalette}
       />
 
       {/* Content overlay */}

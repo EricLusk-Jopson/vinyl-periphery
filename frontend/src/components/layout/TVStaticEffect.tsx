@@ -1,16 +1,17 @@
 import React, { useRef, useEffect } from "react";
 
-// Import your Color interface or redefine it here
+// Color interface
 interface Color {
   r: number;
   g: number;
   b: number;
 }
 
-// Default color palette moved outside the component
+// Default color palette
 const defaultColorPalette: Color[] = [
   // White (original grayscale)
   { r: 1, g: 1, b: 1 },
+  { r: 240, g: 240, b: 240 },
   // #D9325E (pink/red)
   { r: 217, g: 50, b: 94 },
   // #6865BF (purple)
@@ -27,8 +28,8 @@ interface TVStaticEffectProps {
   sampleCount?: number;
   fps?: number;
   scanSpeed?: number;
-  colorIntensity?: number; // Controls how much color vs grayscale (0-1)
-  colorPalette?: Color[]; // New prop to accept external color palette
+  colorIntensity?: number;
+  colorPalette?: Color[];
 }
 
 const TVStaticEffect: React.FC<TVStaticEffectProps> = ({
@@ -36,28 +37,112 @@ const TVStaticEffect: React.FC<TVStaticEffectProps> = ({
   scaleFactor = 2.5,
   sampleCount = 4,
   fps = 30,
-  scanSpeed = 0, // seconds from top to bottom
-  colorIntensity = 0.0005, // Very subtle color by default
-  colorPalette, // Optional color palette
+  scanSpeed = 0,
+  colorIntensity = 0.0005,
+  colorPalette,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const samplesRef = useRef<ImageData[]>([]);
 
-  // Use a ref to store the current palette so we can update it without
-  // triggering a full component re-render
-  const paletteRef = useRef<Color[]>(colorPalette || defaultColorPalette);
+  // Queue for storing pending palettes
+  const pendingPalettesRef = useRef<Color[][]>([]);
 
-  // Update the palette ref when the prop changes
+  // Keep track of when each sample was last regenerated
+  const lastRegenerationTimesRef = useRef<number[]>([]);
+
+  // Counter for tracking which sample to regenerate next
+  const nextSampleToRegenerateRef = useRef<number>(0);
+
+  // Current active palette
+  const activePaletteRef = useRef<Color[]>(colorPalette || defaultColorPalette);
+
+  // Effect to handle colorPalette changes
   useEffect(() => {
-    if (colorPalette) {
-      paletteRef.current = [
-        { r: 1, g: 1, b: 1 },
-        { r: 255, g: 255, b: 255 },
-        ...colorPalette,
-      ];
+    if (!colorPalette) return;
+
+    const newPalette = [
+      { r: 1, g: 1, b: 1 },
+      { r: 240, g: 240, b: 240 },
+      ...colorPalette,
+    ];
+
+    // Check if the palette has actually changed
+    if (
+      JSON.stringify(activePaletteRef.current) !== JSON.stringify(newPalette)
+    ) {
+      // Queue the new palette for gradual application
+      pendingPalettesRef.current.push(newPalette);
+      console.log("New palette queued for transition");
     }
-    console.log(paletteRef.current);
   }, [colorPalette]);
 
+  // Generate a sample with a specific palette
+  const generateSample = (
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    palette: Color[]
+  ): ImageData => {
+    const intensity: number[] = [];
+    const factor = height / 50;
+    const trans = 1 - Math.random() * 0.05;
+    const intensityCurve: number[] = [];
+
+    // Generate intensity curve
+    for (let i = 0; i < Math.floor(height / factor) + factor; i++) {
+      intensityCurve.push(Math.floor(Math.random() * 15));
+    }
+
+    // Interpolate intensity values
+    for (let i = 0; i < height; i++) {
+      const index = Math.floor(i / factor);
+      const nextIndex = Math.min(index + 1, intensityCurve.length - 1);
+      const value =
+        intensityCurve[index] +
+          (intensityCurve[nextIndex] - intensityCurve[index]) *
+            (i / factor - index) || 0;
+      intensity.push(value);
+    }
+
+    // Create noise texture
+    const imageData = ctx.createImageData(width, height);
+    const data = imageData.data;
+
+    // Process noise data
+    for (let y = 0; y < height; y++) {
+      const rowIntensity = intensity[y];
+      const rowOffset = y * width * 4;
+
+      for (let x = 0; x < width; x++) {
+        const i = rowOffset + x * 4;
+        const intensity_value = Math.floor(36 * Math.random()) + rowIntensity;
+
+        // Choose a color based on intensity
+        const colorIndex =
+          Math.random() < 1 - colorIntensity
+            ? 0
+            : Math.floor(1 + Math.random() * (palette.length - 1));
+        const selectedColor = palette[colorIndex];
+
+        if (colorIndex === 0) {
+          // Grayscale
+          data[i] = data[i + 1] = data[i + 2] = intensity_value;
+        } else {
+          // Colored noise
+          const brightness = intensity_value / 36;
+          data[i] = Math.floor(selectedColor.r * brightness);
+          data[i + 1] = Math.floor(selectedColor.g * brightness);
+          data[i + 2] = Math.floor(selectedColor.b * brightness);
+        }
+
+        data[i + 3] = Math.round(255 * trans);
+      }
+    }
+
+    return imageData;
+  };
+
+  // Main animation effect
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -65,129 +150,79 @@ const TVStaticEffect: React.FC<TVStaticEffectProps> = ({
     const context = canvas.getContext("2d", { alpha: false });
     if (!context) return;
 
-    let samples: ImageData[] = [];
     let sampleIndex = 0;
     let scanOffsetY = 0;
     let scanSize = 0;
     let animationFrameId: number;
     let lastFrameTime = 0;
+    let lastPaletteUpdateTime = 0;
 
-    // Function to interpolate values - kept simple and efficient
-    const interpolate = (
-      x: number,
-      x0: number,
-      y0: number,
-      x1: number,
-      y1: number
-    ) => {
-      return y0 + (y1 - y0) * ((x - x0) / (x1 - x0));
-    };
+    // Initialize regeneration times
+    lastRegenerationTimesRef.current = Array(sampleCount).fill(0);
 
-    // Generate random noise sample - optimized for fewer calculations
-    const generateRandomSample = (
-      ctx: CanvasRenderingContext2D,
-      w: number,
-      h: number
-    ) => {
-      const intensity: number[] = [];
-      const factor = h / 50;
-      const trans = 1 - Math.random() * 0.05;
-      const intensityCurve: number[] = [];
-
-      // Generate random intensity curve - keep calculation simple
-      for (let i = 0; i < Math.floor(h / factor) + factor; i++) {
-        intensityCurve.push(Math.floor(Math.random() * 15));
-      }
-
-      // Interpolate intensity values - precompute for each row
-      for (let i = 0; i < h; i++) {
-        const index = Math.floor(i / factor);
-        const nextIndex = Math.min(index + 1, intensityCurve.length - 1);
-        const value = interpolate(
-          i / factor,
-          index,
-          intensityCurve[index],
-          nextIndex,
-          intensityCurve[nextIndex]
+    // Regenerate a single sample with the current palette
+    const regenerateSample = (index: number) => {
+      if (samplesRef.current.length > index) {
+        samplesRef.current[index] = generateSample(
+          context!,
+          canvas.width,
+          canvas.height,
+          activePaletteRef.current
         );
-        intensity.push(value);
+        lastRegenerationTimesRef.current[index] = performance.now();
+
+        // Update the next sample index
+        nextSampleToRegenerateRef.current = (index + 1) % sampleCount;
       }
-
-      // Create noise texture
-      const imageData = ctx.createImageData(w, h);
-      const data = imageData.data;
-
-      // Get the current color palette from the ref
-      const currentPalette = paletteRef.current;
-
-      // Process by row to better utilize cache locality
-      for (let y = 0; y < h; y++) {
-        const rowIntensity = intensity[y];
-        const rowOffset = y * w * 4;
-
-        for (let x = 0; x < w; x++) {
-          const i = rowOffset + x * 4;
-
-          // Determine base intensity
-          const intensity_value = Math.floor(36 * Math.random()) + rowIntensity;
-
-          // Choose a color from the palette (weighted based on colorIntensity)
-          const colorIndex =
-            Math.random() < 1 - colorIntensity
-              ? 0
-              : Math.floor(1 + Math.random() * (currentPalette.length - 1));
-          const selectedColor = currentPalette[colorIndex];
-
-          if (colorIndex === 0) {
-            // Original grayscale mode - single assignment is faster
-            data[i] = data[i + 1] = data[i + 2] = intensity_value;
-          } else {
-            // Colored noise - apply the intensity to the selected color
-            const brightness = intensity_value / 36; // Normalize to 0-1 range
-            data[i] = Math.floor(selectedColor.r * brightness);
-            data[i + 1] = Math.floor(selectedColor.g * brightness);
-            data[i + 2] = Math.floor(selectedColor.b * brightness);
-          }
-
-          data[i + 3] = Math.round(255 * trans);
-        }
-      }
-
-      return imageData;
     };
 
-    // Render function - simplified with minimal overhead
+    // Render function for animation
     const render = (timestamp: number) => {
-      // Skip frames if needed to maintain target fps
       const elapsed = timestamp - lastFrameTime;
 
       if (elapsed >= 1000 / fps) {
-        // Only render if enough time has passed
         lastFrameTime = timestamp;
 
-        if (samples.length && context) {
-          // Draw current noise sample
-          context.putImageData(samples[Math.floor(sampleIndex)], 0, 0);
+        if (samplesRef.current.length && context) {
+          // Draw current sample
+          const currentSampleIndex =
+            Math.floor(sampleIndex) % samplesRef.current.length;
+          context.putImageData(samplesRef.current[currentSampleIndex], 0, 0);
 
-          // Update sample index - simple counter
+          // Update sample index
           sampleIndex += 20 / fps;
-
-          // If we've cycled through all samples, regenerate one sample
-          if (sampleIndex >= samples.length) {
+          if (sampleIndex >= samplesRef.current.length * 100) {
             sampleIndex = 0;
-
-            // Replace one sample with a new one to gradually introduce new colors
-            const randomIndex = Math.floor(Math.random() * samples.length);
-            samples[randomIndex] = generateRandomSample(
-              context,
-              canvas.width,
-              canvas.height
-            );
           }
 
-          // Only process scan line if speed > 0
+          // Check for palette updates every 200ms
+          if (timestamp - lastPaletteUpdateTime > 200) {
+            lastPaletteUpdateTime = timestamp;
+
+            // If there's a pending palette, activate it
+            if (pendingPalettesRef.current.length > 0) {
+              activePaletteRef.current = pendingPalettesRef.current.shift()!;
+              console.log("Activated new palette for gradual transition");
+
+              // Reset regeneration times to speed up transition
+              lastRegenerationTimesRef.current = Array(sampleCount).fill(0);
+            }
+          }
+
+          // Regenerate samples gradually with the current active palette
+          // Only regenerate one sample every ~100ms to maintain performance
+          if (
+            timestamp -
+              lastRegenerationTimesRef.current[
+                nextSampleToRegenerateRef.current
+              ] >
+            100
+          ) {
+            regenerateSample(nextSampleToRegenerateRef.current);
+          }
+
+          // Process scan line if enabled
           if (scanSpeed > 0) {
-            // Create scan line gradient
             const grd = context.createLinearGradient(
               0,
               scanOffsetY,
@@ -204,7 +239,6 @@ const TVStaticEffect: React.FC<TVStaticEffectProps> = ({
             grd.addColorStop(0.6, "rgba(255,255,255,0.25)");
             grd.addColorStop(1, "rgba(255,255,255,0)");
 
-            // Draw scan line
             context.fillStyle = grd;
             context.fillRect(
               0,
@@ -214,7 +248,6 @@ const TVStaticEffect: React.FC<TVStaticEffectProps> = ({
             );
             context.globalCompositeOperation = "lighter";
 
-            // Move scan line
             scanOffsetY += canvas.height / (scanSpeed * fps);
             if (scanOffsetY > canvas.height) scanOffsetY = -(scanSize / 2);
           }
@@ -224,39 +257,40 @@ const TVStaticEffect: React.FC<TVStaticEffectProps> = ({
       animationFrameId = window.requestAnimationFrame(render);
     };
 
-    // Simple resize handler without debouncing - most browsers throttle resize events
+    // Handle resize
     const handleResize = () => {
       if (canvas && context) {
         const canvasWidth = canvas.offsetWidth / scaleFactor;
         const canvasHeight =
           canvasWidth / (canvas.offsetWidth / canvas.offsetHeight);
 
-        // Only resize if dimensions actually changed
         if (canvas.width !== canvasWidth || canvas.height !== canvasHeight) {
           canvas.width = canvasWidth;
           canvas.height = canvasHeight;
           scanSize = canvas.offsetHeight / scaleFactor / 3;
 
-          // Generate new samples
-          samples = [];
+          // Generate initial samples with current palette
+          samplesRef.current = [];
           for (let i = 0; i < sampleCount; i++) {
-            samples.push(
-              generateRandomSample(context, canvas.width, canvas.height)
+            samplesRef.current.push(
+              generateSample(
+                context,
+                canvas.width,
+                canvas.height,
+                activePaletteRef.current
+              )
             );
+            lastRegenerationTimesRef.current[i] = performance.now();
           }
         }
       }
     };
 
-    // Set up event listeners
     window.addEventListener("resize", handleResize);
-
-    // Initialize
     handleResize();
     lastFrameTime = performance.now();
     animationFrameId = window.requestAnimationFrame(render);
 
-    // Cleanup
     return () => {
       window.removeEventListener("resize", handleResize);
       window.cancelAnimationFrame(animationFrameId);

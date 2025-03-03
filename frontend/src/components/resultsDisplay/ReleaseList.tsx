@@ -1,9 +1,10 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   useCache,
   useFilteredAndScoredReleases,
 } from "@/contexts/cache/CacheContext";
 import { defaultContributorDisplayPipeline } from "@/lib/transformers/contributorProcessor";
+import { Collapsible } from "@radix-ui/react-collapsible";
+import { CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible";
 
 export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
   const { searches } = useCache();
@@ -24,26 +25,23 @@ export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
       </span>
       <div className="flex flex-col p-2 sm:p-md gap-5">
         {releases.map((release) => (
-          <Card
+          <Collapsible
             key={release.id}
-            className="w-full sm:max-w-[90%] lg:max-w-[80%] mx-auto border-primary-main bg-bg-primary"
+            className="w-full sm:max-w-[90%] lg:max-w-[80%] mx-auto border-primary-main bg-bg-primary p-0"
           >
-            <CardHeader className="pb-0">
-              <CardTitle className="font-primary text-sm sm:text-md tracking-normal text-text-primary mb-sm">
-                <div className="flex flex-col sm:flex-row justify-between gap-1 sm:gap-4">
-                  <div>
-                    <div className="truncate text-wrap">{release.title}</div>
-                    <div className="truncate">{release.artist}</div>
-                  </div>
-
-                  <span className="whitespace-nowrap hidden md:inline">
-                    Match Score:{" "}
-                    {(100 * release.score * release.confidence).toFixed(0)}%
-                  </span>
+            <CollapsibleTrigger className="flex p-0 font-primary text-sm sm:text-md tracking-normal text-text-primary mb-sm">
+              <div className="flex flex-row justify-between text-left">
+                <div>
+                  <div className="truncate text-wrap">{release.title}</div>
+                  <div className="truncate">{release.artist}</div>
                 </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-2">
+
+                <div className="text-right whitespace-nowrap hidden md:inline">
+                  {(100 * release.score * release.confidence).toFixed(0)}%
+                </div>
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="flex flex-col gap-2">
               <p className="text-text-secondary font-secondary text-xs sm:text-sm mt-2">
                 <span className="font-medium">Active Contributors: </span>
                 <span className="line-clamp-2">
@@ -60,8 +58,8 @@ export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
                   ).join(", ")}
                 </span>
               </p>
-            </CardContent>
-          </Card>
+            </CollapsibleContent>
+          </Collapsible>
         ))}
       </div>
     </section>

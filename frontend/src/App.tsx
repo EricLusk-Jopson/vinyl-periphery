@@ -133,7 +133,12 @@ const App: React.FC = () => {
     <CacheProvider>
       <div className="min-h-screen flex flex-col relative">
         {/* Static background */}
-        <TVStaticEffect scaleFactor={4.5} sampleCount={10} fps={70} />
+        <TVStaticEffect
+          scaleFactor={2.5}
+          sampleCount={20}
+          fps={50}
+          colorIntensity={0.005}
+        />
 
         {/* Content overlay */}
         <div className="flex flex-col min-h-screen relative z-10">

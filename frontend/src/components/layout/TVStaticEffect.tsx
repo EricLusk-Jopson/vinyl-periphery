@@ -101,7 +101,7 @@ const TVStaticEffect: React.FC<TVStaticEffectProps> = ({
           const i = rowOffset + x * 4;
 
           // Determine base intensity
-          let intensity_value = Math.floor(36 * Math.random()) + rowIntensity;
+          const intensity_value = Math.floor(36 * Math.random()) + rowIntensity;
 
           // Choose a color from the palette (weighted based on colorIntensity)
           const colorIndex =

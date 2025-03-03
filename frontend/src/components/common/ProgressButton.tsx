@@ -62,7 +62,7 @@ const ProgressButton: React.FC<ProgressButtonProps> = ({
         disabled={disabled || isSearching}
         onClick={onClick}
         className={cn(
-          "w-full p-md font-primary text-md tracking-normal",
+          "w-full p-md font-primary text-lg tracking-normal",
           "bg-primary-main hover:bg-primary-dark text-text-primary",
           "transition-colors duration-200",
           "disabled:opacity-70 disabled:cursor-not-allowed",

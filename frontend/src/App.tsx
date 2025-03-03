@@ -13,6 +13,7 @@ import { ReleaseList } from "./components/resultsDisplay/ReleaseList";
 import { ToastAction } from "./components/ui/toast";
 import { useToast } from "./hooks/use-toast";
 import { Footer } from "./components/layout/Footer";
+import TVStaticEffect from "./components/layout/TVStaticEffect";
 
 const SearchContainer: React.FC = () => {
   const { addSearch, getActiveSearch, setActiveSearch } = useCache();
@@ -89,6 +90,7 @@ const SearchContainer: React.FC = () => {
 
       // Add to cache without making it active
       const searchId = addSearch(params, contributorSet, releasesRecord);
+      const activeSearch = getActiveSearch();
       if (!activeSearch) {
         setActiveSearch(searchId);
       }
@@ -119,7 +121,7 @@ const SearchContainer: React.FC = () => {
   const activeSearch = getActiveSearch();
 
   return (
-    <main className="flex-1 container mx-auto px-4 py-8">
+    <main className="flex-1 container mx-auto px-4 py-8 relative z-10">
       <SearchForm onSearch={handleSearch} isSearching={isSearching} />
       {activeSearch && <ReleaseList searchId={activeSearch.searchId} />}
     </main>
@@ -129,10 +131,16 @@ const SearchContainer: React.FC = () => {
 const App: React.FC = () => {
   return (
     <CacheProvider>
-      <div className="min-h-screen bg-background flex flex-col">
-        <Header />
-        <SearchContainer />
-        <Footer />
+      <div className="min-h-screen flex flex-col relative">
+        {/* Static background */}
+        <TVStaticEffect scaleFactor={4.5} sampleCount={10} fps={70} />
+
+        {/* Content overlay */}
+        <div className="flex flex-col min-h-screen relative z-10">
+          <Header />
+          <SearchContainer />
+          <Footer />
+        </div>
       </div>
     </CacheProvider>
   );

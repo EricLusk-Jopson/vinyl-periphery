@@ -7,13 +7,14 @@ import {
   useListContributorReleases,
 } from "./api/mutations";
 import { EnrichedRelease, SearchParams, SearchStage } from "./api/types";
-import { useCache, CacheProvider } from "./contexts/cache/CacheContext";
+import { useCache } from "./contexts/cache/CacheContext";
 import { Header } from "./components/layout/Header";
 import { ReleaseList } from "./components/resultsDisplay/ReleaseList";
 import { ToastAction } from "./components/ui/toast";
 import { useToast } from "./hooks/use-toast";
 import { Footer } from "./components/layout/Footer";
 import TVStaticEffect from "./components/layout/TVStaticEffect";
+import ColorExtractor from "./components/layout/ColorExtractor";
 
 const SearchContainer: React.FC = () => {
   const { addSearch, getActiveSearch, setActiveSearch } = useCache();
@@ -59,6 +60,8 @@ const SearchContainer: React.FC = () => {
       });
 
       if (!searchResults) return;
+      const thumb = searchResults[0]?.thumb ?? searchResults[0]?.cover_image;
+      console.log(thumb);
 
       // Get contributors
       const contributorSet = await contributorsMutation.mutateAsync({
@@ -87,6 +90,7 @@ const SearchContainer: React.FC = () => {
           },
         ])
       ) as Record<number, EnrichedRelease>;
+      console.log(releasesRecord);
 
       // Add to cache without making it active
       const searchId = addSearch(params, contributorSet, releasesRecord);
@@ -130,24 +134,23 @@ const SearchContainer: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <CacheProvider>
-      <div className="min-h-screen flex flex-col relative">
-        {/* Static background */}
-        <TVStaticEffect
-          scaleFactor={2.5}
-          sampleCount={20}
-          fps={50}
-          colorIntensity={0.005}
-        />
+    <div className="min-h-screen flex flex-col relative">
+      {/* Static background */}
+      <TVStaticEffect
+        scaleFactor={2.5}
+        sampleCount={20}
+        fps={50}
+        colorIntensity={0.005}
+      />
 
-        {/* Content overlay */}
-        <div className="flex flex-col min-h-screen relative z-10">
-          <Header />
-          <SearchContainer />
-          <Footer />
-        </div>
+      {/* Content overlay */}
+      <div className="flex flex-col min-h-screen relative z-10">
+        <Header />
+        <ColorExtractor externalUrl="https://i.discogs.com/Ft21hD1op7eJI1gBZdACEZDwhazLqDexmL--rz--kkc/rs:fit/g:sm/q:40/h:150/w:150/czM6Ly9kaXNjb2dz/LWRhdGFiYXNlLWlt/YWdlcy9SLTMwODkx/MTQ0LTE3MjcwNjgz/ODctMzU4OS5qcGVn.jpeg" />
+        <SearchContainer />
+        <Footer />
       </div>
-    </CacheProvider>
+    </div>
   );
 };
 

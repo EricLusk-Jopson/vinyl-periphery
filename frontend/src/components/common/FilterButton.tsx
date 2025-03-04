@@ -18,7 +18,7 @@ export const FilterButton = forwardRef<HTMLButtonElement, FilterButtonProps>(
           "whitespace-nowrap overflow-hidden text-ellipsis",
           "max-w-full",
           isActive ? "bg-primary-main" : "bg-bg-primary",
-          "hover:bg-primary-dark disabled:hover:bg-bg-primary",
+          "hover:bg-primary-main disabled:hover:bg-bg-primary",
           "disabled:opacity-50 disabled:cursor-not-allowed",
           "disabled:border-text-disabled",
           className

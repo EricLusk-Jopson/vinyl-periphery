@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 
 // Color interface
 interface Color {
@@ -30,6 +30,7 @@ interface TVStaticEffectProps {
   scanSpeed?: number;
   colorIntensity?: number;
   colorPalette?: Color[];
+  paused?: boolean; // New prop to pause animation
 }
 
 const TVStaticEffect: React.FC<TVStaticEffectProps> = ({
@@ -40,23 +41,28 @@ const TVStaticEffect: React.FC<TVStaticEffectProps> = ({
   scanSpeed = 0,
   colorIntensity = 0.0005,
   colorPalette,
+  paused = false, // Default to animation running
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animationFrameIdRef = useRef<number>(0);
   const samplesRef = useRef<ImageData[]>([]);
+  const sampleIndexRef = useRef<number>(0);
+  const scanOffsetYRef = useRef<number>(0);
+  const lastFrameTimeRef = useRef<number>(0);
 
-  // Queue for storing pending palettes
-  const pendingPalettesRef = useRef<Color[][]>([]);
+  // Active palette reference with grayscale included
+  const [activePalette, setActivePalette] = useState<Color[]>(() => {
+    if (colorPalette) {
+      return [
+        { r: 1, g: 1, b: 1 },
+        { r: 240, g: 240, b: 240 },
+        ...colorPalette,
+      ];
+    }
+    return defaultColorPalette;
+  });
 
-  // Keep track of when each sample was last regenerated
-  const lastRegenerationTimesRef = useRef<number[]>([]);
-
-  // Counter for tracking which sample to regenerate next
-  const nextSampleToRegenerateRef = useRef<number>(0);
-
-  // Current active palette
-  const activePaletteRef = useRef<Color[]>(colorPalette || defaultColorPalette);
-
-  // Effect to handle colorPalette changes
+  // Update active palette when colorPalette prop changes
   useEffect(() => {
     if (!colorPalette) return;
 
@@ -66,17 +72,10 @@ const TVStaticEffect: React.FC<TVStaticEffectProps> = ({
       ...colorPalette,
     ];
 
-    // Check if the palette has actually changed
-    if (
-      JSON.stringify(activePaletteRef.current) !== JSON.stringify(newPalette)
-    ) {
-      // Queue the new palette for gradual application
-      pendingPalettesRef.current.push(newPalette);
-      console.log("New palette queued for transition");
-    }
+    setActivePalette(newPalette);
   }, [colorPalette]);
 
-  // Generate a sample with a specific palette
+  // Generate a sample with the current palette
   const generateSample = (
     ctx: CanvasRenderingContext2D,
     width: number,
@@ -142,7 +141,116 @@ const TVStaticEffect: React.FC<TVStaticEffectProps> = ({
     return imageData;
   };
 
-  // Main animation effect
+  // Handling animation frame
+  const animate = (timestamp: number) => {
+    if (paused) {
+      animationFrameIdRef.current = 0;
+      return;
+    }
+
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      animationFrameIdRef.current = requestAnimationFrame(animate);
+      return;
+    }
+
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context) {
+      animationFrameIdRef.current = requestAnimationFrame(animate);
+      return;
+    }
+
+    // Handle timing
+    const now = timestamp || performance.now();
+    const elapsed = now - lastFrameTimeRef.current;
+
+    if (elapsed >= 1000 / fps) {
+      lastFrameTimeRef.current = now;
+
+      if (samplesRef.current.length) {
+        // Draw the current sample
+        const currentSampleIndex =
+          Math.floor(sampleIndexRef.current) % samplesRef.current.length;
+        context.putImageData(samplesRef.current[currentSampleIndex], 0, 0);
+
+        // Update sample index
+        sampleIndexRef.current += 15 / fps;
+        if (sampleIndexRef.current >= samplesRef.current.length) {
+          sampleIndexRef.current = 0;
+
+          // Each time we complete a cycle, regenerate one sample with the current palette
+          const sampleToRegenerate = Math.floor(
+            Math.random() * samplesRef.current.length
+          );
+          samplesRef.current[sampleToRegenerate] = generateSample(
+            context,
+            canvas.width,
+            canvas.height,
+            activePalette
+          );
+        }
+
+        // Draw scan line if enabled
+        if (scanSpeed > 0) {
+          const scanSize = canvas.height / scaleFactor / 3;
+
+          const grd = context.createLinearGradient(
+            0,
+            scanOffsetYRef.current,
+            0,
+            scanSize + scanOffsetYRef.current
+          );
+          grd.addColorStop(0, "rgba(255,255,255,0)");
+          grd.addColorStop(0.1, "rgba(255,255,255,0)");
+          grd.addColorStop(0.2, "rgba(255,255,255,0.2)");
+          grd.addColorStop(0.3, "rgba(255,255,255,0.0)");
+          grd.addColorStop(0.45, "rgba(255,255,255,0.1)");
+          grd.addColorStop(0.5, "rgba(255,255,255,1.0)");
+          grd.addColorStop(0.55, "rgba(255,255,255,0.55)");
+          grd.addColorStop(0.6, "rgba(255,255,255,0.25)");
+          grd.addColorStop(1, "rgba(255,255,255,0)");
+
+          context.fillStyle = grd;
+          context.fillRect(
+            0,
+            scanOffsetYRef.current,
+            canvas.width,
+            scanSize + scanOffsetYRef.current
+          );
+          context.globalCompositeOperation = "lighter";
+
+          // Move scan line
+          scanOffsetYRef.current += canvas.height / (scanSpeed * fps);
+          if (scanOffsetYRef.current > canvas.height) {
+            scanOffsetYRef.current = -(scanSize / 2);
+          }
+        }
+      }
+    }
+
+    // Continue animation
+    animationFrameIdRef.current = requestAnimationFrame(animate);
+  };
+
+  // Start animation
+  useEffect(() => {
+    // Initialize animation
+    if (!paused && !animationFrameIdRef.current) {
+      animationFrameIdRef.current = requestAnimationFrame(animate);
+    } else if (paused && animationFrameIdRef.current) {
+      cancelAnimationFrame(animationFrameIdRef.current);
+      animationFrameIdRef.current = 0;
+    }
+
+    return () => {
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+        animationFrameIdRef.current = 0;
+      }
+    };
+  }, [paused]);
+
+  // Handle resize and initialization
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -150,152 +258,44 @@ const TVStaticEffect: React.FC<TVStaticEffectProps> = ({
     const context = canvas.getContext("2d", { alpha: false });
     if (!context) return;
 
-    let sampleIndex = 0;
-    let scanOffsetY = 0;
-    let scanSize = 0;
-    let animationFrameId: number;
-    let lastFrameTime = 0;
-    let lastPaletteUpdateTime = 0;
-
-    // Initialize regeneration times
-    lastRegenerationTimesRef.current = Array(sampleCount).fill(0);
-
-    // Regenerate a single sample with the current palette
-    const regenerateSample = (index: number) => {
-      if (samplesRef.current.length > index) {
-        samplesRef.current[index] = generateSample(
-          context!,
-          canvas.width,
-          canvas.height,
-          activePaletteRef.current
-        );
-        lastRegenerationTimesRef.current[index] = performance.now();
-
-        // Update the next sample index
-        nextSampleToRegenerateRef.current = (index + 1) % sampleCount;
-      }
-    };
-
-    // Render function for animation
-    const render = (timestamp: number) => {
-      const elapsed = timestamp - lastFrameTime;
-
-      if (elapsed >= 1000 / fps) {
-        lastFrameTime = timestamp;
-
-        if (samplesRef.current.length && context) {
-          // Draw current sample
-          const currentSampleIndex =
-            Math.floor(sampleIndex) % samplesRef.current.length;
-          context.putImageData(samplesRef.current[currentSampleIndex], 0, 0);
-
-          // Update sample index
-          sampleIndex += 20 / fps;
-          if (sampleIndex >= samplesRef.current.length * 100) {
-            sampleIndex = 0;
-          }
-
-          // Check for palette updates every 200ms
-          if (timestamp - lastPaletteUpdateTime > 200) {
-            lastPaletteUpdateTime = timestamp;
-
-            // If there's a pending palette, activate it
-            if (pendingPalettesRef.current.length > 0) {
-              activePaletteRef.current = pendingPalettesRef.current.shift()!;
-              console.log("Activated new palette for gradual transition");
-
-              // Reset regeneration times to speed up transition
-              lastRegenerationTimesRef.current = Array(sampleCount).fill(0);
-            }
-          }
-
-          // Regenerate samples gradually with the current active palette
-          // Only regenerate one sample every ~100ms to maintain performance
-          if (
-            timestamp -
-              lastRegenerationTimesRef.current[
-                nextSampleToRegenerateRef.current
-              ] >
-            100
-          ) {
-            regenerateSample(nextSampleToRegenerateRef.current);
-          }
-
-          // Process scan line if enabled
-          if (scanSpeed > 0) {
-            const grd = context.createLinearGradient(
-              0,
-              scanOffsetY,
-              0,
-              scanSize + scanOffsetY
-            );
-            grd.addColorStop(0, "rgba(255,255,255,0)");
-            grd.addColorStop(0.1, "rgba(255,255,255,0)");
-            grd.addColorStop(0.2, "rgba(255,255,255,0.2)");
-            grd.addColorStop(0.3, "rgba(255,255,255,0.0)");
-            grd.addColorStop(0.45, "rgba(255,255,255,0.1)");
-            grd.addColorStop(0.5, "rgba(255,255,255,1.0)");
-            grd.addColorStop(0.55, "rgba(255,255,255,0.55)");
-            grd.addColorStop(0.6, "rgba(255,255,255,0.25)");
-            grd.addColorStop(1, "rgba(255,255,255,0)");
-
-            context.fillStyle = grd;
-            context.fillRect(
-              0,
-              scanOffsetY,
-              canvas.width,
-              scanSize + scanOffsetY
-            );
-            context.globalCompositeOperation = "lighter";
-
-            scanOffsetY += canvas.height / (scanSpeed * fps);
-            if (scanOffsetY > canvas.height) scanOffsetY = -(scanSize / 2);
-          }
-        }
-      }
-
-      animationFrameId = window.requestAnimationFrame(render);
-    };
-
-    // Handle resize
     const handleResize = () => {
-      if (canvas && context) {
-        const canvasWidth = canvas.offsetWidth / scaleFactor;
-        const canvasHeight =
-          canvasWidth / (canvas.offsetWidth / canvas.offsetHeight);
+      if (!canvas || !context) return;
 
-        if (canvas.width !== canvasWidth || canvas.height !== canvasHeight) {
-          canvas.width = canvasWidth;
-          canvas.height = canvasHeight;
-          scanSize = canvas.offsetHeight / scaleFactor / 3;
+      const canvasWidth = canvas.offsetWidth / scaleFactor;
+      const canvasHeight =
+        canvasWidth / (canvas.offsetWidth / canvas.offsetHeight);
 
-          // Generate initial samples with current palette
-          samplesRef.current = [];
-          for (let i = 0; i < sampleCount; i++) {
-            samplesRef.current.push(
-              generateSample(
-                context,
-                canvas.width,
-                canvas.height,
-                activePaletteRef.current
-              )
-            );
-            lastRegenerationTimesRef.current[i] = performance.now();
-          }
+      if (canvas.width !== canvasWidth || canvas.height !== canvasHeight) {
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+
+        // Generate new samples
+        samplesRef.current = [];
+        for (let i = 0; i < sampleCount; i++) {
+          samplesRef.current.push(
+            generateSample(context, canvas.width, canvas.height, activePalette)
+          );
+        }
+
+        // If paused, display first frame
+        if (paused && samplesRef.current.length > 0) {
+          context.putImageData(samplesRef.current[0], 0, 0);
         }
       }
     };
 
+    // Set up resize handler
     window.addEventListener("resize", handleResize);
+
+    // Initial setup
     handleResize();
-    lastFrameTime = performance.now();
-    animationFrameId = window.requestAnimationFrame(render);
+    sampleIndexRef.current = 0;
+    lastFrameTimeRef.current = performance.now();
 
     return () => {
       window.removeEventListener("resize", handleResize);
-      window.cancelAnimationFrame(animationFrameId);
     };
-  }, [scaleFactor, sampleCount, fps, scanSpeed, colorIntensity]);
+  }, [scaleFactor, sampleCount, activePalette]);
 
   return (
     <canvas

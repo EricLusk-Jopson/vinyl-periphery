@@ -63,7 +63,7 @@ export const SearchForm: React.FC<SearchFormProps> = ({
           aria-label="Artist name"
           className={cn(
             "bg-bg-primary text-text-primary text-md font-secondary w-full",
-            "border-primary-main focus:border-primary-dark",
+            "border-primary-main focus:border-primary-main",
             "placeholder:text-text-secondary"
           )}
         />
@@ -88,7 +88,7 @@ export const SearchForm: React.FC<SearchFormProps> = ({
           aria-label="Album name"
           className={cn(
             "bg-bg-primary text-text-primary text-md font-secondary w-full",
-            "border-primary-main focus:border-primary-dark",
+            "border-primary-main focus:border-primary-main",
             "placeholder:text-text-secondary"
           )}
         />

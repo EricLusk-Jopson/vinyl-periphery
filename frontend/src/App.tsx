@@ -14,8 +14,9 @@ import { ToastAction } from "./components/ui/toast";
 import { useToast } from "./hooks/use-toast";
 import { Footer } from "./components/layout/Footer";
 import TVStaticEffect from "./components/layout/TVStaticEffect";
-import ColorExtractor from "./components/layout/ColorExtractor";
 import { Color, extractColorPalette } from "./lib/colors/paletteExtractor";
+import { Button } from "./components/ui/button"; // Import Button component
+import { Pause, Play } from "lucide-react"; // Import icons
 
 const SearchContainer: React.FC = () => {
   const { addSearch, getActiveSearch, setActiveSearch } = useCache();
@@ -136,6 +137,7 @@ const SearchContainer: React.FC = () => {
 
 const App: React.FC = () => {
   const [colorPalette, setColorPalette] = useState<Color[]>();
+  const [isStaticPaused, setIsStaticPaused] = useState(true);
   const { getActiveSearch } = useCache();
   const activeSearch = getActiveSearch();
 
@@ -151,6 +153,10 @@ const App: React.FC = () => {
     getPalette();
   }, [activeSearch]);
 
+  const toggleStatic = () => {
+    setIsStaticPaused((prev) => !prev);
+  };
+
   return (
     <div className="min-h-screen flex flex-col relative">
       {/* Static background */}
@@ -160,14 +166,31 @@ const App: React.FC = () => {
         fps={8}
         colorIntensity={0.005}
         colorPalette={colorPalette}
+        paused={isStaticPaused}
       />
 
       {/* Content overlay */}
       <div className="flex flex-col min-h-screen relative z-10">
         <Header />
-        {/* <ColorExtractor externalUrl="https://i.discogs.com/Ft21hD1op7eJI1gBZdACEZDwhazLqDexmL--rz--kkc/rs:fit/g:sm/q:40/h:150/w:150/czM6Ly9kaXNjb2dz/LWRhdGFiYXNlLWlt/YWdlcy9SLTMwODkx/MTQ0LTE3MjcwNjgz/ODctMzU4OS5qcGVn.jpeg" /> */}
         <SearchContainer />
         <Footer />
+      </div>
+
+      {/* Static toggle button */}
+      <div className="fixed bottom-4 right-2 z-50">
+        <Button
+          onClick={toggleStatic}
+          variant="secondary"
+          size="icon"
+          className="rounded-full shadow-md bg-black/30 backdrop-blur-sm"
+          aria-label={
+            isStaticPaused
+              ? "Enable background animation"
+              : "Pause background animation"
+          }
+        >
+          {isStaticPaused ? <Play size={16} /> : <Pause size={16} />}
+        </Button>
       </div>
     </div>
   );

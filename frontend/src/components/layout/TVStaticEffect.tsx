@@ -27,7 +27,6 @@ interface TVStaticEffectProps {
   scaleFactor?: number;
   sampleCount?: number;
   fps?: number;
-  scanSpeed?: number;
   colorIntensity?: number;
   colorPalette?: Color[];
   paused?: boolean;
@@ -38,7 +37,6 @@ const TVStaticEffect: React.FC<TVStaticEffectProps> = ({
   scaleFactor = 2.5,
   sampleCount = 4,
   fps = 30,
-  scanSpeed = 0,
   colorIntensity = 0.0005,
   colorPalette,
   paused = false,
@@ -47,7 +45,6 @@ const TVStaticEffect: React.FC<TVStaticEffectProps> = ({
   const animationFrameIdRef = useRef<number>(0);
   const samplesRef = useRef<ImageData[]>([]);
   const currentFrameRef = useRef<number>(0);
-  const scanOffsetYRef = useRef<number>(0);
   const lastFrameTimeRef = useRef<number>(0);
   const isGeneratingRef = useRef<boolean>(false);
   const windowSizeRef = useRef<{ width: number; height: number }>({
@@ -213,48 +210,12 @@ const TVStaticEffect: React.FC<TVStaticEffectProps> = ({
         // Move to next frame
         currentFrameRef.current =
           (currentFrameRef.current + 1) % samplesRef.current.length;
-
-        // Draw scan line if enabled
-        if (scanSpeed > 0) {
-          const scanSize = canvas.height / 3;
-
-          const grd = context.createLinearGradient(
-            0,
-            scanOffsetYRef.current,
-            0,
-            scanSize + scanOffsetYRef.current
-          );
-          grd.addColorStop(0, "rgba(255,255,255,0)");
-          grd.addColorStop(0.1, "rgba(255,255,255,0)");
-          grd.addColorStop(0.2, "rgba(255,255,255,0.2)");
-          grd.addColorStop(0.3, "rgba(255,255,255,0.0)");
-          grd.addColorStop(0.45, "rgba(255,255,255,0.1)");
-          grd.addColorStop(0.5, "rgba(255,255,255,1.0)");
-          grd.addColorStop(0.55, "rgba(255,255,255,0.55)");
-          grd.addColorStop(0.6, "rgba(255,255,255,0.25)");
-          grd.addColorStop(1, "rgba(255,255,255,0)");
-
-          context.fillStyle = grd;
-          context.fillRect(
-            0,
-            scanOffsetYRef.current,
-            canvas.width,
-            scanSize + scanOffsetYRef.current
-          );
-          context.globalCompositeOperation = "lighter";
-
-          // Move scan line
-          scanOffsetYRef.current += canvas.height / (scanSpeed * fps);
-          if (scanOffsetYRef.current > canvas.height) {
-            scanOffsetYRef.current = -(scanSize / 2);
-          }
-        }
       }
 
       // Continue animation
       animationFrameIdRef.current = requestAnimationFrame(animate);
     },
-    [fps, paused, scanSpeed]
+    [fps, paused]
   );
 
   // Initialize or update frames when needed

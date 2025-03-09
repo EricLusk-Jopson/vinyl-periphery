@@ -134,18 +134,18 @@ export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
           {count} Matches
         </h2>
       </span>
-      <div className="flex flex-col p-2 sm:p-md gap-5">
+      <div className="flex flex-col p-2 sm:p-md gap-2">
         {currentReleases.length > 0 ? (
           currentReleases.map((release) => (
             <Collapsible
               key={release.id}
               className="w-full sm:max-w-[90%] lg:max-w-[80%] mx-auto border-primary-main bg-bg-primary p-2 group"
             >
-              <CollapsibleTrigger className="flex w-full p-0 font-primary text-sm sm:text-md tracking-normal text-text-primary group-data-[state=open]:text-primary-main mb-sm hover:text-primary-main">
-                <div className="flex flex-row justify-between text-left w-full">
-                  <div>
+              <CollapsibleTrigger className="flex w-full p-0 font-primary text-sm sm:text-lg tracking-normal text-text-primary group-data-[state=open]:text-primary-main hover:text-primary-main">
+                <div className="flex flex-row justify-between items-center text-left w-full">
+                  <div className="flex flex-row gap-2 flex-wrap">
+                    <div className="truncate">{release.artist}:</div>
                     <div className="truncate text-wrap">{release.title}</div>
-                    <div className="truncate">{release.artist}</div>
                   </div>
 
                   <div className="text-right whitespace-nowrap hidden md:inline">

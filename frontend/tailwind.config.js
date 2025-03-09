@@ -20,9 +20,9 @@ export default {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
-          main: "#D9325E",
-          dark: "#A81F44",
-          light: "#C2BBF2",
+          main: "#CA231F",
+          dark: "#851714",
+          light: "#E84A45",
         },
         text: {
           primary: "#eee",

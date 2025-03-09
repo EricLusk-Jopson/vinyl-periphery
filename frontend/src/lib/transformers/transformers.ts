@@ -47,3 +47,6 @@ export const removeEmptyStrings: StringTransformer = (strs) => {
 
 export const removeDuplicates = (strs: string[]): string[] =>
   Array.from(new Set(strs));
+
+export const separateBySpace = (strs: string[]): string[] =>
+  strs.map((str, idx) => (idx > 0 ? " " + str : str));

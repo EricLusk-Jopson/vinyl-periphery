@@ -8,6 +8,7 @@ import { Collapsible } from "@radix-ui/react-collapsible";
 import { CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible";
 import { Button } from "../ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { spacedDefaultRolePipeline } from "@/lib/transformers/roleProcessor";
 
 export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
   const { searches } = useCache();
@@ -141,7 +142,12 @@ export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
               key={release.id}
               className="w-full sm:max-w-[90%] lg:max-w-[80%] mx-auto border-primary-main bg-bg-primary p-2 group"
             >
-              <CollapsibleTrigger className="flex w-full p-0 font-primary text-sm sm:text-lg tracking-normal text-text-primary group-data-[state=open]:text-primary-main hover:text-primary-main">
+              <CollapsibleTrigger
+                className="flex w-full p-0 font-primary text-sm sm:text-lg tracking-normal text-text-primary group-data-[state=closed]:text-text-primary
+             group-data-[state=open]:text-primary-main
+             hover:!text-primary-dark focus:outline-primary-main
+             transition-colors duration-200 ease-in-out"
+              >
                 <div className="flex flex-row justify-between items-center text-left w-full">
                   <div className="flex flex-row gap-2 flex-wrap">
                     <div className="truncate">{release.artist}:</div>
@@ -149,27 +155,30 @@ export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
                   </div>
 
                   <div className="text-right whitespace-nowrap hidden md:inline">
-                    {(100 * release.score * release.confidence).toFixed(0)}%
+                    {(100 * release.score).toFixed(0)}%
                   </div>
                 </div>
               </CollapsibleTrigger>
               <CollapsibleContent className="flex flex-col gap-2">
-                <p className="text-text-secondary font-secondary text-xs sm:text-sm mt-2">
-                  <span className="font-medium">Active Contributors: </span>
-                  <span className="line-clamp-2">
-                    {Array.from(
-                      new Set(
-                        release.activeContributors
-                          .filter((id) => id in search.contributors)
-                          .map((id) =>
-                            defaultContributorDisplayPipeline(
+                <span className="text-md">Active Contributors: </span>
+                <ul className="text-text-secondary font-secondary text-sm sm:text-sm mt-2">
+                  {Array.from(
+                    new Set(
+                      release.activeContributors
+                        .filter((id) => id in search.contributors)
+                        .map(
+                          (id) =>
+                            `${defaultContributorDisplayPipeline(
                               search.contributors[id].name
-                            )
-                          )
-                      )
-                    ).join(", ")}
-                  </span>
-                </p>
+                            )} (${spacedDefaultRolePipeline(
+                              search.contributors[id].roles
+                            )})`
+                        )
+                    )
+                  ).map((txt) => (
+                    <li>{txt}</li>
+                  ))}
+                </ul>
               </CollapsibleContent>
             </Collapsible>
           ))

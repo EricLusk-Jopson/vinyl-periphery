@@ -73,7 +73,7 @@ const TVStaticEffect: React.FC<TVStaticEffectProps> = ({
       palette: Color[]
     ): ImageData => {
       const intensity: number[] = [];
-      const factor = height / 40;
+      const factor = height / 30;
       const trans = 1 - Math.random() * 0.05;
       const intensityCurve: number[] = [];
 

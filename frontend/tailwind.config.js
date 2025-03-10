@@ -25,13 +25,13 @@ export default {
           light: "#E84A45",
         },
         text: {
-          primary: "#eee",
-          secondary: "#fff",
+          primary: "#ddd",
+          secondary: "#bbb",
           disabled: "gray",
           inverse: "#000000",
         },
         bg: {
-          primary: "#010D00",
+          primary: "#000",
           secondary: "#222126",
           tertiary: "#222222",
         },

@@ -46,7 +46,9 @@ const ProgressButton: React.FC<ProgressButtonProps> = ({
   const getProgressText = () => {
     if (!stage) return "Search";
     return `${stage.label}${
-      stage.total > 0 ? ` (${stage.current}/${stage.total})` : ""
+      stage.total > 0
+        ? ` (${Math.round((100 * stage.current) / stage.total)}%)`
+        : ""
     }`;
   };
 

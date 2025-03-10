@@ -7,6 +7,7 @@ import {
   splitCommaDelimited,
   removeEmptyStrings,
   removeDuplicates,
+  separateBySpace,
 } from "./transformers";
 
 // Create standard transformers from our single-role functions
@@ -26,4 +27,9 @@ export const defaultRolePipeline = composePipeline([
   arrayTransformers.capitalizeAfterSpace,
   removeEmptyStrings,
   removeDuplicates,
+]);
+
+export const spacedDefaultRolePipeline = composePipeline([
+  defaultRolePipeline,
+  separateBySpace,
 ]);

@@ -89,7 +89,8 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
     (
       params: SearchParams,
       contributorSet: ContributorSet,
-      releases: Record<number, EnrichedRelease>
+      releases: Record<number, EnrichedRelease>,
+      thumb: string
     ): string => {
       const searchId = `${params.artist}-${params.album}-${Date.now()}`;
 
@@ -131,6 +132,7 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
             roles,
             releases,
             filterState,
+            thumb,
             timestamp: Date.now(),
           },
         },

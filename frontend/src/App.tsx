@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import "./styles/globals.css";
 import { SearchForm } from "./components/searchForm/SearchForm";
 import {
@@ -7,11 +7,16 @@ import {
   useListContributorReleases,
 } from "./api/mutations";
 import { EnrichedRelease, SearchParams, SearchStage } from "./api/types";
-import { useCache, CacheProvider } from "./contexts/cache/CacheContext";
+import { useCache } from "./contexts/cache/CacheContext";
 import { Header } from "./components/layout/Header";
 import { ReleaseList } from "./components/resultsDisplay/ReleaseList";
 import { ToastAction } from "./components/ui/toast";
 import { useToast } from "./hooks/use-toast";
+import { Footer } from "./components/layout/Footer";
+import TVStaticEffect from "./components/layout/TVStaticEffect";
+import { Color, extractColorPalette } from "./lib/colors/paletteExtractor";
+import { Button } from "./components/ui/button"; // Import Button component
+import { Pause, Play } from "lucide-react"; // Import icons
 
 const SearchContainer: React.FC = () => {
   const { addSearch, getActiveSearch, setActiveSearch } = useCache();
@@ -57,6 +62,9 @@ const SearchContainer: React.FC = () => {
       });
 
       if (!searchResults) return;
+      const thumb =
+        searchResults[0]?.thumb ?? searchResults[0]?.cover_image ?? "";
+      console.log(thumb);
 
       // Get contributors
       const contributorSet = await contributorsMutation.mutateAsync({
@@ -85,9 +93,11 @@ const SearchContainer: React.FC = () => {
           },
         ])
       ) as Record<number, EnrichedRelease>;
+      console.log(releasesRecord);
 
       // Add to cache without making it active
-      const searchId = addSearch(params, contributorSet, releasesRecord);
+      const searchId = addSearch(params, contributorSet, releasesRecord, thumb);
+      const activeSearch = getActiveSearch();
       if (!activeSearch) {
         setActiveSearch(searchId);
       }
@@ -118,7 +128,7 @@ const SearchContainer: React.FC = () => {
   const activeSearch = getActiveSearch();
 
   return (
-    <main className="flex-1 container mx-auto px-4 py-8">
+    <main className="flex-1 container mx-auto px-4 py-8 relative z-10">
       <SearchForm onSearch={handleSearch} isSearching={isSearching} />
       {activeSearch && <ReleaseList searchId={activeSearch.searchId} />}
     </main>
@@ -126,13 +136,63 @@ const SearchContainer: React.FC = () => {
 };
 
 const App: React.FC = () => {
+  const [colorPalette, setColorPalette] = useState<Color[]>();
+  const [isStaticPaused, setIsStaticPaused] = useState(false);
+  const { getActiveSearch } = useCache();
+  const activeSearch = getActiveSearch();
+
+  useEffect(() => {
+    if (!activeSearch) return;
+
+    const getPalette = async () => {
+      if (!activeSearch.thumb) return;
+      const palette = await extractColorPalette(activeSearch.thumb);
+      setColorPalette(palette);
+    };
+
+    getPalette();
+  }, [activeSearch]);
+
+  const toggleStatic = () => {
+    setIsStaticPaused((prev) => !prev);
+  };
+
   return (
-    <CacheProvider>
-      <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen flex flex-col relative">
+      {/* Static background */}
+      <TVStaticEffect
+        scaleFactor={2.5}
+        sampleCount={36}
+        fps={8}
+        colorIntensity={0.001}
+        colorPalette={colorPalette}
+        paused={isStaticPaused}
+      />
+
+      {/* Content overlay */}
+      <div className="flex flex-col min-h-screen relative z-10">
         <Header />
         <SearchContainer />
+        <Footer />
       </div>
-    </CacheProvider>
+
+      {/* Static toggle button */}
+      <div className="fixed bottom-4 right-2 z-50">
+        <Button
+          onClick={toggleStatic}
+          variant="secondary"
+          size="icon"
+          className="rounded-full shadow-md bg-black/30 backdrop-blur-sm"
+          aria-label={
+            isStaticPaused
+              ? "Enable background animation"
+              : "Pause background animation"
+          }
+        >
+          {isStaticPaused ? <Play size={16} /> : <Pause size={16} />}
+        </Button>
+      </div>
+    </div>
   );
 };
 

@@ -160,8 +160,15 @@ export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
                 </div>
               </CollapsibleTrigger>
               <CollapsibleContent className="flex flex-col gap-2">
-                <span className="text-md">Active Contributors: </span>
-                <ul className="text-text-secondary font-secondary text-sm sm:text-sm mt-2">
+                <div>
+                  <p className="text-md">Active Contributors: </p>
+                  <p className="text-xs text-text-secondary">
+                    Roles displayed are for contributor's participation on{" "}
+                    {release.title}{" "}
+                  </p>
+                </div>
+
+                <ul className=" font-secondary text-sm sm:text-sm mt-2">
                   {Array.from(
                     new Set(
                       release.activeContributors

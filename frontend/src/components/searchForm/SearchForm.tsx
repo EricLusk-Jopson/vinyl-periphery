@@ -38,13 +38,20 @@ export const SearchForm: React.FC<SearchFormProps> = ({
     }
   };
 
+  // Common input classes for consistency
+  const inputClasses = cn(
+    "bg-bg-primary text-text-primary text-md font-secondary w-full",
+    "border-primary-main focus:border-primary-main",
+    "placeholder:text-text-secondary"
+  );
+
   return (
     <form
       onSubmit={handleSubmit}
       aria-busy={isSearching}
-      className="grid gap-xl max-w-[800px] mx-auto my-2xl mt-28 p-lg bg-bg-primary bg-opacity-60"
+      className="grid gap-xl w-full max-w-[800px] mx-auto my-2xl mt-28 p-lg bg-bg-primary bg-opacity-60 overflow-hidden"
     >
-      <div className="grid gap-md">
+      <div className="grid gap-md w-full">
         <Label
           htmlFor="artist"
           className="text-text-primary text-lg font-secondary tracking-normal"
@@ -61,15 +68,11 @@ export const SearchForm: React.FC<SearchFormProps> = ({
           required
           autoComplete="off"
           aria-label="Artist name"
-          className={cn(
-            "bg-bg-primary text-text-primary text-md font-secondary w-full",
-            "border-primary-main focus:border-primary-main",
-            "placeholder:text-text-secondary"
-          )}
+          className={inputClasses}
         />
       </div>
 
-      <div className="grid gap-md">
+      <div className="grid gap-md w-full">
         <Label
           htmlFor="album"
           className="text-text-primary text-lg font-secondary tracking-normal"
@@ -86,19 +89,18 @@ export const SearchForm: React.FC<SearchFormProps> = ({
           required
           autoComplete="off"
           aria-label="Album name"
-          className={cn(
-            "bg-bg-primary text-text-primary text-md font-secondary w-full",
-            "border-primary-main focus:border-primary-main",
-            "placeholder:text-text-secondary"
-          )}
+          className={inputClasses}
         />
       </div>
 
-      <ProgressButton
-        stage={currentStage}
-        isSearching={isSearching}
-        disabled={!formData.artist.trim() || !formData.album.trim()}
-      />
+      <div className="w-full">
+        <ProgressButton
+          stage={currentStage}
+          isSearching={isSearching}
+          disabled={!formData.artist.trim() || !formData.album.trim()}
+          className="w-full "
+        />
+      </div>
     </form>
   );
 };

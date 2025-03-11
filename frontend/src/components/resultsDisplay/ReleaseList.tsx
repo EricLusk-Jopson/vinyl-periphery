@@ -145,13 +145,13 @@ export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
               <CollapsibleTrigger
                 className="flex w-full p-0 font-primary text-sm sm:text-lg tracking-normal text-text-primary group-data-[state=closed]:text-text-primary
              group-data-[state=open]:text-primary-main
-             hover:!text-primary-dark focus:outline-primary-main
+             sm:hover:!text-primary-dark focus:outline-primary-main
              transition-colors duration-200 ease-in-out"
               >
                 <div className="flex flex-row justify-between items-center text-left w-full">
-                  <div className="flex flex-row gap-2 flex-wrap">
-                    <div className="truncate">{release.artist}:</div>
-                    <div className="truncate text-wrap">{release.title}</div>
+                  <div className="flex flex-row gap-2 flex-wrap ">
+                    <div className="text-wrap">{release.artist}:</div>
+                    <div className=" text-wrap">{release.title}</div>
                   </div>
 
                   <div className="text-right whitespace-nowrap hidden md:inline">
@@ -161,14 +161,13 @@ export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
               </CollapsibleTrigger>
               <CollapsibleContent className="flex flex-col gap-2">
                 <div>
-                  <p className="text-md">Active Contributors: </p>
-                  <p className="text-xs text-text-secondary">
+                  <p className="text-xs text-text-disabled">
                     Roles displayed are for contributor's participation on{" "}
                     {release.title}{" "}
                   </p>
                 </div>
 
-                <ul className=" font-secondary text-sm sm:text-sm mt-2">
+                <ul className=" font-secondar text-ms text-text-secondary sm:text-sm mt-2">
                   {Array.from(
                     new Set(
                       release.activeContributors

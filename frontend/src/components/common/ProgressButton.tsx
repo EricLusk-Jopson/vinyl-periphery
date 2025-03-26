@@ -46,7 +46,9 @@ const ProgressButton: React.FC<ProgressButtonProps> = ({
   const getProgressText = () => {
     if (!stage) return "Search";
     return `${stage.label}${
-      stage.total > 0 ? ` (${stage.current}/${stage.total})` : ""
+      stage.total > 0
+        ? ` (${Math.round((100 * stage.current) / stage.total)}%)`
+        : ""
     }`;
   };
 
@@ -62,10 +64,10 @@ const ProgressButton: React.FC<ProgressButtonProps> = ({
         disabled={disabled || isSearching}
         onClick={onClick}
         className={cn(
-          "w-full p-md font-primary text-md tracking-normal",
-          "bg-primary-main hover:bg-primary-dark text-text-primary",
+          "w-full max-w-full truncate p-md font-primary text-sm tracking-normal z-20 md:text-lg",
+          "bg-primary-main hover:bg-primary-main text-text-primary",
           "transition-colors duration-200",
-          "disabled:opacity-70 disabled:cursor-not-allowed",
+          "disabled:opacity-90 disabled:cursor-not-allowed disabled:bg-bg-tertiary disabled:text-text-disabled",
           isSearching && "bg-text-disabled cursor-wait",
           className
         )}
@@ -77,7 +79,7 @@ const ProgressButton: React.FC<ProgressButtonProps> = ({
       </Button>
       {isSearching && (
         <div
-          className="absolute left-0 bottom-0 h-1 bg-primary-dark transition-all duration-300 ease-in-out"
+          className="absolute left-0 bottom-0 h-1 bg-primary-main transition-all duration-300 ease-in-out"
           style={{ width: `${getProgress()}%` }}
         />
       )}

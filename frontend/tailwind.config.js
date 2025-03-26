@@ -25,14 +25,14 @@ export default {
           light: "#E84A45",
         },
         text: {
-          primary: "#ffffff",
-          secondary: "#cccccc",
+          primary: "#ddd",
+          secondary: "#bbb",
           disabled: "gray",
           inverse: "#000000",
         },
         bg: {
-          primary: "#000000",
-          secondary: "#111111",
+          primary: "#000",
+          secondary: "#222126",
           tertiary: "#222222",
         },
         status: {
@@ -84,7 +84,8 @@ export default {
         ],
       },
       fontSize: {
-        xs: "0.875rem",
+        xs: "0.6rem",
+        ms: "0.8rem",
         sm: "1rem",
         md: "1.2rem",
         lg: "1.5rem",

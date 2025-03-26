@@ -135,7 +135,7 @@ export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
       <div className="flex flex-col p-2 sm:p-md gap-2">
         {currentReleases.length > 0 ? (
           currentReleases.map((release) => (
-            <ReleaseCard release={release} search={search} />
+            <ReleaseCard release={release} search={search} key={release.id} />
           ))
         ) : (
           <p className="text-center text-text-secondary">No releases found</p>

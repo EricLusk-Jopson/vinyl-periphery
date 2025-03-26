@@ -41,7 +41,7 @@ export const SearchForm: React.FC<SearchFormProps> = ({
   // Common input classes for consistency
   const inputClasses = cn(
     "bg-bg-primary text-text-primary text-md font-secondary w-full",
-    "border-primary-main focus:border-primary-main",
+    "border-primary-main focus:border-primary-main ",
     "placeholder:text-text-secondary"
   );
 

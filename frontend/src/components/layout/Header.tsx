@@ -75,9 +75,9 @@ export const Header: React.FC = () => {
           </SheetContent>
         </Sheet>
 
-        <h1 className="font-primary text-lg tracking-wide text-primary-main m-0">
+        {/* <h1 className="font-primary text-lg tracking-wide text-primary-main m-0">
           Vinyl Periphery
-        </h1>
+        </h1> */}
 
         <Sheet>
           <SheetTrigger asChild>

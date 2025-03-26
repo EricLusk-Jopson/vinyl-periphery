@@ -3,12 +3,9 @@ import {
   useCache,
   useFilteredAndScoredReleases,
 } from "@/contexts/cache/CacheContext";
-import { defaultContributorDisplayPipeline } from "@/lib/transformers/contributorProcessor";
-import { Collapsible } from "@radix-ui/react-collapsible";
-import { CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible";
 import { Button } from "../ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { spacedDefaultRolePipeline } from "@/lib/transformers/roleProcessor";
+import { ReleaseCard } from "./ReleaseCard";
 
 export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
   const { searches } = useCache();
@@ -138,55 +135,7 @@ export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
       <div className="flex flex-col p-2 sm:p-md gap-2">
         {currentReleases.length > 0 ? (
           currentReleases.map((release) => (
-            <Collapsible
-              key={release.id}
-              className="w-full sm:max-w-[90%] lg:max-w-[80%] mx-auto border-primary-main bg-bg-primary p-2 group"
-            >
-              <CollapsibleTrigger
-                className="flex w-full p-0 font-primary text-sm sm:text-lg tracking-normal text-text-primary group-data-[state=closed]:text-text-primary
-             group-data-[state=open]:text-primary-main
-             sm:hover:!text-primary-dark focus:outline-primary-main
-             transition-colors duration-200 ease-in-out"
-              >
-                <div className="flex flex-row justify-between items-center text-left w-full">
-                  <div className="flex flex-row gap-2 flex-wrap ">
-                    <div className="text-wrap">{release.artist}:</div>
-                    <div className=" text-wrap">{release.title}</div>
-                  </div>
-
-                  <div className="text-right whitespace-nowrap hidden md:inline">
-                    {(100 * release.score).toFixed(0)}%
-                  </div>
-                </div>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="flex flex-col gap-2">
-                <div>
-                  <p className="text-xs text-text-disabled">
-                    Roles displayed are for contributor's participation on{" "}
-                    {release.title}{" "}
-                  </p>
-                </div>
-
-                <ul className=" font-secondar text-ms text-text-secondary sm:text-sm mt-2">
-                  {Array.from(
-                    new Set(
-                      release.activeContributors
-                        .filter((id) => id in search.contributors)
-                        .map(
-                          (id) =>
-                            `${defaultContributorDisplayPipeline(
-                              search.contributors[id].name
-                            )} (${spacedDefaultRolePipeline(
-                              search.contributors[id].roles
-                            )})`
-                        )
-                    )
-                  ).map((txt) => (
-                    <li>{txt}</li>
-                  ))}
-                </ul>
-              </CollapsibleContent>
-            </Collapsible>
+            <ReleaseCard release={release} search={search} />
           ))
         ) : (
           <p className="text-center text-text-secondary">No releases found</p>

@@ -164,7 +164,7 @@ const App: React.FC = () => {
         scaleFactor={2.5}
         sampleCount={36}
         fps={8}
-        colorIntensity={0.001}
+        colorIntensity={0.002}
         colorPalette={colorPalette}
         paused={isStaticPaused}
       />

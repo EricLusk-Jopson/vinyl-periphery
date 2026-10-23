@@ -40,7 +40,7 @@ export const SearchForm: React.FC<SearchFormProps> = ({
 
   // Common input classes for consistency
   const inputClasses = cn(
-    "bg-bg-primary text-text-primary text-md font-secondary w-full",
+    "bg-bg-primary text-text-primary text-[1.2rem] font-secondary w-full",
     "border-primary-main focus:border-primary-main ",
     "placeholder:text-text-secondary"
   );
@@ -49,12 +49,12 @@ export const SearchForm: React.FC<SearchFormProps> = ({
     <form
       onSubmit={handleSubmit}
       aria-busy={isSearching}
-      className="grid gap-xl w-full max-w-[800px] mx-auto my-2xl mt-28 p-lg bg-bg-primary bg-opacity-60 overflow-hidden"
+      className="grid gap-[50px] w-full max-w-[800px] mx-auto my-[75px] mt-28 p-[20px] bg-bg-primary bg-opacity-60 overflow-hidden"
     >
-      <div className="grid gap-md w-full">
+      <div className="grid gap-[15px] w-full">
         <Label
           htmlFor="artist"
-          className="text-text-primary text-lg font-secondary tracking-normal"
+          className="text-text-primary text-[1.5rem] font-secondary tracking-[3px]"
         >
           Artist
         </Label>
@@ -72,10 +72,10 @@ export const SearchForm: React.FC<SearchFormProps> = ({
         />
       </div>
 
-      <div className="grid gap-md w-full">
+      <div className="grid gap-[15px] w-full">
         <Label
           htmlFor="album"
-          className="text-text-primary text-lg font-secondary tracking-normal"
+          className="text-text-primary text-[1.5rem] font-secondary tracking-[3px]"
         >
           Album
         </Label>

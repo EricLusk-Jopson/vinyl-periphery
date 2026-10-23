@@ -16,8 +16,8 @@ export const FilterActions: React.FC<{ searchId: string }> = ({ searchId }) => {
   } = useSearchFilters(searchId);
 
   return (
-    <section className="flex flex-col gap-sm w-full bg-bg-secondary p-lg">
-      <div className="flex flex-row gap-sm w-full flex-wrap">
+    <section className="flex flex-col gap-[10px] w-full bg-bg-secondary p-[20px]">
+      <div className="flex flex-row gap-[10px] w-full flex-wrap">
         <Button variant="outline" onClick={resetAllFilters} className="w-fit">
           Reset All Filters
         </Button>
@@ -38,7 +38,7 @@ export const FilterActions: React.FC<{ searchId: string }> = ({ searchId }) => {
           Exclude All Contributors
         </Button>
       </div>
-      <div className="flex flex-row gap-sm w-full flex-wrap mt-sm">
+      <div className="flex flex-row gap-[10px] w-full flex-wrap mt-[10px]">
         <Button
           variant="outline"
           onClick={toggleExcludeMainArtist}

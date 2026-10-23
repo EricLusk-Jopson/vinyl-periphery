@@ -48,7 +48,7 @@ const HistoryItem: React.FC<HistoryItemProps> = ({
       <div
         onClick={onSelect}
         className={cn(
-          "flex items-center gap-3 justify-between p-md hover:bg-bg-secondary cursor-pointer rounded-md group",
+          "flex items-center gap-3 justify-between p-[15px] hover:bg-bg-secondary cursor-pointer rounded-md group",
           isActive && "bg-bg-secondary"
         )}
       >
@@ -56,7 +56,7 @@ const HistoryItem: React.FC<HistoryItemProps> = ({
           <span className="text-text-primary font-medium truncate">
             {album}
           </span>
-          <span className="text-text-secondary text-sm truncate">{artist}</span>
+          <span className="text-text-secondary text-[1rem] truncate">{artist}</span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
@@ -165,9 +165,9 @@ const HistoryPanel: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col gap-lg mt-xl w-full md:w-[320px]">
+    <div className="flex flex-col gap-[20px] mt-[50px] w-full md:w-[320px]">
       <Collapsible open={savedOpen} onOpenChange={setSavedOpen}>
-        <CollapsibleTrigger className="flex items-center justify-between w-full p-md text-left font-bold text-md">
+        <CollapsibleTrigger className="flex items-center justify-between w-full p-[15px] text-left font-bold text-[1.2rem]">
           <span>Saved Searches</span>
           <div className="flex items-center gap-2">
             <span className="text-text-secondary">{savedSearches.length}</span>
@@ -180,9 +180,9 @@ const HistoryPanel: React.FC = () => {
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <div className="flex flex-col gap-sm">
+          <div className="flex flex-col gap-[10px]">
             {savedSearches.length === 0 ? (
-              <div className="py-sm px-md text-text-secondary">
+              <div className="py-[10px] px-[15px] text-text-secondary">
                 No saved searches yet
               </div>
             ) : (
@@ -207,7 +207,7 @@ const HistoryPanel: React.FC = () => {
       </Collapsible>
 
       <Collapsible open={historyOpen} onOpenChange={setHistoryOpen}>
-        <CollapsibleTrigger className="flex items-center justify-between w-full p-md text-left font-bold text-md">
+        <CollapsibleTrigger className="flex items-center justify-between w-full p-[15px] text-left font-bold text-[1.2rem]">
           <span className="font-bold">Session History</span>
           <div className="flex items-center gap-2">
             <span className="text-text-secondary">
@@ -222,9 +222,9 @@ const HistoryPanel: React.FC = () => {
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <div className="flex flex-col gap-sm">
+          <div className="flex flex-col gap-[10px]">
             {sessionSearches.length === 0 ? (
-              <div className="py-sm px-md text-text-secondary">
+              <div className="py-[10px] px-[15px] text-text-secondary">
                 No search history yet
               </div>
             ) : (

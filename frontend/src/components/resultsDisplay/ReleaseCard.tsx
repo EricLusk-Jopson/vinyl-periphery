@@ -75,7 +75,7 @@ export const ReleaseCard: React.FC<ReleaseCardProps> = ({
       className="w-full border-primary-main bg-bg-primary p-2 group"
     >
       <CollapsibleTrigger
-        className="flex w-full p-0 font-primary text-sm sm:text-lg tracking-normal text-text-primary group-data-[state=closed]:text-text-primary
+        className="flex w-full p-0 font-primary text-[1rem] sm:text-[1.5rem] tracking-[3px] text-text-primary group-data-[state=closed]:text-text-primary
         group-data-[state=open]:text-primary-main
         sm:hover:!text-primary-dark focus:outline-primary-main
         transition-colors duration-200 ease-in-out"
@@ -93,12 +93,12 @@ export const ReleaseCard: React.FC<ReleaseCardProps> = ({
       </CollapsibleTrigger>
       <CollapsibleContent className="flex flex-col gap-2 items-start">
         <div>
-          <p className="text-xs text-text-disabled">
+          <p className="text-[0.6rem] text-text-disabled">
             Roles displayed are for contributor's participation on{" "}
             <i>{search.searchParams.album} </i>
           </p>
         </div>
-        <ul className="font-secondary text-ms text-text-secondary sm:text-sm mt-2">
+        <ul className="font-secondary text-[0.8rem] text-text-secondary sm:text-[1rem] mt-2">
           {Array.from(
             new Set(
               release.activeContributors
@@ -127,7 +127,7 @@ export const ReleaseCard: React.FC<ReleaseCardProps> = ({
             href={discogsUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs text-text-disabled hover:text-primary-light"
+            className="text-[0.6rem] text-text-disabled hover:text-primary-light"
           >
             Visit on Discogs
           </a>

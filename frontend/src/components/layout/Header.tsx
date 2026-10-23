@@ -46,12 +46,12 @@ export const Header: React.FC = () => {
     <header
       className={cn(
         "fixed top-0 left-0 right-0 bg-bg-primary border-b border-primary-main",
-        "transition-transform duration-normal",
+        "transition-transform duration-300",
         "z-header",
         isVisible ? "translate-y-0" : "-translate-y-full"
       )}
     >
-      <div className="flex justify-between items-center px-md py-md mx-auto w-full">
+      <div className="flex justify-between items-center px-[15px] py-[15px] mx-auto w-full">
         <Sheet>
           <SheetTrigger asChild>
             <button className="bg-transparent border-none text-text-primary p-2 hover:text-primary-main transition-colors flex items-center gap-2">
@@ -63,11 +63,11 @@ export const Header: React.FC = () => {
           </SheetTrigger>
           <SheetContent
             side="left"
-            className="bg-bg-primary border-r border-primary-main z-modal overflow-y-auto overflow-x-hidden pl-md md:p-xl w-screen md:w-fit max-w-full "
+            className="bg-bg-primary border-r border-primary-main z-modal overflow-y-auto overflow-x-hidden pl-[15px] md:p-[50px] w-screen md:w-fit max-w-full "
           >
             <SheetHeader>
               <SheetTitle className="m-[26px]">History</SheetTitle>
-              <SheetClose className="absolute right-md top-md bg-transparent border-none text-text-primary p-sm hover:text-primary-main">
+              <SheetClose className="absolute right-[15px] top-[15px] bg-transparent border-none text-text-primary p-[10px] hover:text-primary-main">
                 <X size={24} />
               </SheetClose>
             </SheetHeader>
@@ -75,7 +75,7 @@ export const Header: React.FC = () => {
           </SheetContent>
         </Sheet>
 
-        {/* <h1 className="font-primary text-lg tracking-wide text-primary-main m-0">
+        {/* <h1 className="font-primary text-[1.5rem] tracking-[4px] text-primary-main m-0">
           Vinyl Periphery
         </h1> */}
 
@@ -92,19 +92,19 @@ export const Header: React.FC = () => {
             side="right"
             className={cn(
               "bg-bg-primary border-l border-primary-main z-modal",
-              "p-xl fixed top-0 right-0 h-full",
+              "p-[50px] fixed top-0 right-0 h-full",
               "w-full",
               "overflow-y-auto overflow-x-hidden"
             )}
           >
             <SheetHeader>
               <SheetTitle>Filters ({count})</SheetTitle>
-              <SheetClose className="absolute right-md top-md bg-transparent border-none text-text-primary p-sm hover:text-primary-main">
+              <SheetClose className="absolute right-[15px] top-[15px] bg-transparent border-none text-text-primary p-[10px] hover:text-primary-main">
                 <X size={24} />
               </SheetClose>
             </SheetHeader>
             {activeSearch && (
-              <div className="flex flex-col gap-lg mt-xl w-full">
+              <div className="flex flex-col gap-[20px] mt-[50px] w-full">
                 <FilterActions searchId={activeSearch.searchId} />
                 <ContributorList searchId={activeSearch.searchId} />
                 <RoleList searchId={activeSearch.searchId} />

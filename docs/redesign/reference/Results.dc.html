@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Results</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&amp;family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#0C0C0D}
+a{color:#EDEDEF}a:hover{color:#FF6257}
+input::placeholder{color:#8A8A90}
+input:focus,select:focus,button:focus-visible{outline:2px solid #E0312A;outline-offset:1px}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0C0C0D; color: #EDEDEF; font-family: 'IBM Plex Sans', system-ui, sans-serif; display: flex; flex-direction: column">
+
+  <header style="border-bottom: 1px solid #2A2A2E; background: #0C0C0D">
+    <div style="max-width: 1280px; margin: 0 auto; padding: 10px 24px; min-height: 64px; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px">
+      <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #EDEDEF">
+        <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="12" fill="none" stroke="#EDEDEF" stroke-width="1.5"></circle><circle cx="13" cy="13" r="7" fill="none" stroke="#3A3A3F" stroke-width="1"></circle><circle cx="13" cy="13" r="3.5" fill="#E0312A"></circle></svg>
+        <span style="font-family: 'Bebas Neue', Impact, sans-serif; font-size: 26px; letter-spacing: 1.5px; line-height: 1">Vinyl Periphery</span>
+      </a>
+      <form style="flex: 1 1 520px; max-width: 640px; display: flex; gap: 8px">
+        <label for="h-artist" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Artist</label>
+        <input id="h-artist" type="text" placeholder="Artist" style="flex: 1 1 0; min-width: 0; height: 40px; box-sizing: border-box; padding: 0 12px; background: #141416; border: 1px solid #2A2A2E; border-radius: 8px; color: #EDEDEF; font: 15px 'IBM Plex Sans', sans-serif">
+        <label for="h-album" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Album</label>
+        <input id="h-album" type="text" placeholder="Album" style="flex: 1 1 0; min-width: 0; height: 40px; box-sizing: border-box; padding: 0 12px; background: #141416; border: 1px solid #2A2A2E; border-radius: 8px; color: #EDEDEF; font: 15px 'IBM Plex Sans', sans-serif">
+        <button type="submit" aria-label="Search" style="flex: 0 0 44px; height: 40px; display: flex; align-items: center; justify-content: center; background: #E0312A; border: 0; border-radius: 8px; color: #FFFFFF; cursor: pointer">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+        </button>
+      </form>
+      <button type="button" style="display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 10px; background: transparent; border: 0; color: #EDEDEF; font: 500 15px 'IBM Plex Sans', sans-serif; cursor: pointer">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5"></path><path d="M12 7v5l3 2"></path></svg>
+        History
+      </button>
+    </div>
+  </header>
+
+  <section style="border-bottom: 1px solid #2A2A2E; position: relative; overflow: hidden">
+    <svg aria-hidden="true" style="position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.10; pointer-events: none"><filter id="grain2"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch"></feTurbulence><feColorMatrix type="saturate" values="0"></feColorMatrix></filter><rect width="100%" height="100%" filter="url(#grain2)"></rect></svg>
+    <div style="position: relative; max-width: 1280px; margin: 0 auto; padding: 36px 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 24px">
+      <div style="flex: 0 0 112px; height: 112px; border-radius: 4px; background: #2B2422; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; color: #A3A3A8">DS</div>
+      <div style="flex: 1 1 360px; display: flex; flex-direction: column; gap: 6px">
+        <p style="margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: #FF6257">Connections from</p>
+        <h1 style="margin: 0; font-family: 'Bebas Neue', Impact, sans-serif; font-weight: 400; font-size: 56px; line-height: 1; letter-spacing: 0.5px">The Dark Side of the Moon</h1>
+        <p style="margin: 0; font-size: 16px; color: #A3A3A8">Pink Floyd · 1973 · {{contributorCount}} credited contributors</p>
+      </div>
+      <div style="display: flex; gap: 8px">
+        <button type="button" style="display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 16px; background: transparent; border: 1px solid #3A3A3F; border-radius: 8px; color: #EDEDEF; font: 500 15px 'IBM Plex Sans', sans-serif; cursor: pointer">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="#E0312A" stroke="#E0312A" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"></path></svg>
+          Saved
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <div style="max-width: 1280px; width: 100%; box-sizing: border-box; margin: 0 auto; padding: 32px 24px 96px; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 32px">
+
+    <aside aria-label="Filters" style="flex: 1 1 280px; max-width: 320px; display: flex; flex-direction: column; gap: 28px">
+      <div style="display: flex; align-items: baseline; justify-content: space-between">
+        <h2 style="margin: 0; font-size: 15px; font-weight: 600; letter-spacing: 0.3px">Filters</h2>
+        <button type="button" onClick="{{reset}}" style="height: 32px; padding: 0; background: transparent; border: 0; color: #A3A3A8; font: 500 14px 'IBM Plex Sans', sans-serif; text-decoration: underline; cursor: pointer">Reset</button>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <sc-for list="{{switches}}" as="sw" hint-placeholder-count="3">
+          <button type="button" role="switch" aria-checked="{{sw.on}}" onClick="{{sw.toggle}}" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 0; background: transparent; border: 0; color: #EDEDEF; font: 15px 'IBM Plex Sans', sans-serif; text-align: left; cursor: pointer">
+            <span>{{sw.label}}</span>
+            <span style="flex: 0 0 36px; height: 20px; border-radius: 999px; box-sizing: border-box; padding: 2px; display: flex; justify-content: {{sw.justify}}; background: {{sw.track}}">
+              <span style="width: 16px; height: 16px; border-radius: 999px; background: #FFFFFF"></span>
+            </span>
+          </button>
+        </sc-for>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px">
+        <h3 style="margin: 0; font-size: 13px; font-weight: 500; color: #A3A3A8; text-transform: uppercase; letter-spacing: 1px">Contributors</h3>
+        <label for="c-filter" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Filter contributors</label>
+        <input id="c-filter" type="text" placeholder="Filter names" style="height: 36px; box-sizing: border-box; padding: 0 12px; background: #141416; border: 1px solid #2A2A2E; border-radius: 8px; color: #EDEDEF; font: 14px 'IBM Plex Sans', sans-serif">
+        <div style="display: flex; flex-wrap: wrap; gap: 8px">
+          <sc-for list="{{chips}}" as="c" hint-placeholder-count="10">
+            <button type="button" aria-pressed="{{c.on}}" onClick="{{c.toggle}}" title="{{c.roles}}" style="display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border-radius: 6px; font: 14px 'IBM Plex Sans', sans-serif; cursor: pointer; background: {{c.bg}}; border: 1px {{c.borderStyle}} {{c.border}}; color: {{c.color}}; text-decoration: {{c.deco}}">
+              <span>{{c.name}}</span>
+              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8A8A90">{{c.count}}</span>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px">
+        <h3 style="margin: 0; font-size: 13px; font-weight: 500; color: #A3A3A8; text-transform: uppercase; letter-spacing: 1px">Roles</h3>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px">
+          <sc-for list="{{roleChips}}" as="r" hint-placeholder-count="8">
+            <button type="button" aria-pressed="{{r.on}}" onClick="{{r.toggle}}" style="height: 34px; padding: 0 10px; border-radius: 6px; font: 14px 'IBM Plex Sans', sans-serif; cursor: pointer; background: {{r.bg}}; border: 1px solid {{r.border}}; color: {{r.color}}; text-decoration: {{r.deco}}">{{r.name}}</button>
+          </sc-for>
+        </div>
+      </div>
+    </aside>
+
+    <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px">
+        <h2 style="margin: 0; font-size: 18px; font-weight: 600">{{resultCount}} albums</h2>
+        <div style="display: flex; align-items: center; gap: 10px">
+          <label for="sort" style="font-size: 14px; color: #A3A3A8">Sort by</label>
+          <select id="sort" style="height: 40px; padding: 0 10px; background: #141416; border: 1px solid #2A2A2E; border-radius: 8px; color: #EDEDEF; font: 14px 'IBM Plex Sans', sans-serif">
+            <option>Most shared contributors</option>
+            <option>Year, newest first</option>
+            <option>Year, oldest first</option>
+            <option>Artist A to Z</option>
+          </select>
+        </div>
+      </div>
+
+      <ul style="list-style: none; margin: 0; padding: 0; border-top: 1px solid #2A2A2E">
+        <sc-for list="{{rows}}" as="row" hint-placeholder-count="8">
+          <li style="border-bottom: 1px solid #2A2A2E">
+            <button type="button" aria-expanded="{{row.open}}" onClick="{{row.toggle}}" style="width: 100%; display: flex; align-items: center; gap: 16px; padding: 14px 4px; background: transparent; border: 0; color: #EDEDEF; text-align: left; cursor: pointer; font-family: 'IBM Plex Sans', sans-serif">
+              <span style="flex: 0 0 56px; height: 56px; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #A3A3A8; background: {{row.tone}}">{{row.initials}}</span>
+              <span style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px">
+                <span style="font-size: 16px; font-weight: 600; line-height: 1.3">{{row.title}}</span>
+                <span style="font-size: 14px; color: #A3A3A8">{{row.artist}} · {{row.year}}</span>
+                <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8A8A90">via {{row.via}}</span>
+              </span>
+              <span style="flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: 6px">
+                <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: {{row.scoreColor}}">{{row.shared}} shared</span>
+                <span aria-hidden="true" style="display: flex; gap: 3px">
+                  <sc-for list="{{row.dots}}" as="d" hint-placeholder-count="4">
+                    <span style="width: 8px; height: 8px; border-radius: 999px; background: {{d}}"></span>
+                  </sc-for>
+                </span>
+              </span>
+            </button>
+            <sc-if value="{{row.open}}" hint-placeholder-val="{{ false }}">
+              <div style="padding: 4px 4px 20px 76px; display: flex; flex-direction: column; gap: 14px">
+                <p style="margin: 0; font-size: 13px; color: #8A8A90">Roles shown are what each person did on The Dark Side of the Moon.</p>
+                <ul style="list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px">
+                  <sc-for list="{{row.people}}" as="p" hint-placeholder-count="2">
+                    <li style="display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; background: #141416; border: 1px solid #2A2A2E; border-radius: 8px">
+                      <span style="font-size: 15px; font-weight: 500">{{p.name}}</span>
+                      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #A3A3A8">{{p.roles}}</span>
+                    </li>
+                  </sc-for>
+                </ul>
+                <div style="display: flex; flex-wrap: wrap; gap: 20px; font-size: 14px">
+                  <a href="#" style="text-decoration: none; color: #FF6257">View on Discogs ↗</a>
+                  <a href="#" style="text-decoration: none; color: #EDEDEF">Search from this album</a>
+                </div>
+              </div>
+            </sc-if>
+          </li>
+        </sc-for>
+      </ul>
+
+      <sc-if value="{{empty}}" hint-placeholder-val="{{ false }}">
+        <div style="padding: 48px 24px; text-align: center; border: 1px dashed #2A2A2E; border-radius: 12px; display: flex; flex-direction: column; gap: 12px; align-items: center">
+          <p style="margin: 0; font-size: 16px; font-weight: 600">No albums match these filters</p>
+          <button type="button" onClick="{{reset}}" style="height: 40px; padding: 0 16px; background: transparent; border: 1px solid #3A3A3F; border-radius: 8px; color: #EDEDEF; font: 500 14px 'IBM Plex Sans', sans-serif; cursor: pointer">Reset filters</button>
+        </div>
+      </sc-if>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; padding-top: 12px">
+        <button type="button" style="height: 44px; padding: 0 24px; background: #141416; border: 1px solid #2A2A2E; border-radius: 8px; color: #EDEDEF; font: 500 15px 'IBM Plex Sans', sans-serif; cursor: pointer">Show more</button>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8A8A90">Showing {{resultCount}} of {{resultCount}}</span>
+      </div>
+    </main>
+  </div>
+
+  <footer style="margin-top: auto; border-top: 1px solid #2A2A2E">
+    <div style="max-width: 1280px; margin: 0 auto; padding: 24px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; font-size: 13px; color: #8A8A90">
+      <span>Data from Discogs. Not affiliated with Discogs.</span>
+      <nav aria-label="Footer" style="display: flex; gap: 20px"><a href="#" style="text-decoration: none; color: #A3A3A8">Report an issue</a><a href="#" style="text-decoration: none; color: #A3A3A8">Get in touch</a></nav>
+    </div>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1720}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { off: {}, rolesOff: {}, hideVarious: false, collabOnly: false, hideMain: true, open: 'eve' };
+  }
+  renderVals() {
+    const people = {
+      parsons: { name: 'Alan Parsons', roles: ['Engineer'] },
+      thomas: { name: 'Chris Thomas', roles: ['Mixed By'] },
+      parry: { name: 'Dick Parry', roles: ['Saxophone'] },
+      torry: { name: 'Clare Torry', roles: ['Vocals'] },
+      troy: { name: 'Doris Troy', roles: ['Backing Vocals'] },
+      duncan: { name: 'Lesley Duncan', roles: ['Backing Vocals'] },
+      james: { name: 'Peter James', roles: ['Assistant Engineer'] },
+      hipgnosis: { name: 'Hipgnosis', roles: ['Design'] },
+      thorgerson: { name: 'Storm Thorgerson', roles: ['Design', 'Photography'] },
+      hardie: { name: 'George Hardie', roles: ['Illustration'] },
+      gilmour: { name: 'David Gilmour', roles: ['Band Member', 'Guitar', 'Vocals'] },
+      wright: { name: 'Richard Wright', roles: ['Band Member', 'Keyboards'] }
+    };
+    const albums = [
+      { id: 'eve', title: 'Eve', artist: 'The Alan Parsons Project', year: 1979, ids: ['parsons', 'torry'], tone: '#2A2530' },
+      { id: 'hoth', title: 'Houses of the Holy', artist: 'Led Zeppelin', year: 1973, ids: ['hipgnosis', 'thorgerson'], tone: '#2C2A20' },
+      { id: 'pg1', title: 'Peter Gabriel', artist: 'Peter Gabriel', year: 1977, ids: ['hipgnosis', 'thorgerson'], tone: '#1F2A2C' },
+      { id: 'abbey', title: 'Abbey Road', artist: 'The Beatles', year: 1969, ids: ['parsons'], tone: '#22262A' },
+      { id: 'cat', title: 'Year of the Cat', artist: 'Al Stewart', year: 1976, ids: ['parsons'], tone: '#2B2422' },
+      { id: 'fyp', title: 'For Your Pleasure', artist: 'Roxy Music', year: 1973, ids: ['thomas'], tone: '#262229' },
+      { id: 'nmtb', title: 'Never Mind the Bollocks, Here’s the Sex Pistols', artist: 'Sex Pistols', year: 1977, ids: ['thomas'], tone: '#2C2A20' },
+      { id: 'rrs', title: 'Red Rose Speedway', artist: 'Paul McCartney & Wings', year: 1973, ids: ['parsons'], tone: '#2A2530' },
+      { id: 'tales', title: 'Tales of Mystery and Imagination', artist: 'The Alan Parsons Project', year: 1976, ids: ['parsons'], tone: '#1F2A2C' },
+      { id: 'pret', title: 'Pretenders', artist: 'Pretenders', year: 1980, ids: ['thomas'], tone: '#22262A' },
+      { id: 'about', title: 'About Face', artist: 'David Gilmour', year: 1984, ids: ['gilmour'], tone: '#2B2422' }
+    ];
+    const s = this.state;
+    const roleOn = (r) => !s.rolesOff[r];
+    const active = (id) => !s.off[id] && people[id].roles.some(roleOn);
+    const set = (patch) => this.setState(patch);
+
+    const counts = {};
+    albums.forEach((a) => a.ids.forEach((id) => { counts[id] = (counts[id] || 0) + 1; }));
+
+    const chips = Object.keys(people).map((id) => {
+      const p = people[id];
+      const included = !s.off[id];
+      const available = p.roles.some(roleOn);
+      const on = included && available;
+      return {
+        name: p.name, count: counts[id] || 0, roles: p.roles.join(', '), on: on ? 'true' : 'false',
+        bg: on ? '#1C1C1F' : 'transparent',
+        border: on ? '#4A4A50' : '#2A2A2E',
+        borderStyle: available ? 'solid' : 'dashed',
+        color: on ? '#EDEDEF' : '#8A8A90',
+        deco: included ? 'none' : 'line-through',
+        toggle: () => set({ off: { ...s.off, [id]: !s.off[id] } })
+      };
+    });
+
+    const allRoles = [];
+    Object.values(people).forEach((p) => p.roles.forEach((r) => { if (allRoles.indexOf(r) < 0) allRoles.push(r); }));
+    const roleChips = allRoles.map((r) => ({
+      name: r, on: roleOn(r) ? 'true' : 'false',
+      bg: roleOn(r) ? '#1C1C1F' : 'transparent',
+      border: roleOn(r) ? '#4A4A50' : '#2A2A2E',
+      color: roleOn(r) ? '#EDEDEF' : '#8A8A90',
+      deco: roleOn(r) ? 'none' : 'line-through',
+      toggle: () => set({ rolesOff: { ...s.rolesOff, [r]: !s.rolesOff[r] } })
+    }));
+
+    const sw = (label, key) => ({
+      label, on: s[key] ? 'true' : 'false',
+      track: s[key] ? '#E0312A' : '#3A3A3F', justify: s[key] ? 'flex-end' : 'flex-start',
+      toggle: () => set({ [key]: !s[key] })
+    });
+
+    const total = Object.keys(people).length;
+    const rows = albums
+      .map((a) => ({ a, shared: a.ids.filter(active) }))
+      .filter(({ a, shared }) => shared.length > 0 && (!s.collabOnly || shared.length > 1) && !(s.hideVarious && a.artist === 'Various'))
+      .sort((x, y) => y.shared.length - x.shared.length)
+      .map(({ a, shared }) => ({
+        title: a.title, artist: a.artist, year: a.year, tone: a.tone,
+        initials: a.title.replace(/[^A-Za-z ]/g, '').split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase(),
+        via: shared.map((id) => people[id].name).join(', '),
+        shared: shared.length,
+        scoreColor: shared.length > 1 ? '#FF6257' : '#A3A3A8',
+        dots: [0, 1, 2, 3].map((i) => (i < shared.length ? '#E0312A' : '#2A2A2E')),
+        people: shared.map((id) => ({ name: people[id].name, roles: people[id].roles.join(', ') })),
+        open: s.open === a.id ? 'true' : 'false',
+        toggle: () => set({ open: s.open === a.id ? null : a.id })
+      }));
+    rows.forEach((r) => { r.open = r.open === 'true'; });
+
+    return {
+      contributorCount: total,
+      chips, roleChips,
+      switches: [sw('Hide Pink Floyd releases', 'hideMain'), sw('Only albums with 2+ shared', 'collabOnly'), sw('Hide Various Artists', 'hideVarious')],
+      rows, resultCount: rows.length, empty: rows.length === 0,
+      reset: () => set({ off: {}, rolesOff: {}, collabOnly: false, hideVarious: false, hideMain: true })
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Results on mobile</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&amp;family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#0C0C0D}
+a{color:#EDEDEF}a:hover{color:#FF6257}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #0C0C0D; color: #EDEDEF; font-family: 'IBM Plex Sans', system-ui, sans-serif; display: flex; flex-direction: column">
+
+  <header style="flex: 0 0 56px; border-bottom: 1px solid #2A2A2E; padding: 0 4px; display: flex; align-items: center; justify-content: space-between">
+    <a href="MobileHome.dc.html" aria-label="New search" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #EDEDEF">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+    </a>
+    <span style="font-family: 'Bebas Neue', Impact, sans-serif; font-size: 22px; letter-spacing: 1.2px; line-height: 1">Vinyl Periphery</span>
+    <button type="button" aria-label="History" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: transparent; border: 0; color: #EDEDEF; cursor: pointer">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5"></path><path d="M12 7v5l3 2"></path></svg>
+    </button>
+  </header>
+
+  <section style="padding: 16px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid #2A2A2E">
+    <div style="flex: 0 0 64px; height: 64px; border-radius: 3px; background: #2B2422; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #A3A3A8">DS</div>
+    <div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+      <p style="margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: #FF6257">Connections from</p>
+      <h1 style="margin: 0; font-family: 'Bebas Neue', Impact, sans-serif; font-weight: 400; font-size: 30px; line-height: 1; letter-spacing: 0.3px">The Dark Side of the Moon</h1>
+      <p style="margin: 0; font-size: 13px; color: #A3A3A8">Pink Floyd · 1973 · 12 contributors</p>
+    </div>
+    <button type="button" aria-label="Saved" style="flex: 0 0 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: transparent; border: 0; cursor: pointer">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="#E0312A" stroke="#E0312A" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"></path></svg>
+    </button>
+  </section>
+
+  <div style="padding: 12px 16px; display: flex; align-items: center; justify-content: space-between">
+    <span style="font-size: 15px; font-weight: 600">10 albums</span>
+    <label for="m-sort" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Sort by</label>
+    <select id="m-sort" style="height: 36px; padding: 0 8px; background: #141416; border: 1px solid #2A2A2E; border-radius: 8px; color: #EDEDEF; font: 14px 'IBM Plex Sans', sans-serif">
+      <option>Most shared</option>
+      <option>Newest</option>
+      <option>Oldest</option>
+    </select>
+  </div>
+
+  <ul style="list-style: none; margin: 0; padding: 0 16px 96px; flex: 1 1 auto; overflow: hidden; border-top: 1px solid #2A2A2E">
+    <sc-for list="{{rows}}" as="row" hint-placeholder-count="7">
+      <li style="border-bottom: 1px solid #2A2A2E">
+        <a href="#" style="display: flex; align-items: center; gap: 12px; padding: 12px 0; text-decoration: none; color: #EDEDEF">
+          <span style="flex: 0 0 48px; height: 48px; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #A3A3A8; background: {{row.tone}}">{{row.initials}}</span>
+          <span style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+            <span style="font-size: 15px; font-weight: 600; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{row.title}}</span>
+            <span style="font-size: 13px; color: #A3A3A8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{row.artist}} · {{row.year}}</span>
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8A8A90; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">via {{row.via}}</span>
+          </span>
+          <span style="flex: 0 0 auto; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: {{row.scoreColor}}">{{row.shared}}</span>
+        </a>
+      </li>
+    </sc-for>
+  </ul>
+
+  <div style="position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 16px 20px; background: #0C0C0D; border-top: 1px solid #2A2A2E">
+    <a href="MobileFilters.dc.html" style="height: 48px; display: flex; align-items: center; justify-content: center; gap: 10px; background: #EDEDEF; border-radius: 8px; color: #0C0C0D; text-decoration: none; font-weight: 600; font-size: 16px">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"></path><circle cx="16" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>
+      Filters
+      <span style="min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 999px; background: #E0312A; color: #FFFFFF; font-size: 13px; display: flex; align-items: center; justify-content: center">1</span>
+    </a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const r = (title, artist, year, via, shared, tone, initials) => ({ title, artist, year, via, shared, tone, initials, scoreColor: shared > 1 ? '#FF6257' : '#A3A3A8' });
+    return {
+      rows: [
+        r('Eve', 'The Alan Parsons Project', 1979, 'Alan Parsons, Clare Torry', 2, '#2A2530', 'EV'),
+        r('Houses of the Holy', 'Led Zeppelin', 1973, 'Hipgnosis, Storm Thorgerson', 2, '#2C2A20', 'HH'),
+        r('Peter Gabriel', 'Peter Gabriel', 1977, 'Hipgnosis, Storm Thorgerson', 2, '#1F2A2C', 'PG'),
+        r('Abbey Road', 'The Beatles', 1969, 'Alan Parsons', 1, '#22262A', 'AR'),
+        r('Year of the Cat', 'Al Stewart', 1976, 'Alan Parsons', 1, '#2B2422', 'YC'),
+        r('For Your Pleasure', 'Roxy Music', 1973, 'Chris Thomas', 1, '#262229', 'FP'),
+        r('Never Mind the Bollocks, Here’s the Sex Pistols', 'Sex Pistols', 1977, 'Chris Thomas', 1, '#2C2A20', 'NM')
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

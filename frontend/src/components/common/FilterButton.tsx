@@ -11,8 +11,8 @@ export const FilterButton = forwardRef<HTMLButtonElement, FilterButtonProps>(
       <button
         ref={ref}
         className={cn(
-          "inline-flex items-center px-xs py-xs",
-          "font-secondary text-ms text-text-primary",
+          "inline-flex items-center px-[7px] py-[7px]",
+          "font-secondary text-[0.8rem] text-text-primary",
           "border border-primary-main",
           "transition-all duration-200",
           "whitespace-nowrap overflow-hidden text-ellipsis",

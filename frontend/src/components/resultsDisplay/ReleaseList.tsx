@@ -123,16 +123,16 @@ export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
   };
 
   return (
-    <section className="w-full bg-bg-primary bg-opacity-40 p-4 sm:p-lg">
+    <section className="w-full bg-bg-primary bg-opacity-40 p-4 sm:p-[20px]">
       <span className="flex flex-col sm:flex-row justify-between gap-2 sm:gap-0 mt-4 mb-6">
-        <h2 className="font-primary text-base sm:text-xl tracking-normal text-text-primary w-9/12">
+        <h2 className="font-primary text-base sm:text-[1.8rem] tracking-[3px] text-text-primary w-9/12">
           <span className="line-clamp-1">{search.searchParams.album}</span>
         </h2>
-        <h2 className="font-primary text-base sm:text-xl tracking-normal text-text-primary whitespace-nowrap">
+        <h2 className="font-primary text-base sm:text-[1.8rem] tracking-[3px] text-text-primary whitespace-nowrap">
           {count} Matches
         </h2>
       </span>
-      <div className="flex flex-col p-2 sm:p-md gap-2">
+      <div className="flex flex-col p-2 sm:p-[15px] gap-2">
         {currentReleases.length > 0 ? (
           currentReleases.map((release) => (
             <ReleaseCard release={release} search={search} key={release.id} />
@@ -170,7 +170,7 @@ export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
       )}
 
       {/* Page info */}
-      <div className="text-center text-text-secondary text-xs mt-2">
+      <div className="text-center text-text-secondary text-[0.6rem] mt-2">
         {releases.length > 0 && (
           <>
             Showing {indexOfFirstItem + 1}-

@@ -17,11 +17,11 @@ export const RoleList: React.FC<{ searchId: string }> = ({ searchId }) => {
   if (!search) return null;
 
   return (
-    <section className="w-full overflow-x-hidden bg-bg-secondary p-lg">
-      <h2 className="font-primary text-lg tracking-normal text-text-primary mb-md">
+    <section className="w-full overflow-x-hidden bg-bg-secondary p-[20px]">
+      <h2 className="font-primary text-[1.5rem] tracking-[3px] text-text-primary mb-[15px]">
         Roles
       </h2>
-      <div className="flex flex-wrap gap-md w-full">
+      <div className="flex flex-wrap gap-[15px] w-full">
         <TooltipProvider>
           {Object.keys(search.roles).map((role) => (
             <Tooltip key={role} delayDuration={800}>

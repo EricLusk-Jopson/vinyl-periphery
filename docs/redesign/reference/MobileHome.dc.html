@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Home on mobile</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&amp;family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#0C0C0D}
+a{color:#EDEDEF}a:hover{color:#FF6257}
+input::placeholder{color:#8A8A90}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; overflow: hidden; background: #0C0C0D; color: #EDEDEF; font-family: 'IBM Plex Sans', system-ui, sans-serif; display: flex; flex-direction: column">
+
+  <header style="flex: 0 0 56px; border-bottom: 1px solid #2A2A2E; padding: 0 8px 0 16px; display: flex; align-items: center; justify-content: space-between">
+    <a href="#" style="display: flex; align-items: center; gap: 8px; text-decoration: none; color: #EDEDEF">
+      <svg width="22" height="22" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="12" fill="none" stroke="#EDEDEF" stroke-width="1.5"></circle><circle cx="13" cy="13" r="7" fill="none" stroke="#3A3A3F" stroke-width="1"></circle><circle cx="13" cy="13" r="3.5" fill="#E0312A"></circle></svg>
+      <span style="font-family: 'Bebas Neue', Impact, sans-serif; font-size: 22px; letter-spacing: 1.2px; line-height: 1">Vinyl Periphery</span>
+    </a>
+    <button type="button" aria-label="History" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: transparent; border: 0; color: #EDEDEF; cursor: pointer">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5"></path><path d="M12 7v5l3 2"></path></svg>
+    </button>
+  </header>
+
+  <section style="position: relative; overflow: hidden; border-bottom: 1px solid #2A2A2E">
+    <svg aria-hidden="true" style="position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.14; pointer-events: none"><filter id="grainm"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch"></feTurbulence><feColorMatrix type="saturate" values="0"></feColorMatrix></filter><rect width="100%" height="100%" filter="url(#grainm)"></rect></svg>
+    <div style="position: relative; padding: 32px 16px 24px; display: flex; flex-direction: column; gap: 14px">
+      <p style="margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: #FF6257">Follow the credits</p>
+      <h1 style="margin: 0; font-family: 'Bebas Neue', Impact, sans-serif; font-weight: 400; font-size: 52px; line-height: 0.95; letter-spacing: 0.3px">Find the albums hiding in the liner notes</h1>
+      <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #A3A3A8">Enter an album you love. We trace everyone credited on it and show you what else they worked on.</p>
+    </div>
+  </section>
+
+  <form style="padding: 20px 16px; display: flex; flex-direction: column; gap: 14px">
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <label for="m-artist" style="font-size: 13px; font-weight: 500; color: #A3A3A8">Artist</label>
+      <input id="m-artist" type="text" placeholder="e.g. Pink Floyd" style="height: 48px; box-sizing: border-box; padding: 0 14px; background: #141416; border: 1px solid #3A3A3F; border-radius: 8px; color: #EDEDEF; font: 16px 'IBM Plex Sans', sans-serif">
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <label for="m-album" style="font-size: 13px; font-weight: 500; color: #A3A3A8">Album</label>
+      <input id="m-album" type="text" placeholder="e.g. The Dark Side of the Moon" style="height: 48px; box-sizing: border-box; padding: 0 14px; background: #141416; border: 1px solid #3A3A3F; border-radius: 8px; color: #EDEDEF; font: 16px 'IBM Plex Sans', sans-serif">
+    </div>
+    <button type="submit" style="height: 52px; display: flex; align-items: center; justify-content: center; gap: 8px; background: #E0312A; border: 0; border-radius: 8px; color: #FFFFFF; font: 600 16px 'IBM Plex Sans', sans-serif; cursor: pointer">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+      Find connections
+    </button>
+    <p style="margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 12px; line-height: 1.5; color: #8A8A90">Takes 1 to 3 minutes. Discogs limits how quickly we can read its data.</p>
+  </form>
+
+  <section style="padding: 4px 16px 0; display: flex; flex-direction: column; gap: 10px">
+    <h2 style="margin: 0; font-size: 13px; font-weight: 500; color: #A3A3A8; text-transform: uppercase; letter-spacing: 1px">Recent</h2>
+    <sc-for list="{{recent}}" as="r" hint-placeholder-count="2">
+      <a href="MobileResults.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 10px; background: #141416; border: 1px solid #2A2A2E; border-radius: 10px; text-decoration: none; color: #EDEDEF">
+        <span style="flex: 0 0 48px; height: 48px; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #A3A3A8; background: {{r.tone}}">{{r.initials}}</span>
+        <span style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+          <span style="font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.title}}</span>
+          <span style="font-size: 13px; color: #A3A3A8">{{r.artist}} · {{r.meta}}</span>
+        </span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8A8A90" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+      </a>
+    </sc-for>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      recent: [
+        { title: 'The Dark Side of the Moon', artist: 'Pink Floyd', meta: '11 albums', initials: 'DS', tone: '#2B2422' },
+        { title: 'Spirit of Eden', artist: 'Talk Talk', meta: 'saved', initials: 'SE', tone: '#1F2A2C' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,12 +1,8 @@
-import React, { useState } from "react";
+import React from "react";
 import { ChevronRight, Star } from "lucide-react";
 import { useCache } from "@/contexts/cache/CacheContext";
-import { SearchCache } from "@/contexts/cache/types";
-import {
-  recentSearches,
-  titleInitials,
-  usableImageUrl,
-} from "@/lib/searches";
+import { recentSearches } from "@/lib/searches";
+import { AlbumCover } from "../search/AlbumCover";
 
 const RECENT_LIMIT = 3;
 
@@ -14,35 +10,6 @@ interface RecentSearchesProps {
   onOpen: (searchId: string) => void;
   onViewHistory: () => void;
 }
-
-const Cover: React.FC<{ search: SearchCache }> = ({ search }) => {
-  // Saved searches keep their URL indefinitely, so a link can stop loading.
-  const [failed, setFailed] = useState(false);
-  const src = failed ? "" : usableImageUrl(search.thumb);
-  const box =
-    "flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[3px] bg-secondary md:h-16 md:w-16 md:rounded";
-  if (src) {
-    return (
-      <span className={box}>
-        <img
-          src={src}
-          alt=""
-          loading="lazy"
-          onError={() => setFailed(true)}
-          className="h-full w-full object-cover"
-        />
-      </span>
-    );
-  }
-  return (
-    <span
-      aria-hidden="true"
-      className={`${box} font-mono text-xs text-muted-foreground md:text-sm`}
-    >
-      {titleInitials(search.searchParams.album)}
-    </span>
-  );
-};
 
 /** The last few searches from this session and saved history. */
 export const RecentSearches: React.FC<RecentSearchesProps> = ({
@@ -92,7 +59,11 @@ export const RecentSearches: React.FC<RecentSearchesProps> = ({
                 onClick={() => onOpen(search.searchId)}
                 className="flex w-full items-center gap-3 rounded-[10px] border bg-surface p-2.5 text-left transition-colors hover:border-border-strong hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring md:gap-4 md:p-3.5"
               >
-                <Cover search={search} />
+                <AlbumCover
+                  src={search.thumb}
+                  title={album}
+                  className="h-12 w-12 rounded-[3px] text-xs md:h-16 md:w-16 md:rounded md:text-sm"
+                />
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5 md:gap-1">
                   <span className="truncate text-[15px] font-semibold md:text-base">
                     {album}

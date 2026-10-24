@@ -1,9 +1,15 @@
 import React, { useId, useMemo, useState } from "react";
 import { useCache, useSearchFilters } from "@/contexts/cache/CacheContext";
-import { contributorChips, matchesName, roleChips } from "@/lib/filters";
+import {
+  contributorChips,
+  matchesName,
+  roleChips,
+  setIncluded,
+} from "@/lib/filters";
 import { resetFilterState } from "@/lib/results";
 import { cn } from "@/lib/utils";
 import { Chip } from "./Chip";
+import { FilterGroup } from "./FilterGroup";
 import { Switch } from "./Switch";
 
 interface FilterPanelProps {
@@ -14,9 +20,6 @@ interface FilterPanelProps {
    */
   variant: "sidebar" | "sheet";
 }
-
-const groupHeading =
-  "text-xs font-medium uppercase tracking-[1px] text-muted-foreground lg:text-[13px]";
 
 /** Switches, contributor chips with a name filter, and role chips. */
 export const FilterPanel: React.FC<FilterPanelProps> = ({
@@ -44,6 +47,26 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   if (!search) return null;
   const { filterState } = search;
   const shown = contributors.filter((c) => matchesName(c.name, query));
+  const filtering = query.trim() !== "";
+
+  // Select or deselect the contributors in view (all of them unless a name
+  // filter narrows the list) or every role.
+  const setContributors = (on: boolean) =>
+    updateFilterState(searchId, {
+      contributors: setIncluded(
+        filterState.contributors,
+        shown.map((c) => c.id),
+        on,
+      ),
+    });
+  const setRoles = (on: boolean) =>
+    updateFilterState(searchId, {
+      roles: setIncluded(
+        filterState.roles,
+        roles.map((r) => r.role),
+        on,
+      ),
+    });
 
   return (
     <div className="flex flex-col gap-6 lg:gap-7">
@@ -80,13 +103,16 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         />
       </div>
 
-      <section
-        aria-labelledby={`${id}-contributors`}
-        className="flex flex-col gap-2.5 lg:gap-3"
+      <FilterGroup
+        title="Contributors"
+        on={contributors.filter((c) => c.included).length}
+        total={contributors.length}
+        scope={filtering ? "matches" : "all"}
+        canSelect={shown.some((c) => !c.included)}
+        canDeselect={shown.some((c) => c.included)}
+        onSelect={() => setContributors(true)}
+        onDeselect={() => setContributors(false)}
       >
-        <h3 id={`${id}-contributors`} className={groupHeading}>
-          Contributors
-        </h3>
         <label htmlFor={`${id}-filter`} className="sr-only">
           Filter contributors
         </label>
@@ -121,15 +147,17 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         ) : (
           <p className="text-sm text-faint">No names match "{query.trim()}".</p>
         )}
-      </section>
+      </FilterGroup>
 
-      <section
-        aria-labelledby={`${id}-roles`}
-        className="flex flex-col gap-2.5 lg:gap-3"
+      <FilterGroup
+        title="Roles"
+        on={roles.filter((r) => r.included).length}
+        total={roles.length}
+        canSelect={roles.some((r) => !r.included)}
+        canDeselect={roles.some((r) => r.included)}
+        onSelect={() => setRoles(true)}
+        onDeselect={() => setRoles(false)}
       >
-        <h3 id={`${id}-roles`} className={groupHeading}>
-          Roles
-        </h3>
         <div className="flex flex-wrap gap-2">
           {roles.map((r) => (
             <Chip
@@ -142,7 +170,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
             />
           ))}
         </div>
-      </section>
+      </FilterGroup>
     </div>
   );
 };

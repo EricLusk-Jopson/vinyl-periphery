@@ -3,6 +3,7 @@ import {
   contributorChips,
   matchesName,
   roleChips,
+  setIncluded,
 } from "./filters";
 import { SearchCache } from "@/contexts/cache/types";
 
@@ -140,5 +141,22 @@ describe("activeFilterCount", () => {
     search.filterState.collaborationsOnly = true;
     search.filterState.excludeMainArtist = false;
     expect(activeFilterCount(search)).toBe(4);
+  });
+});
+
+describe("setIncluded", () => {
+  it("switches only the given keys and leaves the input alone", () => {
+    const states = { 1: true, 2: true, 3: false };
+    expect(setIncluded(states, [1, 3], false)).toEqual({
+      1: false,
+      2: true,
+      3: false,
+    });
+    expect(setIncluded(states, [3], true)).toEqual({
+      1: true,
+      2: true,
+      3: true,
+    });
+    expect(states).toEqual({ 1: true, 2: true, 3: false });
   });
 });

@@ -85,3 +85,14 @@ export const activeFilterCount = (search: SearchCache): number => {
     Number(filterState.excludeVarious !== base.excludeVarious)
   );
 };
+
+/** `states` with each of `keys` switched on or off. */
+export const setIncluded = <K extends string | number>(
+  states: Record<K, boolean>,
+  keys: K[],
+  on: boolean,
+): Record<K, boolean> => {
+  const next = { ...states };
+  for (const key of keys) next[key] = on;
+  return next;
+};

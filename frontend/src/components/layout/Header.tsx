@@ -22,6 +22,24 @@ export const Header: React.FC<HeaderProps> = ({ onHome, search }) => {
   const { pathname } = useLocation();
   const onHomePage = pathname === HOME_PATH;
 
+  // Glide down to "How it works" rather than jumping, unless the user prefers
+  // reduced motion, and move focus to its heading for keyboard users.
+  const scrollToHowItWorks = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    const heading = document.getElementById("how-heading");
+    if (!heading) return;
+    e.preventDefault();
+    const reduce = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    heading
+      .closest("section")
+      ?.scrollIntoView({
+        behavior: reduce ? "auto" : "smooth",
+        block: "start",
+      });
+    heading.focus({ preventScroll: true });
+  };
+
   const handleHome = (e: React.MouseEvent<HTMLAnchorElement>) => {
     // Let modified clicks open a new tab as usual.
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
@@ -42,7 +60,11 @@ export const Header: React.FC<HeaderProps> = ({ onHome, search }) => {
 
         <nav aria-label="Main" className="flex items-center gap-1">
           {onHomePage ? (
-            <a href="#how" className={cn(navButton, "hidden md:inline-flex")}>
+            <a
+              href="#how"
+              onClick={scrollToHowItWorks}
+              className={cn(navButton, "hidden md:inline-flex")}
+            >
               How it works
             </a>
           ) : (

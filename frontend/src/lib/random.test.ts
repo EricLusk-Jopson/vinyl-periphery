@@ -1,5 +1,5 @@
 import { pickRandom } from "./random";
-import { TOP_ALBUMS } from "./topAlbums";
+import { EXAMPLE_ALBUMS, HIDDEN_KEYS, TOP_ALBUMS } from "./topAlbums";
 
 describe("pickRandom", () => {
   it("returns the requested number of different items", () => {
@@ -43,5 +43,11 @@ describe("TOP_ALBUMS", () => {
       expect(artist.trim()).not.toBe("");
       expect(album.trim()).not.toBe("");
     });
+  });
+
+  it("only hides albums that are in the list", () => {
+    const keys = new Set(TOP_ALBUMS.map((a) => `${a.artist}\u0000${a.album}`));
+    HIDDEN_KEYS.forEach((k) => expect(keys).toContain(k));
+    expect(EXAMPLE_ALBUMS).toHaveLength(TOP_ALBUMS.length - HIDDEN_KEYS.size);
   });
 });

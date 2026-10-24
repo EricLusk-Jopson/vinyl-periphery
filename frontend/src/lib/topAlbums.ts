@@ -717,7 +717,122 @@ const ALBUMS: [artist: string, album: string][] = [
   ["Stereolab", "Cobra and Phases Group Play Voltage in the Milky Night"],
 ];
 
+/**
+ * Albums whose search finds nothing on Discogs, from running
+ * scripts/auditExamples.js on 2026-10-24. Mostly names RYM writes differently
+ * (native script with a romanisation, "with" credits, bracketed titles).
+ * They stay in the list so they can be fixed, but aren't shown as examples.
+ * Fix a name in ALBUMS and here together, then re-run the audit.
+ */
+const NOT_ON_DISCOGS: [artist: string, album: string][] = [
+  [
+    "Godspeed You Black Emperor!",
+    "Lift Yr. Skinny Fists Like Antennas to Heaven!",
+  ],
+  ["Godspeed You Black Emperor!", "F♯A♯∞"],
+  ["Fishmans", "98.12.28 男達の別れ [98.12.28 Otokotachi no wakare]"],
+  ["山岡晃 [Akira Yamaoka]", "Silent Hill 2"],
+  ["Boris", "Boris at Last -Feedbacker-"],
+  ["Alice Coltrane featuring Pharoah Sanders", "Journey in Satchidananda"],
+  ["The Notorious B.I.G.", "Ready to Die"],
+  ["Fela Ransome Kuti & Africa 70", "Expensive Shit"],
+  ["Neil Young with Crazy Horse", "Everybody Knows This Is Nowhere"],
+  [
+    "椎名林檎 [Sheena Ringo]",
+    "加爾基 精液 栗ノ花 [Kalk Samen Chestnut Flower]",
+  ],
+  ["Prince", 'Sign "☮︎" the Times'],
+  [
+    "Stan Getz & João Gilberto featuring Antônio Carlos Jobim",
+    "Getz / Gilberto",
+  ],
+  ["青葉市子 [Ichiko Aoba]", "アダンの風 [Windswept Adan]"],
+  ["D'Angelo and The Vanguard", "Black Messiah"],
+  ["Fela Anikulapo Kuti and Afrika 70", "Zombie"],
+  ["Various Artists", "The Fire This Time"],
+  ["Iggy and The Stooges", "Raw Power"],
+  ["파란노을 [Parannoul]", "After the Night"],
+  ["青葉市子 [Ichiko Aoba]", "0"],
+  ["Boris with Merzbow", "Rock Dream"],
+  ["椎名林檎 [Sheena Ringo]", "勝訴ストリップ [Shouso Strip]"],
+  ["Charlie Mingus", "Blues & Roots"],
+  ["平沢進 [Susumu Hirasawa]", "救済の技法 [Kyuusai no gihou]"],
+  ['Toby "Radiation" Fox', "Undertale"],
+  [
+    "Floating Points, Pharoah Sanders & The London Symphony Orchestra",
+    "Promises",
+  ],
+  ["Kyuss", "Kyuss [Welcome to Sky Valley]"],
+  ["The Mahavishnu Orchestra with John McLaughlin", "The Inner Mounting Flame"],
+  [
+    "ボアダムス [Boredoms]",
+    "ヴィジョン クリエイション ニューサン [Vision Creation Newsun]",
+  ],
+  ["공중도둑 [Mid-Air Thief]", "무너지기 [Crumbling]"],
+  ["Artur Rubinstein", "The Nocturnes"],
+  ["Los Jaivas", "Los Jaivas [El indio]"],
+  ["Fela & The Africa 70", "Roforofo Fight"],
+  ["鷺巣詩郎 [Shiro Sagisu]", "The End of Evangelion"],
+  [
+    "ミドリ [Midori]",
+    "あらためまして、はじめまして、ミドリです。 [Aratamemashite, hajimemashite, Midori desu.]",
+  ],
+  ["Sigur Rós", "( )"],
+  [
+    "Staatsorchester Stuttgart / Lithuanian Chamber Orchestra / The 12 Cellists of the Berlin Philharmonic Orchestra / Dennis Russell Davies / Saulius Sondeckis / Gidon Kremer / Keith Jarrett / Tatjana Grindenko / Alfred Schnittke",
+    "Tabula rasa",
+  ],
+  [
+    "Number Girl",
+    "サッポロ Omoide in My Head 状態 [Sapporo Omoide in My Head Jōtai]",
+  ],
+  ["David Kauffman and Eric Caboor", "Songs From Suicide Bridge"],
+  ["Red House Painters", "Red House Painters [Rollercoaster]"],
+  ["岡部啓一 [Keiichi Okabe] & 帆足圭吾 [Keigo Hoashi]", "NieR:Automata"],
+  ["Sun Ra and His Arkestra", "Sleeping Beauty"],
+  ["渋さ知らズ [Shibusashirazu]", "渋星 [Shibuboshi]"],
+  [
+    "Astor Piazzolla and The New Tango Quintet",
+    "Tango: Zero Hour / Nuevo Tango: Hora Zero",
+  ],
+  [
+    "Odun",
+    "×三星天洋～夏ノ日ニ獏ハ浜辺デ夢見ル… [Batsu Sansei Tenyo: Natsu no hi ni baku wa hamabe de yume miru]",
+  ],
+  ["Jeff Rosenstock", "Thanks, Sorry!"],
+  ["Neil Young with Crazy Horse", "Zuma"],
+  ["Godspeed You! Black Emperor", "Yanqui U.X.O."],
+  ["高中正義 [Masayoshi Takanaka]", "Seychelles"],
+  ["advantage Lucy", "ファンファーレ [Fanfare]"],
+  ["Mass of the Fermenting Dregs", "ワールドイズユアーズ [World Is Yours]"],
+  ["山下達郎 [Tatsuro Yamashita]", "Ride on Time"],
+  [
+    "Collegium Vocale Gent / Philippe Herreweghe / Ian Bostridge / Franz-Josef Selig / Sibylla Rubens / Andreas Scholl / Werner Güra / Dietrich Henschel",
+    "Matthäus-Passion",
+  ],
+  ["小塚良太 [Ryota Kozuka]", "真・女神転生 IV [Shin Megami Tensei IV]"],
+  ["Lamp", "恋人へ [For Lovers]"],
+  ["Boris", "あくまのうた [Akuma no uta]"],
+  [
+    "三宅優 [Yuu Miyake]",
+    '塊魂「塊フォルテッシモ魂」 [Katamari Damacy "Katamari Fortissimo Damacy"]',
+  ],
+  ["Various Artists", "Hydeout Productions 2nd Collection"],
+];
+
+const key = (artist: string, album: string) => `${artist}\u0000${album}`;
+
 export const TOP_ALBUMS: SearchParams[] = ALBUMS.map(([artist, album]) => ({
   artist,
   album,
 }));
+
+/** Keys of the albums in NOT_ON_DISCOGS. Exported for the tests. */
+export const HIDDEN_KEYS = new Set(
+  NOT_ON_DISCOGS.map(([artist, album]) => key(artist, album)),
+);
+
+/** The albums offered as example searches: those Discogs can find. */
+export const EXAMPLE_ALBUMS = TOP_ALBUMS.filter(
+  ({ artist, album }) => !HIDDEN_KEYS.has(key(artist, album)),
+);

@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react";
 import { SearchParams } from "@/api/types";
 import { pickRandom } from "@/lib/random";
-import { TOP_ALBUMS } from "@/lib/topAlbums";
+import { EXAMPLE_ALBUMS } from "@/lib/topAlbums";
 import { Grain } from "../layout/Grain";
 import { SearchForm, SearchFormProps } from "../search/SearchForm";
 
@@ -36,7 +36,7 @@ const Intro: React.FC = () => (
 export const Hero: React.FC<HeroProps> = (formProps) => {
   const formRef = useRef<HTMLFormElement>(null);
   // A fresh three each time the home page appears.
-  const [examples] = useState(() => pickRandom(TOP_ALBUMS, EXAMPLE_COUNT));
+  const [examples] = useState(() => pickRandom(EXAMPLE_ALBUMS, EXAMPLE_COUNT));
   const { onValuesChange, isSearching } = formProps;
 
   // Fill the form rather than search straight away: a search takes minutes

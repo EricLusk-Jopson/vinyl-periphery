@@ -31,6 +31,7 @@ export interface CacheState {
 export interface CacheContextValue extends CacheState {
   // Action methods
   setActiveSearch: (searchId: string) => void;
+  clearActiveSearch: () => void;
   addSearch: (
     params: SearchParams,
     contributorSet: ContributorSet,

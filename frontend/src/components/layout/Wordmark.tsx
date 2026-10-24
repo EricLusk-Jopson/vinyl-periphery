@@ -2,12 +2,14 @@ import { cn } from "@/lib/utils";
 
 interface WordmarkProps {
   className?: string;
+  onClick?: React.MouseEventHandler<HTMLAnchorElement>;
 }
 
 /** Disc mark and name. Links home. */
-export const Wordmark: React.FC<WordmarkProps> = ({ className }) => (
+export const Wordmark: React.FC<WordmarkProps> = ({ className, onClick }) => (
   <a
     href="/"
+    onClick={onClick}
     className={cn(
       "flex items-center gap-2.5 rounded-sm text-foreground no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring",
       className

@@ -1,6 +1,5 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import "./styles/globals.css";
-import { SearchForm } from "./components/searchForm/SearchForm";
 import {
   useDiscogsSearch,
   useListReleaseContributors,
@@ -9,14 +8,17 @@ import {
 import { EnrichedRelease, SearchParams, SearchStage } from "./api/types";
 import { useCache } from "./contexts/cache/CacheContext";
 import { Header } from "./components/layout/Header";
-import { ReleaseList } from "./components/resultsDisplay/ReleaseList";
-import { ToastAction } from "./components/ui/toast";
-import { useToast } from "./hooks/use-toast";
 import { Footer } from "./components/layout/Footer";
-import { Grain } from "./components/layout/Grain";
+import { Home } from "./components/home/Home";
+import { SearchForm } from "./components/search/SearchForm";
+import { ReleaseList } from "./components/resultsDisplay/ReleaseList";
+import { useToast } from "./hooks/use-toast";
 
-const SearchContainer: React.FC = () => {
-  const { addSearch, getActiveSearch, setActiveSearch } = useCache();
+const EMPTY_SEARCH: SearchParams = { artist: "", album: "" };
+
+const App: React.FC = () => {
+  const { addSearch, getActiveSearch, setActiveSearch, clearActiveSearch } =
+    useCache();
   const { toast } = useToast();
 
   const searchMutation = useDiscogsSearch();
@@ -28,19 +30,34 @@ const SearchContainer: React.FC = () => {
     contributorsMutation.isPending ||
     releasesMutation.isPending;
 
-  const handleViewResults = useCallback(
-    (searchId: string) => {
-      // Set this search as active in the cache
-      setActiveSearch(searchId);
+  const activeSearch = getActiveSearch();
 
-      // Scroll to results section smoothly
-      const resultsSection = document.getElementById("search-results");
-      if (resultsSection) {
-        resultsSection.scrollIntoView({ behavior: "smooth" });
-      } else {
-        // Fallback if results section isn't found
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      }
+  // One set of form values, shared by the hero and the compact header form
+  // (only one is on screen at a time).
+  const [formValues, setFormValues] = useState<SearchParams>(
+    () => activeSearch?.searchParams ?? EMPTY_SEARCH
+  );
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [focusHeroSearch, setFocusHeroSearch] = useState(false);
+
+  // Show the open search in the compact form, including one picked from
+  // history. searchParams keeps its identity across filter changes.
+  const activeParams = activeSearch?.searchParams;
+  useEffect(() => {
+    if (activeParams) setFormValues(activeParams);
+  }, [activeParams]);
+
+  const goHome = useCallback(() => {
+    clearActiveSearch();
+    setFormValues(EMPTY_SEARCH);
+    setFocusHeroSearch(true);
+    window.scrollTo({ top: 0 });
+  }, [clearActiveSearch]);
+
+  const openSearch = useCallback(
+    (searchId: string) => {
+      setActiveSearch(searchId);
+      window.scrollTo({ top: 0 });
     },
     [setActiveSearch]
   );
@@ -50,34 +67,24 @@ const SearchContainer: React.FC = () => {
     onProgress?: (stage: SearchStage) => void
   ) => {
     try {
-      // Initial search
       const searchResults = await searchMutation.mutateAsync({
         params,
-        callbacks: {
-          onProgress,
-        },
+        callbacks: { onProgress },
       });
 
       if (!searchResults) return;
       const thumb =
         searchResults[0]?.thumb ?? searchResults[0]?.cover_image ?? "";
-      console.log(thumb);
 
-      // Get contributors
       const contributorSet = await contributorsMutation.mutateAsync({
         releases: searchResults,
         maxReleases: 5,
-        callbacks: {
-          onProgress,
-        },
+        callbacks: { onProgress },
       });
 
-      // Get releases
       const releasesMap = await releasesMutation.mutateAsync({
         contributorSet,
-        callbacks: {
-          onProgress,
-        },
+        callbacks: { onProgress },
       });
 
       // Convert Map to Record before adding to cache
@@ -90,66 +97,50 @@ const SearchContainer: React.FC = () => {
           },
         ])
       ) as Record<number, EnrichedRelease>;
-      console.log(releasesRecord);
 
-      // Add to cache without making it active
       const searchId = addSearch(params, contributorSet, releasesRecord, thumb);
-      const activeSearch = getActiveSearch();
-      if (!activeSearch) {
-        setActiveSearch(searchId);
-      }
-
-      // Show completion toast
-      toast({
-        title: "Search Complete",
-        description: `Results ready for ${params.artist} - ${params.album}`,
-        action: (
-          <ToastAction
-            altText="View results"
-            onClick={() => handleViewResults(searchId)}
-          >
-            View Results
-          </ToastAction>
-        ),
-      });
+      openSearch(searchId);
     } catch (error) {
       console.error("Search chain error:", error);
       toast({
-        title: "Search Error",
-        description: "An error occurred while searching. Please try again.",
+        title: "Search failed",
+        description: "Something went wrong talking to Discogs. Try again.",
         variant: "destructive",
       });
     }
   };
 
-  const activeSearch = getActiveSearch();
+  const formProps = {
+    values: formValues,
+    onValuesChange: setFormValues,
+    onSearch: handleSearch,
+    isSearching,
+  };
 
   return (
-    <main className="flex-1">
-      <section className="relative overflow-hidden border-b">
-        <Grain />
-        <div className="relative mx-auto max-w-[1200px] px-4 py-10 md:px-6 md:py-16">
-          <SearchForm onSearch={handleSearch} isSearching={isSearching} />
-        </div>
-      </section>
-      {activeSearch && (
-        <div
-          id="search-results"
-          className="mx-auto max-w-[1280px] scroll-mt-4 px-4 py-8 md:px-6"
-        >
-          <ReleaseList searchId={activeSearch.searchId} />
-        </div>
-      )}
-    </main>
+    <div className="flex min-h-screen flex-col bg-background">
+      <Header
+        historyOpen={historyOpen}
+        onHistoryOpenChange={setHistoryOpen}
+        onHome={goHome}
+        search={<SearchForm variant="compact" {...formProps} />}
+      />
+      <main className="flex-1">
+        {activeSearch ? (
+          <div className="mx-auto max-w-[1280px] px-4 py-8 md:px-6">
+            <ReleaseList searchId={activeSearch.searchId} />
+          </div>
+        ) : (
+          <Home
+            form={{ ...formProps, autoFocus: focusHeroSearch }}
+            onOpenSearch={openSearch}
+            onViewHistory={() => setHistoryOpen(true)}
+          />
+        )}
+      </main>
+      <Footer />
+    </div>
   );
 };
-
-const App: React.FC = () => (
-  <div className="flex min-h-screen flex-col bg-background">
-    <Header />
-    <SearchContainer />
-    <Footer />
-  </div>
-);
 
 export default App;

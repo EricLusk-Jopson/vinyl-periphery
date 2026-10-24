@@ -125,8 +125,9 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({
             {params.album}
           </h1>
           <p className="text-sm text-muted-foreground md:text-base">
+            {/* No year: the first search result is one pressing, so its
+                year is often a reissue's, not the album's. */}
             {params.artist}
-            {run.year && run.year !== "0" ? ` · ${run.year}` : ""}
           </p>
         </div>
         <div className="flex w-full gap-2 sm:w-auto">

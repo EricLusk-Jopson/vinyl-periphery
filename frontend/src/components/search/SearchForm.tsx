@@ -16,6 +16,8 @@ export interface SearchFormProps {
    * jiggles and takes focus back (it was disabled while searching).
    */
   failedAttempt?: number;
+  /** The hero button's text while a search runs. */
+  busyLabel?: string;
 }
 
 const focusRing =
@@ -49,6 +51,7 @@ export const SearchForm = React.forwardRef<HTMLFormElement, SearchFormProps>(
       isSearching,
       autoFocus,
       failedAttempt = 0,
+      busyLabel = "Finding the album",
     },
     ref,
   ) => {
@@ -223,7 +226,7 @@ export const SearchForm = React.forwardRef<HTMLFormElement, SearchFormProps>(
             <Search className="h-[18px] w-[18px]" aria-hidden="true" />
           )}
           <span className="truncate">
-            {isSearching ? "Finding the album" : "Find connections"}
+            {isSearching ? busyLabel : "Find connections"}
           </span>
         </button>
         <p

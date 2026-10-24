@@ -48,15 +48,17 @@ const App: React.FC = () => {
   // Counts searches that failed before the album was found; each one
   // jiggles the search button.
   const [failedAttempt, setFailedAttempt] = useState(0);
-  // Whether the running search is expanded above the library and results
-  // pages. Home always shows it in place of the hero.
+  // Whether the running search is expanded: in place of the hero on home,
+  // above the page elsewhere. Collapsed, it is the slim status bar.
   const [progressExpanded, setProgressExpanded] = useState(true);
+  // Focus "View progress" when the bar appears after hiding the hero's view.
+  const [focusStatusBar, setFocusStatusBar] = useState(false);
 
   // Read when a search finishes, which can be long after it started.
   const locationRef = useRef(location);
   locationRef.current = location;
   const watchingRef = useRef(false);
-  watchingRef.current = onHomePage || progressExpanded;
+  watchingRef.current = progressExpanded;
 
   const openResult = useCallback(
     (searchId: string) => {
@@ -117,15 +119,20 @@ const App: React.FC = () => {
     if (!location.pathname.startsWith("/results/")) clearActiveSearch();
   }, [location.pathname, clearActiveSearch]);
 
-  // On each page change: start at the top, and minimise a running search
-  // (it is expanded again by "View progress" or a new search).
+  // On each page change: start at the top. A running search expands on home
+  // (in place of the hero) and is minimised elsewhere.
   const prevPathRef = useRef(location.pathname);
   useEffect(() => {
     if (prevPathRef.current === location.pathname) return;
     prevPathRef.current = location.pathname;
     window.scrollTo({ top: 0 });
-    setProgressExpanded(false);
+    setProgressExpanded(location.pathname === HOME_PATH);
   }, [location.pathname]);
+
+  const setExpanded = useCallback((expanded: boolean) => {
+    setProgressExpanded(expanded);
+    setFocusStatusBar(!expanded);
+  }, []);
 
   const goHome = useCallback(() => {
     navigate(HOME_PATH);
@@ -146,15 +153,20 @@ const App: React.FC = () => {
   // Progress appears once the album is found; until then the form shows the
   // search under way.
   const running = run?.phase === "running" ? run : null;
-  const showHeroProgress = running !== null && onHomePage;
-  const showExpanded = running !== null && (onHomePage || progressExpanded);
+  const showHeroProgress = running !== null && onHomePage && progressExpanded;
+  const showExpanded = running !== null && progressExpanded;
   useEffect(() => {
     if (showExpanded) window.scrollTo({ top: 0 });
   }, [showExpanded]);
   // Keeps the hero's progress view rendered while it fades out after a cancel.
   const heroRun = useLingering(showHeroProgress ? running : null, 200);
   const heroProgress = heroRun && (
-    <SearchProgress key={heroRun.id} run={heroRun} onCancel={cancel} />
+    <SearchProgress
+      key={heroRun.id}
+      run={heroRun}
+      onCancel={cancel}
+      onHide={() => setExpanded(false)}
+    />
   );
 
   const formProps = {
@@ -163,6 +175,8 @@ const App: React.FC = () => {
     onSearch: handleSearch,
     isSearching,
     failedAttempt,
+    // Collapsed on home, the hero's form stays locked until the search ends.
+    busyLabel: running ? "Search in progress" : "Finding the album",
   };
 
   return (
@@ -171,12 +185,15 @@ const App: React.FC = () => {
         onHome={goHome}
         search={<SearchForm variant="compact" {...formProps} />}
       />
-      {running && !onHomePage && (
+      {/* On home the expanded view replaces the hero, so the banner only
+          shows there while collapsed. */}
+      {running && !(onHomePage && progressExpanded) && (
         <SearchBanner
           run={running}
           expanded={progressExpanded}
-          onExpandedChange={setProgressExpanded}
+          onExpandedChange={setExpanded}
           onCancel={cancel}
+          focusOnMount={focusStatusBar}
         />
       )}
       <main className="flex-1">

@@ -1,9 +1,9 @@
 import React, { useEffect } from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, Navigate, useLocation, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { SearchParams } from "@/api/types";
 import { useCache } from "@/contexts/cache/CacheContext";
-import { LIBRARY_PATH, HOME_PATH, backLink } from "@/lib/routes";
+import { LIBRARY_PATH, HOME_PATH, backLink, resultPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { FilterPanel } from "../filters/FilterPanel";
 import { FilterFrame } from "../filters/FilterFrame";
@@ -25,7 +25,8 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
 }) => {
   const { searchId = "" } = useParams();
   const location = useLocation();
-  const { searches, setActiveSearch, savedSearchesLoaded } = useCache();
+  const { searches, setActiveSearch, savedSearchesLoaded, replacedBy } =
+    useCache();
   const search = searches[searchId];
   const back = backLink(location.state);
 
@@ -34,6 +35,17 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
   useEffect(() => {
     if (found) setActiveSearch(searchId);
   }, [found, searchId, setActiveSearch]);
+
+  if (!search && replacedBy[searchId]) {
+    // This search was run again; show the newer results instead.
+    return (
+      <Navigate
+        to={resultPath(replacedBy[searchId])}
+        state={location.state}
+        replace
+      />
+    );
+  }
 
   if (!search) {
     // A saved search opened by URL may still be loading from IndexedDB.

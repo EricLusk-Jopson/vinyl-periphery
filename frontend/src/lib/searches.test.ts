@@ -1,6 +1,7 @@
 import {
   coverUrl,
   recentSearches,
+  sameSearchIds,
   searchStartedAt,
   timeAgo,
   titleInitials,
@@ -145,5 +146,35 @@ describe("timeAgo", () => {
   it("gives a date after that, with the year when it differs", () => {
     expect(timeAgo(new Date(2026, 2, 12).getTime(), now)).toBe("12 Mar");
     expect(timeAgo(new Date(2025, 11, 30).getTime(), now)).toBe("30 Dec 2025");
+  });
+});
+
+describe("sameSearchIds", () => {
+  const withParams = (searchId: string, artist: string, album: string) => ({
+    ...search(searchId),
+    searchParams: { artist, album },
+  });
+  const searches = {
+    a: withParams("a", "Elliott Smith", "Either / Or"),
+    b: withParams("b", "elliott  smith ", " either / or"),
+    c: withParams("c", "Elliott Smith", "XO"),
+  };
+
+  it("matches the same artist and album, ignoring case and spacing", () => {
+    expect(
+      sameSearchIds(searches, {
+        artist: "ELLIOTT SMITH",
+        album: "Either / Or",
+      }),
+    ).toEqual(["a", "b"]);
+  });
+
+  it("does not match other albums or artists", () => {
+    expect(
+      sameSearchIds(searches, { artist: "Elliott Smith", album: "Figure 8" }),
+    ).toEqual([]);
+    expect(sameSearchIds(searches, { artist: "Elliott", album: "XO" })).toEqual(
+      [],
+    );
   });
 });

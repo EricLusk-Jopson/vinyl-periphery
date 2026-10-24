@@ -33,7 +33,6 @@ export interface SearchRun {
   stage: SearchStage | null;
   /** From the first search result, once the album is found. */
   thumb: string;
-  year: string;
   /** Releases whose credits are read, once the album is found. */
   matches: number | null;
   /** Contributors found, once the credits are read. */
@@ -104,7 +103,6 @@ export const useSearchRun = ({
         params,
         stage: null,
         thumb: "",
-        year: "",
         matches: null,
         contributors: null,
         checked: [],
@@ -131,7 +129,6 @@ export const useSearchRun = ({
         update({
           phase,
           thumb,
-          year: searchResults[0]?.year ?? "",
           matches,
           // Progress opens on the credits step, which starts right away.
           stage: {

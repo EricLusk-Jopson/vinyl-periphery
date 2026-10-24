@@ -20,7 +20,7 @@ export const RecentSearches: React.FC = () => {
   return (
     <section
       aria-labelledby="recent-heading"
-      className="mx-auto w-full max-w-[1200px] px-4 pt-1 md:px-6 md:pb-6 md:pt-[72px]"
+      className="mx-auto w-full max-w-[1200px] px-4 pt-1 md:px-6 md:pb-6 md:pt-12 lg:pt-[72px]"
     >
       <div className="mb-2.5 flex items-center justify-between gap-4 md:mb-5 md:items-baseline">
         <h2
@@ -48,7 +48,7 @@ export const RecentSearches: React.FC = () => {
           }`;
 
           return (
-            <li key={search.searchId}>
+            <li key={search.searchId} className="min-w-0">
               <Link
                 to={resultPath(search.searchId)}
                 state={FROM_HOME}

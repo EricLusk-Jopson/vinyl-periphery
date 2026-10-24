@@ -1,5 +1,5 @@
 import { pickRandom } from "./random";
-import { TOP_ALBUMS } from "./topAlbums";
+import { EXAMPLE_ALBUMS, HIDDEN_KEYS, TOP_ALBUMS } from "./topAlbums";
 
 describe("pickRandom", () => {
   it("returns the requested number of different items", () => {
@@ -35,13 +35,19 @@ describe("pickRandom", () => {
 });
 
 describe("TOP_ALBUMS", () => {
-  it("has 250 different albums with an artist and a title", () => {
-    expect(TOP_ALBUMS).toHaveLength(250);
+  it("has 639 different albums with an artist and a title", () => {
+    expect(TOP_ALBUMS).toHaveLength(639);
     const keys = TOP_ALBUMS.map((a) => `${a.artist}\u0000${a.album}`);
-    expect(new Set(keys).size).toBe(250);
+    expect(new Set(keys).size).toBe(639);
     TOP_ALBUMS.forEach(({ artist, album }) => {
       expect(artist.trim()).not.toBe("");
       expect(album.trim()).not.toBe("");
     });
+  });
+
+  it("only hides albums that are in the list", () => {
+    const keys = new Set(TOP_ALBUMS.map((a) => `${a.artist}\u0000${a.album}`));
+    HIDDEN_KEYS.forEach((k) => expect(keys).toContain(k));
+    expect(EXAMPLE_ALBUMS).toHaveLength(TOP_ALBUMS.length - HIDDEN_KEYS.size);
   });
 });

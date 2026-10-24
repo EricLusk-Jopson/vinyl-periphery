@@ -33,17 +33,17 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search }) => {
   return (
     <section className="relative overflow-hidden border-b">
       <Grain className="opacity-10" />
-      <div className="relative mx-auto flex max-w-[1280px] items-center gap-3.5 px-4 py-4 md:flex-wrap md:gap-6 md:px-6 md:py-9">
+      <div className="relative mx-auto flex max-w-[1280px] items-center gap-3 px-4 py-3 md:flex-wrap md:gap-5 md:px-6 md:py-6 lg:gap-6 lg:py-9">
         <AlbumCover
           src={search.thumb}
           title={album}
-          className="h-16 w-16 rounded-[3px] text-[13px] md:h-28 md:w-28 md:rounded md:text-base"
+          className="h-14 w-14 rounded-[3px] text-[13px] md:h-[88px] md:w-[88px] md:rounded md:text-base lg:h-28 lg:w-28"
         />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5 md:flex-[1_1_360px] md:gap-1.5">
           <p className="font-mono text-xs uppercase tracking-[2px] text-primary-text md:text-[13px]">
             Connections from
           </p>
-          <h1 className="break-words font-display text-[30px] font-normal leading-none tracking-[0.3px] md:text-[56px] md:tracking-[0.5px]">
+          <h1 className="line-clamp-2 break-words font-display text-[24px] font-normal leading-none tracking-[0.3px] md:line-clamp-none md:text-[40px] md:tracking-[0.5px] lg:text-[56px]">
             {album}
           </h1>
           <p className="text-[13px] text-muted-foreground md:text-base">

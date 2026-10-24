@@ -1,13 +1,11 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import { SearchParams } from "@/api/types";
+import { pickRandom } from "@/lib/random";
+import { TOP_ALBUMS } from "@/lib/topAlbums";
 import { Grain } from "../layout/Grain";
 import { SearchForm, SearchFormProps } from "../search/SearchForm";
 
-const EXAMPLES: SearchParams[] = [
-  { artist: "Pink Floyd", album: "The Dark Side of the Moon" },
-  { artist: "Talk Talk", album: "Spirit of Eden" },
-  { artist: "Steely Dan", album: "Aja" },
-];
+const EXAMPLE_COUNT = 3;
 
 type HeroProps = Omit<SearchFormProps, "variant">;
 
@@ -36,6 +34,8 @@ const Intro: React.FC = () => (
  */
 export const Hero: React.FC<HeroProps> = (formProps) => {
   const formRef = useRef<HTMLFormElement>(null);
+  // A fresh three each time the home page appears.
+  const [examples] = useState(() => pickRandom(TOP_ALBUMS, EXAMPLE_COUNT));
   const { onValuesChange, isSearching } = formProps;
 
   // Fill the form rather than search straight away: a search takes minutes
@@ -64,14 +64,14 @@ export const Hero: React.FC<HeroProps> = (formProps) => {
 
         <div className="hidden flex-wrap items-center gap-2.5 md:flex">
           <span className="text-sm text-faint">Try</span>
-          {EXAMPLES.map((example) => (
+          {examples.map((example) => (
             <button
-              key={example.album}
+              key={`${example.artist}-${example.album}`}
               type="button"
               disabled={isSearching}
               onClick={() => tryExample(example)}
               aria-label={`Fill in ${example.artist}, ${example.album}`}
-              className="h-9 rounded-full border px-3.5 text-sm text-muted-foreground transition-colors hover:border-border-strong hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-60"
+              className="h-9 max-w-full truncate rounded-full border px-3.5 text-sm text-muted-foreground transition-colors hover:border-border-strong hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-60"
             >
               {example.artist} · {example.album}
             </button>

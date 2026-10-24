@@ -61,7 +61,7 @@ same PR, and keep props minimal.
 | Component | Replaces | Notes |
 |---|---|---|
 | `layout/AppShell` | `App.tsx` layout markup | Header, `<main>`, footer. No background canvas |
-| `layout/Header` | `layout/Header.tsx` | Wordmark (disc mark plus "Vinyl Periphery" in Bebas), History button with label on desktop, icon on mobile. Optional compact search slot |
+| `layout/Header` | `layout/Header.tsx` | Wordmark (disc mark plus "Vinyl Periphery" in Bebas), Library link with label on desktop, icon on mobile. Compact search on every page but home |
 | `layout/Footer` | `layout/Footer.tsx` | One row on desktop, stacked on mobile. Links in `muted-foreground` 14px. Discogs attribution 13px. Drop the yellow coffee badge for a text link; drop the rate-limit apology |
 | `layout/Grain` | `layout/TVStaticEffect.tsx`, `lib/colors/paletteExtractor.ts` | Static SVG `feTurbulence` noise, `aria-hidden`, 10–14% opacity, positioned behind a section. Remove `extract-colors` and the `images.weserv.nl` proxy |
 | `search/SearchForm` | `searchForm/SearchForm.tsx` | Variants: `hero` (labels above, large) and `compact` (header). Labels are real `<label>`s. Do not clear the inputs on failure |
@@ -73,7 +73,7 @@ same PR, and keep props minimal.
 | `filters/Chip` | `common/FilterButton.tsx` | `<button aria-pressed>`. Three states that differ in more than colour: included (raised fill, emphasis border), excluded (transparent, struck through), unavailable (dashed border, faint). Shows a count of matching albums in mono |
 | `filters/Switch` | outline buttons in `FilterActions.tsx` | `<button role="switch" aria-checked>`, 44px row |
 | `filters/FilterSheet` | right-side `Sheet` in `Header.tsx` | Radix dialog as bottom sheet, grabber, sticky footer with Reset and "Show N albums" |
-| `history/HistoryDrawer` | `resultsDisplay/HistoryPanel.tsx` | Left drawer. Save and delete buttons always visible (no hover-only controls). Sorted by time, not by id |
+| `library/LibraryPage` | `resultsDisplay/HistoryPanel.tsx` | The `/library` page, linked from the header and the home page. Tabs for this session and saved, as cards with Save and Delete always visible. Sorted by time, not by id |
 
 Tooltips are not used for information the user needs. Contributor roles show
 in the expanded row and in the chip's accessible name.
@@ -117,7 +117,7 @@ Each phase is one PR into `develop`. Every PR must pass `npm run lint`,
 5. **Results.** `AlbumHeader`, `ReleaseList`, `ReleaseRow`.
 6. **Filters.** `FilterPanel`, `Chip`, `Switch`, sidebar on `lg+`,
    `FilterSheet` below. Remove the header Filters trigger.
-7. **History and cleanup.** `HistoryDrawer`. Remove legacy token aliases from
+7. **Library and cleanup.** `LibraryPage` and routing (`/`, `/library`, `/results/:searchId`). Remove legacy token aliases from
    `tailwind.config.js` and any component left unused.
 
 ## Out of scope for the redesign

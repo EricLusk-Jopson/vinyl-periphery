@@ -16,6 +16,9 @@ ranks albums by how many of those people worked on them.
     (sessionStorage and IndexedDB).
   - `src/lib/transformers/`: role and name cleanup, with Jest tests.
   - `src/components/ui/`: shadcn primitives. Edit sparingly.
+  - Routes (React Router): `/` home, `/library` (`?tab=saved`), and
+    `/results/:searchId` with the search id URL-encoded. Route helpers live
+    in `src/lib/routes.ts`.
 - `docs/redesign/`: the current UI redesign. Read `DESIGN.md` before any UI
   work.
 

@@ -29,6 +29,8 @@ export interface CacheState {
 }
 
 export interface CacheContextValue extends CacheState {
+  /** Saved searches have been read from IndexedDB. Not persisted. */
+  savedSearchesLoaded: boolean;
   // Action methods
   setActiveSearch: (searchId: string) => void;
   clearActiveSearch: () => void;

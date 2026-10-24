@@ -1,60 +1,77 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import "./styles/globals.css";
 import { SearchParams } from "./api/types";
 import { useCache } from "./contexts/cache/CacheContext";
 import { Header } from "./components/layout/Header";
 import { Footer } from "./components/layout/Footer";
 import { Home } from "./components/home/Home";
+import { LibraryPage } from "./components/library/LibraryPage";
+import { ResultsPage } from "./components/results/ResultsPage";
 import { SearchForm } from "./components/search/SearchForm";
 import { SearchProgress } from "./components/search/SearchProgress";
-import { SearchStatusBar } from "./components/search/SearchStatusBar";
-import { AlbumHeader } from "./components/results/AlbumHeader";
-import { ReleaseList } from "./components/results/ReleaseList";
-import { FilterPanel } from "./components/filters/FilterPanel";
-import { FilterSheet } from "./components/filters/FilterSheet";
+import { SearchBanner } from "./components/search/SearchBanner";
 import { ToastAction } from "./components/ui/toast";
 import { useToast } from "./hooks/use-toast";
 import { useSearchRun } from "./hooks/useSearchRun";
 import { useLingering } from "./hooks/useLingering";
+import {
+  HOME_PATH,
+  LIBRARY_PATH,
+  fromLocation,
+  resultPath,
+} from "./lib/routes";
 
 const EMPTY_SEARCH: SearchParams = { artist: "", album: "" };
 
 const App: React.FC = () => {
-  const { getActiveSearch, setActiveSearch, clearActiveSearch } = useCache();
+  const { getActiveSearch, clearActiveSearch } = useCache();
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const onHomePage = location.pathname === HOME_PATH;
 
   const activeSearch = getActiveSearch();
-  const activeSearchId = activeSearch?.searchId ?? null;
 
   // One set of form values, shared by the hero and the compact header form
   // (only one is on screen at a time).
   const [formValues, setFormValues] = useState<SearchParams>(
     () => activeSearch?.searchParams ?? EMPTY_SEARCH,
   );
-  const [historyOpen, setHistoryOpen] = useState(false);
   const [focusHeroSearch, setFocusHeroSearch] = useState(false);
-
-  // True once the user opens something else while a search runs. The search
-  // carries on and a toast says when it is done.
-  const [progressHidden, setProgressHidden] = useState(false);
-  const progressHiddenRef = useRef(progressHidden);
-  progressHiddenRef.current = progressHidden;
   // Counts searches that failed before the album was found; each one
   // jiggles the search button.
   const [failedAttempt, setFailedAttempt] = useState(0);
+  // Whether the running search is expanded above the library and results
+  // pages. Home always shows it in place of the hero.
+  const [progressExpanded, setProgressExpanded] = useState(true);
 
-  const openSearch = useCallback(
+  // Read when a search finishes, which can be long after it started.
+  const locationRef = useRef(location);
+  locationRef.current = location;
+  const watchingRef = useRef(false);
+  watchingRef.current = onHomePage || progressExpanded;
+
+  const openResult = useCallback(
     (searchId: string) => {
-      setActiveSearch(searchId);
-      window.scrollTo({ top: 0 });
+      const { pathname, search } = locationRef.current;
+      navigate(resultPath(searchId), { state: fromLocation(pathname, search) });
     },
-    [setActiveSearch],
+    [navigate],
   );
 
   const { run, isSearching, start, cancel } = useSearchRun({
     onComplete: (searchId, params) => {
-      if (!progressHiddenRef.current) {
-        openSearch(searchId);
+      // Open the results if the user is watching the search; otherwise say
+      // they are ready and let them choose.
+      if (watchingRef.current) {
+        openResult(searchId);
         return;
       }
       toast({
@@ -63,7 +80,7 @@ const App: React.FC = () => {
         action: (
           <ToastAction
             altText="View results"
-            onClick={() => openSearch(searchId)}
+            onClick={() => openResult(searchId)}
           >
             View results
           </ToastAction>
@@ -88,31 +105,36 @@ const App: React.FC = () => {
     },
   });
 
-  // Show the open search in the compact form, including one picked from
-  // history. searchParams keeps its identity across filter changes.
+  // Show the open search in the compact form. searchParams keeps its
+  // identity across filter changes.
   const activeParams = activeSearch?.searchParams;
   useEffect(() => {
     if (activeParams) setFormValues(activeParams);
   }, [activeParams]);
 
-  // Opening a search from history or the recent list mid-search moves the
-  // progress page out of the way.
-  const isSearchingRef = useRef(isSearching);
-  isSearchingRef.current = isSearching;
+  // The URL decides which search is open: leaving a results page closes it.
   useEffect(() => {
-    if (activeSearchId && isSearchingRef.current) setProgressHidden(true);
-  }, [activeSearchId]);
+    if (!location.pathname.startsWith("/results/")) clearActiveSearch();
+  }, [location.pathname, clearActiveSearch]);
+
+  // On each page change: start at the top, and minimise a running search
+  // (it is expanded again by "View progress" or a new search).
+  const prevPathRef = useRef(location.pathname);
+  useEffect(() => {
+    if (prevPathRef.current === location.pathname) return;
+    prevPathRef.current = location.pathname;
+    window.scrollTo({ top: 0 });
+    setProgressExpanded(false);
+  }, [location.pathname]);
 
   const goHome = useCallback(() => {
-    clearActiveSearch();
+    navigate(HOME_PATH);
     setFormValues(EMPTY_SEARCH);
     setFocusHeroSearch(true);
-    setProgressHidden(false);
-    window.scrollTo({ top: 0 });
-  }, [clearActiveSearch]);
+  }, [navigate]);
 
   const handleSearch = (params: SearchParams) => {
-    setProgressHidden(false);
+    setProgressExpanded(true);
     void start(params);
   };
 
@@ -123,14 +145,16 @@ const App: React.FC = () => {
 
   // Progress appears once the album is found; until then the form shows the
   // search under way.
-  const showProgress = run?.phase === "running" && !progressHidden;
+  const running = run?.phase === "running" ? run : null;
+  const showHeroProgress = running !== null && onHomePage;
+  const showExpanded = running !== null && (onHomePage || progressExpanded);
   useEffect(() => {
-    if (showProgress) window.scrollTo({ top: 0 });
-  }, [showProgress]);
-  // Keeps the progress view rendered while it fades out after a cancel.
-  const shownRun = useLingering(showProgress ? run : null, 200);
-  const progress = shownRun && (
-    <SearchProgress key={shownRun.id} run={shownRun} onCancel={cancel} />
+    if (showExpanded) window.scrollTo({ top: 0 });
+  }, [showExpanded]);
+  // Keeps the hero's progress view rendered while it fades out after a cancel.
+  const heroRun = useLingering(showHeroProgress ? running : null, 200);
+  const heroProgress = heroRun && (
+    <SearchProgress key={heroRun.id} run={heroRun} onCancel={cancel} />
   );
 
   const formProps = {
@@ -144,57 +168,41 @@ const App: React.FC = () => {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Header
-        historyOpen={historyOpen}
-        onHistoryOpenChange={setHistoryOpen}
-        onOpenSearch={openSearch}
         onHome={goHome}
         search={<SearchForm variant="compact" {...formProps} />}
       />
-      {run?.phase === "running" && progressHidden && (
-        <SearchStatusBar run={run} onView={() => setProgressHidden(false)} />
+      {running && !onHomePage && (
+        <SearchBanner
+          run={running}
+          expanded={progressExpanded}
+          onExpandedChange={setProgressExpanded}
+          onCancel={cancel}
+        />
       )}
       <main className="flex-1">
-        {activeSearch ? (
-          showProgress ? (
-            <div className="duration-200 animate-in fade-in slide-in-from-right-8">
-              {progress}
-            </div>
-          ) : (
-            <div
-              key={activeSearch.searchId}
-              className="duration-200 animate-in fade-in"
-            >
-              <AlbumHeader search={activeSearch} />
-              <div className="mx-auto max-w-[1280px] px-4 pb-12 pt-3 md:px-6 md:pt-8 lg:flex lg:items-start lg:gap-8 lg:pb-24">
-                <aside
-                  aria-label="Filters"
-                  className="hidden lg:block lg:w-[300px] lg:shrink-0"
-                >
-                  <FilterPanel
-                    searchId={activeSearch.searchId}
-                    variant="sidebar"
-                  />
-                </aside>
-                <div className="min-w-0 flex-1">
-                  <ReleaseList
-                    searchId={activeSearch.searchId}
-                    onSearchFrom={searchFrom}
-                    isSearching={isSearching}
-                  />
-                </div>
-              </div>
-              <FilterSheet searchId={activeSearch.searchId} />
-            </div>
-          )
-        ) : (
-          <Home
-            form={{ ...formProps, autoFocus: focusHeroSearch }}
-            onOpenSearch={openSearch}
-            onViewHistory={() => setHistoryOpen(true)}
-            progress={progress}
-            showProgress={showProgress}
+        <Routes>
+          <Route
+            path={HOME_PATH}
+            element={
+              <Home
+                form={{ ...formProps, autoFocus: focusHeroSearch }}
+                progress={heroProgress}
+                showProgress={showHeroProgress}
+              />
+            }
           />
-        )}
+          <Route path={LIBRARY_PATH} element={<LibraryPage />} />
+          <Route
+            path="/results/:searchId"
+            element={
+              <ResultsPage
+                onSearchFrom={searchFrom}
+                isSearching={isSearching}
+              />
+            }
+          />
+          <Route path="*" element={<Navigate to={HOME_PATH} replace />} />
+        </Routes>
       </main>
       <Footer />
     </div>

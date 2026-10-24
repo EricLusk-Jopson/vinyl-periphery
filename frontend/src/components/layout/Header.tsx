@@ -1,7 +1,7 @@
 import React from "react";
-import { History, Search } from "lucide-react";
-import { useCache } from "@/contexts/cache/CacheContext";
-import { HistoryDrawer } from "../history/HistoryDrawer";
+import { NavLink, useLocation } from "react-router-dom";
+import { Library, Search } from "lucide-react";
+import { LIBRARY_PATH, HOME_PATH } from "@/lib/routes";
 import { Wordmark } from "./Wordmark";
 import { cn } from "@/lib/utils";
 
@@ -12,25 +12,15 @@ const iconButton =
   "inline-flex h-11 w-11 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
 
 interface HeaderProps {
-  historyOpen: boolean;
-  onHistoryOpenChange: (open: boolean) => void;
-  /** Opens a search picked from History. */
-  onOpenSearch: (searchId: string) => void;
-  /** Returns to the home page. */
+  /** Returns to the home page with an empty search form. */
   onHome: () => void;
-  /** Compact search form, shown from `lg` while results are showing. */
+  /** Compact search form, shown from `lg` on every page but home. */
   search?: React.ReactNode;
 }
 
-export const Header: React.FC<HeaderProps> = ({
-  historyOpen,
-  onHistoryOpenChange,
-  onOpenSearch,
-  onHome,
-  search,
-}) => {
-  const { getActiveSearch } = useCache();
-  const activeSearch = getActiveSearch();
+export const Header: React.FC<HeaderProps> = ({ onHome, search }) => {
+  const { pathname } = useLocation();
+  const onHomePage = pathname === HOME_PATH;
 
   const handleHome = (e: React.MouseEvent<HTMLAnchorElement>) => {
     // Let modified clicks open a new tab as usual.
@@ -44,14 +34,18 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="mx-auto flex h-14 max-w-[1280px] items-center justify-between gap-4 px-2 pl-4 md:h-16 md:px-6">
         <Wordmark onClick={handleHome} />
 
-        {activeSearch && search && (
+        {!onHomePage && search && (
           <div className="ml-auto hidden duration-200 animate-in fade-in lg:block">
             {search}
           </div>
         )}
 
         <nav aria-label="Main" className="flex items-center gap-1">
-          {activeSearch ? (
+          {onHomePage ? (
+            <a href="#how" className={cn(navButton, "hidden md:inline-flex")}>
+              How it works
+            </a>
+          ) : (
             <button
               type="button"
               onClick={onHome}
@@ -60,23 +54,18 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Search className="h-5 w-5" aria-hidden="true" />
             </button>
-          ) : (
-            <a href="#how" className={cn(navButton, "hidden md:inline-flex")}>
-              How it works
-            </a>
           )}
 
-          <HistoryDrawer
-            open={historyOpen}
-            onOpenChange={onHistoryOpenChange}
-            onOpenSearch={onOpenSearch}
-            trigger={
-              <button type="button" className={navButton}>
-                <History className="h-5 w-5" aria-hidden="true" />
-                <span className="sr-only md:not-sr-only">History</span>
-              </button>
+          {/* NavLink sets aria-current="page" on the library page. */}
+          <NavLink
+            to={LIBRARY_PATH}
+            className={({ isActive }) =>
+              cn(navButton, isActive && "bg-secondary")
             }
-          />
+          >
+            <Library className="h-5 w-5" aria-hidden="true" />
+            <span className="sr-only md:not-sr-only">Library</span>
+          </NavLink>
         </nav>
       </div>
     </header>

@@ -20,6 +20,9 @@ import { AlbumCover } from "./AlbumCover";
 interface SearchProgressProps {
   run: SearchRun;
   onCancel: () => void;
+  /** Collapses back to the status bar; not offered on the home page. */
+  onHide?: () => void;
+  className?: string;
 }
 
 const stageDetail = (id: StageId, status: StageStatus, run: SearchRun) => {
@@ -65,6 +68,9 @@ const BAR_EASING: Record<Exclude<BarMotion, "none">, string> = {
   trickle: "cubic-bezier(0.3, 0.6, 0.6, 1)",
 };
 
+const outlineButton =
+  "h-11 rounded-lg border border-border-strong px-[18px] text-[15px] font-medium text-foreground transition-colors hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
+
 const checkedTone = ["text-foreground", "text-muted-foreground"];
 
 /**
@@ -74,6 +80,8 @@ const checkedTone = ["text-foreground", "text-muted-foreground"];
 export const SearchProgress: React.FC<SearchProgressProps> = ({
   run,
   onCancel,
+  onHide,
+  className,
 }) => {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const { params, stage } = run;
@@ -93,7 +101,12 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({
   }, []);
 
   return (
-    <div className="mx-auto flex w-full max-w-[880px] flex-col gap-6 px-4 pb-16 pt-8 md:gap-8 md:px-6 md:pb-24 md:pt-[72px]">
+    <div
+      className={cn(
+        "mx-auto flex w-full max-w-[880px] flex-col gap-6 px-4 pb-16 pt-8 md:gap-8 md:px-6 md:pb-24 md:pt-[72px]",
+        className,
+      )}
+    >
       <div className="flex flex-wrap items-center gap-4 md:gap-5">
         <AlbumCover
           src={run.thumb}
@@ -116,13 +129,24 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({
             {run.year && run.year !== "0" ? ` · ${run.year}` : ""}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="h-11 w-full rounded-lg border border-border-strong px-[18px] text-[15px] font-medium text-foreground transition-colors hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring sm:w-auto"
-        >
-          Cancel search
-        </button>
+        <div className="flex w-full gap-2 sm:w-auto">
+          {onHide && (
+            <button
+              type="button"
+              onClick={onHide}
+              className={cn(outlineButton, "flex-1 sm:flex-none")}
+            >
+              Hide progress
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onCancel}
+            className={cn(outlineButton, "flex-1 sm:flex-none")}
+          >
+            Cancel search
+          </button>
+        </div>
       </div>
 
       <section
@@ -239,7 +263,7 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({
       </section>
 
       <p className="text-sm leading-relaxed text-faint">
-        You can keep browsing your history while this runs. We'll let you know
+        You can keep browsing your library while this runs. We'll let you know
         when the results are ready. Discogs allows a limited number of requests
         per minute, which is why this takes a while.
       </p>

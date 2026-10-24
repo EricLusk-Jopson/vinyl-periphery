@@ -9,11 +9,14 @@ interface SearchStatusBarProps {
   onView: () => void;
 }
 
-/** Shown above other pages while a search runs in the background. */
-export const SearchStatusBar: React.FC<SearchStatusBarProps> = ({
-  run,
-  onView,
-}) => {
+/**
+ * The minimised search: a slim bar above the page while a search runs, with
+ * "View progress" to expand it. The ref is the View progress button.
+ */
+export const SearchStatusBar = React.forwardRef<
+  HTMLButtonElement,
+  SearchStatusBarProps
+>(({ run, onView }, ref) => {
   const detail = progressDetail(run.stage, REQUEST_DELAY_MS);
   const status =
     run.stage?.id === "releases" && detail
@@ -31,6 +34,7 @@ export const SearchStatusBar: React.FC<SearchStatusBarProps> = ({
           <span className="font-mono text-xs text-faint"> · {status}</span>
         </p>
         <button
+          ref={ref}
           type="button"
           onClick={onView}
           className="h-11 shrink-0 rounded-lg px-2 text-sm font-medium text-primary-text transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
@@ -40,4 +44,5 @@ export const SearchStatusBar: React.FC<SearchStatusBarProps> = ({
       </div>
     </div>
   );
-};
+});
+SearchStatusBar.displayName = "SearchStatusBar";

@@ -8,7 +8,8 @@ import { Home } from "./components/home/Home";
 import { SearchForm } from "./components/search/SearchForm";
 import { SearchProgress } from "./components/search/SearchProgress";
 import { SearchStatusBar } from "./components/search/SearchStatusBar";
-import { ReleaseList } from "./components/resultsDisplay/ReleaseList";
+import { AlbumHeader } from "./components/results/AlbumHeader";
+import { ReleaseList } from "./components/results/ReleaseList";
 import { ToastAction } from "./components/ui/toast";
 import { useToast } from "./hooks/use-toast";
 import { useSearchRun } from "./hooks/useSearchRun";
@@ -110,13 +111,20 @@ const App: React.FC = () => {
 
   const handleSearch = (params: SearchParams) => {
     setProgressHidden(false);
-    window.scrollTo({ top: 0 });
     void start(params);
+  };
+
+  const searchFrom = (params: SearchParams) => {
+    setFormValues(params);
+    handleSearch(params);
   };
 
   // Progress appears once the album is found; until then the form shows the
   // search under way.
   const showProgress = run?.phase === "running" && !progressHidden;
+  useEffect(() => {
+    if (showProgress) window.scrollTo({ top: 0 });
+  }, [showProgress]);
   // Keeps the progress view rendered while it fades out after a cancel.
   const shownRun = useLingering(showProgress ? run : null, 200);
   const progress = shownRun && (
@@ -151,9 +159,16 @@ const App: React.FC = () => {
           ) : (
             <div
               key={activeSearch.searchId}
-              className="mx-auto max-w-[1280px] px-4 py-8 duration-200 animate-in fade-in md:px-6"
+              className="duration-200 animate-in fade-in"
             >
-              <ReleaseList searchId={activeSearch.searchId} />
+              <AlbumHeader search={activeSearch} />
+              <div className="mx-auto max-w-[1280px] px-4 pb-24 pt-3 md:px-6 md:pt-8">
+                <ReleaseList
+                  searchId={activeSearch.searchId}
+                  onSearchFrom={searchFrom}
+                  isSearching={isSearching}
+                />
+              </div>
             </div>
           )
         ) : (

@@ -19,6 +19,8 @@ export interface CheckedContributor {
 
 /** What SearchProgress shows about the search under way. */
 export interface SearchRun {
+  /** Distinguishes one search from the next. */
+  id: number;
   params: SearchParams;
   stage: SearchStage | null;
   /** From the first search result, once the album is found. */
@@ -81,6 +83,7 @@ export const useSearchRun = ({ onComplete, onError }: SearchRunOptions) => {
         );
 
       setRun({
+        id: Date.now(),
         params,
         stage: null,
         thumb: "",

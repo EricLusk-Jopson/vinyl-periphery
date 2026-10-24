@@ -1,16 +1,16 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { REQUEST_DELAY_MS } from "@/api/limits";
 import { SearchRun } from "@/hooks/useSearchRun";
 import {
   STAGE_ORDER,
   STAGE_TITLES,
-  activeStageTitle,
+  currentStageTitle,
   StageId,
   StageStatus,
   plural,
   progressDetail,
-  stageFraction,
+  overallProgress,
   stageStatus,
 } from "@/lib/searchProgress";
 import { cn } from "@/lib/utils";
@@ -70,9 +70,26 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const { params, stage } = run;
   const activeId = stage?.id ?? null;
-  const activeTitle = activeStageTitle(stage);
+  const activeTitle = currentStageTitle(stage);
   const detail = progressDetail(stage, REQUEST_DELAY_MS);
-  const percent = Math.round(stageFraction(stage) * 100);
+  const target = overallProgress(stage);
+  const percent = Math.round(target * 100);
+
+  // Start the bar at 0 and glide to each new target at the pace of the
+  // request under way, so it moves steadily instead of jumping per update.
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setShown(target));
+    return () => cancelAnimationFrame(frame);
+  }, [target]);
+  // One request per discography; a release in the credits stage is about
+  // two (the release, then its artists' members).
+  const glideMs =
+    !stage || stage.id === "initial"
+      ? 800
+      : stage.id === "contributors"
+        ? 2 * REQUEST_DELAY_MS
+        : REQUEST_DELAY_MS;
 
   // The form that started the search is gone; give focus a sensible home.
   useEffect(() => {
@@ -135,8 +152,11 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({
             className="h-1.5 overflow-hidden rounded-full bg-border"
           >
             <div
-              className="h-full rounded-full bg-primary transition-[width] duration-200"
-              style={{ width: `${percent}%` }}
+              className="h-full origin-left rounded-full bg-primary transition-transform ease-linear"
+              style={{
+                transform: `scaleX(${shown})`,
+                transitionDuration: `${glideMs}ms`,
+              }}
             />
           </div>
           <p className="sr-only" aria-live="polite">
@@ -176,7 +196,7 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({
                       stageTitle[status],
                     )}
                   >
-                    {STAGE_TITLES[id].title}
+                    {STAGE_TITLES[id]}
                     <span className="sr-only">
                       {status === "done"
                         ? ", done"

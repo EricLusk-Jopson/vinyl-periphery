@@ -2,7 +2,7 @@ import React from "react";
 import { Loader2 } from "lucide-react";
 import { REQUEST_DELAY_MS } from "@/api/limits";
 import { SearchRun } from "@/hooks/useSearchRun";
-import { activeStageTitle, progressDetail } from "@/lib/searchProgress";
+import { currentStageTitle, progressDetail } from "@/lib/searchProgress";
 
 interface SearchStatusBarProps {
   run: SearchRun;
@@ -17,8 +17,8 @@ export const SearchStatusBar: React.FC<SearchStatusBarProps> = ({
   const detail = progressDetail(run.stage, REQUEST_DELAY_MS);
   const status =
     run.stage?.id === "releases" && detail
-      ? `${activeStageTitle(run.stage)} · ${detail}`
-      : activeStageTitle(run.stage);
+      ? `${currentStageTitle(run.stage)} · ${detail}`
+      : currentStageTitle(run.stage);
   return (
     <div className="border-b bg-surface">
       <div className="mx-auto flex max-w-[1280px] items-center gap-3 px-4 py-1.5 md:px-6">

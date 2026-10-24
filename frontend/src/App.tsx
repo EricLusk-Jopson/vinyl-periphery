@@ -12,6 +12,7 @@ import { ReleaseList } from "./components/resultsDisplay/ReleaseList";
 import { ToastAction } from "./components/ui/toast";
 import { useToast } from "./hooks/use-toast";
 import { useSearchRun } from "./hooks/useSearchRun";
+import { useLingering } from "./hooks/useLingering";
 
 const EMPTY_SEARCH: SearchParams = { artist: "", album: "" };
 
@@ -102,6 +103,11 @@ const App: React.FC = () => {
   };
 
   const showProgress = run !== null && !progressHidden;
+  // Keeps the progress view rendered while it fades out after a cancel.
+  const shownRun = useLingering(showProgress ? run : null, 200);
+  const progress = shownRun && (
+    <SearchProgress key={shownRun.id} run={shownRun} onCancel={cancel} />
+  );
 
   const formProps = {
     values: formValues,
@@ -116,24 +122,32 @@ const App: React.FC = () => {
         historyOpen={historyOpen}
         onHistoryOpenChange={setHistoryOpen}
         onHome={goHome}
-        showHowItWorks={!showProgress && !activeSearch}
         search={<SearchForm variant="compact" {...formProps} />}
       />
       {run && progressHidden && (
         <SearchStatusBar run={run} onView={() => setProgressHidden(false)} />
       )}
       <main className="flex-1">
-        {showProgress ? (
-          <SearchProgress run={run} onCancel={cancel} />
-        ) : activeSearch ? (
-          <div className="mx-auto max-w-[1280px] px-4 py-8 md:px-6">
-            <ReleaseList searchId={activeSearch.searchId} />
-          </div>
+        {activeSearch ? (
+          showProgress ? (
+            <div className="duration-200 animate-in fade-in slide-in-from-right-8">
+              {progress}
+            </div>
+          ) : (
+            <div
+              key={activeSearch.searchId}
+              className="mx-auto max-w-[1280px] px-4 py-8 duration-200 animate-in fade-in md:px-6"
+            >
+              <ReleaseList searchId={activeSearch.searchId} />
+            </div>
+          )
         ) : (
           <Home
             form={{ ...formProps, autoFocus: focusHeroSearch }}
             onOpenSearch={openSearch}
             onViewHistory={() => setHistoryOpen(true)}
+            progress={progress}
+            showProgress={showProgress}
           />
         )}
       </main>

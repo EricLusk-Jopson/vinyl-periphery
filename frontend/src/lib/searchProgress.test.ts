@@ -3,7 +3,7 @@ import {
   plural,
   progressDetail,
   secondsLeft,
-  stageFraction,
+  overallProgress,
   stageStatus,
 } from "./searchProgress";
 import { SearchStage } from "@/api/types";
@@ -27,15 +27,35 @@ describe("stageStatus", () => {
   });
 });
 
-describe("stageFraction", () => {
-  it("is current over total, clamped", () => {
-    expect(stageFraction(stage("releases", 21, 48))).toBeCloseTo(0.4375);
-    expect(stageFraction(stage("releases", 60, 48))).toBe(1);
+describe("overallProgress", () => {
+  it("spans the whole search across the three stages", () => {
+    expect(overallProgress(null)).toBe(0);
+    expect(overallProgress(stage("initial", 0, 1))).toBeCloseTo(0.05);
+    expect(overallProgress(stage("contributors", 5, 5))).toBeCloseTo(0.25);
+    expect(overallProgress(stage("releases", 48, 48))).toBe(1);
   });
 
-  it("is 0 without a stage or a total", () => {
-    expect(stageFraction(null)).toBe(0);
-    expect(stageFraction(stage("releases", 0, 0))).toBe(0);
+  it("counts the call under way", () => {
+    // 21 of 48 discographies: 0.25 + 0.75 * 21/48
+    expect(overallProgress(stage("releases", 21, 48))).toBeCloseTo(0.578125);
+  });
+
+  it("only moves forward through a whole search", () => {
+    const steps = [
+      stage("initial", 0, 1),
+      stage("initial", 1, 1),
+      ...[1, 2, 3, 4, 5].map((n) => stage("contributors", n, 5)),
+      ...Array.from({ length: 48 }, (_, i) => stage("releases", i + 1, 48)),
+    ];
+    const values = steps.map(overallProgress);
+    values
+      .slice(1)
+      .forEach((v, i) => expect(v).toBeGreaterThanOrEqual(values[i]));
+  });
+
+  it("clamps odd counts", () => {
+    expect(overallProgress(stage("releases", 60, 48))).toBe(1);
+    expect(overallProgress(stage("releases", 0, 0))).toBe(1);
   });
 });
 

@@ -6,7 +6,7 @@ import { useCache } from "@/contexts/cache/CacheContext";
 import { LIBRARY_PATH, HOME_PATH, backLink } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { FilterPanel } from "../filters/FilterPanel";
-import { FilterSheet } from "../filters/FilterSheet";
+import { FilterFrame } from "../filters/FilterFrame";
 import { AlbumHeader } from "./AlbumHeader";
 import { ReleaseList } from "./ReleaseList";
 
@@ -73,7 +73,8 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
 
   return (
     <div key={searchId} className="duration-200 animate-in fade-in">
-      <div className="mx-auto max-w-[1280px] px-2 md:px-4">
+      {/* On phones the back link sits in the header instead. */}
+      <div className="mx-auto hidden max-w-[1280px] px-2 md:block md:px-4">
         <Link
           to={back.to}
           className={cn(
@@ -86,7 +87,7 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
         </Link>
       </div>
       <AlbumHeader search={search} />
-      <div className="mx-auto max-w-[1280px] px-4 pb-12 pt-3 md:px-6 md:pt-8 lg:flex lg:items-start lg:gap-8 lg:pb-24">
+      <div className="mx-auto max-w-[1280px] px-4 pb-12 md:px-6 lg:flex lg:pt-8 lg:items-start lg:gap-8 lg:pb-24">
         <aside
           aria-label="Filters"
           className="hidden lg:block lg:w-[300px] lg:shrink-0"
@@ -98,10 +99,14 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
             searchId={searchId}
             onSearchFrom={onSearchFrom}
             isSearching={isSearching}
+            toolbarAction={
+              <div className="lg:hidden">
+                <FilterFrame searchId={searchId} />
+              </div>
+            }
           />
         </div>
       </div>
-      <FilterSheet searchId={searchId} />
     </div>
   );
 };

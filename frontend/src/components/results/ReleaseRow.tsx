@@ -104,21 +104,27 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
       <div
         id={panelId}
         className={cn(
-          "flex-col gap-3.5 pb-5 pl-[60px] pt-1 md:pl-[76px] md:pr-1",
+          "flex-col gap-2.5 pb-4 pl-[60px] pt-1 md:gap-3.5 md:pb-5 md:pl-[76px] md:pr-1",
           // A class, not the hidden attribute, which `flex` would override.
           open ? "flex" : "hidden",
         )}
       >
         <p className="text-[13px] text-faint">
-          Roles shown are what each person did on {searchedAlbum}.
+          <span className="md:hidden">Their roles on {searchedAlbum}:</span>
+          <span className="hidden md:inline">
+            Roles shown are what each person did on {searchedAlbum}.
+          </span>
         </p>
-        <ul className="grid gap-2.5 sm:grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
+        {/* Phones: one line per person. From md: a card each. */}
+        <ul className="flex flex-col divide-y rounded-lg border bg-surface md:grid md:grid-cols-[repeat(auto-fill,minmax(220px,1fr))] md:gap-2.5 md:divide-y-0 md:border-0 md:bg-transparent">
           {people.map((person) => (
             <li
               key={person.id}
-              className="flex flex-col gap-0.5 rounded-lg border bg-surface px-3 py-2.5"
+              className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-3 py-2 md:flex-col md:flex-nowrap md:items-start md:rounded-lg md:border md:bg-surface md:py-2.5"
             >
-              <span className="text-[15px] font-medium">{person.name}</span>
+              <span className="text-sm font-medium md:text-[15px]">
+                {person.name}
+              </span>
               <span className="font-mono text-xs text-muted-foreground">
                 {person.roles || "Credited"}
               </span>

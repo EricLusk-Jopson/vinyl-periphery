@@ -153,7 +153,7 @@ export const SearchForm = React.forwardRef<HTMLFormElement, SearchFormProps>(
         aria-busy={isSearching}
         onSubmit={handleSubmit}
         className={cn(
-          "flex flex-col gap-3.5",
+          "flex flex-col gap-3",
           "md:flex-row md:flex-wrap md:items-end md:gap-4 md:rounded-xl md:border md:bg-surface md:p-5",
         )}
       >
@@ -203,7 +203,7 @@ export const SearchForm = React.forwardRef<HTMLFormElement, SearchFormProps>(
           disabled={isSearching}
           className={cn(
             submitBase,
-            "h-[52px] px-5 text-base md:h-12 md:flex-[1_1_160px] lg:max-w-[260px]",
+            "h-12 px-5 text-base md:flex-[1_1_160px] lg:max-w-[260px]",
             shaking && "animate-shake",
           )}
           {...shakeProps}
@@ -224,8 +224,13 @@ export const SearchForm = React.forwardRef<HTMLFormElement, SearchFormProps>(
           id={hintId}
           className="font-mono text-xs leading-normal text-faint md:basis-full"
         >
-          A full search takes 1 to 3 minutes. Discogs limits how quickly we can
-          read its data.
+          <span className="md:hidden">
+            Takes 1 to 3 minutes. Discogs limits how fast we can read it.
+          </span>
+          <span className="hidden md:inline">
+            A full search takes 1 to 3 minutes. Discogs limits how quickly we
+            can read its data.
+          </span>
         </p>
       </form>
     );

@@ -15,10 +15,10 @@ import { Switch } from "./Switch";
 interface FilterPanelProps {
   searchId: string;
   /**
-   * The sidebar has its own "Filters" heading and Reset link; in the sheet
-   * those live in the sheet's header and footer.
+   * The sidebar has its own "Filters" heading and Reset link; in the frame
+   * those live in the frame's top bar.
    */
-  variant: "sidebar" | "sheet";
+  variant: "sidebar" | "frame";
 }
 
 /** Switches, contributor chips with a name filter, and role chips. */
@@ -126,7 +126,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           className={cn(
             "h-11 rounded-lg border px-3 text-[15px] text-foreground placeholder:text-faint lg:h-9 lg:text-sm",
             "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring",
-            variant === "sheet" ? "bg-background" : "bg-surface",
+            "bg-surface",
           )}
         />
         {shown.length > 0 ? (

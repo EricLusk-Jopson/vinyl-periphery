@@ -1,45 +1,76 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import "./styles/globals.css";
-import {
-  useDiscogsSearch,
-  useListReleaseContributors,
-  useListContributorReleases,
-} from "./api/mutations";
-import { EnrichedRelease, SearchParams, SearchStage } from "./api/types";
+import { SearchParams } from "./api/types";
 import { useCache } from "./contexts/cache/CacheContext";
 import { Header } from "./components/layout/Header";
 import { Footer } from "./components/layout/Footer";
 import { Home } from "./components/home/Home";
 import { SearchForm } from "./components/search/SearchForm";
+import { SearchProgress } from "./components/search/SearchProgress";
+import { SearchStatusBar } from "./components/search/SearchStatusBar";
 import { ReleaseList } from "./components/resultsDisplay/ReleaseList";
+import { ToastAction } from "./components/ui/toast";
 import { useToast } from "./hooks/use-toast";
-import { coverUrl } from "./lib/searches";
+import { useSearchRun } from "./hooks/useSearchRun";
 
 const EMPTY_SEARCH: SearchParams = { artist: "", album: "" };
 
 const App: React.FC = () => {
-  const { addSearch, getActiveSearch, setActiveSearch, clearActiveSearch } =
-    useCache();
+  const { getActiveSearch, setActiveSearch, clearActiveSearch } = useCache();
   const { toast } = useToast();
 
-  const searchMutation = useDiscogsSearch();
-  const contributorsMutation = useListReleaseContributors();
-  const releasesMutation = useListContributorReleases();
-
-  const isSearching =
-    searchMutation.isPending ||
-    contributorsMutation.isPending ||
-    releasesMutation.isPending;
-
   const activeSearch = getActiveSearch();
+  const activeSearchId = activeSearch?.searchId ?? null;
 
   // One set of form values, shared by the hero and the compact header form
   // (only one is on screen at a time).
   const [formValues, setFormValues] = useState<SearchParams>(
-    () => activeSearch?.searchParams ?? EMPTY_SEARCH
+    () => activeSearch?.searchParams ?? EMPTY_SEARCH,
   );
   const [historyOpen, setHistoryOpen] = useState(false);
   const [focusHeroSearch, setFocusHeroSearch] = useState(false);
+
+  // True once the user opens something else while a search runs. The search
+  // carries on and a toast says when it is done.
+  const [progressHidden, setProgressHidden] = useState(false);
+  const progressHiddenRef = useRef(progressHidden);
+  progressHiddenRef.current = progressHidden;
+
+  const openSearch = useCallback(
+    (searchId: string) => {
+      setActiveSearch(searchId);
+      window.scrollTo({ top: 0 });
+    },
+    [setActiveSearch],
+  );
+
+  const { run, isSearching, start, cancel } = useSearchRun({
+    onComplete: (searchId, params) => {
+      if (!progressHiddenRef.current) {
+        openSearch(searchId);
+        return;
+      }
+      toast({
+        title: "Results ready",
+        description: `${params.album} by ${params.artist}`,
+        action: (
+          <ToastAction
+            altText="View results"
+            onClick={() => openSearch(searchId)}
+          >
+            View results
+          </ToastAction>
+        ),
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Search failed",
+        description: "Something went wrong talking to Discogs. Try again.",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Show the open search in the compact form, including one picked from
   // history. searchParams keeps its identity across filter changes.
@@ -48,67 +79,29 @@ const App: React.FC = () => {
     if (activeParams) setFormValues(activeParams);
   }, [activeParams]);
 
+  // Opening a search from history or the recent list mid-search moves the
+  // progress page out of the way.
+  const isSearchingRef = useRef(isSearching);
+  isSearchingRef.current = isSearching;
+  useEffect(() => {
+    if (activeSearchId && isSearchingRef.current) setProgressHidden(true);
+  }, [activeSearchId]);
+
   const goHome = useCallback(() => {
     clearActiveSearch();
     setFormValues(EMPTY_SEARCH);
     setFocusHeroSearch(true);
+    setProgressHidden(false);
     window.scrollTo({ top: 0 });
   }, [clearActiveSearch]);
 
-  const openSearch = useCallback(
-    (searchId: string) => {
-      setActiveSearch(searchId);
-      window.scrollTo({ top: 0 });
-    },
-    [setActiveSearch]
-  );
-
-  const handleSearch = async (
-    params: SearchParams,
-    onProgress?: (stage: SearchStage) => void
-  ) => {
-    try {
-      const searchResults = await searchMutation.mutateAsync({
-        params,
-        callbacks: { onProgress },
-      });
-
-      if (!searchResults) return;
-      const thumb = coverUrl(searchResults[0]);
-
-      const contributorSet = await contributorsMutation.mutateAsync({
-        releases: searchResults,
-        maxReleases: 5,
-        callbacks: { onProgress },
-      });
-
-      const releasesMap = await releasesMutation.mutateAsync({
-        contributorSet,
-        callbacks: { onProgress },
-      });
-
-      // Convert Map to Record before adding to cache
-      const releasesRecord = Object.fromEntries(
-        Array.from(releasesMap.entries()).map(([id, release]) => [
-          id,
-          {
-            ...release,
-            contributorIds: Array.from(release.contributorIds),
-          },
-        ])
-      ) as Record<number, EnrichedRelease>;
-
-      const searchId = addSearch(params, contributorSet, releasesRecord, thumb);
-      openSearch(searchId);
-    } catch (error) {
-      console.error("Search chain error:", error);
-      toast({
-        title: "Search failed",
-        description: "Something went wrong talking to Discogs. Try again.",
-        variant: "destructive",
-      });
-    }
+  const handleSearch = (params: SearchParams) => {
+    setProgressHidden(false);
+    window.scrollTo({ top: 0 });
+    void start(params);
   };
+
+  const showProgress = run !== null && !progressHidden;
 
   const formProps = {
     values: formValues,
@@ -123,10 +116,16 @@ const App: React.FC = () => {
         historyOpen={historyOpen}
         onHistoryOpenChange={setHistoryOpen}
         onHome={goHome}
+        showHowItWorks={!showProgress && !activeSearch}
         search={<SearchForm variant="compact" {...formProps} />}
       />
+      {run && progressHidden && (
+        <SearchStatusBar run={run} onView={() => setProgressHidden(false)} />
+      )}
       <main className="flex-1">
-        {activeSearch ? (
+        {showProgress ? (
+          <SearchProgress run={run} onCancel={cancel} />
+        ) : activeSearch ? (
           <div className="mx-auto max-w-[1280px] px-4 py-8 md:px-6">
             <ReleaseList searchId={activeSearch.searchId} />
           </div>

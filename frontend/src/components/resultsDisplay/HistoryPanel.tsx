@@ -8,11 +8,13 @@ import {
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { SheetClose } from "../ui/sheet";
+import { AlbumCover } from "../search/AlbumCover";
 
 interface HistoryItemProps {
   searchId: string;
   artist: string;
   album: string;
+  thumb: string;
   onSelect: () => void;
   onDelete: () => void;
   onToggleSave: () => Promise<void>;
@@ -23,6 +25,7 @@ interface HistoryItemProps {
 const HistoryItem: React.FC<HistoryItemProps> = ({
   artist,
   album,
+  thumb,
   onSelect,
   onDelete,
   onToggleSave,
@@ -52,6 +55,11 @@ const HistoryItem: React.FC<HistoryItemProps> = ({
           isActive && "bg-bg-secondary"
         )}
       >
+        <AlbumCover
+          src={thumb}
+          title={album}
+          className="h-12 w-12 rounded-[3px] text-xs"
+        />
         <div className="flex flex-col flex-grow w-[200px]">
           <span className="text-text-primary font-medium truncate">
             {album}
@@ -119,6 +127,7 @@ const HistoryPanel: React.FC = () => {
           id,
           artist: search.searchParams.artist,
           album: search.searchParams.album,
+          thumb: search.thumb,
         }))
         .sort((a, b) => b.id.localeCompare(a.id)), // Sort by ID which contains timestamp
     [searches]
@@ -186,12 +195,13 @@ const HistoryPanel: React.FC = () => {
                 No saved searches yet
               </div>
             ) : (
-              savedSearches.map(({ id, artist, album }) => (
+              savedSearches.map(({ id, artist, album, thumb }) => (
                 <HistoryItem
                   key={id}
                   searchId={id}
                   artist={artist}
                   album={album}
+                  thumb={thumb}
                   onSelect={() => {
                     setActiveSearch(id);
                   }}
@@ -228,12 +238,13 @@ const HistoryPanel: React.FC = () => {
                 No search history yet
               </div>
             ) : (
-              sessionSearches.map(({ id, artist, album }) => (
+              sessionSearches.map(({ id, artist, album, thumb }) => (
                 <HistoryItem
                   key={id}
                   searchId={id}
                   artist={artist}
                   album={album}
+                  thumb={thumb}
                   onSelect={() => setActiveSearch(id)}
                   onDelete={() => handleDelete(id)}
                   onToggleSave={() => handleToggleSave(id)}

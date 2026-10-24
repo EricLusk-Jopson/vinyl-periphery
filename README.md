@@ -1,6 +1,6 @@
 # Vinyl Periphery
 
-Find the albums hiding in the liner notes. Enter an album you love and Vinyl
+Find the albums hiding in your liner notes. Enter an album you love and Vinyl
 Periphery traces everyone credited on it, from session players to engineers and
 producers, then ranks the other albums they worked on by how many of those
 people they share.

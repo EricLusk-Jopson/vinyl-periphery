@@ -76,6 +76,13 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
     }));
   }, []);
 
+  const clearActiveSearch = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      activeSearchId: null,
+    }));
+  }, []);
+
   // Sync to session storage whenever state changes
   useEffect(() => {
     const toStore = {
@@ -299,6 +306,7 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
   const value: CacheContextValue = {
     ...state,
     setActiveSearch,
+    clearActiveSearch,
     addSearch,
     saveSearch,
     unsaveSearch,

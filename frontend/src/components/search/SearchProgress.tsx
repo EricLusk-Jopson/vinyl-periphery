@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { Check } from "lucide-react";
 import { REQUEST_DELAY_MS } from "@/api/limits";
 import { SearchRun } from "@/hooks/useSearchRun";
-import { BAR_MS, useStageBar } from "@/hooks/useStageBar";
+import { BarMotion, useStageBar } from "@/hooks/useStageBar";
 import {
   STAGE_ORDER,
   STAGE_TITLES,
@@ -58,6 +58,13 @@ const stageTitle: Record<StageStatus, string> = {
   active: "text-foreground",
   pending: "text-faint",
 };
+const BAR_EASING: Record<Exclude<BarMotion, "none">, string> = {
+  // Quick to start, gentle to settle.
+  jump: "cubic-bezier(0.22, 1, 0.36, 1)",
+  // A slow creep that eases off as it nears the next step.
+  trickle: "cubic-bezier(0.3, 0.6, 0.6, 1)",
+};
+
 const checkedTone = ["text-foreground", "text-muted-foreground"];
 
 /**
@@ -74,7 +81,11 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({
   const activeTitle = currentStageTitle(stage);
   const detail = progressDetail(stage, REQUEST_DELAY_MS);
   const percent = Math.round(stageFraction(stage) * 100);
-  const bar = useStageBar(stage);
+  // One request per discography; a release in the credits step is about
+  // two (the release, then its artists' members).
+  const itemMs =
+    stage?.id === "contributors" ? 2 * REQUEST_DELAY_MS : REQUEST_DELAY_MS;
+  const bar = useStageBar(stage, itemMs);
 
   // The form that started the search is gone; give focus a sensible home.
   useEffect(() => {
@@ -140,10 +151,10 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({
               className="h-full origin-left rounded-full bg-primary"
               style={{
                 transform: `scaleX(${bar.value})`,
-                // An ease-out curve: quick to start, gentle to settle.
-                transition: bar.animate
-                  ? `transform ${BAR_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`
-                  : "none",
+                transition:
+                  bar.motion === "none"
+                    ? "none"
+                    : `transform ${bar.ms}ms ${BAR_EASING[bar.motion]}`,
               }}
             />
           </div>

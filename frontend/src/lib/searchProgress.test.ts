@@ -4,6 +4,7 @@ import {
   progressDetail,
   secondsLeft,
   stageFraction,
+  trickleCeiling,
   stageStatus,
 } from "./searchProgress";
 import { SearchStage } from "@/api/types";
@@ -49,6 +50,27 @@ describe("stageFraction", () => {
 
   it("clamps odd counts", () => {
     expect(stageFraction(stage("releases", 60, 48))).toBe(1);
+  });
+});
+
+describe("trickleCeiling", () => {
+  it("creeps most of the way to the next item", () => {
+    // 21 of 48 done, item 22 under way: 21/48 + 0.6/48
+    expect(trickleCeiling(stage("releases", 22, 48))).toBeCloseTo(21.6 / 48);
+  });
+
+  it("stays below where the next update lands", () => {
+    for (let n = 1; n < 48; n++) {
+      expect(trickleCeiling(stage("releases", n, 48))).toBeLessThan(
+        stageFraction(stage("releases", n + 1, 48)),
+      );
+    }
+    expect(trickleCeiling(stage("releases", 48, 48))).toBeLessThan(1);
+  });
+
+  it("is 0 without a stage to creep through", () => {
+    expect(trickleCeiling(null)).toBe(0);
+    expect(trickleCeiling(stage("initial", 1, 1))).toBe(0);
   });
 });
 

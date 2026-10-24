@@ -36,6 +36,18 @@ export const stageFraction = (stage: SearchStage | null): number => {
   return Math.min(1, Math.max(0, (stage.current - 1) / stage.total));
 };
 
+/** How much of the gap to the next item the bar creeps across meanwhile. */
+const TRICKLE_SHARE = 0.6;
+
+/**
+ * Where the bar creeps to while the current item runs: most of the way to
+ * where the next update will put it, never all the way.
+ */
+export const trickleCeiling = (stage: SearchStage | null): number => {
+  if (!stage || stage.id === "initial" || stage.total <= 0) return 0;
+  return Math.min(1, stageFraction(stage) + TRICKLE_SHARE / stage.total);
+};
+
 /**
  * Seconds left, from the calls still to make times the pause after each.
  * Only the discography stage has a known number of calls (one per

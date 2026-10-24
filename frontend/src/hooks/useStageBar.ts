@@ -1,54 +1,85 @@
 import { useEffect, useRef, useState } from "react";
 import { SearchStage } from "@/api/types";
-import { stageFraction } from "@/lib/searchProgress";
+import { stageFraction, trickleCeiling } from "@/lib/searchProgress";
 
-/** How long each step of the bar takes. */
+/** How long the jump to each update takes. */
 export const BAR_MS = 600;
+
+/**
+ * `jump`: the eased step to an update. `trickle`: the slow creep between
+ * updates. `none`: the instant reset between stages.
+ */
+export type BarMotion = "jump" | "trickle" | "none";
 
 export interface StageBar {
   /** 0 to 1. */
   value: number;
-  /** False for the instant reset between stages. */
-  animate: boolean;
+  motion: BarMotion;
+  /** Length of the current motion. */
+  ms: number;
 }
 
 /**
- * Drives a per-stage progress bar. It steps to each update; when the stage
- * changes it fills to the end, empties without animating, then steps on from
- * there for the new stage.
+ * Drives a per-stage progress bar. On each update it jumps to the new value,
+ * then creeps slowly towards the next one while the request runs (over
+ * `itemMs`, the expected time per item). When the stage changes it fills to
+ * the end, empties without animating, and carries on for the new stage.
+ * A jump starts from wherever the creep has got to.
  */
-export const useStageBar = (stage: SearchStage | null): StageBar => {
+export const useStageBar = (
+  stage: SearchStage | null,
+  itemMs: number,
+): StageBar => {
   const target = stageFraction(stage);
+  const ceiling = trickleCeiling(stage);
   const stageId = stage?.id;
-  const [bar, setBar] = useState<StageBar>({ value: 0, animate: true });
+  const [bar, setBar] = useState<StageBar>({
+    value: 0,
+    motion: "jump",
+    ms: BAR_MS,
+  });
   const prevStageRef = useRef(stageId);
 
   useEffect(() => {
     const prev = prevStageRef.current;
     prevStageRef.current = stageId;
     const frames: number[] = [];
-    // Two frames, so the instant reset paints before animation resumes.
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    // Two frames, so an instant reset paints before motion resumes.
     const nextPaint = (fn: () => void) =>
       frames.push(
         requestAnimationFrame(() => frames.push(requestAnimationFrame(fn))),
       );
+    const jumpThenTrickle = () => {
+      setBar({ value: target, motion: "jump", ms: BAR_MS });
+      timers.push(
+        setTimeout(() => {
+          if (ceiling > target) {
+            // The jump took part of the item's time already.
+            const ms = Math.max(BAR_MS, itemMs - BAR_MS);
+            setBar({ value: ceiling, motion: "trickle", ms });
+          }
+        }, BAR_MS),
+      );
+    };
 
-    let timer: ReturnType<typeof setTimeout> | undefined;
     if (prev && stageId && prev !== stageId) {
-      setBar({ value: 1, animate: true });
-      timer = setTimeout(() => {
-        setBar({ value: 0, animate: false });
-        nextPaint(() => setBar({ value: target, animate: true }));
-      }, BAR_MS);
+      setBar({ value: 1, motion: "jump", ms: BAR_MS });
+      timers.push(
+        setTimeout(() => {
+          setBar({ value: 0, motion: "none", ms: 0 });
+          nextPaint(jumpThenTrickle);
+        }, BAR_MS),
+      );
     } else {
-      nextPaint(() => setBar({ value: target, animate: true }));
+      nextPaint(jumpThenTrickle);
     }
 
     return () => {
-      clearTimeout(timer);
+      timers.forEach(clearTimeout);
       frames.forEach(cancelAnimationFrame);
     };
-  }, [stageId, target]);
+  }, [stageId, target, ceiling, itemMs]);
 
   return bar;
 };

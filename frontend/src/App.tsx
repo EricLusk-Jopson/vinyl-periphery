@@ -119,14 +119,13 @@ const App: React.FC = () => {
     if (!location.pathname.startsWith("/results/")) clearActiveSearch();
   }, [location.pathname, clearActiveSearch]);
 
-  // On each page change: start at the top. A running search expands on home
-  // (in place of the hero) and is minimised elsewhere.
+  // On each page change: start at the top, with a running search minimised.
   const prevPathRef = useRef(location.pathname);
   useEffect(() => {
     if (prevPathRef.current === location.pathname) return;
     prevPathRef.current = location.pathname;
     window.scrollTo({ top: 0 });
-    setProgressExpanded(location.pathname === HOME_PATH);
+    setProgressExpanded(false);
   }, [location.pathname]);
 
   const setExpanded = useCallback((expanded: boolean) => {

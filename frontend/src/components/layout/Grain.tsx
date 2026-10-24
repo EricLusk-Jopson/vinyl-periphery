@@ -18,7 +18,7 @@ export const Grain: React.FC<GrainProps> = ({ className }) => {
       aria-hidden="true"
       focusable="false"
       className={cn(
-        "pointer-events-none absolute inset-0 h-full w-full opacity-[0.12]",
+        "grain pointer-events-none absolute inset-0 h-full w-full opacity-[0.12]",
         className
       )}
     >

@@ -14,6 +14,7 @@ import { SearchForm } from "./components/search/SearchForm";
 import { ReleaseList } from "./components/resultsDisplay/ReleaseList";
 import { useToast } from "./hooks/use-toast";
 import { coverUrl } from "./lib/searches";
+import { TypeSwitcher } from "./components/dev/TypeSwitcher";
 
 const EMPTY_SEARCH: SearchParams = { artist: "", album: "" };
 
@@ -139,6 +140,7 @@ const App: React.FC = () => {
         )}
       </main>
       <Footer />
+      <TypeSwitcher />
     </div>
   );
 };

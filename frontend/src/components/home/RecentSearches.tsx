@@ -29,7 +29,7 @@ export const RecentSearches: React.FC<RecentSearchesProps> = ({
       <div className="mb-2.5 flex items-center justify-between gap-4 md:mb-5 md:items-baseline">
         <h2
           id="recent-heading"
-          className="text-[13px] font-medium uppercase tracking-[1px] text-muted-foreground md:font-display md:text-[34px] md:font-normal md:normal-case md:tracking-[0.5px] md:text-foreground"
+          className="text-[13px] font-medium uppercase tracking-[1px] text-muted-foreground md:type-title md:type-section md:normal-case md:text-foreground md:[font-weight:var(--title-weight)] md:[letter-spacing:var(--title-tracking)]"
         >
           <span className="md:hidden">Recent</span>
           <span className="hidden md:inline">Your recent searches</span>

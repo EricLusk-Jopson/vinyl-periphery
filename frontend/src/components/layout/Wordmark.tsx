@@ -15,31 +15,16 @@ export const Wordmark: React.FC<WordmarkProps> = ({ className, onClick }) => (
       className
     )}
   >
+    <span className="type-title type-wordmark !leading-none">
+      Vinyl Periphery
+    </span>
     <svg
       viewBox="0 0 26 26"
       aria-hidden="true"
-      className="h-[22px] w-[22px] shrink-0 md:h-[26px] md:w-[26px]"
+      className="h-4 w-4 shrink-0 md:h-[18px] md:w-[18px]"
     >
-      <circle
-        cx="13"
-        cy="13"
-        r="12"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      />
-      <circle
-        cx="13"
-        cy="13"
-        r="7"
-        fill="none"
-        className="stroke-border-strong"
-        strokeWidth="1"
-      />
-      <circle cx="13" cy="13" r="3.5" className="fill-primary" />
+      <circle cx="13" cy="13" r="12" className="fill-primary-deep" />
+      <circle cx="13" cy="13" r="4.5" className="fill-primary" />
     </svg>
-    <span className="font-display text-[22px] leading-none tracking-[1.2px] md:text-[26px] md:tracking-[1.5px]">
-      Vinyl Periphery
-    </span>
   </a>
 );

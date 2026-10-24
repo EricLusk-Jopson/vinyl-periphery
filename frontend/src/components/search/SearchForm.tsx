@@ -193,7 +193,7 @@ export const SearchForm = React.forwardRef<HTMLFormElement, SearchFormProps>(
           disabled={isSearching}
           className={cn(
             submitBase,
-            "h-[52px] px-5 text-base md:h-12 md:flex-[1_1_160px] lg:max-w-[260px]"
+            "glow-primary h-[52px] px-5 text-base md:h-12 md:flex-[1_1_160px] lg:max-w-[260px]"
           )}
         >
           {isSearching ? (

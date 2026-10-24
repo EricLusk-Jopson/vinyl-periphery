@@ -6,6 +6,7 @@ import {
 import { Button } from "../ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ReleaseCard } from "./ReleaseCard";
+import { AlbumCover } from "../search/AlbumCover";
 
 export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
   const { searches } = useCache();
@@ -122,63 +123,98 @@ export const ReleaseList: React.FC<{ searchId: string }> = ({ searchId }) => {
     return pageButtons;
   };
 
+  const contributorCount = Object.keys(search.contributors).length;
+
   return (
-    <section className="w-full bg-bg-primary bg-opacity-40 p-4 sm:p-[20px]">
-      <span className="flex flex-col sm:flex-row justify-between gap-2 sm:gap-0 mt-4 mb-6">
-        <h2 className="font-primary text-base sm:text-[1.8rem] tracking-[3px] text-text-primary w-9/12">
-          <span className="line-clamp-1">{search.searchParams.album}</span>
-        </h2>
-        <h2 className="font-primary text-base sm:text-[1.8rem] tracking-[3px] text-text-primary whitespace-nowrap">
-          {count} Matches
-        </h2>
-      </span>
-      <div className="flex flex-col p-2 sm:p-[15px] gap-2">
-        {currentReleases.length > 0 ? (
-          currentReleases.map((release) => (
-            <ReleaseCard release={release} search={search} key={release.id} />
-          ))
-        ) : (
-          <p className="text-center text-text-secondary">No releases found</p>
-        )}
+    <section aria-labelledby="results-heading" className="w-full">
+      <div className="flex flex-col gap-6 pb-8 pt-4 sm:flex-row sm:items-end md:pb-12 md:pt-10">
+        <AlbumCover
+          src={search.thumb}
+          title={search.searchParams.album}
+          className="glow-deep h-20 w-20 text-sm md:h-[120px] md:w-[120px]"
+        />
+        <div className="flex min-w-0 flex-1 flex-col gap-3">
+          <div className="type-title type-album">
+            <p>{search.searchParams.artist}</p>
+            <h1 id="results-heading" className="text-muted-foreground">
+              {search.searchParams.album}
+            </h1>
+          </div>
+          <p className="text-[15px] font-semibold">
+            <span className="mr-1.5 font-mono text-xs font-normal uppercase tracking-[0.5px] text-muted-foreground">
+              Credits
+            </span>
+            {contributorCount}
+            <span className="ml-4 mr-1.5 font-mono text-xs font-normal uppercase tracking-[0.5px] text-muted-foreground">
+              Connected albums
+            </span>
+            {count}
+          </p>
+        </div>
       </div>
 
-      {/* Pagination controls */}
+      <div className="flex items-baseline justify-between gap-4 border-t py-3">
+        <h2 className="text-[15px] font-semibold">
+          {count} {count === 1 ? "album" : "albums"}{" "}
+          <span className="text-muted-foreground">sorted by shared credits</span>
+        </h2>
+      </div>
+
+      {currentReleases.length > 0 ? (
+        <ol className="border-b">
+          {currentReleases.map((release, i) => (
+            <ReleaseCard
+              key={release.id}
+              rank={indexOfFirstItem + i + 1}
+              release={release}
+              search={search}
+            />
+          ))}
+        </ol>
+      ) : (
+        <p className="border-t py-12 text-[15px] font-semibold">
+          No albums match.{" "}
+          <span className="text-muted-foreground">
+            Loosen the filters to see more.
+          </span>
+        </p>
+      )}
+
       {totalPages > 1 && (
-        <div className="flex justify-center items-center mt-6 gap-1">
+        <nav
+          aria-label="Pages"
+          className="mt-6 flex items-center justify-center gap-1"
+        >
           <Button
             variant="outline"
             size="sm"
             onClick={goToPrevPage}
             disabled={currentPage === 1}
+            aria-label="Previous page"
             className="px-2"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           </Button>
-
           <div className="flex items-center">{renderPageButtons()}</div>
-
           <Button
             variant="outline"
             size="sm"
             onClick={goToNextPage}
             disabled={currentPage === totalPages}
+            aria-label="Next page"
             className="px-2"
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
           </Button>
-        </div>
+        </nav>
       )}
 
-      {/* Page info */}
-      <div className="text-center text-text-secondary text-[0.6rem] mt-2">
-        {releases.length > 0 && (
-          <>
-            Showing {indexOfFirstItem + 1}-
-            {Math.min(indexOfLastItem, releases.length)} of {releases.length}{" "}
-            releases
-          </>
-        )}
-      </div>
+      {releases.length > 0 && (
+        <p className="mt-3 text-center font-mono text-xs text-muted-foreground">
+          {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, releases.length)}{" "}
+          of {releases.length}
+        </p>
+      )}
     </section>
   );
 };

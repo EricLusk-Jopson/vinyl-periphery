@@ -23,7 +23,7 @@ export const HowItWorks: React.FC = () => (
   >
     <h2
       id="how-heading"
-      className="mb-5 font-display text-2xl font-normal tracking-[0.5px] md:mb-7 md:text-[34px]"
+      className="type-title type-section mb-5 md:mb-7"
     >
       How it works
     </h2>
@@ -34,7 +34,7 @@ export const HowItWorks: React.FC = () => (
           className="flex flex-col gap-2.5 pt-6 md:pr-7 md:pt-7"
         >
           <span
-            className="font-mono text-[13px] text-primary-text"
+            className="font-mono text-[13px] text-dim"
             aria-hidden="true"
           >
             {String(i + 1).padStart(2, "0")}

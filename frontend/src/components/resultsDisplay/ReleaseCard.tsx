@@ -1,13 +1,16 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "../ui/collapsible";
 import { defaultContributorDisplayPipeline } from "@/lib/transformers/contributorProcessor";
-import { spacedDefaultRolePipeline } from "@/lib/transformers/roleProcessor";
+import { AlbumCover } from "../search/AlbumCover";
+import { cn } from "@/lib/utils";
 
 interface ReleaseCardProps {
+  /** Position in the ranked list, from 1. */
+  rank: number;
   release: {
     score: number;
     confidence: number;
@@ -34,7 +37,15 @@ interface ReleaseCardProps {
   };
 }
 
+/** At most two roles, so one busy contributor cannot take over the line. */
+const shortRoles = (roles: string[]) => roles.slice(0, 2).join(", ");
+
+/**
+ * One connected album. The credits line, like a sleeve's track list, says
+ * who it shares with the searched album and what they did on that album.
+ */
 export const ReleaseCard: React.FC<ReleaseCardProps> = ({
+  rank,
   release,
   search,
 }) => {
@@ -42,97 +53,101 @@ export const ReleaseCard: React.FC<ReleaseCardProps> = ({
   const [discogsUrl, setDiscogsUrl] = useState<string | null>(null);
   const hasRequestedRef = useRef(false);
 
-  // Fetch release details when the card is first opened
+  // Fetch the Discogs page URL the first time the row is opened.
   useEffect(() => {
     const fetchReleaseDetails = async () => {
       if (isOpen && !discogsUrl && !hasRequestedRef.current) {
         hasRequestedRef.current = true;
-
         try {
           const response = await fetch(release.resource_url);
           const data = await response.json();
-
-          if (data && data.uri) {
-            setDiscogsUrl(data.uri);
-          }
+          if (data && data.uri) setDiscogsUrl(data.uri);
         } catch (error) {
           console.error("Error fetching release details:", error);
         }
       }
     };
-
     fetchReleaseDetails();
-  }, [isOpen, release.resource_url]);
+  }, [isOpen, discogsUrl, release.resource_url]);
 
-  const handleToggle = (open: boolean) => {
-    setIsOpen(open);
-  };
+  const people = Array.from(new Set(release.activeContributors))
+    .filter((id) => id in search.contributors)
+    .map((id) => ({
+      id,
+      name: defaultContributorDisplayPipeline(search.contributors[id].name),
+      roles: shortRoles(search.contributors[id].roles),
+    }));
+  const shared = people.length;
 
   return (
-    <Collapsible
-      open={isOpen}
-      onOpenChange={handleToggle}
-      className="w-full border-primary-main bg-bg-primary p-2 group"
-    >
-      <CollapsibleTrigger
-        className="flex w-full p-0 font-primary text-[1rem] sm:text-[1.5rem] tracking-[3px] text-text-primary group-data-[state=closed]:text-text-primary
-        group-data-[state=open]:text-primary-main
-        sm:hover:!text-primary-dark focus:outline-primary-main
-        transition-colors duration-200 ease-in-out"
-      >
-        <div className="flex flex-row justify-between items-center text-left w-full">
-          <div className="flex flex-row gap-2 flex-wrap">
-            <div className="text-wrap">{release.artist}:</div>
-            <div className="text-wrap">{release.title}</div>
-          </div>
-
-          <div className="text-right whitespace-nowrap hidden md:inline">
-            {(100 * release.score).toFixed(0)}%
-          </div>
-        </div>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="flex flex-col gap-2 items-start">
-        <div>
-          <p className="text-[0.6rem] text-text-disabled">
-            Roles displayed are for contributor's participation on{" "}
-            <i>{search.searchParams.album} </i>
-          </p>
-        </div>
-        <ul className="font-secondary text-[0.8rem] text-text-secondary sm:text-[1rem] mt-2">
-          {Array.from(
-            new Set(
-              release.activeContributors
-                .filter((id) => id in search.contributors)
-                .map(
-                  (id) =>
-                    `${defaultContributorDisplayPipeline(
-                      search.contributors[id].name
-                    )} (${spacedDefaultRolePipeline(
-                      search.contributors[id].roles
-                    )})`
-                )
-            )
-          ).map((txt, index) => (
-            <li key={index}>{txt}</li>
-          ))}
-        </ul>
-        {release.thumb && (
-          <img
-            src={release.thumb}
-            alt={`${release.artist} - ${release.title}`}
-          />
-        )}
-        {discogsUrl && (
-          <a
-            href={discogsUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[0.6rem] text-text-disabled hover:text-primary-light"
+    <Collapsible open={isOpen} onOpenChange={setIsOpen} asChild>
+      <li className="border-t">
+        <CollapsibleTrigger
+          className={cn(
+            "flex w-full items-start gap-3 py-4 text-left transition-colors hover:bg-secondary/40 md:gap-4",
+            "focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+          )}
+        >
+          <span
+            aria-hidden="true"
+            className="hidden w-7 shrink-0 pt-1 font-mono text-[13px] text-dim sm:block"
           >
-            Visit on Discogs
-          </a>
-        )}
-      </CollapsibleContent>
+            {String(rank).padStart(2, "0")}
+          </span>
+          <AlbumCover
+            src={release.thumb}
+            title={release.title}
+            className="h-12 w-12 text-xs md:h-14 md:w-14"
+          />
+          <span className="flex min-w-0 flex-1 flex-col gap-2">
+            <span className="flex flex-col text-[15px] font-semibold leading-snug md:text-[17px]">
+              <span className="text-foreground">{release.title}</span>
+              <span className="text-muted-foreground">
+                {release.artist}
+                {release.year ? `, ${release.year}` : ""}
+              </span>
+            </span>
+            <span className="flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold">
+              {people.map((p) => (
+                <span key={p.id}>
+                  <span className="mr-1.5 font-mono text-xs font-normal uppercase tracking-[0.5px] text-muted-foreground">
+                    {p.roles}
+                  </span>
+                  {p.name}
+                </span>
+              ))}
+            </span>
+          </span>
+          <span className="flex shrink-0 flex-col items-end">
+            <span
+              className={cn(
+                "type-title type-score !leading-none",
+                shared > 1 ? "text-primary" : "text-foreground"
+              )}
+            >
+              {shared}
+            </span>
+            <span className="font-mono text-xs text-muted-foreground">shared</span>
+          </span>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="flex flex-wrap items-center gap-x-6 gap-y-2 pb-4 text-sm sm:pl-11 md:pl-[4.5rem]">
+          {discogsUrl ? (
+            <a
+              href={discogsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+            >
+              View on Discogs
+            </a>
+          ) : (
+            <span className="text-muted-foreground">Finding the Discogs page…</span>
+          )}
+          <span className="text-muted-foreground">
+            Roles are from {search.searchParams.album}.
+          </span>
+        </CollapsibleContent>
+      </li>
     </Collapsible>
   );
 };

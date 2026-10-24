@@ -20,6 +20,7 @@ export default {
         background: token("background"),
         foreground: token("foreground"),
         faint: token("faint"),
+        dim: token("dim"),
         surface: token("surface"),
         card: {
           DEFAULT: token("card"),
@@ -33,6 +34,7 @@ export default {
           DEFAULT: token("primary"),
           foreground: token("primary-foreground"),
           text: token("primary-text"),
+          deep: token("primary-deep"),
           // Legacy aliases, removed once every component is rebuilt.
           main: token("primary"),
           dark: token("primary-dark"),
@@ -76,12 +78,13 @@ export default {
         },
       },
       fontFamily: {
-        display: ["'Bebas Neue'", "Impact", "'Arial Narrow Bold'", "sans-serif"],
-        sans: ["'IBM Plex Sans'", "system-ui", "-apple-system", "'Segoe UI'", "sans-serif"],
-        mono: ["'IBM Plex Mono'", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
+        // Set in globals.css so the demo type switcher can change them.
+        display: ["var(--font-title)"],
+        sans: ["var(--font-body)"],
+        mono: ["var(--font-flourish)"],
         // Legacy aliases.
-        primary: ["'Bebas Neue'", "Impact", "'Arial Narrow Bold'", "sans-serif"],
-        secondary: ["'IBM Plex Sans'", "system-ui", "sans-serif"],
+        primary: ["var(--font-title)"],
+        secondary: ["var(--font-body)"],
       },
       borderRadius: {
         lg: "var(--radius)",

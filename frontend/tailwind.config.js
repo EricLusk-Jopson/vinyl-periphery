@@ -33,10 +33,7 @@ export default {
           DEFAULT: token("primary"),
           foreground: token("primary-foreground"),
           text: token("primary-text"),
-          // Legacy aliases, removed once every component is rebuilt.
-          main: token("primary"),
           dark: token("primary-dark"),
-          light: token("primary-text"),
         },
         secondary: {
           DEFAULT: token("secondary"),
@@ -61,27 +58,11 @@ export default {
         },
         input: token("input"),
         ring: token("ring"),
-
-        // Legacy names used by components not yet rebuilt. Do not use in new code.
-        text: {
-          primary: token("foreground"),
-          secondary: token("muted-foreground"),
-          disabled: token("faint"),
-          inverse: token("background"),
-        },
-        bg: {
-          primary: token("background"),
-          secondary: token("surface"),
-          tertiary: token("secondary"),
-        },
       },
       fontFamily: {
         display: ["'Bebas Neue'", "Impact", "'Arial Narrow Bold'", "sans-serif"],
         sans: ["'IBM Plex Sans'", "system-ui", "-apple-system", "'Segoe UI'", "sans-serif"],
         mono: ["'IBM Plex Mono'", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
-        // Legacy aliases.
-        primary: ["'Bebas Neue'", "Impact", "'Arial Narrow Bold'", "sans-serif"],
-        secondary: ["'IBM Plex Sans'", "system-ui", "sans-serif"],
       },
       borderRadius: {
         lg: "var(--radius)",

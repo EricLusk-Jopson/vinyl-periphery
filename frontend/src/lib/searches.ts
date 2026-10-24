@@ -12,7 +12,7 @@ export const searchStartedAt = (searchId: string): number => {
 /** Searches newest first, at most `limit` of them. */
 export const recentSearches = (
   searches: Record<string, SearchCache>,
-  limit: number
+  limit: number,
 ): SearchCache[] =>
   Object.values(searches)
     .sort((a, b) => searchStartedAt(b.searchId) - searchStartedAt(a.searchId))
@@ -31,7 +31,7 @@ export const usableImageUrl = (url: string | null | undefined): string => {
 
 /** The thumbnail for a search result, falling back to the full cover. */
 export const coverUrl = (
-  result: { thumb?: string; cover_image?: string } | undefined
+  result: { thumb?: string; cover_image?: string } | undefined,
 ): string =>
   usableImageUrl(result?.thumb) || usableImageUrl(result?.cover_image);
 
@@ -42,7 +42,7 @@ export const titleInitials = (title: string): string => {
     .map((word) => word.replace(/[^\p{L}\p{N}]/gu, ""))
     .filter(Boolean);
   const significant = words.filter(
-    (word) => !STOP_WORDS.has(word.toLowerCase())
+    (word) => !STOP_WORDS.has(word.toLowerCase()),
   );
   const picked = significant.length > 0 ? significant : words;
   return picked
@@ -52,3 +52,28 @@ export const titleInitials = (title: string): string => {
 };
 
 const STOP_WORDS = new Set(["a", "an", "and", "of", "the"]);
+
+/**
+ * "just now", "5 min ago", "3 h ago", "yesterday", "4 days ago", then a
+ * date ("12 Mar", with the year once it isn't this year).
+ */
+export const timeAgo = (
+  timestamp: number,
+  now: number = Date.now(),
+): string => {
+  const minutes = Math.floor((now - timestamp) / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} h ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days} days ago`;
+  const date = new Date(timestamp);
+  const sameYear = date.getFullYear() === new Date(now).getFullYear();
+  return date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    ...(sameYear ? {} : { year: "numeric" }),
+  });
+};

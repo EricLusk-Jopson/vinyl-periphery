@@ -40,8 +40,9 @@ planned after the redesign.
 - UI work follows `docs/redesign/DESIGN.md` and `docs/redesign/tokens.md`.
   Use the token names (`bg-surface`, `text-muted-foreground`, `border-strong`,
   `font-display`). No hex values or arbitrary colours in components.
-- Do not use the legacy theme names (`text-text-primary`, `bg-bg-primary`,
-  `primary-main`, `font-primary`, `font-secondary`) in new code.
+- The legacy theme names (`text-text-primary`, `bg-bg-primary`,
+  `primary-main`, `font-primary`, `font-secondary`) are gone; don't bring
+  them back.
 - Nothing smaller than 12px. Touch targets at least 44px.
 - Check every UI change at 390px and 1440px wide.
 - Keep domain logic (filtering, scoring, Discogs parsing) out of components so

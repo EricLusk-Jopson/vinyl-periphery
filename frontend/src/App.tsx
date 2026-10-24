@@ -146,6 +146,7 @@ const App: React.FC = () => {
       <Header
         historyOpen={historyOpen}
         onHistoryOpenChange={setHistoryOpen}
+        onOpenSearch={openSearch}
         onHome={goHome}
         search={<SearchForm variant="compact" {...formProps} />}
       />

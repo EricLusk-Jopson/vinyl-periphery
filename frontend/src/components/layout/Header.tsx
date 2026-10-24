@@ -68,7 +68,9 @@ export const Header: React.FC<HeaderProps> = ({
         <Wordmark onClick={handleHome} />
 
         {activeSearch && search && (
-          <div className="ml-auto hidden lg:block">{search}</div>
+          <div className="ml-auto hidden duration-200 animate-in fade-in lg:block">
+            {search}
+          </div>
         )}
 
         <nav aria-label="Main" className="flex items-center gap-1">
@@ -86,27 +88,6 @@ export const Header: React.FC<HeaderProps> = ({
               How it works
             </a>
           )}
-
-          <Sheet open={historyOpen} onOpenChange={onHistoryOpenChange}>
-            <SheetTrigger asChild>
-              <button type="button" className={navButton}>
-                <History className="h-5 w-5" aria-hidden="true" />
-                <span className="sr-only md:not-sr-only">History</span>
-              </button>
-            </SheetTrigger>
-            <SheetContent
-              side="left"
-              className="flex w-full flex-col gap-0 overflow-y-auto border-r bg-background p-0 sm:max-w-sm"
-            >
-              <DrawerHeader
-                title="History"
-                description="Your saved and recent searches"
-              />
-              <div className="px-2 pb-6 md:px-4">
-                <HistoryPanel />
-              </div>
-            </SheetContent>
-          </Sheet>
 
           {/* Moves into the results sidebar and a bottom sheet in phase 6. */}
           {activeSearch && (
@@ -133,6 +114,27 @@ export const Header: React.FC<HeaderProps> = ({
               </SheetContent>
             </Sheet>
           )}
+
+          <Sheet open={historyOpen} onOpenChange={onHistoryOpenChange}>
+            <SheetTrigger asChild>
+              <button type="button" className={navButton}>
+                <History className="h-5 w-5" aria-hidden="true" />
+                <span className="sr-only md:not-sr-only">History</span>
+              </button>
+            </SheetTrigger>
+            <SheetContent
+              side="left"
+              className="flex w-full flex-col gap-0 overflow-y-auto border-r bg-background p-0 sm:max-w-sm"
+            >
+              <DrawerHeader
+                title="History"
+                description="Your saved and recent searches"
+              />
+              <div className="px-2 pb-6 md:px-4">
+                <HistoryPanel />
+              </div>
+            </SheetContent>
+          </Sheet>
         </nav>
       </div>
     </header>

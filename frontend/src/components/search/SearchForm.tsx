@@ -1,18 +1,21 @@
-import React, { useId, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { Loader2, Search } from "lucide-react";
-import { SearchParams, SearchStage } from "@/api/types";
+import { SearchParams } from "@/api/types";
 import { cn } from "@/lib/utils";
 
 export interface SearchFormProps {
   variant: "hero" | "compact";
   values: SearchParams;
   onValuesChange: (values: SearchParams) => void;
-  onSearch: (
-    params: SearchParams,
-    onProgress?: (stage: SearchStage) => void
-  ) => Promise<void>;
+  /** Starts a search. Progress is shown by SearchProgress, not the form. */
+  onSearch: (params: SearchParams) => void;
   isSearching: boolean;
   autoFocus?: boolean;
+  /**
+   * Goes up each time a search fails before the album is found. The button
+   * jiggles and takes focus back (it was disabled while searching).
+   */
+  failedAttempt?: number;
 }
 
 const focusRing =
@@ -21,21 +24,15 @@ const focusRing =
 const inputBase = cn(
   "w-full rounded-lg border border-border-strong text-base text-foreground placeholder:text-faint",
   "transition-colors disabled:cursor-not-allowed disabled:opacity-60",
-  focusRing
+  focusRing,
 );
 
 const submitBase = cn(
   "inline-flex items-center justify-center gap-2 rounded-lg bg-primary font-semibold text-primary-foreground",
   "transition-colors hover:bg-primary-dark active:bg-primary-dark",
   "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-primary",
-  focusRing
+  focusRing,
 );
-
-const stageText = (stage: SearchStage | null) => {
-  if (!stage) return "Searching";
-  if (stage.total === 0) return stage.label;
-  return `${stage.label} (${Math.round((100 * stage.current) / stage.total)}%)`;
-};
 
 /**
  * Artist and album search. `hero` is the large form on the home page, with
@@ -44,17 +41,35 @@ const stageText = (stage: SearchStage | null) => {
  */
 export const SearchForm = React.forwardRef<HTMLFormElement, SearchFormProps>(
   (
-    { variant, values, onValuesChange, onSearch, isSearching, autoFocus },
-    ref
+    {
+      variant,
+      values,
+      onValuesChange,
+      onSearch,
+      isSearching,
+      autoFocus,
+      failedAttempt = 0,
+    },
+    ref,
   ) => {
     const id = useId();
     const artistId = `${id}-artist`;
     const albumId = `${id}-album`;
     const hintId = `${id}-hint`;
-    const [stage, setStage] = useState<SearchStage | null>(null);
+    const submitRef = useRef<HTMLButtonElement>(null);
+    const [shaking, setShaking] = useState(false);
 
-    const canSubmit =
-      values.artist.trim() !== "" && values.album.trim() !== "";
+    useEffect(() => {
+      if (failedAttempt === 0) return;
+      setShaking(true);
+      submitRef.current?.focus();
+    }, [failedAttempt]);
+    const shakeProps = {
+      ref: submitRef,
+      onAnimationEnd: () => setShaking(false),
+    };
+
+    const canSubmit = values.artist.trim() !== "" && values.album.trim() !== "";
 
     // Empty fields are caught by the browser's `required` check, which says
     // what is missing, so the button stays enabled until a search starts.
@@ -66,20 +81,10 @@ export const SearchForm = React.forwardRef<HTMLFormElement, SearchFormProps>(
 
     // The inputs keep their values afterwards, so a failed search can be
     // retried and the compact form shows what was searched.
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       if (!canSubmit || isSearching) return;
-
-      try {
-        await onSearch(
-          { artist: values.artist.trim(), album: values.album.trim() },
-          setStage
-        );
-      } catch (error) {
-        console.error("Search error:", error);
-      } finally {
-        setStage(null);
-      }
+      onSearch({ artist: values.artist.trim(), album: values.album.trim() });
     };
 
     if (variant === "compact") {
@@ -124,7 +129,12 @@ export const SearchForm = React.forwardRef<HTMLFormElement, SearchFormProps>(
             type="submit"
             disabled={isSearching}
             aria-label={isSearching ? "Searching" : "Find connections"}
-            className={cn(submitBase, "h-11 w-11 shrink-0")}
+            className={cn(
+              submitBase,
+              "h-11 w-11 shrink-0",
+              shaking && "animate-shake",
+            )}
+            {...shakeProps}
           >
             {isSearching ? (
               <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
@@ -144,7 +154,7 @@ export const SearchForm = React.forwardRef<HTMLFormElement, SearchFormProps>(
         onSubmit={handleSubmit}
         className={cn(
           "flex flex-col gap-3.5",
-          "md:flex-row md:flex-wrap md:items-end md:gap-4 md:rounded-xl md:border md:bg-surface md:p-5"
+          "md:flex-row md:flex-wrap md:items-end md:gap-4 md:rounded-xl md:border md:bg-surface md:p-5",
         )}
       >
         <div className="flex flex-col gap-1.5 md:flex-[1_1_260px] md:gap-2">
@@ -193,16 +203,21 @@ export const SearchForm = React.forwardRef<HTMLFormElement, SearchFormProps>(
           disabled={isSearching}
           className={cn(
             submitBase,
-            "h-[52px] px-5 text-base md:h-12 md:flex-[1_1_160px] lg:max-w-[260px]"
+            "h-[52px] px-5 text-base md:h-12 md:flex-[1_1_160px] lg:max-w-[260px]",
+            shaking && "animate-shake",
           )}
+          {...shakeProps}
         >
           {isSearching ? (
-            <Loader2 className="h-[18px] w-[18px] animate-spin" aria-hidden="true" />
+            <Loader2
+              className="h-[18px] w-[18px] animate-spin"
+              aria-hidden="true"
+            />
           ) : (
             <Search className="h-[18px] w-[18px]" aria-hidden="true" />
           )}
           <span className="truncate">
-            {isSearching ? stageText(stage) : "Find connections"}
+            {isSearching ? "Finding the album" : "Find connections"}
           </span>
         </button>
         <p
@@ -212,11 +227,8 @@ export const SearchForm = React.forwardRef<HTMLFormElement, SearchFormProps>(
           A full search takes 1 to 3 minutes. Discogs limits how quickly we can
           read its data.
         </p>
-        <p className="sr-only" role="status" aria-live="polite">
-          {isSearching ? stageText(stage) : ""}
-        </p>
       </form>
     );
-  }
+  },
 );
 SearchForm.displayName = "SearchForm";

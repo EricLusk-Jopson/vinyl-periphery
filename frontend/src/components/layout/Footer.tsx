@@ -1,58 +1,44 @@
 import React from "react";
 
+const links = [
+  { label: "Get in touch", href: "https://linktr.ee/ericluskjopson" },
+  {
+    label: "Report an issue",
+    href: "https://github.com/EricLusk-Jopson/vinyl-periphery-feedback/issues/",
+  },
+  {
+    label: "Request a feature",
+    href: "https://github.com/EricLusk-Jopson/vinyl-periphery-feedback/discussions",
+  },
+  {
+    label: "Buy me a coffee",
+    href: "https://www.buymeacoffee.com/eluskjopsoq",
+  },
+];
+
 export const Footer: React.FC = () => (
-  <footer className="mt-auto px-4 sm:px-6 py-2 flex flex-col gap-6 text-text-secondary text-center text-xs">
-    <ul className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 mx-auto text-sm">
-      <li className="w-full sm:w-auto">
-        <a
-          href="https://linktr.ee/ericluskjopson"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hover:text-primary-main inline-block w-full py-2 sm:py-0"
-        >
-          Get In Touch
-        </a>
-      </li>
-      <li className="w-full sm:w-auto">
-        <a
-          href="https://github.com/EricLusk-Jopson/vinyl-periphery-feedback/issues/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hover:text-primary-main inline-block w-full py-2 sm:py-0"
-        >
-          Report an Issue
-        </a>
-      </li>
-      <li className="w-full sm:w-auto">
-        <a
-          href="https://github.com/EricLusk-Jopson/vinyl-periphery-feedback/discussions"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hover:text-primary-main inline-block w-full py-2 sm:py-0"
-        >
-          Feature Requests
-        </a>
-      </li>
-      <li className="w-full sm:w-auto flex justify-center pt-2 sm:pt-0">
-        <a
-          href="https://www.buymeacoffee.com/eluskjopsoq"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img
-            src="/bmc-button.svg"
-            alt="Buy me a coffee"
-            className="h-8 w-auto hover:opacity-90 transition-opacity"
-          />
-        </a>
-      </li>
-    </ul>
-    <p className="text-center text-xs">
-      This application uses Discogs' API but is not affiliated with, sponsored
-      or endorsed by Discogs. 'Discogs' is a trademark of Zink Media, LLC.
-      <br />
-      Limited to 25 requests/minute per user. This is a limitation by the
-      Discogs API. Hopefully this changes
-    </p>
+  <footer className="mt-auto border-t">
+    <div className="mx-auto flex max-w-[1280px] flex-col gap-3 px-4 py-5 md:flex-row md:flex-wrap md:items-center md:justify-between md:gap-5 md:px-6 md:py-7">
+      <nav aria-label="Footer">
+        <ul className="flex flex-wrap gap-x-5 text-sm md:gap-x-6">
+          {links.map((link) => (
+            <li key={link.href}>
+              <a
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-[44px] items-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring lg:min-h-0"
+              >
+                {link.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+      <p className="max-w-[520px] text-[13px] leading-relaxed text-faint">
+        Data from Discogs. Vinyl Periphery is not affiliated with, sponsored or
+        endorsed by Discogs. Discogs is a trademark of Zink Media, LLC.
+      </p>
+    </div>
   </footer>
 );

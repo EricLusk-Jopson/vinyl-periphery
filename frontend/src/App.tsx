@@ -1,197 +1,226 @@
-import React, { useCallback, useEffect, useState } from "react";
-import "./styles/globals.css";
-import { SearchForm } from "./components/searchForm/SearchForm";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  useDiscogsSearch,
-  useListReleaseContributors,
-  useListContributorReleases,
-} from "./api/mutations";
-import { EnrichedRelease, SearchParams, SearchStage } from "./api/types";
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
+import "./styles/globals.css";
+import { SearchParams } from "./api/types";
 import { useCache } from "./contexts/cache/CacheContext";
 import { Header } from "./components/layout/Header";
-import { ReleaseList } from "./components/resultsDisplay/ReleaseList";
+import { Footer } from "./components/layout/Footer";
+import { Home } from "./components/home/Home";
+import { LibraryPage } from "./components/library/LibraryPage";
+import { ResultsPage } from "./components/results/ResultsPage";
+import { SearchForm } from "./components/search/SearchForm";
+import { SearchProgress } from "./components/search/SearchProgress";
+import { SearchBanner } from "./components/search/SearchBanner";
 import { ToastAction } from "./components/ui/toast";
 import { useToast } from "./hooks/use-toast";
-import { Footer } from "./components/layout/Footer";
-import TVStaticEffect from "./components/layout/TVStaticEffect";
-import { Color, extractColorPalette } from "./lib/colors/paletteExtractor";
-import { Button } from "./components/ui/button"; // Import Button component
-import { Pause, Play } from "lucide-react"; // Import icons
+import { useSearchRun } from "./hooks/useSearchRun";
+import { useLingering } from "./hooks/useLingering";
+import {
+  HOME_PATH,
+  LIBRARY_PATH,
+  fromLocation,
+  resultPath,
+} from "./lib/routes";
 
-const SearchContainer: React.FC = () => {
-  const { addSearch, getActiveSearch, setActiveSearch } = useCache();
+const EMPTY_SEARCH: SearchParams = { artist: "", album: "" };
+
+const App: React.FC = () => {
+  const { getActiveSearch, clearActiveSearch } = useCache();
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const onHomePage = location.pathname === HOME_PATH;
 
-  const searchMutation = useDiscogsSearch();
-  const contributorsMutation = useListReleaseContributors();
-  const releasesMutation = useListContributorReleases();
+  const activeSearch = getActiveSearch();
 
-  const isSearching =
-    searchMutation.isPending ||
-    contributorsMutation.isPending ||
-    releasesMutation.isPending;
+  // One set of form values, shared by the hero and the compact header form
+  // (only one is on screen at a time).
+  const [formValues, setFormValues] = useState<SearchParams>(
+    () => activeSearch?.searchParams ?? EMPTY_SEARCH,
+  );
+  const [focusHeroSearch, setFocusHeroSearch] = useState(false);
+  // Counts searches that failed before the album was found; each one
+  // jiggles the search button.
+  const [failedAttempt, setFailedAttempt] = useState(0);
+  // Whether the running search is expanded: in place of the hero on home,
+  // above the page elsewhere. Collapsed, it is the slim status bar.
+  const [progressExpanded, setProgressExpanded] = useState(true);
+  // Focus "View progress" when the bar appears after hiding the hero's view.
+  const [focusStatusBar, setFocusStatusBar] = useState(false);
 
-  const handleViewResults = useCallback(
+  // Read when a search finishes, which can be long after it started.
+  const locationRef = useRef(location);
+  locationRef.current = location;
+  const watchingRef = useRef(false);
+  watchingRef.current = progressExpanded;
+
+  const openResult = useCallback(
     (searchId: string) => {
-      // Set this search as active in the cache
-      setActiveSearch(searchId);
-
-      // Scroll to results section smoothly
-      const resultsSection = document.getElementById("search-results");
-      if (resultsSection) {
-        resultsSection.scrollIntoView({ behavior: "smooth" });
-      } else {
-        // Fallback if results section isn't found
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      }
+      const { pathname, search } = locationRef.current;
+      navigate(resultPath(searchId), { state: fromLocation(pathname, search) });
     },
-    [setActiveSearch]
+    [navigate],
   );
 
-  const handleSearch = async (
-    params: SearchParams,
-    onProgress?: (stage: SearchStage) => void
-  ) => {
-    try {
-      // Initial search
-      const searchResults = await searchMutation.mutateAsync({
-        params,
-        callbacks: {
-          onProgress,
-        },
-      });
-
-      if (!searchResults) return;
-      const thumb =
-        searchResults[0]?.thumb ?? searchResults[0]?.cover_image ?? "";
-      console.log(thumb);
-
-      // Get contributors
-      const contributorSet = await contributorsMutation.mutateAsync({
-        releases: searchResults,
-        maxReleases: 5,
-        callbacks: {
-          onProgress,
-        },
-      });
-
-      // Get releases
-      const releasesMap = await releasesMutation.mutateAsync({
-        contributorSet,
-        callbacks: {
-          onProgress,
-        },
-      });
-
-      // Convert Map to Record before adding to cache
-      const releasesRecord = Object.fromEntries(
-        Array.from(releasesMap.entries()).map(([id, release]) => [
-          id,
-          {
-            ...release,
-            contributorIds: Array.from(release.contributorIds),
-          },
-        ])
-      ) as Record<number, EnrichedRelease>;
-      console.log(releasesRecord);
-
-      // Add to cache without making it active
-      const searchId = addSearch(params, contributorSet, releasesRecord, thumb);
-      const activeSearch = getActiveSearch();
-      if (!activeSearch) {
-        setActiveSearch(searchId);
+  const { run, isSearching, start, cancel } = useSearchRun({
+    onComplete: (searchId, params) => {
+      // Open the results if the user is watching the search; otherwise say
+      // they are ready and let them choose.
+      if (watchingRef.current) {
+        openResult(searchId);
+        return;
       }
-
-      // Show completion toast
       toast({
-        title: "Search Complete",
-        description: `Results ready for ${params.artist} - ${params.album}`,
+        title: "Results ready",
+        description: `${params.album} by ${params.artist}`,
         action: (
           <ToastAction
             altText="View results"
-            onClick={() => handleViewResults(searchId)}
+            onClick={() => openResult(searchId)}
           >
-            View Results
+            View results
           </ToastAction>
         ),
       });
-    } catch (error) {
-      console.error("Search chain error:", error);
+    },
+    onNotFound: (params) => {
+      setFailedAttempt((n) => n + 1);
       toast({
-        title: "Search Error",
-        description: "An error occurred while searching. Please try again.",
+        title: "Album not found",
+        description: `Discogs has nothing for ${params.album} by ${params.artist}. Check the spelling and try again.`,
         variant: "destructive",
       });
-    }
-  };
+    },
+    onError: (_error, phase) => {
+      if (phase === "finding") setFailedAttempt((n) => n + 1);
+      toast({
+        title: "Search failed",
+        description: "Something went wrong talking to Discogs. Try again.",
+        variant: "destructive",
+      });
+    },
+  });
 
-  const activeSearch = getActiveSearch();
-
-  return (
-    <main className="flex-1 container mx-auto px-4 py-8 relative z-10">
-      <SearchForm onSearch={handleSearch} isSearching={isSearching} />
-      {activeSearch && <ReleaseList searchId={activeSearch.searchId} />}
-    </main>
-  );
-};
-
-const App: React.FC = () => {
-  const [colorPalette, setColorPalette] = useState<Color[]>();
-  const [isStaticPaused, setIsStaticPaused] = useState(false);
-  const { getActiveSearch } = useCache();
-  const activeSearch = getActiveSearch();
-
+  // Show the open search in the compact form. searchParams keeps its
+  // identity across filter changes.
+  const activeParams = activeSearch?.searchParams;
   useEffect(() => {
-    if (!activeSearch) return;
+    if (activeParams) setFormValues(activeParams);
+  }, [activeParams]);
 
-    const getPalette = async () => {
-      if (!activeSearch.thumb) return;
-      const palette = await extractColorPalette(activeSearch.thumb);
-      setColorPalette(palette);
-    };
+  // The URL decides which search is open: leaving a results page closes it.
+  useEffect(() => {
+    if (!location.pathname.startsWith("/results/")) clearActiveSearch();
+  }, [location.pathname, clearActiveSearch]);
 
-    getPalette();
-  }, [activeSearch]);
+  // On each page change: start at the top, with a running search minimised.
+  const prevPathRef = useRef(location.pathname);
+  useEffect(() => {
+    if (prevPathRef.current === location.pathname) return;
+    prevPathRef.current = location.pathname;
+    window.scrollTo({ top: 0 });
+    setProgressExpanded(false);
+  }, [location.pathname]);
 
-  const toggleStatic = () => {
-    setIsStaticPaused((prev) => !prev);
+  const setExpanded = useCallback((expanded: boolean) => {
+    setProgressExpanded(expanded);
+    setFocusStatusBar(!expanded);
+  }, []);
+
+  const goHome = useCallback(() => {
+    navigate(HOME_PATH);
+    setFormValues(EMPTY_SEARCH);
+    setFocusHeroSearch(true);
+  }, [navigate]);
+
+  const handleSearch = (params: SearchParams) => {
+    setProgressExpanded(true);
+    void start(params);
+  };
+
+  const searchFrom = (params: SearchParams) => {
+    setFormValues(params);
+    handleSearch(params);
+  };
+
+  // Progress appears once the album is found; until then the form shows the
+  // search under way.
+  const running = run?.phase === "running" ? run : null;
+  const showHeroProgress = running !== null && onHomePage && progressExpanded;
+  const showExpanded = running !== null && progressExpanded;
+  useEffect(() => {
+    if (showExpanded) window.scrollTo({ top: 0 });
+  }, [showExpanded]);
+  // Keeps the hero's progress view rendered while it fades out after a cancel.
+  const heroRun = useLingering(showHeroProgress ? running : null, 200);
+  const heroProgress = heroRun && (
+    <SearchProgress
+      key={heroRun.id}
+      run={heroRun}
+      onCancel={cancel}
+      onHide={() => setExpanded(false)}
+    />
+  );
+
+  const formProps = {
+    values: formValues,
+    onValuesChange: setFormValues,
+    onSearch: handleSearch,
+    isSearching,
+    failedAttempt,
+    // Collapsed on home, the hero's form stays locked until the search ends.
+    busyLabel: running ? "Search in progress" : "Finding the album",
   };
 
   return (
-    <div className="min-h-screen flex flex-col relative">
-      {/* Static background */}
-      <TVStaticEffect
-        scaleFactor={2.5}
-        sampleCount={36}
-        fps={8}
-        colorIntensity={0.002}
-        colorPalette={colorPalette}
-        paused={isStaticPaused}
+    <div className="flex min-h-screen flex-col bg-background">
+      <Header
+        onHome={goHome}
+        search={<SearchForm variant="compact" {...formProps} />}
       />
-
-      {/* Content overlay */}
-      <div className="flex flex-col min-h-screen relative z-10">
-        <Header />
-        <SearchContainer />
-        <Footer />
-      </div>
-
-      {/* Static toggle button */}
-      <div className="fixed bottom-4 right-2 z-50">
-        <Button
-          onClick={toggleStatic}
-          variant="secondary"
-          size="icon"
-          className="rounded-full shadow-md bg-black/30 backdrop-blur-sm"
-          aria-label={
-            isStaticPaused
-              ? "Enable background animation"
-              : "Pause background animation"
-          }
-        >
-          {isStaticPaused ? <Play size={16} /> : <Pause size={16} />}
-        </Button>
-      </div>
+      {/* On home the expanded view replaces the hero, so the banner only
+          shows there while collapsed. */}
+      {running && !(onHomePage && progressExpanded) && (
+        <SearchBanner
+          run={running}
+          expanded={progressExpanded}
+          onExpandedChange={setExpanded}
+          onCancel={cancel}
+          focusOnMount={focusStatusBar}
+        />
+      )}
+      <main className="flex-1">
+        <Routes>
+          <Route
+            path={HOME_PATH}
+            element={
+              <Home
+                form={{ ...formProps, autoFocus: focusHeroSearch }}
+                progress={heroProgress}
+                showProgress={showHeroProgress}
+              />
+            }
+          />
+          <Route path={LIBRARY_PATH} element={<LibraryPage />} />
+          <Route
+            path="/results/:searchId"
+            element={
+              <ResultsPage
+                onSearchFrom={searchFrom}
+                isSearching={isSearching}
+              />
+            }
+          />
+          <Route path="*" element={<Navigate to={HOME_PATH} replace />} />
+        </Routes>
+      </main>
+      <Footer />
     </div>
   );
 };

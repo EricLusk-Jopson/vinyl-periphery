@@ -106,20 +106,25 @@ export interface SearchStage {
 
 export interface MutationCallbacks {
   onProgress?: (stage: SearchStage) => void;
+  /** Called after each contributor's discography is read. */
+  onContributorChecked?: (name: string, releaseCount: number) => void;
 }
 
 export interface SearchMutationParams {
   params: SearchParams;
   callbacks?: MutationCallbacks;
+  signal?: AbortSignal;
 }
 
 export interface ContributorMutationParams {
   releases: SearchResult[];
   maxReleases: number;
   callbacks?: MutationCallbacks;
+  signal?: AbortSignal;
 }
 
 export interface ReleaseMutationParams {
   contributorSet: ContributorSet;
   callbacks?: MutationCallbacks;
+  signal?: AbortSignal;
 }

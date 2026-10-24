@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Filters on mobile</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&amp;family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#0C0C0D}
+input::placeholder{color:#8A8A90}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #0C0C0D; color: #EDEDEF; font-family: 'IBM Plex Sans', system-ui, sans-serif">
+
+  <div aria-hidden="true" style="position: absolute; inset: 0; padding: 72px 16px; display: flex; flex-direction: column; gap: 14px; opacity: 0.35">
+    <div style="height: 64px; background: #141416; border-radius: 4px"></div>
+    <div style="height: 48px; background: #141416; border-radius: 4px"></div>
+    <div style="height: 48px; background: #141416; border-radius: 4px"></div>
+  </div>
+  <div aria-hidden="true" style="position: absolute; inset: 0; background: rgba(0, 0, 0, 0.6)"></div>
+
+  <section role="dialog" aria-modal="true" aria-labelledby="sheet-title" style="position: absolute; left: 0; right: 0; bottom: 0; height: 720px; background: #141416; border-top: 1px solid #2A2A2E; border-radius: 16px 16px 0 0; display: flex; flex-direction: column">
+    <div aria-hidden="true" style="flex: 0 0 20px; display: flex; align-items: center; justify-content: center">
+      <span style="width: 40px; height: 4px; border-radius: 999px; background: #3A3A3F"></span>
+    </div>
+    <div style="flex: 0 0 auto; padding: 4px 8px 8px 16px; display: flex; align-items: center; justify-content: space-between">
+      <h2 id="sheet-title" style="margin: 0; font-size: 18px; font-weight: 600">Filters</h2>
+      <a href="MobileResults.dc.html" aria-label="Close filters" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #EDEDEF">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+      </a>
+    </div>
+
+    <div style="flex: 1 1 auto; overflow: hidden; padding: 0 16px; display: flex; flex-direction: column; gap: 22px">
+      <div style="display: flex; flex-direction: column">
+        <sc-for list="{{switches}}" as="sw" hint-placeholder-count="3">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; border-bottom: 1px solid #2A2A2E">
+            <span style="font-size: 15px">{{sw.label}}</span>
+            <button type="button" role="switch" aria-checked="{{sw.on}}" aria-label="{{sw.label}}" style="flex: 0 0 40px; height: 24px; border: 0; border-radius: 999px; box-sizing: border-box; padding: 2px; display: flex; justify-content: {{sw.justify}}; background: {{sw.track}}">
+              <span style="width: 20px; height: 20px; border-radius: 999px; background: #FFFFFF"></span>
+            </button>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <h3 style="margin: 0; font-size: 12px; font-weight: 500; color: #A3A3A8; text-transform: uppercase; letter-spacing: 1px">Contributors</h3>
+        <label for="mf-filter" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Filter contributors</label>
+        <input id="mf-filter" type="text" placeholder="Filter names" style="height: 40px; box-sizing: border-box; padding: 0 12px; background: #0C0C0D; border: 1px solid #2A2A2E; border-radius: 8px; color: #EDEDEF; font: 15px 'IBM Plex Sans', sans-serif">
+        <div style="display: flex; flex-wrap: wrap; gap: 8px">
+          <sc-for list="{{chips}}" as="c" hint-placeholder-count="10">
+            <button type="button" aria-pressed="{{c.on}}" style="display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 10px; border-radius: 6px; font: 14px 'IBM Plex Sans', sans-serif; background: {{c.bg}}; border: 1px solid {{c.border}}; color: {{c.color}}; text-decoration: {{c.deco}}">
+              <span>{{c.name}}</span>
+              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8A8A90">{{c.count}}</span>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <h3 style="margin: 0; font-size: 12px; font-weight: 500; color: #A3A3A8; text-transform: uppercase; letter-spacing: 1px">Roles</h3>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px">
+          <sc-for list="{{roles}}" as="r" hint-placeholder-count="6">
+            <button type="button" aria-pressed="true" style="height: 36px; padding: 0 10px; border-radius: 6px; font: 14px 'IBM Plex Sans', sans-serif; background: #1C1C1F; border: 1px solid #4A4A50; color: #EDEDEF">{{r}}</button>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex: 0 0 auto; padding: 12px 16px 20px; border-top: 1px solid #2A2A2E; display: flex; gap: 10px">
+      <button type="button" style="flex: 0 0 auto; height: 48px; padding: 0 18px; background: transparent; border: 1px solid #3A3A3F; border-radius: 8px; color: #EDEDEF; font: 500 15px 'IBM Plex Sans', sans-serif">Reset</button>
+      <a href="MobileResults.dc.html" style="flex: 1 1 auto; height: 48px; display: flex; align-items: center; justify-content: center; background: #E0312A; border-radius: 8px; color: #FFFFFF; text-decoration: none; font-weight: 600; font-size: 16px">Show 9 albums</a>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const sw = (label, on) => ({ label, on: on ? 'true' : 'false', track: on ? '#E0312A' : '#3A3A3F', justify: on ? 'flex-end' : 'flex-start' });
+    const chip = (name, count, on) => ({ name, count, on: on ? 'true' : 'false', bg: on ? '#1C1C1F' : 'transparent', border: on ? '#4A4A50' : '#2A2A2E', color: on ? '#EDEDEF' : '#8A8A90', deco: on ? 'none' : 'line-through' });
+    return {
+      switches: [sw('Hide Pink Floyd releases', true), sw('Only albums with 2+ shared', false), sw('Hide Various Artists', false)],
+      chips: [chip('Alan Parsons', 5, true), chip('Chris Thomas', 3, true), chip('Hipgnosis', 2, true), chip('Storm Thorgerson', 2, true), chip('Clare Torry', 1, true), chip('David Gilmour', 1, false), chip('Dick Parry', 0, true), chip('Doris Troy', 0, true), chip('Lesley Duncan', 0, true), chip('Peter James', 0, true)],
+      roles: ['Engineer', 'Mixed By', 'Saxophone', 'Vocals', 'Backing Vocals', 'Design', 'Photography', 'Illustration', 'Band Member']
+    };
+  }
+}
+</script>
+</body>
+</html>

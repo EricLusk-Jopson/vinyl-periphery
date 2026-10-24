@@ -29,8 +29,13 @@ export interface CacheState {
 }
 
 export interface CacheContextValue extends CacheState {
+  /** Saved searches have been read from IndexedDB. Not persisted. */
+  savedSearchesLoaded: boolean;
+  /** Old search id -> the repeat run that replaced it (in localStorage). */
+  replacedBy: Record<string, string>;
   // Action methods
   setActiveSearch: (searchId: string) => void;
+  clearActiveSearch: () => void;
   addSearch: (
     params: SearchParams,
     contributorSet: ContributorSet,

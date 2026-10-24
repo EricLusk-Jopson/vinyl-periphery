@@ -4,6 +4,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
 } from "react";
 import {
   Contributor,
@@ -14,10 +15,22 @@ import {
 import { db } from "@/services/db";
 import { CacheContextValue, CacheState, SearchCache } from "./types";
 import { calculateReleaseScore } from "@/api/contributorSet";
+import { sameSearchIds } from "@/lib/searches";
 
 const CacheContext = createContext<CacheContextValue | null>(null);
 
 const SESSION_STORAGE_KEY = "vinyl-periphery-cache";
+// Kept apart from the cache so its shape doesn't change. localStorage, so a
+// bookmarked link to a replaced saved search still finds the newer one.
+const REPLACED_STORAGE_KEY = "vinyl-periphery-replaced";
+
+const readReplaced = (): Record<string, string> => {
+  try {
+    return JSON.parse(localStorage.getItem(REPLACED_STORAGE_KEY) ?? "{}");
+  } catch {
+    return {};
+  }
+};
 
 export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -45,6 +58,23 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   });
 
+  // True once saved searches have been read from IndexedDB, so a saved
+  // result opened by URL isn't shown as missing while it loads.
+  const [savedSearchesLoaded, setSavedSearchesLoaded] = React.useState(false);
+  // Old search id -> the id of the search that replaced it (a repeat run of
+  // the same album), so links to the old one can follow.
+  const [replacedBy, setReplacedBy] =
+    React.useState<Record<string, string>>(readReplaced);
+  useEffect(() => {
+    try {
+      localStorage.setItem(REPLACED_STORAGE_KEY, JSON.stringify(replacedBy));
+    } catch {
+      // Storage full or blocked: old links just show "not available".
+    }
+  }, [replacedBy]);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
   // Load saved searches from IndexedDB on mount
   useEffect(() => {
     const loadSavedSearches = async () => {
@@ -63,6 +93,8 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
         }));
       } catch (error) {
         console.error("Failed to load saved searches:", error);
+      } finally {
+        setSavedSearchesLoaded(true);
       }
     };
 
@@ -73,6 +105,13 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
     setState((prev) => ({
       ...prev,
       activeSearchId: searchId,
+    }));
+  }, []);
+
+  const clearActiveSearch = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      activeSearchId: null,
     }));
   }, []);
 
@@ -122,23 +161,65 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
         excludeVarious: false,
       };
 
-      setState((prev) => ({
-        searches: {
-          ...prev.searches,
-          [searchId]: {
-            searchId,
-            searchParams: params,
-            contributors,
-            roles,
-            releases,
-            filterState,
-            thumb,
-            timestamp: Date.now(),
-          },
-        },
-        activeSearchId: prev.activeSearchId, // Maintain current active search
-        savedSearchIds: prev.savedSearchIds,
-      }));
+      // A repeat run of the same album replaces the earlier result rather
+      // than sitting beside it, and stays saved if the earlier one was.
+      const replaced = sameSearchIds(stateRef.current.searches, params);
+      const wasSaved = replaced.some((id) =>
+        stateRef.current.savedSearchIds.has(id)
+      );
+      const newSearch: SearchCache = {
+        searchId,
+        searchParams: params,
+        contributors,
+        roles,
+        releases,
+        filterState,
+        thumb,
+        ...(wasSaved ? { savedAt: Date.now() } : {}),
+      };
+
+      setState((prev) => {
+        const searches = { ...prev.searches };
+        const savedSearchIds = new Set(prev.savedSearchIds);
+        replaced.forEach((id) => {
+          delete searches[id];
+          savedSearchIds.delete(id);
+        });
+        searches[searchId] = newSearch;
+        if (wasSaved) savedSearchIds.add(searchId);
+        return {
+          searches,
+          activeSearchId: replaced.includes(prev.activeSearchId ?? "")
+            ? searchId
+            : prev.activeSearchId,
+          savedSearchIds,
+        };
+      });
+
+      if (replaced.length > 0) {
+        setReplacedBy((prev) => {
+          const next: Record<string, string> = {};
+          // Earlier replacements that pointed at a replaced id move on too.
+          Object.entries(prev).forEach(([from, to]) => {
+            next[from] = replaced.includes(to) ? searchId : to;
+          });
+          replaced.forEach((id) => (next[id] = searchId));
+          return next;
+        });
+        // Keep IndexedDB in step: drop the old saved copies, save the new.
+        void (async () => {
+          try {
+            for (const id of replaced) {
+              if (stateRef.current.savedSearchIds.has(id)) {
+                await db.deleteSavedSearch(id);
+              }
+            }
+            if (wasSaved) await db.saveSearch(newSearch);
+          } catch (error) {
+            console.error("Failed to update saved searches:", error);
+          }
+        })();
+      }
 
       return searchId;
     },
@@ -298,7 +379,10 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const value: CacheContextValue = {
     ...state,
+    savedSearchesLoaded,
+    replacedBy,
     setActiveSearch,
+    clearActiveSearch,
     addSearch,
     saveSearch,
     unsaveSearch,

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Search in progress</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&amp;family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#0C0C0D}
+a{color:#EDEDEF}a:hover{color:#FF6257}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0C0C0D; color: #EDEDEF; font-family: 'IBM Plex Sans', system-ui, sans-serif; display: flex; flex-direction: column">
+
+  <header style="border-bottom: 1px solid #2A2A2E">
+    <div style="max-width: 1200px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 16px">
+      <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #EDEDEF">
+        <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="12" fill="none" stroke="#EDEDEF" stroke-width="1.5"></circle><circle cx="13" cy="13" r="7" fill="none" stroke="#3A3A3F" stroke-width="1"></circle><circle cx="13" cy="13" r="3.5" fill="#E0312A"></circle></svg>
+        <span style="font-family: 'Bebas Neue', Impact, sans-serif; font-size: 26px; letter-spacing: 1.5px; line-height: 1">Vinyl Periphery</span>
+      </a>
+      <button type="button" style="display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px; background: transparent; border: 0; color: #EDEDEF; font: 500 15px 'IBM Plex Sans', sans-serif; cursor: pointer">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5"></path><path d="M12 7v5l3 2"></path></svg>
+        History
+      </button>
+    </div>
+  </header>
+
+  <main style="max-width: 880px; width: 100%; box-sizing: border-box; margin: 0 auto; padding: 72px 24px 96px; display: flex; flex-direction: column; gap: 32px">
+
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 20px">
+      <div style="flex: 0 0 88px; height: 88px; border-radius: 4px; background: #2B2422; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; color: #A3A3A8">DS</div>
+      <div style="flex: 1 1 320px; display: flex; flex-direction: column; gap: 6px">
+        <p style="margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: #FF6257">Tracing connections</p>
+        <h1 style="margin: 0; font-family: 'Bebas Neue', Impact, sans-serif; font-weight: 400; font-size: 52px; line-height: 1; letter-spacing: 0.5px">The Dark Side of the Moon</h1>
+        <p style="margin: 0; font-size: 16px; color: #A3A3A8">Pink Floyd · 1973</p>
+      </div>
+      <button type="button" style="height: 44px; padding: 0 18px; background: transparent; border: 1px solid #3A3A3F; border-radius: 8px; color: #EDEDEF; font: 500 15px 'IBM Plex Sans', sans-serif; cursor: pointer">Cancel search</button>
+    </div>
+
+    <section aria-label="Progress" style="background: #141416; border: 1px solid #2A2A2E; border-radius: 12px; padding: 28px; display: flex; flex-direction: column; gap: 28px">
+      <div style="display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap">
+          <span style="font-size: 18px; font-weight: 600">Reading discographies</span>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: #A3A3A8">21 of 48 · about 1 min left</span>
+        </div>
+        <div role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="44" aria-label="Search progress" style="height: 6px; background: #2A2A2E; border-radius: 999px; overflow: hidden">
+          <div style="width: 44%; height: 100%; background: #E0312A; border-radius: 999px"></div>
+        </div>
+      </div>
+
+      <ol style="list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px">
+        <sc-for list="{{stages}}" as="st" hint-placeholder-count="3">
+          <li style="display: flex; gap: 12px; align-items: flex-start; padding: 14px; border-radius: 8px; background: {{st.bg}}; border: 1px solid {{st.border}}">
+            <span style="flex: 0 0 24px; height: 24px; border-radius: 999px; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 12px; background: {{st.dot}}; color: {{st.dotText}}">{{st.mark}}</span>
+            <span style="display: flex; flex-direction: column; gap: 2px">
+              <span style="font-size: 15px; font-weight: 600; color: {{st.titleColor}}">{{st.title}}</span>
+              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8A8A90">{{st.detail}}</span>
+            </span>
+          </li>
+        </sc-for>
+      </ol>
+
+      <div style="border-top: 1px solid #2A2A2E; padding-top: 20px; display: flex; flex-direction: column; gap: 10px">
+        <span style="font-size: 13px; font-weight: 500; color: #A3A3A8">Just checked</span>
+        <ul style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-family: 'IBM Plex Mono', monospace; font-size: 13px">
+          <sc-for list="{{log}}" as="l" hint-placeholder-count="4">
+            <li style="display: flex; justify-content: space-between; gap: 16px; color: {{l.color}}"><span>{{l.name}}</span><span>{{l.count}}</span></li>
+          </sc-for>
+        </ul>
+      </div>
+    </section>
+
+    <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #8A8A90">You can keep browsing your history while this runs. We'll let you know when the results are ready. Discogs allows a limited number of requests per minute, which is why this takes a while.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const done = { bg: 'transparent', border: '#2A2A2E', dot: '#2A2A2E', dotText: '#EDEDEF', titleColor: '#A3A3A8', mark: '✓' };
+    const active = { bg: '#1C1C1F', border: '#E0312A', dot: '#E0312A', dotText: '#FFFFFF', titleColor: '#EDEDEF' };
+    const pending = { bg: 'transparent', border: '#2A2A2E', dot: 'transparent', dotText: '#8A8A90', titleColor: '#8A8A90' };
+    return {
+      stages: [
+        { ...done, title: 'Find the album', detail: '5 matching releases' },
+        { ...done, title: 'Read the credits', detail: '48 contributors' },
+        { ...active, mark: '3', title: 'Read discographies', detail: '21 of 48' }
+      ],
+      log: [
+        { name: 'Dick Parry', count: '74 releases', color: '#EDEDEF' },
+        { name: 'Clare Torry', count: '112 releases', color: '#A3A3A8' },
+        { name: 'Chris Thomas', count: '388 releases', color: '#8A8A90' },
+        { name: 'Alan Parsons', count: '1,204 releases', color: '#8A8A90' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

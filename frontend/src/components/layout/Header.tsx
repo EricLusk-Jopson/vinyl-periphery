@@ -1,117 +1,105 @@
-import React, { useState, useEffect } from "react";
-import { History, SlidersHorizontal, X } from "lucide-react";
-import {
-  Sheet,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-  SheetContent,
-  SheetClose,
-} from "@/components/ui/sheet";
-import { ContributorList } from "../resultsDisplay/ContributorList";
-import { RoleList } from "../resultsDisplay/RoleList";
-import {
-  useCache,
-  useFilteredAndScoredReleases,
-} from "../../contexts/cache/CacheContext";
+import React from "react";
+import { Link, NavLink, useLocation } from "react-router-dom";
+import { ChevronLeft, Library, Search } from "lucide-react";
+import { LIBRARY_PATH, HOME_PATH, backLink } from "@/lib/routes";
+import { Wordmark } from "./Wordmark";
 import { cn } from "@/lib/utils";
-import { FilterActions } from "../resultsDisplay/FilterActions";
-import HistoryPanel from "../resultsDisplay/HistoryPanel";
 
-export const Header: React.FC = () => {
-  const [isVisible, setIsVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
-  const { getActiveSearch } = useCache();
-  const activeSearch = getActiveSearch();
-  const { count } = useFilteredAndScoredReleases(activeSearch?.searchId || "");
+const navButton =
+  "inline-flex h-11 items-center gap-2 rounded-lg px-3 text-[15px] font-medium text-foreground transition-colors hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
 
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
+const iconButton =
+  "inline-flex h-11 w-11 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
 
-      if (currentScrollY < 50) {
-        setIsVisible(true);
-      } else {
-        setIsVisible(currentScrollY < lastScrollY);
-      }
+interface HeaderProps {
+  /** Returns to the home page with an empty search form. */
+  onHome: () => void;
+  /** Compact search form, shown from `lg` on every page but home. */
+  search?: React.ReactNode;
+}
 
-      setLastScrollY(currentScrollY);
-    };
+export const Header: React.FC<HeaderProps> = ({ onHome, search }) => {
+  const { pathname, state } = useLocation();
+  const onHomePage = pathname === HOME_PATH;
+  // On phones the results page's back link lives here, saving a row.
+  const back = pathname.startsWith("/results/") ? backLink(state) : null;
 
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [lastScrollY]);
+  // Glide down to "How it works" rather than jumping, unless the user prefers
+  // reduced motion, and move focus to its heading for keyboard users.
+  const scrollToHowItWorks = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    const heading = document.getElementById("how-heading");
+    if (!heading) return;
+    e.preventDefault();
+    const reduce = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    heading.closest("section")?.scrollIntoView({
+      behavior: reduce ? "auto" : "smooth",
+      block: "start",
+    });
+    heading.focus({ preventScroll: true });
+  };
+
+  const handleHome = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    // Let modified clicks open a new tab as usual.
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    onHome();
+  };
 
   return (
-    <header
-      className={cn(
-        "fixed top-0 left-0 right-0 bg-bg-primary border-b border-primary-main",
-        "transition-transform duration-normal",
-        "z-header",
-        isVisible ? "translate-y-0" : "-translate-y-full"
-      )}
-    >
-      <div className="flex justify-between items-center px-md py-md mx-auto w-full">
-        <Sheet>
-          <SheetTrigger asChild>
-            <button className="bg-transparent border-none text-text-primary p-2 hover:text-primary-main transition-colors flex items-center gap-2">
-              <span className="hidden md:inline text-base font-medium">
-                History
-              </span>{" "}
-              <History className="w-5 h-5 md:w-6 md:h-6" />
-            </button>
-          </SheetTrigger>
-          <SheetContent
-            side="left"
-            className="bg-bg-primary border-r border-primary-main z-modal overflow-y-auto overflow-x-hidden pl-md md:p-xl w-screen md:w-fit max-w-full "
-          >
-            <SheetHeader>
-              <SheetTitle className="m-[26px]">History</SheetTitle>
-              <SheetClose className="absolute right-md top-md bg-transparent border-none text-text-primary p-sm hover:text-primary-main">
-                <X size={24} />
-              </SheetClose>
-            </SheetHeader>
-            <HistoryPanel />
-          </SheetContent>
-        </Sheet>
+    <header className="border-b bg-background">
+      <div className="mx-auto flex h-14 max-w-[1280px] items-center justify-between gap-2 px-2 md:h-16 md:gap-4 md:px-6">
+        <div className="flex items-center">
+          {back && (
+            <Link
+              to={back.to}
+              aria-label={back.label}
+              className={cn(iconButton, "md:hidden")}
+            >
+              <ChevronLeft className="h-6 w-6" aria-hidden="true" />
+            </Link>
+          )}
+          <Wordmark onClick={handleHome} nameFrom={onHomePage ? "md" : "lg"} />
+        </div>
 
-        {/* <h1 className="font-primary text-lg tracking-wide text-primary-main m-0">
-          Vinyl Periphery
-        </h1> */}
+        {!onHomePage && search && (
+          <div className="ml-auto hidden duration-200 animate-in fade-in md:block">
+            {search}
+          </div>
+        )}
 
-        <Sheet>
-          <SheetTrigger asChild>
-            <button className="bg-transparent border-none text-text-primary p-2 hover:text-primary-main transition-colors flex items-center gap-2">
-              <SlidersHorizontal className="w-5 h-5 md:w-6 md:h-6" />{" "}
-              <span className="hidden md:inline text-base font-medium">
-                Filters ({count})
-              </span>{" "}
+        <nav aria-label="Main" className="flex items-center gap-1">
+          {onHomePage ? (
+            <a
+              href="#how"
+              onClick={scrollToHowItWorks}
+              className={cn(navButton, "hidden md:inline-flex")}
+            >
+              How it works
+            </a>
+          ) : (
+            <button
+              type="button"
+              onClick={onHome}
+              aria-label="New search"
+              className={cn(iconButton, "md:hidden")}
+            >
+              <Search className="h-5 w-5" aria-hidden="true" />
             </button>
-          </SheetTrigger>
-          <SheetContent
-            side="right"
-            className={cn(
-              "bg-bg-primary border-l border-primary-main z-modal",
-              "p-xl fixed top-0 right-0 h-full",
-              "w-full",
-              "overflow-y-auto overflow-x-hidden"
-            )}
+          )}
+
+          {/* NavLink sets aria-current="page" on the library page. */}
+          <NavLink
+            to={LIBRARY_PATH}
+            className={({ isActive }) =>
+              cn(navButton, isActive && "bg-secondary")
+            }
           >
-            <SheetHeader>
-              <SheetTitle>Filters ({count})</SheetTitle>
-              <SheetClose className="absolute right-md top-md bg-transparent border-none text-text-primary p-sm hover:text-primary-main">
-                <X size={24} />
-              </SheetClose>
-            </SheetHeader>
-            {activeSearch && (
-              <div className="flex flex-col gap-lg mt-xl w-full">
-                <FilterActions searchId={activeSearch.searchId} />
-                <ContributorList searchId={activeSearch.searchId} />
-                <RoleList searchId={activeSearch.searchId} />
-              </div>
-            )}
-          </SheetContent>
-        </Sheet>
+            <Library className="h-5 w-5" aria-hidden="true" />
+            <span className="sr-only md:not-sr-only">Library</span>
+          </NavLink>
+        </nav>
       </div>
     </header>
   );

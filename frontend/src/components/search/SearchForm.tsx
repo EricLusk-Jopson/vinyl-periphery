@@ -1,4 +1,4 @@
-import React, { useId } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { Loader2, Search } from "lucide-react";
 import { SearchParams } from "@/api/types";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,11 @@ export interface SearchFormProps {
   onSearch: (params: SearchParams) => void;
   isSearching: boolean;
   autoFocus?: boolean;
+  /**
+   * Goes up each time a search fails before the album is found. The button
+   * jiggles and takes focus back (it was disabled while searching).
+   */
+  failedAttempt?: number;
 }
 
 const focusRing =
@@ -36,13 +41,33 @@ const submitBase = cn(
  */
 export const SearchForm = React.forwardRef<HTMLFormElement, SearchFormProps>(
   (
-    { variant, values, onValuesChange, onSearch, isSearching, autoFocus },
+    {
+      variant,
+      values,
+      onValuesChange,
+      onSearch,
+      isSearching,
+      autoFocus,
+      failedAttempt = 0,
+    },
     ref,
   ) => {
     const id = useId();
     const artistId = `${id}-artist`;
     const albumId = `${id}-album`;
     const hintId = `${id}-hint`;
+    const submitRef = useRef<HTMLButtonElement>(null);
+    const [shaking, setShaking] = useState(false);
+
+    useEffect(() => {
+      if (failedAttempt === 0) return;
+      setShaking(true);
+      submitRef.current?.focus();
+    }, [failedAttempt]);
+    const shakeProps = {
+      ref: submitRef,
+      onAnimationEnd: () => setShaking(false),
+    };
 
     const canSubmit = values.artist.trim() !== "" && values.album.trim() !== "";
 
@@ -104,7 +129,12 @@ export const SearchForm = React.forwardRef<HTMLFormElement, SearchFormProps>(
             type="submit"
             disabled={isSearching}
             aria-label={isSearching ? "Searching" : "Find connections"}
-            className={cn(submitBase, "h-11 w-11 shrink-0")}
+            className={cn(
+              submitBase,
+              "h-11 w-11 shrink-0",
+              shaking && "animate-shake",
+            )}
+            {...shakeProps}
           >
             {isSearching ? (
               <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
@@ -174,7 +204,9 @@ export const SearchForm = React.forwardRef<HTMLFormElement, SearchFormProps>(
           className={cn(
             submitBase,
             "h-[52px] px-5 text-base md:h-12 md:flex-[1_1_160px] lg:max-w-[260px]",
+            shaking && "animate-shake",
           )}
+          {...shakeProps}
         >
           {isSearching ? (
             <Loader2
@@ -185,7 +217,7 @@ export const SearchForm = React.forwardRef<HTMLFormElement, SearchFormProps>(
             <Search className="h-[18px] w-[18px]" aria-hidden="true" />
           )}
           <span className="truncate">
-            {isSearching ? "Searching" : "Find connections"}
+            {isSearching ? "Finding the album" : "Find connections"}
           </span>
         </button>
         <p

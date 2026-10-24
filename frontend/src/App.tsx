@@ -36,6 +36,9 @@ const App: React.FC = () => {
   const [progressHidden, setProgressHidden] = useState(false);
   const progressHiddenRef = useRef(progressHidden);
   progressHiddenRef.current = progressHidden;
+  // Counts searches that failed before the album was found; each one
+  // jiggles the search button.
+  const [failedAttempt, setFailedAttempt] = useState(0);
 
   const openSearch = useCallback(
     (searchId: string) => {
@@ -64,7 +67,16 @@ const App: React.FC = () => {
         ),
       });
     },
-    onError: () => {
+    onNotFound: (params) => {
+      setFailedAttempt((n) => n + 1);
+      toast({
+        title: "Album not found",
+        description: `Discogs has nothing for ${params.album} by ${params.artist}. Check the spelling and try again.`,
+        variant: "destructive",
+      });
+    },
+    onError: (_error, phase) => {
+      if (phase === "finding") setFailedAttempt((n) => n + 1);
       toast({
         title: "Search failed",
         description: "Something went wrong talking to Discogs. Try again.",
@@ -102,7 +114,9 @@ const App: React.FC = () => {
     void start(params);
   };
 
-  const showProgress = run !== null && !progressHidden;
+  // Progress appears once the album is found; until then the form shows the
+  // search under way.
+  const showProgress = run?.phase === "running" && !progressHidden;
   // Keeps the progress view rendered while it fades out after a cancel.
   const shownRun = useLingering(showProgress ? run : null, 200);
   const progress = shownRun && (
@@ -114,6 +128,7 @@ const App: React.FC = () => {
     onValuesChange: setFormValues,
     onSearch: handleSearch,
     isSearching,
+    failedAttempt,
   };
 
   return (
@@ -124,7 +139,7 @@ const App: React.FC = () => {
         onHome={goHome}
         search={<SearchForm variant="compact" {...formProps} />}
       />
-      {run && progressHidden && (
+      {run?.phase === "running" && progressHidden && (
         <SearchStatusBar run={run} onView={() => setProgressHidden(false)} />
       )}
       <main className="flex-1">

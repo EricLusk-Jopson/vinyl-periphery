@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import { Check } from "lucide-react";
 import { REQUEST_DELAY_MS } from "@/api/limits";
 import { SearchRun } from "@/hooks/useSearchRun";
+import { BAR_MS, useStageBar } from "@/hooks/useStageBar";
 import {
   STAGE_ORDER,
   STAGE_TITLES,
@@ -10,7 +11,7 @@ import {
   StageStatus,
   plural,
   progressDetail,
-  overallProgress,
+  stageFraction,
   stageStatus,
 } from "@/lib/searchProgress";
 import { cn } from "@/lib/utils";
@@ -72,24 +73,8 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({
   const activeId = stage?.id ?? null;
   const activeTitle = currentStageTitle(stage);
   const detail = progressDetail(stage, REQUEST_DELAY_MS);
-  const target = overallProgress(stage);
-  const percent = Math.round(target * 100);
-
-  // Start the bar at 0 and glide to each new target at the pace of the
-  // request under way, so it moves steadily instead of jumping per update.
-  const [shown, setShown] = useState(0);
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => setShown(target));
-    return () => cancelAnimationFrame(frame);
-  }, [target]);
-  // One request per discography; a release in the credits stage is about
-  // two (the release, then its artists' members).
-  const glideMs =
-    !stage || stage.id === "initial"
-      ? 800
-      : stage.id === "contributors"
-        ? 2 * REQUEST_DELAY_MS
-        : REQUEST_DELAY_MS;
+  const percent = Math.round(stageFraction(stage) * 100);
+  const bar = useStageBar(stage);
 
   // The form that started the search is gone; give focus a sensible home.
   useEffect(() => {
@@ -152,10 +137,13 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({
             className="h-1.5 overflow-hidden rounded-full bg-border"
           >
             <div
-              className="h-full origin-left rounded-full bg-primary transition-transform ease-linear"
+              className="h-full origin-left rounded-full bg-primary"
               style={{
-                transform: `scaleX(${shown})`,
-                transitionDuration: `${glideMs}ms`,
+                transform: `scaleX(${bar.value})`,
+                // An ease-out curve: quick to start, gentle to settle.
+                transition: bar.animate
+                  ? `transform ${BAR_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`
+                  : "none",
               }}
             />
           </div>

@@ -26,24 +26,14 @@ export const stageStatus = (
   return diff === 0 ? "active" : "pending";
 };
 
-/** Share of the whole search each stage covers, in order. */
-const STAGE_SPAN: Record<StageId, [start: number, end: number]> = {
-  initial: [0, 0.05],
-  contributors: [0.05, 0.25],
-  releases: [0.25, 1],
-};
-
 /**
- * Progress through the whole search, 0 to 1, counting the call under way as
- * done: the bar glides towards this while the call runs. It only moves
- * forward, since stages run in order and `current` only rises.
+ * Share of the current stage's items that are finished, 0 to 1. `current` is
+ * the item under way, so it doesn't count yet; the bar fills the rest when
+ * the next stage starts.
  */
-export const overallProgress = (stage: SearchStage | null): number => {
-  if (!stage) return 0;
-  const [start, end] = STAGE_SPAN[stage.id];
-  if (stage.id === "initial" || stage.total <= 0) return end;
-  const share = Math.min(1, Math.max(0, stage.current / stage.total));
-  return start + (end - start) * share;
+export const stageFraction = (stage: SearchStage | null): number => {
+  if (!stage || stage.id === "initial" || stage.total <= 0) return 0;
+  return Math.min(1, Math.max(0, (stage.current - 1) / stage.total));
 };
 
 /**

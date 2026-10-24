@@ -10,6 +10,8 @@ import { SearchProgress } from "./components/search/SearchProgress";
 import { SearchStatusBar } from "./components/search/SearchStatusBar";
 import { AlbumHeader } from "./components/results/AlbumHeader";
 import { ReleaseList } from "./components/results/ReleaseList";
+import { FilterPanel } from "./components/filters/FilterPanel";
+import { FilterSheet } from "./components/filters/FilterSheet";
 import { ToastAction } from "./components/ui/toast";
 import { useToast } from "./hooks/use-toast";
 import { useSearchRun } from "./hooks/useSearchRun";
@@ -162,13 +164,25 @@ const App: React.FC = () => {
               className="duration-200 animate-in fade-in"
             >
               <AlbumHeader search={activeSearch} />
-              <div className="mx-auto max-w-[1280px] px-4 pb-24 pt-3 md:px-6 md:pt-8">
-                <ReleaseList
-                  searchId={activeSearch.searchId}
-                  onSearchFrom={searchFrom}
-                  isSearching={isSearching}
-                />
+              <div className="mx-auto max-w-[1280px] px-4 pb-12 pt-3 md:px-6 md:pt-8 lg:flex lg:items-start lg:gap-8 lg:pb-24">
+                <aside
+                  aria-label="Filters"
+                  className="hidden lg:block lg:w-[300px] lg:shrink-0"
+                >
+                  <FilterPanel
+                    searchId={activeSearch.searchId}
+                    variant="sidebar"
+                  />
+                </aside>
+                <div className="min-w-0 flex-1">
+                  <ReleaseList
+                    searchId={activeSearch.searchId}
+                    onSearchFrom={searchFrom}
+                    isSearching={isSearching}
+                  />
+                </div>
               </div>
+              <FilterSheet searchId={activeSearch.searchId} />
             </div>
           )
         ) : (

@@ -1,5 +1,5 @@
 import React from "react";
-import { History, Search, SlidersHorizontal, X } from "lucide-react";
+import { History, Search, X } from "lucide-react";
 import {
   Sheet,
   SheetClose,
@@ -9,9 +9,6 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { useCache } from "@/contexts/cache/CacheContext";
-import { ContributorList } from "../resultsDisplay/ContributorList";
-import { RoleList } from "../resultsDisplay/RoleList";
-import { FilterActions } from "../resultsDisplay/FilterActions";
 import HistoryPanel from "../resultsDisplay/HistoryPanel";
 import { Wordmark } from "./Wordmark";
 import { cn } from "@/lib/utils";
@@ -31,7 +28,10 @@ const DrawerHeader: React.FC<{ title: string; description: string }> = ({
       <SheetTitle className="text-lg font-semibold">{title}</SheetTitle>
       <SheetDescription className="sr-only">{description}</SheetDescription>
     </div>
-    <SheetClose className={iconButton} aria-label={`Close ${title.toLowerCase()}`}>
+    <SheetClose
+      className={iconButton}
+      aria-label={`Close ${title.toLowerCase()}`}
+    >
       <X className="h-5 w-5" aria-hidden="true" />
     </SheetClose>
   </div>
@@ -87,32 +87,6 @@ export const Header: React.FC<HeaderProps> = ({
             <a href="#how" className={cn(navButton, "hidden md:inline-flex")}>
               How it works
             </a>
-          )}
-
-          {/* Moves into the results sidebar and a bottom sheet in phase 6. */}
-          {activeSearch && (
-            <Sheet>
-              <SheetTrigger asChild>
-                <button type="button" className={navButton}>
-                  <SlidersHorizontal className="h-5 w-5" aria-hidden="true" />
-                  <span className="sr-only md:not-sr-only">Filters</span>
-                </button>
-              </SheetTrigger>
-              <SheetContent
-                side="right"
-                className="flex w-full flex-col gap-0 overflow-y-auto border-l bg-background p-0 sm:max-w-md"
-              >
-                <DrawerHeader
-                  title="Filters"
-                  description="Choose which contributors and roles count towards the results"
-                />
-                <div className="flex flex-col gap-4 p-4 md:p-6">
-                  <FilterActions searchId={activeSearch.searchId} />
-                  <ContributorList searchId={activeSearch.searchId} />
-                  <RoleList searchId={activeSearch.searchId} />
-                </div>
-              </SheetContent>
-            </Sheet>
           )}
 
           <Sheet open={historyOpen} onOpenChange={onHistoryOpenChange}>

@@ -14,6 +14,13 @@ import {
 } from "@/lib/results";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
 import { ReleaseRow } from "./ReleaseRow";
 
 const PAGE_SIZE = 20;
@@ -60,6 +67,8 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
   if (!search) return null;
 
   const total = sorted.length;
+  const current =
+    SORT_OPTIONS.find((option) => option.value === sort) ?? SORT_OPTIONS[0];
   const shown = sorted.slice(0, visible);
   const hasAnyReleases = Object.keys(search.releases).length > 0;
 
@@ -89,21 +98,25 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
           >
             Sort by
           </label>
-          <select
-            id={sortId}
+          <Select
             value={sort}
-            onChange={(e) => {
-              setSort(e.target.value as SortKey);
+            onValueChange={(value) => {
+              setSort(value as SortKey);
               setVisible(PAGE_SIZE);
             }}
-            className="h-11 min-w-0 rounded-lg border bg-surface px-2.5 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring lg:h-10"
           >
-            {SORT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {wide ? option.label : option.short}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger id={sortId} className="lg:h-10">
+              {/* Short label on phones; the menu always shows the full one. */}
+              <SelectValue>{wide ? current.label : current.short}</SelectValue>
+            </SelectTrigger>
+            <SelectContent align="end">
+              {SORT_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           {toolbarAction}
         </div>
       </div>

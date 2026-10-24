@@ -56,7 +56,7 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
         aria-controls={panelId}
         onClick={onToggle}
         className={cn(
-          "flex w-full items-center gap-3 py-3 text-left transition-colors hover:bg-surface md:gap-4 md:px-1 md:py-3.5",
+          "flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors hover:bg-surface md:gap-4 md:px-4 md:py-3.5",
           focusRing,
         )}
       >
@@ -104,7 +104,7 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
       <div
         id={panelId}
         className={cn(
-          "flex-col gap-2.5 pb-4 pl-[60px] pt-1 md:gap-3.5 md:pb-5 md:pl-[76px] md:pr-1",
+          "flex-col gap-2.5 pb-4 pl-3 pr-3 pt-1 md:gap-3.5 md:pb-5 md:pl-[88px] md:pr-4",
           // A class, not the hidden attribute, which `flex` would override.
           open ? "flex" : "hidden",
         )}

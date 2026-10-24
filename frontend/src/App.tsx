@@ -13,6 +13,7 @@ import { Home } from "./components/home/Home";
 import { SearchForm } from "./components/search/SearchForm";
 import { ReleaseList } from "./components/resultsDisplay/ReleaseList";
 import { useToast } from "./hooks/use-toast";
+import { coverUrl } from "./lib/searches";
 
 const EMPTY_SEARCH: SearchParams = { artist: "", album: "" };
 
@@ -73,8 +74,7 @@ const App: React.FC = () => {
       });
 
       if (!searchResults) return;
-      const thumb =
-        searchResults[0]?.thumb ?? searchResults[0]?.cover_image ?? "";
+      const thumb = coverUrl(searchResults[0]);
 
       const contributorSet = await contributorsMutation.mutateAsync({
         releases: searchResults,

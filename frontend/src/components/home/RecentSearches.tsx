@@ -1,8 +1,12 @@
-import React from "react";
+import React, { useState } from "react";
 import { ChevronRight, Star } from "lucide-react";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { SearchCache } from "@/contexts/cache/types";
-import { recentSearches, titleInitials } from "@/lib/searches";
+import {
+  recentSearches,
+  titleInitials,
+  usableImageUrl,
+} from "@/lib/searches";
 
 const RECENT_LIMIT = 3;
 
@@ -12,15 +16,19 @@ interface RecentSearchesProps {
 }
 
 const Cover: React.FC<{ search: SearchCache }> = ({ search }) => {
+  // Saved searches keep their URL indefinitely, so a link can stop loading.
+  const [failed, setFailed] = useState(false);
+  const src = failed ? "" : usableImageUrl(search.thumb);
   const box =
     "flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[3px] bg-secondary md:h-16 md:w-16 md:rounded";
-  if (search.thumb) {
+  if (src) {
     return (
       <span className={box}>
         <img
-          src={search.thumb}
+          src={src}
           alt=""
           loading="lazy"
+          onError={() => setFailed(true)}
           className="h-full w-full object-cover"
         />
       </span>

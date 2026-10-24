@@ -18,6 +18,23 @@ export const recentSearches = (
     .sort((a, b) => searchStartedAt(b.searchId) - searchStartedAt(a.searchId))
     .slice(0, limit);
 
+/**
+ * A cover URL worth showing, or "" when there is none. Discogs sends an empty
+ * string or a 1px `spacer.gif` when a release has no image.
+ */
+export const usableImageUrl = (url: string | null | undefined): string => {
+  const trimmed = url?.trim() ?? "";
+  if (!/^https?:\/\//i.test(trimmed)) return "";
+  if (/\/spacer\.gif(?:[?#]|$)/i.test(trimmed)) return "";
+  return trimmed;
+};
+
+/** The thumbnail for a search result, falling back to the full cover. */
+export const coverUrl = (
+  result: { thumb?: string; cover_image?: string } | undefined
+): string =>
+  usableImageUrl(result?.thumb) || usableImageUrl(result?.cover_image);
+
 /** Up to two initials for a cover placeholder: "Spirit of Eden" -> "SE". */
 export const titleInitials = (title: string): string => {
   const words = title

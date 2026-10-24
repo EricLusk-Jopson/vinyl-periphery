@@ -7,8 +7,6 @@ import { cn } from "@/lib/utils";
 
 interface HomeProps {
   form: Omit<SearchFormProps, "variant">;
-  onOpenSearch: (searchId: string) => void;
-  onViewHistory: () => void;
   /** Search progress, shown in place of the hero while a search runs. */
   progress: React.ReactNode;
   showProgress: boolean;
@@ -22,13 +20,7 @@ const shown =
 const hidden =
   "invisible opacity-0 [transition:opacity_200ms,transform_200ms,visibility_0s_200ms]";
 
-export const Home: React.FC<HomeProps> = ({
-  form,
-  onOpenSearch,
-  onViewHistory,
-  progress,
-  showProgress,
-}) => (
+export const Home: React.FC<HomeProps> = ({ form, progress, showProgress }) => (
   <>
     {/* Hero and progress share one grid cell: the hero fades out and the
         progress slides in from the right, and the sections below stay put.
@@ -50,7 +42,7 @@ export const Home: React.FC<HomeProps> = ({
         {progress}
       </div>
     </div>
-    <RecentSearches onOpen={onOpenSearch} onViewHistory={onViewHistory} />
+    <RecentSearches />
     <HowItWorks />
   </>
 );

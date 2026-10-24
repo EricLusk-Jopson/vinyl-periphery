@@ -23,7 +23,8 @@ export const HowItWorks: React.FC = () => (
   >
     <h2
       id="how-heading"
-      className="mb-5 font-display text-2xl font-normal tracking-[0.5px] md:mb-7 md:text-[34px]"
+      tabIndex={-1}
+      className="mb-5 font-display focus:outline-none text-2xl font-normal tracking-[0.5px] md:mb-7 md:text-[34px]"
     >
       How it works
     </h2>

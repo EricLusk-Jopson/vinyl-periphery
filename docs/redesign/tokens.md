@@ -69,7 +69,6 @@ most; the wordmark is the exception at 1.5px. Eyebrows: mono, 12–13px, upperca
 
 ## Legacy names
 
-`text-text-primary`, `bg-bg-primary`, `primary-main`, `font-primary`,
-`font-secondary` and similar still work so the screens that have not been
-rebuilt yet keep rendering. They point at the new tokens. Do not use them in new
-code. They are removed in the last phase.
+The old theme names (`text-text-primary`, `bg-bg-primary`, `primary-main`,
+`font-primary`, `font-secondary` and similar) were removed in the last phase
+of the redesign. Use the names above.

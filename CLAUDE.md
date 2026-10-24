@@ -16,6 +16,9 @@ ranks albums by how many of those people worked on them.
     (sessionStorage and IndexedDB).
   - `src/lib/transformers/`: role and name cleanup, with Jest tests.
   - `src/components/ui/`: shadcn primitives. Edit sparingly.
+  - Routes (React Router): `/` home, `/library` (`?tab=saved`), and
+    `/results/:searchId` with the search id URL-encoded. Route helpers live
+    in `src/lib/routes.ts`.
 - `docs/redesign/`: the current UI redesign. Read `DESIGN.md` before any UI
   work.
 
@@ -40,8 +43,9 @@ planned after the redesign.
 - UI work follows `docs/redesign/DESIGN.md` and `docs/redesign/tokens.md`.
   Use the token names (`bg-surface`, `text-muted-foreground`, `border-strong`,
   `font-display`). No hex values or arbitrary colours in components.
-- Do not use the legacy theme names (`text-text-primary`, `bg-bg-primary`,
-  `primary-main`, `font-primary`, `font-secondary`) in new code.
+- The legacy theme names (`text-text-primary`, `bg-bg-primary`,
+  `primary-main`, `font-primary`, `font-secondary`) are gone; don't bring
+  them back.
 - Nothing smaller than 12px. Touch targets at least 44px.
 - Check every UI change at 390px and 1440px wide.
 - Keep domain logic (filtering, scoring, Discogs parsing) out of components so

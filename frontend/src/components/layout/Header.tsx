@@ -1,15 +1,7 @@
 import React from "react";
-import { History, Search, X } from "lucide-react";
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import { useCache } from "@/contexts/cache/CacheContext";
-import HistoryPanel from "../resultsDisplay/HistoryPanel";
+import { NavLink, useLocation } from "react-router-dom";
+import { Library, Search } from "lucide-react";
+import { LIBRARY_PATH, HOME_PATH } from "@/lib/routes";
 import { Wordmark } from "./Wordmark";
 import { cn } from "@/lib/utils";
 
@@ -19,41 +11,34 @@ const navButton =
 const iconButton =
   "inline-flex h-11 w-11 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
 
-const DrawerHeader: React.FC<{ title: string; description: string }> = ({
-  title,
-  description,
-}) => (
-  <div className="flex items-center justify-between gap-4 border-b px-4 py-2 md:px-6">
-    <div>
-      <SheetTitle className="text-lg font-semibold">{title}</SheetTitle>
-      <SheetDescription className="sr-only">{description}</SheetDescription>
-    </div>
-    <SheetClose
-      className={iconButton}
-      aria-label={`Close ${title.toLowerCase()}`}
-    >
-      <X className="h-5 w-5" aria-hidden="true" />
-    </SheetClose>
-  </div>
-);
-
 interface HeaderProps {
-  historyOpen: boolean;
-  onHistoryOpenChange: (open: boolean) => void;
-  /** Returns to the home page. */
+  /** Returns to the home page with an empty search form. */
   onHome: () => void;
-  /** Compact search form, shown from `lg` while results are showing. */
+  /** Compact search form, shown from `lg` on every page but home. */
   search?: React.ReactNode;
 }
 
-export const Header: React.FC<HeaderProps> = ({
-  historyOpen,
-  onHistoryOpenChange,
-  onHome,
-  search,
-}) => {
-  const { getActiveSearch } = useCache();
-  const activeSearch = getActiveSearch();
+export const Header: React.FC<HeaderProps> = ({ onHome, search }) => {
+  const { pathname } = useLocation();
+  const onHomePage = pathname === HOME_PATH;
+
+  // Glide down to "How it works" rather than jumping, unless the user prefers
+  // reduced motion, and move focus to its heading for keyboard users.
+  const scrollToHowItWorks = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    const heading = document.getElementById("how-heading");
+    if (!heading) return;
+    e.preventDefault();
+    const reduce = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    heading
+      .closest("section")
+      ?.scrollIntoView({
+        behavior: reduce ? "auto" : "smooth",
+        block: "start",
+      });
+    heading.focus({ preventScroll: true });
+  };
 
   const handleHome = (e: React.MouseEvent<HTMLAnchorElement>) => {
     // Let modified clicks open a new tab as usual.
@@ -67,14 +52,22 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="mx-auto flex h-14 max-w-[1280px] items-center justify-between gap-4 px-2 pl-4 md:h-16 md:px-6">
         <Wordmark onClick={handleHome} />
 
-        {activeSearch && search && (
+        {!onHomePage && search && (
           <div className="ml-auto hidden duration-200 animate-in fade-in lg:block">
             {search}
           </div>
         )}
 
         <nav aria-label="Main" className="flex items-center gap-1">
-          {activeSearch ? (
+          {onHomePage ? (
+            <a
+              href="#how"
+              onClick={scrollToHowItWorks}
+              className={cn(navButton, "hidden md:inline-flex")}
+            >
+              How it works
+            </a>
+          ) : (
             <button
               type="button"
               onClick={onHome}
@@ -83,32 +76,18 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Search className="h-5 w-5" aria-hidden="true" />
             </button>
-          ) : (
-            <a href="#how" className={cn(navButton, "hidden md:inline-flex")}>
-              How it works
-            </a>
           )}
 
-          <Sheet open={historyOpen} onOpenChange={onHistoryOpenChange}>
-            <SheetTrigger asChild>
-              <button type="button" className={navButton}>
-                <History className="h-5 w-5" aria-hidden="true" />
-                <span className="sr-only md:not-sr-only">History</span>
-              </button>
-            </SheetTrigger>
-            <SheetContent
-              side="left"
-              className="flex w-full flex-col gap-0 overflow-y-auto border-r bg-background p-0 sm:max-w-sm"
-            >
-              <DrawerHeader
-                title="History"
-                description="Your saved and recent searches"
-              />
-              <div className="px-2 pb-6 md:px-4">
-                <HistoryPanel />
-              </div>
-            </SheetContent>
-          </Sheet>
+          {/* NavLink sets aria-current="page" on the library page. */}
+          <NavLink
+            to={LIBRARY_PATH}
+            className={({ isActive }) =>
+              cn(navButton, isActive && "bg-secondary")
+            }
+          >
+            <Library className="h-5 w-5" aria-hidden="true" />
+            <span className="sr-only md:not-sr-only">Library</span>
+          </NavLink>
         </nav>
       </div>
     </header>

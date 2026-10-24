@@ -45,6 +45,10 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   });
 
+  // True once saved searches have been read from IndexedDB, so a saved
+  // result opened by URL isn't shown as missing while it loads.
+  const [savedSearchesLoaded, setSavedSearchesLoaded] = React.useState(false);
+
   // Load saved searches from IndexedDB on mount
   useEffect(() => {
     const loadSavedSearches = async () => {
@@ -63,6 +67,8 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
         }));
       } catch (error) {
         console.error("Failed to load saved searches:", error);
+      } finally {
+        setSavedSearchesLoaded(true);
       }
     };
 
@@ -305,6 +311,7 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const value: CacheContextValue = {
     ...state,
+    savedSearchesLoaded,
     setActiveSearch,
     clearActiveSearch,
     addSearch,

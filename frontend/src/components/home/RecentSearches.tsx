@@ -1,21 +1,17 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { ChevronRight, Star } from "lucide-react";
 import { useCache } from "@/contexts/cache/CacheContext";
+import { LIBRARY_PATH, ResultFrom, resultPath } from "@/lib/routes";
 import { recentSearches } from "@/lib/searches";
 import { AlbumCover } from "../search/AlbumCover";
 
 const RECENT_LIMIT = 3;
 
-interface RecentSearchesProps {
-  onOpen: (searchId: string) => void;
-  onViewHistory: () => void;
-}
+const FROM_HOME: ResultFrom = { from: "home" };
 
-/** The last few searches from this session and saved history. */
-export const RecentSearches: React.FC<RecentSearchesProps> = ({
-  onOpen,
-  onViewHistory,
-}) => {
+/** The last few searches from this session and the saved library. */
+export const RecentSearches: React.FC = () => {
   const { searches, isSearchSaved } = useCache();
   const recent = recentSearches(searches, RECENT_LIMIT);
 
@@ -34,13 +30,12 @@ export const RecentSearches: React.FC<RecentSearchesProps> = ({
           <span className="md:hidden">Recent</span>
           <span className="hidden md:inline">Your recent searches</span>
         </h2>
-        <button
-          type="button"
-          onClick={onViewHistory}
-          className="h-11 rounded-lg px-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+        <Link
+          to={LIBRARY_PATH}
+          className="inline-flex h-11 items-center rounded-lg px-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
         >
-          View all history
-        </button>
+          View library
+        </Link>
       </div>
 
       <ul className="grid gap-2.5 md:grid-cols-[repeat(auto-fill,minmax(320px,1fr))] md:gap-4">
@@ -54,9 +49,9 @@ export const RecentSearches: React.FC<RecentSearchesProps> = ({
 
           return (
             <li key={search.searchId}>
-              <button
-                type="button"
-                onClick={() => onOpen(search.searchId)}
+              <Link
+                to={resultPath(search.searchId)}
+                state={FROM_HOME}
                 className="flex w-full items-center gap-3 rounded-[10px] border bg-surface p-2.5 text-left transition-colors hover:border-border-strong hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring md:gap-4 md:p-3.5"
               >
                 <AlbumCover
@@ -86,7 +81,7 @@ export const RecentSearches: React.FC<RecentSearchesProps> = ({
                   className="h-[18px] w-[18px] shrink-0 text-faint md:hidden"
                   aria-hidden="true"
                 />
-              </button>
+              </Link>
             </li>
           );
         })}

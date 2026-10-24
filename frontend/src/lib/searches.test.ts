@@ -2,6 +2,7 @@ import {
   coverUrl,
   recentSearches,
   searchStartedAt,
+  timeAgo,
   titleInitials,
   usableImageUrl,
 } from "./searches";
@@ -26,13 +27,13 @@ const search = (searchId: string): SearchCache => ({
 describe("searchStartedAt", () => {
   it("reads the timestamp at the end of the id", () => {
     expect(searchStartedAt("Talk Talk-Spirit of Eden-1700000000000")).toBe(
-      1700000000000
+      1700000000000,
     );
   });
 
   it("copes with hyphens in the artist or album", () => {
     expect(searchStartedAt("Jay-Z-The Blueprint-1700000000001")).toBe(
-      1700000000001
+      1700000000001,
     );
   });
 
@@ -122,5 +123,27 @@ describe("coverUrl", () => {
   it("returns an empty string when neither is usable", () => {
     expect(coverUrl({ thumb: SPACER, cover_image: SPACER })).toBe("");
     expect(coverUrl(undefined)).toBe("");
+  });
+});
+
+describe("timeAgo", () => {
+  const now = new Date(2026, 9, 24, 12, 0).getTime();
+  const ago = (ms: number) => timeAgo(now - ms, now);
+  const MIN = 60000;
+
+  it("gives minutes and hours for today", () => {
+    expect(ago(20 * 1000)).toBe("just now");
+    expect(ago(5 * MIN)).toBe("5 min ago");
+    expect(ago(3 * 60 * MIN)).toBe("3 h ago");
+  });
+
+  it("gives days for the last week", () => {
+    expect(ago(25 * 60 * MIN)).toBe("yesterday");
+    expect(ago(4 * 24 * 60 * MIN)).toBe("4 days ago");
+  });
+
+  it("gives a date after that, with the year when it differs", () => {
+    expect(timeAgo(new Date(2026, 2, 12).getTime(), now)).toBe("12 Mar");
+    expect(timeAgo(new Date(2025, 11, 30).getTime(), now)).toBe("30 Dec 2025");
   });
 });

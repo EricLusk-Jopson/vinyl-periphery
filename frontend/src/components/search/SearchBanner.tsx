@@ -37,6 +37,7 @@ export const SearchBanner: React.FC<SearchBannerProps> = ({
         ref={viewRef}
         run={run}
         onView={() => onExpandedChange(true)}
+        onCancel={onCancel}
       />
     );
   }

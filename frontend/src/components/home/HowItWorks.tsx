@@ -28,7 +28,7 @@ export const HowItWorks: React.FC = () => (
     >
       How it works
     </h2>
-    <ol className="grid border-t md:grid-cols-[repeat(auto-fit,minmax(260px,1fr))]">
+    <ol className="grid border-t md:grid-cols-3">
       {STEPS.map((step, i) => (
         <li
           key={step.title}

@@ -14,7 +14,7 @@ const Intro: React.FC = () => (
     <p className="font-mono text-xs uppercase tracking-[2px] text-primary-text md:text-[13px]">
       Follow the credit-brick road
     </p>
-    <h1 className="max-w-[860px] font-display text-[40px] font-normal leading-[0.95] tracking-[0.3px] md:text-8xl md:leading-[0.92] md:tracking-[0.5px]">
+    <h1 className="max-w-[860px] font-display text-[40px] font-normal leading-[0.95] tracking-[0.3px] md:text-[72px] md:leading-[0.92] lg:text-8xl md:tracking-[0.5px]">
       Find the albums hiding in your liner notes
     </h1>
     {/* Cut on phones so the search form fits on the first screen. */}
@@ -51,7 +51,7 @@ export const Hero: React.FC<HeroProps> = (formProps) => {
   return (
     <section className="relative overflow-hidden md:border-b">
       <Grain className="hidden opacity-[0.14] md:block" />
-      <div className="relative mx-auto max-w-[1200px] md:flex md:flex-col md:gap-7 md:px-6 md:pb-24 md:pt-16">
+      <div className="relative mx-auto max-w-[1200px] md:flex md:flex-col md:gap-6 md:px-6 md:pb-16 md:pt-12 lg:gap-7 lg:pb-24 lg:pt-16">
         <div className="relative flex flex-col gap-2.5 overflow-hidden border-b px-4 pb-5 pt-6 md:contents md:border-0 md:p-0">
           <Grain className="opacity-[0.14] md:hidden" />
           <div className="relative flex flex-col gap-2.5 md:contents">

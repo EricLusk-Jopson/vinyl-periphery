@@ -103,7 +103,7 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({
   return (
     <div
       className={cn(
-        "mx-auto flex w-full max-w-[880px] flex-col gap-4 px-4 pb-8 pt-5 md:gap-8 md:px-6 md:pb-24 md:pt-[72px]",
+        "mx-auto flex w-full max-w-[880px] flex-col gap-4 px-4 pb-8 pt-5 md:gap-7 md:px-6 md:pb-16 md:pt-10 lg:gap-8 lg:pb-24 lg:pt-[72px]",
         className,
       )}
     >
@@ -120,7 +120,7 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({
           <h1
             ref={headingRef}
             tabIndex={-1}
-            className="break-words font-display text-[26px] font-normal leading-none tracking-[0.5px] focus:outline-none md:text-[56px]"
+            className="break-words font-display text-[26px] font-normal leading-none tracking-[0.5px] focus:outline-none md:text-[44px] lg:text-[56px]"
           >
             {params.album}
           </h1>

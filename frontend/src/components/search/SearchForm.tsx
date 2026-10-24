@@ -109,7 +109,10 @@ export const SearchForm = React.forwardRef<HTMLFormElement, SearchFormProps>(
             autoComplete="off"
             required
             disabled={isSearching}
-            className={cn(inputBase, "h-11 w-48 bg-surface px-3 text-[15px]")}
+            className={cn(
+              inputBase,
+              "h-11 w-36 bg-surface px-3 text-[15px] lg:w-48",
+            )}
           />
           <label htmlFor={albumId} className="sr-only">
             Album
@@ -123,7 +126,10 @@ export const SearchForm = React.forwardRef<HTMLFormElement, SearchFormProps>(
             autoComplete="off"
             required
             disabled={isSearching}
-            className={cn(inputBase, "h-11 w-56 bg-surface px-3 text-[15px]")}
+            className={cn(
+              inputBase,
+              "h-11 w-44 bg-surface px-3 text-[15px] lg:w-56",
+            )}
           />
           <button
             type="submit"

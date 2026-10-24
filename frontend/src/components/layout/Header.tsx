@@ -64,7 +64,7 @@ export const Header: React.FC<HeaderProps> = ({ onHome, search }) => {
         </div>
 
         {!onHomePage && search && (
-          <div className="ml-auto hidden duration-200 animate-in fade-in lg:block">
+          <div className="ml-auto hidden duration-200 animate-in fade-in md:block">
             {search}
           </div>
         )}
@@ -83,7 +83,7 @@ export const Header: React.FC<HeaderProps> = ({ onHome, search }) => {
               type="button"
               onClick={onHome}
               aria-label="New search"
-              className={cn(iconButton, "lg:hidden")}
+              className={cn(iconButton, "md:hidden")}
             >
               <Search className="h-5 w-5" aria-hidden="true" />
             </button>

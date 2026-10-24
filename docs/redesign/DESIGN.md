@@ -22,7 +22,7 @@ to Vercel.
 | Results, desktop (interactive: filters work) | `reference/Results.dc.html` |
 | Home, mobile (390px) | `reference/MobileHome.dc.html` |
 | Results, mobile | `reference/MobileResults.dc.html` |
-| Filters, mobile bottom sheet | `reference/MobileFilters.dc.html` |
+| Filters, mobile (superseded: now a full-screen frame, see Layout) | `reference/MobileFilters.dc.html` |
 
 ## Direction
 
@@ -38,19 +38,24 @@ Dark, quiet and typographic, like a record sleeve and its liner notes.
 
 ## Layout
 
-- Breakpoints: Tailwind defaults. Design for 390px and 1440px; check 768px.
-- Header: 64px desktop, 56px mobile, bottom border, not fixed. (The current
-  hide-on-scroll header goes; it fights the filter sheet and adds little.)
+- Breakpoints: Tailwind defaults. Three layouts: phone (below `md`, design
+  at 390px, check 320px), tablet (`md` to `lg`, design at 768px) and desktop
+  (`lg` up, design at 1440px). Each screen should fit a phone without
+  sideways scrolling and with the main action on the first screen.
+- Header: 64px desktop, 56px mobile, bottom border, not fixed. On phones the
+  logo is the disc only, and on results a back chevron sits before it.
 - Home: hero with eyebrow, display headline, one-paragraph explainer, search
   form in a surface panel, example searches, recent searches, how it works,
-  footer.
+  footer. Phones drop the explainer and example searches so the form fits on
+  the first screen.
 - Results: album header band (cover, eyebrow, title, artist, year,
   contributor count, Save) over a two-column body. Filters sidebar 280–320px
-  on the left from `lg` up; results list takes the rest. Below `lg` the
-  sidebar becomes a bottom sheet opened from a sticky "Filters" bar at the
-  bottom of the screen, showing the number of active filters.
+  on the left from `lg` up; results list takes the rest. Below `lg` a sticky
+  toolbar (count, sort, Filters button with the active count) sits above the
+  list, and the filters slide in from the right: full screen on phones, a
+  420px panel on tablets.
 - After a search, the search form moves into the header as a compact form
-  (two inputs and an icon button) on desktop, and a search icon on mobile.
+  (two inputs and an icon button) from tablet up, and a search icon on phones.
 
 ## Components
 
@@ -72,7 +77,7 @@ same PR, and keep props minimal.
 | `filters/FilterPanel` | `resultsDisplay/FilterActions.tsx`, `ContributorList.tsx`, `RoleList.tsx` | Same content in sidebar and sheet. Switches for the three toggles, Reset link, contributor chips with a name filter input, role chips |
 | `filters/Chip` | `common/FilterButton.tsx` | `<button aria-pressed>`. Three states that differ in more than colour: included (raised fill, emphasis border), excluded (transparent, struck through), unavailable (dashed border, faint). Shows a count of matching albums in mono |
 | `filters/Switch` | outline buttons in `FilterActions.tsx` | `<button role="switch" aria-checked>`, 44px row |
-| `filters/FilterSheet` | right-side `Sheet` in `Header.tsx` | Radix dialog as bottom sheet, grabber, sticky footer with Reset and "Show N albums" |
+| `filters/FilterFrame` | right-side `Sheet` in `Header.tsx` | Radix dialog sliding in from the right, full screen on phones and 420px on tablets. Top bar with back and Reset, pinned "Show N albums" |
 | `library/LibraryPage` | `resultsDisplay/HistoryPanel.tsx` | The `/library` page, linked from the header and the home page. Tabs for this session and saved, as cards with Save and Delete always visible. Sorted by time, not by id |
 
 Tooltips are not used for information the user needs. Contributor roles show
@@ -94,7 +99,7 @@ in the expanded row and in the chip's accessible name.
   `aria-label`.
 - Visible focus: 2px `ring` outline.
 - Contrast per tokens.md. Nothing under 12px.
-- The bottom sheet and drawers trap focus and close on Escape (Radix does this).
+- The filters frame and dialogs trap focus and close on Escape (Radix does this).
 
 ## Phases
 

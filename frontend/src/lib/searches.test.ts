@@ -1,4 +1,10 @@
-import { recentSearches, searchStartedAt, titleInitials } from "./searches";
+import {
+  coverUrl,
+  recentSearches,
+  searchStartedAt,
+  titleInitials,
+  usableImageUrl,
+} from "./searches";
 import { SearchCache } from "@/contexts/cache/types";
 
 const search = (searchId: string): SearchCache => ({
@@ -76,5 +82,45 @@ describe("titleInitials", () => {
 
   it("returns an empty string for an empty title", () => {
     expect(titleInitials("  ")).toBe("");
+  });
+});
+
+const SPACER = "https://st.discogs.com/abc123/images/spacer.gif";
+const THUMB = "https://i.discogs.com/abc/rs:fit/w:150/R-1.jpeg";
+const COVER = "https://i.discogs.com/abc/rs:fit/w:600/R-1.jpeg";
+
+describe("usableImageUrl", () => {
+  it("keeps a real image URL", () => {
+    expect(usableImageUrl(THUMB)).toBe(THUMB);
+  });
+
+  it("drops empty values and the Discogs spacer", () => {
+    expect(usableImageUrl("")).toBe("");
+    expect(usableImageUrl("   ")).toBe("");
+    expect(usableImageUrl(undefined)).toBe("");
+    expect(usableImageUrl(null)).toBe("");
+    expect(usableImageUrl(SPACER)).toBe("");
+    expect(usableImageUrl(`${SPACER}?v=2`)).toBe("");
+  });
+
+  it("drops anything that is not an http(s) URL", () => {
+    expect(usableImageUrl("javascript:alert(1)")).toBe("");
+    expect(usableImageUrl("/images/cover.jpg")).toBe("");
+  });
+});
+
+describe("coverUrl", () => {
+  it("prefers the thumbnail", () => {
+    expect(coverUrl({ thumb: THUMB, cover_image: COVER })).toBe(THUMB);
+  });
+
+  it("falls back to the cover when the thumbnail is empty or a spacer", () => {
+    expect(coverUrl({ thumb: "", cover_image: COVER })).toBe(COVER);
+    expect(coverUrl({ thumb: SPACER, cover_image: COVER })).toBe(COVER);
+  });
+
+  it("returns an empty string when neither is usable", () => {
+    expect(coverUrl({ thumb: SPACER, cover_image: SPACER })).toBe("");
+    expect(coverUrl(undefined)).toBe("");
   });
 });

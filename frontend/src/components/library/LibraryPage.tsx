@@ -57,20 +57,20 @@ const LibraryCard: React.FC<LibraryCardProps> = ({
   };
 
   return (
-    <li className="flex items-center gap-1 rounded-[10px] border bg-surface pr-2 transition-colors hover:border-border-strong">
+    <li className="flex min-w-0 items-center gap-1 rounded-[10px] border bg-surface pr-2 transition-colors hover:border-border-strong">
       <Link
         to={resultPath(search.searchId)}
         state={from}
         data-library-open
         className={cn(
-          "flex min-w-0 flex-1 items-center gap-3 rounded-[10px] p-2.5 md:gap-4 md:p-3.5",
+          "flex min-w-0 flex-1 items-center gap-3 rounded-[10px] p-2.5 lg:gap-4 lg:p-3.5",
           focusRing,
         )}
       >
         <AlbumCover
           src={search.thumb}
           title={album}
-          className="h-12 w-12 rounded-[3px] text-xs md:h-16 md:w-16 md:rounded md:text-sm"
+          className="h-12 w-12 rounded-[3px] text-xs lg:h-16 lg:w-16 lg:rounded lg:text-sm"
         />
         <span className="flex min-w-0 flex-col gap-0.5 md:gap-1">
           <span className="truncate text-[15px] font-semibold md:text-base">
@@ -247,7 +247,7 @@ export const LibraryPage: React.FC = () => {
         className="pt-5 md:pt-6"
       >
         {items.length > 0 ? (
-          <ul className="grid gap-2.5 md:grid-cols-[repeat(auto-fill,minmax(360px,1fr))] md:gap-4">
+          <ul className="grid gap-2.5 md:grid-cols-2 md:gap-4 lg:grid-cols-[repeat(auto-fill,minmax(360px,1fr))]">
             {items.map((search) => (
               <LibraryCard
                 key={search.searchId}

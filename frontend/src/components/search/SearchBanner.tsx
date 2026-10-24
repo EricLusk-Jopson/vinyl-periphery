@@ -8,10 +8,12 @@ interface SearchBannerProps {
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
   onCancel: () => void;
+  /** Focus "View progress" when the bar first appears (after a hide). */
+  focusOnMount?: boolean;
 }
 
 /**
- * A running search above the history and results pages: minimised to a
+ * A running search above the page: minimised to a
  * status bar, or expanded to the full progress view with "Hide progress".
  * The page stays underneath either way.
  */
@@ -20,6 +22,7 @@ export const SearchBanner: React.FC<SearchBannerProps> = ({
   expanded,
   onExpandedChange,
   onCancel,
+  focusOnMount = false,
 }) => {
   const viewRef = useRef<HTMLButtonElement>(null);
   const wasExpanded = useRef(expanded);
@@ -30,6 +33,13 @@ export const SearchBanner: React.FC<SearchBannerProps> = ({
     if (wasExpanded.current && !expanded) viewRef.current?.focus();
     wasExpanded.current = expanded;
   }, [expanded]);
+  // Only when the bar first appears, so read the props through refs.
+  const focusOnMountRef = useRef(focusOnMount);
+  useEffect(() => {
+    if (focusOnMountRef.current && !wasExpanded.current) {
+      viewRef.current?.focus();
+    }
+  }, []);
 
   if (!expanded) {
     return (

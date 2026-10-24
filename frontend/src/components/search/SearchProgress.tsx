@@ -103,30 +103,31 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({
   return (
     <div
       className={cn(
-        "mx-auto flex w-full max-w-[880px] flex-col gap-6 px-4 pb-16 pt-8 md:gap-8 md:px-6 md:pb-24 md:pt-[72px]",
+        "mx-auto flex w-full max-w-[880px] flex-col gap-4 px-4 pb-8 pt-5 md:gap-7 md:px-6 md:pb-16 md:pt-10 lg:gap-8 lg:pb-24 lg:pt-[72px]",
         className,
       )}
     >
-      <div className="flex flex-wrap items-center gap-4 md:gap-5">
+      <div className="flex flex-wrap items-center gap-3 md:gap-5">
         <AlbumCover
           src={run.thumb}
           title={params.album}
-          className="h-16 w-16 rounded-[3px] text-sm md:h-[88px] md:w-[88px] md:rounded md:text-base"
+          className="h-14 w-14 rounded-[3px] text-sm md:h-[88px] md:w-[88px] md:rounded md:text-base"
         />
-        <div className="flex min-w-0 flex-[1_1_200px] flex-col gap-1.5">
+        <div className="flex min-w-0 flex-[1_1_200px] flex-col gap-1 md:gap-1.5">
           <p className="font-mono text-xs uppercase tracking-[2px] text-primary-text md:text-[13px]">
             Tracing connections
           </p>
           <h1
             ref={headingRef}
             tabIndex={-1}
-            className="break-words font-display text-[30px] font-normal leading-none tracking-[0.5px] focus:outline-none md:text-[56px]"
+            className="break-words font-display text-[26px] font-normal leading-none tracking-[0.5px] focus:outline-none md:text-[44px] lg:text-[56px]"
           >
             {params.album}
           </h1>
-          <p className="text-[15px] text-muted-foreground md:text-base">
+          <p className="text-sm text-muted-foreground md:text-base">
+            {/* No year: the first search result is one pressing, so its
+                year is often a reissue's, not the album's. */}
             {params.artist}
-            {run.year && run.year !== "0" ? ` · ${run.year}` : ""}
           </p>
         </div>
         <div className="flex w-full gap-2 sm:w-auto">
@@ -151,7 +152,7 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({
 
       <section
         aria-label="Progress"
-        className="flex flex-col gap-6 rounded-xl border bg-surface p-5 md:gap-7 md:p-7"
+        className="flex flex-col gap-4 rounded-xl border bg-surface p-4 md:gap-7 md:p-7"
       >
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -187,7 +188,8 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({
           </p>
         </div>
 
-        <ol className="grid gap-3 md:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
+        {/* Phones: a compact three-step row. From md: a card per step. */}
+        <ol className="grid grid-cols-3 gap-2 md:grid-cols-[repeat(auto-fit,minmax(200px,1fr))] md:gap-3">
           {STAGE_ORDER.map((id, i) => {
             const status = stageStatus(id, activeId);
             return (
@@ -195,7 +197,7 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({
                 key={id}
                 aria-current={status === "active" ? "step" : undefined}
                 className={cn(
-                  "flex items-start gap-3 rounded-lg border p-3.5",
+                  "flex flex-col gap-1.5 rounded-lg border p-2.5 md:flex-row md:items-start md:gap-3 md:p-3.5",
                   stageItem[status],
                 )}
               >
@@ -215,7 +217,7 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({
                 <span className="flex min-w-0 flex-col gap-0.5">
                   <span
                     className={cn(
-                      "text-[15px] font-semibold",
+                      "text-xs font-semibold leading-tight md:text-[15px] md:leading-normal",
                       stageTitle[status],
                     )}
                   >
@@ -228,7 +230,7 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({
                           : ", not started"}
                     </span>
                   </span>
-                  <span className="font-mono text-xs text-faint">
+                  <span className="hidden font-mono text-xs text-faint md:block">
                     {stageDetail(id, status, run)}
                   </span>
                 </span>
@@ -238,7 +240,7 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({
         </ol>
 
         {run.checked.length > 0 && (
-          <div className="flex flex-col gap-2.5 border-t pt-5">
+          <div className="flex flex-col gap-2 border-t pt-4 md:gap-2.5 md:pt-5">
             <h2 className="text-[13px] font-medium text-muted-foreground">
               Just checked
             </h2>
@@ -247,7 +249,9 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({
                 <li
                   key={`${c.name}-${i}`}
                   className={cn(
-                    "flex justify-between gap-4",
+                    // Three on phones, four from md.
+                    "justify-between gap-4",
+                    i < 3 ? "flex" : "hidden md:flex",
                     checkedTone[i] ?? "text-faint",
                   )}
                 >
@@ -263,9 +267,14 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({
       </section>
 
       <p className="text-sm leading-relaxed text-faint">
-        You can keep browsing your library while this runs. We'll let you know
-        when the results are ready. Discogs allows a limited number of requests
-        per minute, which is why this takes a while.
+        <span className="md:hidden">
+          Keep browsing; we'll let you know when it's ready.
+        </span>
+        <span className="hidden md:inline">
+          You can keep browsing your library while this runs. We'll let you know
+          when the results are ready. Discogs allows a limited number of
+          requests per minute, which is why this takes a while.
+        </span>
       </p>
     </div>
   );

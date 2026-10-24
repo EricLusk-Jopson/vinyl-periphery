@@ -3,22 +3,31 @@ import { cn } from "@/lib/utils";
 interface WordmarkProps {
   className?: string;
   onClick?: React.MouseEventHandler<HTMLAnchorElement>;
+  /**
+   * From which width the name shows beside the disc. Below it the name is
+   * read out but not shown, to save room in the header.
+   */
+  nameFrom?: "md" | "lg";
 }
 
 /** Disc mark and name. Links home. */
-export const Wordmark: React.FC<WordmarkProps> = ({ className, onClick }) => (
+export const Wordmark: React.FC<WordmarkProps> = ({
+  className,
+  onClick,
+  nameFrom = "md",
+}) => (
   <a
     href="/"
     onClick={onClick}
     className={cn(
-      "flex items-center gap-2.5 rounded-sm text-foreground no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring",
-      className
+      "flex min-h-11 min-w-11 items-center justify-center gap-2.5 rounded-sm text-foreground no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring",
+      className,
     )}
   >
     <svg
       viewBox="0 0 26 26"
       aria-hidden="true"
-      className="h-[22px] w-[22px] shrink-0 md:h-[26px] md:w-[26px]"
+      className="h-[26px] w-[26px] shrink-0"
     >
       <circle
         cx="13"
@@ -38,7 +47,12 @@ export const Wordmark: React.FC<WordmarkProps> = ({ className, onClick }) => (
       />
       <circle cx="13" cy="13" r="3.5" className="fill-primary" />
     </svg>
-    <span className="font-display text-[22px] leading-none tracking-[1.2px] md:text-[26px] md:tracking-[1.5px]">
+    <span
+      className={cn(
+        "font-display text-[26px] leading-none tracking-[1.5px]",
+        nameFrom === "md" ? "sr-only md:not-sr-only" : "sr-only lg:not-sr-only",
+      )}
+    >
       Vinyl Periphery
     </span>
   </a>

@@ -1,7 +1,7 @@
 import React from "react";
-import { NavLink, useLocation } from "react-router-dom";
-import { Library, Search } from "lucide-react";
-import { LIBRARY_PATH, HOME_PATH } from "@/lib/routes";
+import { Link, NavLink, useLocation } from "react-router-dom";
+import { ChevronLeft, Library, Search } from "lucide-react";
+import { LIBRARY_PATH, HOME_PATH, backLink } from "@/lib/routes";
 import { Wordmark } from "./Wordmark";
 import { cn } from "@/lib/utils";
 
@@ -19,8 +19,10 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onHome, search }) => {
-  const { pathname } = useLocation();
+  const { pathname, state } = useLocation();
   const onHomePage = pathname === HOME_PATH;
+  // On phones the results page's back link lives here, saving a row.
+  const back = pathname.startsWith("/results/") ? backLink(state) : null;
 
   // Glide down to "How it works" rather than jumping, unless the user prefers
   // reduced motion, and move focus to its heading for keyboard users.
@@ -31,12 +33,10 @@ export const Header: React.FC<HeaderProps> = ({ onHome, search }) => {
     const reduce = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
-    heading
-      .closest("section")
-      ?.scrollIntoView({
-        behavior: reduce ? "auto" : "smooth",
-        block: "start",
-      });
+    heading.closest("section")?.scrollIntoView({
+      behavior: reduce ? "auto" : "smooth",
+      block: "start",
+    });
     heading.focus({ preventScroll: true });
   };
 
@@ -49,11 +49,22 @@ export const Header: React.FC<HeaderProps> = ({ onHome, search }) => {
 
   return (
     <header className="border-b bg-background">
-      <div className="mx-auto flex h-14 max-w-[1280px] items-center justify-between gap-4 px-2 pl-4 md:h-16 md:px-6">
-        <Wordmark onClick={handleHome} />
+      <div className="mx-auto flex h-14 max-w-[1280px] items-center justify-between gap-2 px-2 md:h-16 md:gap-4 md:px-6">
+        <div className="flex items-center">
+          {back && (
+            <Link
+              to={back.to}
+              aria-label={back.label}
+              className={cn(iconButton, "md:hidden")}
+            >
+              <ChevronLeft className="h-6 w-6" aria-hidden="true" />
+            </Link>
+          )}
+          <Wordmark onClick={handleHome} nameFrom={onHomePage ? "md" : "lg"} />
+        </div>
 
         {!onHomePage && search && (
-          <div className="ml-auto hidden duration-200 animate-in fade-in lg:block">
+          <div className="ml-auto hidden duration-200 animate-in fade-in md:block">
             {search}
           </div>
         )}
@@ -72,7 +83,7 @@ export const Header: React.FC<HeaderProps> = ({ onHome, search }) => {
               type="button"
               onClick={onHome}
               aria-label="New search"
-              className={cn(iconButton, "lg:hidden")}
+              className={cn(iconButton, "md:hidden")}
             >
               <Search className="h-5 w-5" aria-hidden="true" />
             </button>

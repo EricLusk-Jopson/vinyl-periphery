@@ -16,6 +16,8 @@ export interface SearchFormProps {
    * jiggles and takes focus back (it was disabled while searching).
    */
   failedAttempt?: number;
+  /** The hero button's text while a search runs. */
+  busyLabel?: string;
 }
 
 const focusRing =
@@ -49,6 +51,7 @@ export const SearchForm = React.forwardRef<HTMLFormElement, SearchFormProps>(
       isSearching,
       autoFocus,
       failedAttempt = 0,
+      busyLabel = "Finding the album",
     },
     ref,
   ) => {
@@ -109,7 +112,10 @@ export const SearchForm = React.forwardRef<HTMLFormElement, SearchFormProps>(
             autoComplete="off"
             required
             disabled={isSearching}
-            className={cn(inputBase, "h-11 w-48 bg-surface px-3 text-[15px]")}
+            className={cn(
+              inputBase,
+              "h-11 w-36 bg-surface px-3 text-[15px] lg:w-48",
+            )}
           />
           <label htmlFor={albumId} className="sr-only">
             Album
@@ -123,7 +129,10 @@ export const SearchForm = React.forwardRef<HTMLFormElement, SearchFormProps>(
             autoComplete="off"
             required
             disabled={isSearching}
-            className={cn(inputBase, "h-11 w-56 bg-surface px-3 text-[15px]")}
+            className={cn(
+              inputBase,
+              "h-11 w-44 bg-surface px-3 text-[15px] lg:w-56",
+            )}
           />
           <button
             type="submit"
@@ -153,7 +162,7 @@ export const SearchForm = React.forwardRef<HTMLFormElement, SearchFormProps>(
         aria-busy={isSearching}
         onSubmit={handleSubmit}
         className={cn(
-          "flex flex-col gap-3.5",
+          "flex flex-col gap-3",
           "md:flex-row md:flex-wrap md:items-end md:gap-4 md:rounded-xl md:border md:bg-surface md:p-5",
         )}
       >
@@ -203,7 +212,7 @@ export const SearchForm = React.forwardRef<HTMLFormElement, SearchFormProps>(
           disabled={isSearching}
           className={cn(
             submitBase,
-            "h-[52px] px-5 text-base md:h-12 md:flex-[1_1_160px] lg:max-w-[260px]",
+            "h-12 px-5 text-base md:flex-[1_1_160px] lg:max-w-[260px]",
             shaking && "animate-shake",
           )}
           {...shakeProps}
@@ -217,15 +226,20 @@ export const SearchForm = React.forwardRef<HTMLFormElement, SearchFormProps>(
             <Search className="h-[18px] w-[18px]" aria-hidden="true" />
           )}
           <span className="truncate">
-            {isSearching ? "Finding the album" : "Find connections"}
+            {isSearching ? busyLabel : "Find connections"}
           </span>
         </button>
         <p
           id={hintId}
           className="font-mono text-xs leading-normal text-faint md:basis-full"
         >
-          A full search takes 1 to 3 minutes. Discogs limits how quickly we can
-          read its data.
+          <span className="md:hidden">
+            Takes 1 to 3 minutes. Discogs limits how fast we can read it.
+          </span>
+          <span className="hidden md:inline">
+            A full search takes 1 to 3 minutes. Discogs limits how quickly we
+            can read its data.
+          </span>
         </p>
       </form>
     );

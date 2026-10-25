@@ -1,10 +1,10 @@
 # Analytics
 
-Anonymous usage events go to a tab in the same Google Sheet that
-EuroVisaCalculator uses.
+Anonymous usage events go to their own tab in the Google Sheet that
+EuroVisaCalculator also uses.
 
 ```
-browser  track()  ──sendBeacon──▶  /api/event  ──POST + token──▶  Apps Script  ──▶  "VP Events" sheet
+browser  track()  ──sendBeacon──▶  /api/event  ──POST + VP token──▶  Apps Script  ──▶  "VP Events" sheet
 ```
 
 - The browser sends events to our own `/api/event`, so ad blockers that block
@@ -19,32 +19,49 @@ browser  track()  ──sendBeacon──▶  /api/event  ──POST + token─�
 
 ## Setup
 
-1. **Update the Apps Script.** Open the spreadsheet, then **Extensions → Apps
-   Script**, and replace `doPost` with
-   [`analytics/apps-script.js`](analytics/apps-script.js). Requests without an
-   `app` field (EuroVisaCalculator) behave exactly as before.
-2. **Add the token.** In the script editor, **Project Settings → Script
-   Properties → Add script property**: `VP_TOKEN` with a long random value
-   (for example from `openssl rand -hex 24`).
-3. **Deploy a new version, same URL.** **Deploy → Manage deployments**, edit
+The script serves both sites. Each sends its own token, and the token decides
+the sheet: `EVC_TOKEN` writes to "Events", `VP_TOKEN` to "VP Events". Anything
+without a known token is rejected.
+
+Do these in order. EuroVisaCalculator has to be sending its token before the
+script starts requiring one, or its events are rejected in between.
+
+1. **Make two tokens**, long random values that differ, for example with
+   `openssl rand -hex 24` twice.
+2. **EuroVisaCalculator first.** Merge its token PR, set
+   `PUBLIC_ANALYTICS_TOKEN` to the EVC token in its Vercel project, and
+   redeploy. `PUBLIC_` variables are baked in at build time, so it needs a
+   new build. The current script ignores the extra field, so nothing breaks.
+3. **Update the Apps Script.** Open the spreadsheet, then **Extensions → Apps
+   Script**, and replace the code with
+   [`analytics/apps-script.js`](analytics/apps-script.js). In **Project
+   Settings → Script Properties**, add `EVC_TOKEN` and `VP_TOKEN`.
+4. **Deploy a new version, same URL.** **Deploy → Manage deployments**, edit
    the existing web app deployment, set **Version** to **New version**, and
    deploy. Creating a *new deployment* instead would change the URL and break
    EuroVisaCalculator.
-4. **Set the env vars in Vercel**, for **Production only** so previews and
-   local dev stay out of the sheet:
+5. **Set Vinyl Periphery's env vars in Vercel**, for **Production only** so
+   previews and local dev stay out of the sheet:
 
    | Name | Value |
    |---|---|
-   | `ANALYTICS_URL` | The web app's `/exec` URL (the one EuroVisaCalculator uses) |
-   | `ANALYTICS_TOKEN` | The same value as `VP_TOKEN` |
+   | `ANALYTICS_URL` | The web app's `/exec` URL |
+   | `ANALYTICS_TOKEN` | The VP token |
 
    Redeploy production after adding them. While the site is still on Heroku,
    set the same two config vars there to start collecting now.
 
-The "VP Events" tab is created with a header row on the first event.
+The "VP Events" tab is created with a header row on the first event. "Events"
+also gains a `sessionId` column: EuroVisaCalculator already sends one, but the
+old script dropped it. Add the header to column H by hand.
 
-To test locally, put both variables in `.env` and run `npm run server`. Every
-action in the app then appends a row.
+The Vinyl Periphery token stays on the server. EuroVisaCalculator posts from
+the browser, so its token is visible in the site's JavaScript: it keeps each
+site's rows in the right sheet and stops drive-by posts to the bare URL, but
+anyone who reads the bundle can reuse it.
+
+To test locally, put both Vinyl Periphery variables in `.env` and run
+`npm run server`. Every action in the app then appends a row.
 
 ## Columns
 

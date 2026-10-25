@@ -84,8 +84,9 @@ test("handler forwards a valid event with server fields and answers 204", async 
   assert.equal(sent.length, 1);
   const [url, payload] = sent[0];
   assert.equal(url, "https://script.example/exec");
-  assert.equal(payload.app, "vinyl-periphery");
   assert.equal(payload.token, "t0k");
+  // The script picks the sheet from the token alone.
+  assert.equal("app" in payload, false);
   assert.equal(payload.timestamp, "2026-10-25T12:00:00.000Z");
   assert.equal(payload.userAgent, "UA/1.0");
   assert.equal(payload.event, "search_started");

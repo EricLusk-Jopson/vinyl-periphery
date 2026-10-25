@@ -2,48 +2,43 @@
  * Event log for EuroVisaCalculator and Vinyl Periphery (Google Apps Script,
  * bound to the analytics spreadsheet).
  *
- * EuroVisaCalculator posts without an "app" field and keeps writing to the
- * "Events" sheet exactly as before.
+ * Each app sends its own token, and the token decides the sheet:
  *
- * Vinyl Periphery posts from its server (/api/event) with
- * app: "vinyl-periphery" and a shared token, and writes to "VP Events",
- * which is created with a header row the first time.
+ *   EVC_TOKEN -> "Events"     EuroVisaCalculator, from the browser
+ *   VP_TOKEN  -> "VP Events"  Vinyl Periphery, from its /api/event function
  *
- * Setup: Project Settings > Script Properties > add VP_TOKEN with the same
- * value as ANALYTICS_TOKEN in Vercel. After saving, deploy a NEW VERSION of
- * the existing web app deployment so the /exec URL stays the same.
+ * Requests with a missing or unknown token are rejected.
+ *
+ * Setup: Project Settings > Script Properties > add EVC_TOKEN and VP_TOKEN,
+ * each a different long random value. Then deploy a NEW VERSION of the
+ * existing web app deployment so the /exec URL stays the same. Deploy this
+ * only after EuroVisaCalculator is sending its token, or its events are
+ * rejected in the meantime.
  */
 
-const APPS = {
-  "vinyl-periphery": {
-    sheet: "VP Events",
-    tokenProperty: "VP_TOKEN",
-    headers: [
-      "timestamp",
-      "event",
-      "properties",
-      "url",
-      "referrer",
-      "userAgent",
-      "screenWidth",
-      "sessionId",
-    ],
-  },
-};
+const COLUMNS = [
+  "timestamp",
+  "event",
+  "properties",
+  "url",
+  "referrer",
+  "userAgent",
+  "screenWidth",
+  "sessionId",
+];
+
+const APPS = [
+  { tokenProperty: "EVC_TOKEN", sheet: "Events" },
+  { tokenProperty: "VP_TOKEN", sheet: "VP Events" },
+];
 
 function doPost(e) {
   const lock = LockService.getScriptLock();
   try {
     const data = JSON.parse(e.postData.contents);
 
-    const app = data.app ? APPS[data.app] : null;
-    if (data.app && !app) return text("Error: unknown app");
-    if (app) {
-      const expected = PropertiesService.getScriptProperties().getProperty(
-        app.tokenProperty,
-      );
-      if (!expected || data.token !== expected) return text("Error: unauthorized");
-    }
+    const app = appForToken(data.token);
+    if (!app) return text("Error: unauthorized");
 
     const row = [
       data.timestamp || new Date().toISOString(),
@@ -53,16 +48,12 @@ function doPost(e) {
       data.referrer || "",
       data.userAgent || "",
       data.screenWidth || "",
+      data.sessionId || "",
     ];
-    if (app) row.push(data.sessionId || "");
 
     // Concurrent appendRow calls can land on the same row without a lock.
     lock.waitLock(10000);
-    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = app
-      ? sheetFor(spreadsheet, app)
-      : spreadsheet.getSheetByName("Events");
-    sheet.appendRow(row);
+    sheetFor(app).appendRow(row);
 
     return text("OK");
   } catch (err) {
@@ -72,11 +63,25 @@ function doPost(e) {
   }
 }
 
-function sheetFor(spreadsheet, app) {
+/** The app whose token matches, or null. */
+function appForToken(token) {
+  if (typeof token !== "string" || token === "") return null;
+  const properties = PropertiesService.getScriptProperties();
+  return (
+    APPS.find((app) => {
+      const expected = properties.getProperty(app.tokenProperty);
+      return expected && token === expected;
+    }) || null
+  );
+}
+
+/** The app's sheet, created with a header row if it doesn't exist yet. */
+function sheetFor(app) {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = spreadsheet.getSheetByName(app.sheet);
   if (!sheet) {
     sheet = spreadsheet.insertSheet(app.sheet);
-    sheet.appendRow(app.headers);
+    sheet.appendRow(COLUMNS);
     sheet.setFrozenRows(1);
   }
   return sheet;

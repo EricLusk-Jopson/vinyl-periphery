@@ -9,9 +9,10 @@ import { allowMethods } from "./http.js";
  * token. Always answers 204 for a valid event, even if forwarding fails:
  * analytics must never get in the way of the app.
  *
- * Env: ANALYTICS_URL (Apps Script /exec URL) and ANALYTICS_TOKEN. Without
- * ANALYTICS_URL events are accepted and dropped, which keeps local dev and
- * preview deployments out of the sheet.
+ * Env: ANALYTICS_URL (Apps Script /exec URL) and ANALYTICS_TOKEN, which the
+ * script matches to the "VP Events" sheet. Without ANALYTICS_URL events are
+ * accepted and dropped, which keeps local dev and preview deployments out of
+ * the sheet.
  */
 
 /** Keep in sync with AnalyticsEvent in frontend/src/lib/analytics.ts. */
@@ -151,7 +152,6 @@ export const createEventHandler =
     if (url) {
       try {
         await forward(url, {
-          app: "vinyl-periphery",
           token: token || "",
           timestamp: now().toISOString(),
           ...event,

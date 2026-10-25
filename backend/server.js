@@ -6,6 +6,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import searchHandler from "./handlers/search.js";
 import healthHandler from "./handlers/health.js";
+import eventHandler from "./handlers/event.js";
 
 dotenv.config();
 
@@ -23,6 +24,7 @@ const route = (handler) => (req, res, next) =>
 
 app.all(["/health", "/api/health"], route(healthHandler));
 app.all("/api/search", route(searchHandler));
+app.all("/api/event", route(eventHandler));
 
 // Anything else under /api is a JSON 404, not the app's HTML.
 app.all("/api/*", (req, res) => res.status(404).json({ error: "Not found" }));

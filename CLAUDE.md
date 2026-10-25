@@ -16,6 +16,8 @@ ranks albums by how many of those people worked on them.
   - `search.js`: `GET /api/search` proxies the first Discogs search with the
     app's key and secret.
   - `health.js`: `GET /api/health`.
+  - `event.js`: `POST /api/event` validates analytics events and forwards
+    them to the Google Sheet. See `docs/analytics.md`.
 - `backend/server.js`: Express server that mounts the same handlers, for
   local development (and Heroku until the move to Vercel is finished). In
   production mode it also serves `frontend/dist`.
@@ -66,6 +68,9 @@ switch both run from `main`, so keep `backend/server.js` and
   it can be tested on its own.
 - The redesign does not change data fetching, scoring or the cache shape.
   Note any data gap in the PR instead.
+- New user-facing actions worth measuring get a `track()` call
+  (`src/lib/analytics.ts`). Add the event name to both allowlists and to the
+  table in `docs/analytics.md`.
 - Discogs allows 25 requests a minute unauthenticated, 60 authenticated. Do not
   add Discogs calls from components.
 

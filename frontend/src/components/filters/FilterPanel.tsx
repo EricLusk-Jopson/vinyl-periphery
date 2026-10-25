@@ -7,6 +7,7 @@ import {
   setIncluded,
 } from "@/lib/filters";
 import { resetFilterState } from "@/lib/results";
+import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { Chip } from "./Chip";
 import { FilterGroup } from "./FilterGroup";
@@ -46,6 +47,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
 
   if (!search) return null;
   const { filterState } = search;
+  const changed = (filter: string, on: boolean) =>
+    track("filter_changed", { filter, on });
   const shown = contributors.filter((c) => matchesName(c.name, query));
   const filtering = query.trim() !== "";
 
@@ -75,9 +78,10 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           <h2 className="text-[15px] font-semibold">Filters</h2>
           <button
             type="button"
-            onClick={() =>
-              updateFilterState(searchId, resetFilterState(search))
-            }
+            onClick={() => {
+              changed("reset", true);
+              updateFilterState(searchId, resetFilterState(search));
+            }}
             className="h-8 text-sm font-medium text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
           >
             Reset
@@ -89,17 +93,26 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         <Switch
           label={`Hide ${search.searchParams.artist} releases`}
           checked={filterState.excludeMainArtist}
-          onChange={toggleExcludeMainArtist}
+          onChange={() => {
+            changed("hide_main_artist", !filterState.excludeMainArtist);
+            toggleExcludeMainArtist();
+          }}
         />
         <Switch
           label="Only albums with 2+ shared"
           checked={filterState.collaborationsOnly}
-          onChange={toggleCollaborationsOnly}
+          onChange={() => {
+            changed("two_plus_shared", !filterState.collaborationsOnly);
+            toggleCollaborationsOnly();
+          }}
         />
         <Switch
           label="Hide Various Artists"
           checked={filterState.excludeVarious}
-          onChange={toggleExcludeVarious}
+          onChange={() => {
+            changed("hide_various", !filterState.excludeVarious);
+            toggleExcludeVarious();
+          }}
         />
       </div>
 
@@ -110,8 +123,14 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         scope={filtering ? "matches" : "all"}
         canSelect={shown.some((c) => !c.included)}
         canDeselect={shown.some((c) => c.included)}
-        onSelect={() => setContributors(true)}
-        onDeselect={() => setContributors(false)}
+        onSelect={() => {
+          changed("all_contributors", true);
+          setContributors(true);
+        }}
+        onDeselect={() => {
+          changed("all_contributors", false);
+          setContributors(false);
+        }}
       >
         <label htmlFor={`${id}-filter`} className="sr-only">
           Filter contributors
@@ -140,7 +159,10 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                 included={c.included}
                 available={c.available}
                 unavailableNote="all their roles are switched off"
-                onToggle={() => toggleContributor(c.id)}
+                onToggle={() => {
+                  changed("contributor", !c.included);
+                  toggleContributor(c.id);
+                }}
               />
             ))}
           </div>
@@ -155,8 +177,14 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         total={roles.length}
         canSelect={roles.some((r) => !r.included)}
         canDeselect={roles.some((r) => r.included)}
-        onSelect={() => setRoles(true)}
-        onDeselect={() => setRoles(false)}
+        onSelect={() => {
+          changed("all_roles", true);
+          setRoles(true);
+        }}
+        onDeselect={() => {
+          changed("all_roles", false);
+          setRoles(false);
+        }}
       >
         <div className="flex flex-wrap gap-2">
           {roles.map((r) => (
@@ -166,7 +194,10 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
               included={r.included}
               available={r.available}
               unavailableNote="everyone with this role is switched off"
-              onToggle={() => toggleRole(r.role)}
+              onToggle={() => {
+                changed("role", !r.included);
+                toggleRole(r.role);
+              }}
             />
           ))}
         </div>

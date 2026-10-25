@@ -19,6 +19,8 @@ interface ReleaseRowProps {
   open: boolean;
   onToggle: () => void;
   onSearchFrom: () => void;
+  /** Called when the Discogs link is followed. */
+  onOpenDiscogs?: () => void;
   /** A search is under way; true for this row if it started it. */
   searching: boolean;
   searchingFromHere: boolean;
@@ -39,6 +41,7 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
   open,
   onToggle,
   onSearchFrom,
+  onOpenDiscogs,
   searching,
   searchingFromHere,
 }) => {
@@ -135,6 +138,7 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
           {discogsUrl && (
             <a
               href={discogsUrl}
+              onClick={onOpenDiscogs}
               target="_blank"
               rel="noopener noreferrer"
               className={cn(

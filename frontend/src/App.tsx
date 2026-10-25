@@ -21,6 +21,7 @@ import { ToastAction } from "./components/ui/toast";
 import { useToast } from "./hooks/use-toast";
 import { useSearchRun } from "./hooks/useSearchRun";
 import { useLingering } from "./hooks/useLingering";
+import { pageName, track } from "./lib/analytics";
 import {
   HOME_PATH,
   LIBRARY_PATH,
@@ -114,6 +115,10 @@ const App: React.FC = () => {
     if (activeParams) setFormValues(activeParams);
   }, [activeParams]);
 
+  useEffect(() => {
+    track("page_view", { page: pageName(location.pathname) });
+  }, [location.pathname]);
+
   // The URL decides which search is open: leaving a results page closes it.
   useEffect(() => {
     if (!location.pathname.startsWith("/results/")) clearActiveSearch();
@@ -139,14 +144,17 @@ const App: React.FC = () => {
     setFocusHeroSearch(true);
   }, [navigate]);
 
-  const handleSearch = (params: SearchParams) => {
+  const handleSearch = (
+    params: SearchParams,
+    source: "form" | "result" = "form",
+  ) => {
     setProgressExpanded(true);
-    void start(params);
+    void start(params, source);
   };
 
   const searchFrom = (params: SearchParams) => {
     setFormValues(params);
-    handleSearch(params);
+    handleSearch(params, "result");
   };
 
   // Progress appears once the album is found; until then the form shows the

@@ -27,7 +27,12 @@ npm run client        # frontend on :5173
 ```
 
 Frontend checks, from `frontend/`: `npm run lint`, `npx tsc -b`, `npm test`,
-`npm run build`.
+`npm run build`. Backend tests, from the root: `npm test`.
+
+## Deployment
+
+The site deploys to Vercel: the frontend as static files and each endpoint in
+`api/` as a function. See [docs/deploy.md](docs/deploy.md).
 
 ## Feedback
 

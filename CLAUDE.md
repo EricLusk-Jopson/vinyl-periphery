@@ -7,8 +7,20 @@ ranks albums by how many of those people worked on them.
 
 ## Layout
 
-- `backend/`: Express server. `/api/search` proxies the first Discogs search
-  with the app's key and secret. In production it also serves `frontend/dist`.
+- `api/`: Vercel Functions, one file per endpoint. Each re-exports a handler
+  from `backend/handlers/`.
+- `backend/handlers/`: the request handlers, written against the subset of
+  `req`/`res` that both Express and Vercel's Node runtime provide
+  (`req.query`, `req.body`, `res.status().json()`, `res.setHeader()`). Tests
+  use `node:test` next to each handler.
+  - `search.js`: `GET /api/search` proxies the first Discogs search with the
+    app's key and secret.
+  - `health.js`: `GET /api/health`.
+- `backend/server.js`: Express server that mounts the same handlers, for
+  local development (and Heroku until the move to Vercel is finished). In
+  production mode it also serves `frontend/dist`.
+- `vercel.json`: build settings, the SPA fallback to `index.html`, and asset
+  caching.
 - `frontend/`: React 18, TypeScript, Vite, Tailwind 3, shadcn/ui (Radix),
   TanStack Query.
   - `src/api/`: Discogs calls and the search pipeline (as mutations).
@@ -33,9 +45,11 @@ From the repo root:
 
 - `npm run server`: backend with nodemon (needs `CONSUMER_KEY` and
   `CONSUMER_SECRET` in `.env`)
+- `npm test`: backend handler tests (`node --test`)
 
-Hosting: Heroku (`heroku-postbuild` builds the frontend). A move to Vercel is
-planned after the redesign.
+Hosting: moving from Heroku to Vercel. See `docs/deploy.md`. Until the DNS
+switch both run from `main`, so keep `backend/server.js` and
+`heroku-postbuild` working.
 
 ## Rules
 

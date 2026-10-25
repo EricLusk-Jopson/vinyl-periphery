@@ -1,0 +1,101 @@
+# Analytics
+
+Anonymous usage events go to their own tab in the Google Sheet that
+EuroVisaCalculator also uses.
+
+```
+browser  track()  ──sendBeacon──▶  /api/event  ──POST + VP token──▶  Apps Script  ──▶  "VP Events" sheet
+```
+
+- The browser sends events to our own `/api/event`, so ad blockers that block
+  analytics hosts don't drop them, and the Apps Script URL and token stay on
+  the server.
+- `/api/event` checks the event against an allowlist, cleans the fields, adds
+  the timestamp and user agent, and forwards it. It answers 204 even if the
+  sheet is down. Analytics never affects the app.
+- No cookies or storage. The session id is random, kept in memory, and
+  changes on every page load. No IP addresses are stored. Nothing is sent if
+  the browser signals Global Privacy Control or Do Not Track.
+
+## Setup
+
+The script serves both sites. Each sends its own token, and the token decides
+the sheet: `EVC_TOKEN` writes to "Events", `VP_TOKEN` to "VP Events". Anything
+without a known token is rejected.
+
+Do these in order. EuroVisaCalculator has to be sending its token before the
+script starts requiring one, or its events are rejected in between.
+
+1. **Make two tokens**, long random values that differ, for example with
+   `openssl rand -hex 24` twice.
+2. **EuroVisaCalculator first.** Merge its token PR, set
+   `PUBLIC_ANALYTICS_TOKEN` to the EVC token in its Vercel project, and
+   redeploy. `PUBLIC_` variables are baked in at build time, so it needs a
+   new build. The current script ignores the extra field, so nothing breaks.
+3. **Update the Apps Script.** Open the spreadsheet, then **Extensions → Apps
+   Script**, and replace the code with
+   [`analytics/apps-script.js`](analytics/apps-script.js). In **Project
+   Settings → Script Properties**, add `EVC_TOKEN` and `VP_TOKEN`.
+4. **Deploy a new version, same URL.** **Deploy → Manage deployments**, edit
+   the existing web app deployment, set **Version** to **New version**, and
+   deploy. Creating a *new deployment* instead would change the URL and break
+   EuroVisaCalculator.
+5. **Set Vinyl Periphery's env vars in Vercel**, for **Production only** so
+   previews and local dev stay out of the sheet:
+
+   | Name | Value |
+   |---|---|
+   | `ANALYTICS_URL` | The web app's `/exec` URL |
+   | `ANALYTICS_TOKEN` | The VP token |
+
+   Redeploy production after adding them. While the site is still on Heroku,
+   set the same two config vars there to start collecting now.
+
+The "VP Events" tab is created with a header row on the first event. "Events"
+also gains a `sessionId` column: EuroVisaCalculator already sends one, but the
+old script dropped it. Add the header to column H by hand.
+
+The Vinyl Periphery token stays on the server. EuroVisaCalculator posts from
+the browser, so its token is visible in the site's JavaScript: it keeps each
+site's rows in the right sheet and stops drive-by posts to the bare URL, but
+anyone who reads the bundle can reuse it.
+
+To test locally, put both Vinyl Periphery variables in `.env` and run
+`npm run server`. Every action in the app then appends a row.
+
+## Columns
+
+| Column | Content |
+|---|---|
+| timestamp | Server time, ISO 8601 UTC |
+| event | One of the events below |
+| properties | JSON object with the event's details |
+| url | Path the event happened on, e.g. `/library` |
+| referrer | Where the visitor came from, origin and path only |
+| userAgent | Browser user agent |
+| screenWidth | Window width in CSS pixels |
+| sessionId | Random per page load; groups one visit's events |
+
+## Events
+
+| Event | When | Properties |
+|---|---|---|
+| `page_view` | Every route change, including the first load | `page`: home, library, results |
+| `search_started` | A search begins | `artist`, `album`, `source`: form or result |
+| `search_completed` | Results are stored | `artist`, `album`, `seconds`, `releases_read`, `contributors`, `albums` |
+| `search_not_found` | Discogs has no match | `artist`, `album`, `seconds` |
+| `search_failed` | An error stops the search | `artist`, `album`, `phase`, `seconds`, `error` |
+| `search_cancelled` | The user cancels, or leaves mid-search | `artist`, `album`, `phase`, `seconds` |
+| `example_filled` | An example search fills the form | `artist`, `album` |
+| `result_opened` | A result row is expanded | `rank`, `shared`, `sort` |
+| `discogs_opened` | "View on Discogs" is followed | `rank`, `shared`, `sort` |
+| `filter_changed` | Any filter, switch, select-all or reset | `filter`, `on` |
+| `search_saved` | A search is saved or unsaved | `saved`, `from`: results or library |
+
+## Adding an event
+
+Add the name to `AnalyticsEvent` in `frontend/src/lib/analytics.ts` **and**
+`EVENTS` in `backend/handlers/event.js` (the server drops names it doesn't
+know), call `track()` where it happens, and add a row to the table above.
+Property values must be strings, numbers or booleans; keys are lowercase
+snake_case.

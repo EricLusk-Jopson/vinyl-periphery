@@ -10,6 +10,7 @@ import { MAX_RELEASES } from "@/api/limits";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { coverUrl } from "@/lib/searches";
 import { preloadImage } from "@/lib/preloadImage";
+import { secondsSince, track } from "@/lib/analytics";
 
 const CHECKED_SHOWN = 4;
 /** Longest we wait for the cover before showing progress without it. */
@@ -40,6 +41,9 @@ export interface SearchRun {
   /** Most recent first. */
   checked: CheckedContributor[];
 }
+
+/** Where a search was started from, for analytics. */
+export type SearchSource = "form" | "result";
 
 interface SearchRunOptions {
   onComplete: (searchId: string, params: SearchParams) => void;
@@ -74,11 +78,15 @@ export const useSearchRun = ({
   useEffect(() => () => controllerRef.current?.abort(), []);
 
   const start = useCallback(
-    async (params: SearchParams) => {
+    async (params: SearchParams, source: SearchSource = "form") => {
       if (controllerRef.current) return;
       const controller = new AbortController();
       const { signal } = controller;
       controllerRef.current = controller;
+
+      const startedAt = Date.now();
+      const searched = { artist: params.artist, album: params.album };
+      track("search_started", { ...searched, source });
 
       const update = (changes: Partial<SearchRun>) =>
         setRun((prev) => (prev ? { ...prev, ...changes } : prev));
@@ -115,6 +123,10 @@ export const useSearchRun = ({
           signal,
         });
         if (!searchResults || searchResults.length === 0) {
+          track("search_not_found", {
+            ...searched,
+            seconds: secondsSince(startedAt),
+          });
           callbacksRef.current.onNotFound(params);
           return;
         }
@@ -172,10 +184,24 @@ export const useSearchRun = ({
           releasesRecord,
           thumb,
         );
+        track("search_completed", {
+          ...searched,
+          seconds: secondsSince(startedAt),
+          releases_read: matches,
+          contributors: Object.keys(contributorSet.contributors).length,
+          albums: releasesMap.size,
+        });
         callbacksRef.current.onComplete(searchId, params);
       } catch (error) {
-        if (!isAbortError(error)) {
+        const timing = { ...searched, phase, seconds: secondsSince(startedAt) };
+        if (isAbortError(error)) {
+          track("search_cancelled", timing);
+        } else {
           console.error("Search chain error:", error);
+          track("search_failed", {
+            ...timing,
+            error: error instanceof Error ? error.message.slice(0, 120) : "unknown",
+          });
           callbacksRef.current.onError(error, phase);
         }
       } finally {

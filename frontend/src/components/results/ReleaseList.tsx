@@ -12,6 +12,7 @@ import {
   sharedPeople,
   sortReleases,
 } from "@/lib/results";
+import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import {
@@ -123,21 +124,27 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
 
       {total > 0 ? (
         <ul className="lg:border-t">
-          {shown.map((release) => (
-            <ReleaseRow
-              key={release.id}
-              release={release}
-              people={sharedPeople(release, search.contributors)}
-              searchedAlbum={search.searchParams.album}
-              open={openId === release.id}
-              onToggle={() =>
-                setOpenId((id) => (id === release.id ? null : release.id))
-              }
-              onSearchFrom={() => searchFrom(release)}
-              searching={isSearching}
-              searchingFromHere={isSearching && pendingId === release.id}
-            />
-          ))}
+          {shown.map((release, i) => {
+            const people = sharedPeople(release, search.contributors);
+            const position = { rank: i + 1, shared: people.length, sort };
+            return (
+              <ReleaseRow
+                key={release.id}
+                release={release}
+                people={people}
+                searchedAlbum={search.searchParams.album}
+                open={openId === release.id}
+                onToggle={() => {
+                  if (openId !== release.id) track("result_opened", position);
+                  setOpenId((id) => (id === release.id ? null : release.id));
+                }}
+                onSearchFrom={() => searchFrom(release)}
+                onOpenDiscogs={() => track("discogs_opened", position)}
+                searching={isSearching}
+                searchingFromHere={isSearching && pendingId === release.id}
+              />
+            );
+          })}
         </ul>
       ) : (
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed px-6 py-12 text-center">
@@ -149,9 +156,10 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
           {hasAnyReleases ? (
             <button
               type="button"
-              onClick={() =>
-                updateFilterState(searchId, resetFilterState(search))
-              }
+              onClick={() => {
+                track("filter_changed", { filter: "reset", on: true });
+                updateFilterState(searchId, resetFilterState(search));
+              }}
               className={cn(quietButton, "bg-transparent px-4 text-sm")}
             >
               Reset filters

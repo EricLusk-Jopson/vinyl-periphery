@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Star } from "lucide-react";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { SearchCache } from "@/contexts/cache/types";
+import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { Grain } from "../layout/Grain";
 import { AlbumCover } from "../search/AlbumCover";
@@ -23,6 +24,7 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search }) => {
     setBusy(true);
     try {
       await (saved ? unsaveSearch : saveSearch)(search.searchId);
+      track("search_saved", { saved: !saved, from: "results" });
     } catch (error) {
       console.error("Failed to update saved search:", error);
     } finally {

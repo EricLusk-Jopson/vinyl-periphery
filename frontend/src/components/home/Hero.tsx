@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
 import { SearchParams } from "@/api/types";
+import { track } from "@/lib/analytics";
 import { pickRandom } from "@/lib/random";
 import { EXAMPLE_ALBUMS } from "@/lib/topAlbums";
 import { Grain } from "../layout/Grain";
@@ -42,6 +43,7 @@ export const Hero: React.FC<HeroProps> = (formProps) => {
   // Fill the form rather than search straight away: a search takes minutes
   // and spends Discogs requests, so the user confirms with the button.
   const tryExample = (example: SearchParams) => {
+    track("example_filled", { artist: example.artist, album: example.album });
     onValuesChange(example);
     formRef.current
       ?.querySelector<HTMLButtonElement>('button[type="submit"]')

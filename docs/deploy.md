@@ -25,7 +25,8 @@ move has no downtime.
    | `CONSUMER_KEY` | Discogs consumer key | Production, Preview |
    | `CONSUMER_SECRET` | Discogs consumer secret | Production, Preview |
 
-   Analytics adds two more; see `docs/analytics.md`.
+   For analytics, also add `ANALYTICS_URL` and `ANALYTICS_TOKEN` to
+   Production only; see `docs/analytics.md`.
 4. Deploy. Production deploys come from `main`; every other branch and pull
    request gets its own preview URL.
 

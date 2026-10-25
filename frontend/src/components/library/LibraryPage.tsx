@@ -11,6 +11,7 @@ import {
   resultPath,
 } from "@/lib/routes";
 import { recentSearches, searchStartedAt, timeAgo } from "@/lib/searches";
+import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { AlbumCover } from "../search/AlbumCover";
 
@@ -191,10 +192,11 @@ export const LibraryPage: React.FC = () => {
     });
   };
 
-  const toggleSave = (searchId: string) =>
-    savedSearchIds.has(searchId)
-      ? unsaveSearch(searchId)
-      : saveSearch(searchId);
+  const toggleSave = async (searchId: string) => {
+    const saved = savedSearchIds.has(searchId);
+    await (saved ? unsaveSearch : saveSearch)(searchId);
+    track("search_saved", { saved: !saved, from: "library" });
+  };
 
   return (
     <div className="mx-auto w-full max-w-[1200px] px-4 pb-24 pt-8 md:px-6 md:pt-14">

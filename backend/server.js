@@ -1,53 +1,49 @@
+// Express server for local development, and for Heroku until the move to
+// Vercel is complete. On Vercel the same handlers run as functions in /api.
 import express from "express";
 import dotenv from "dotenv";
 import path from "path";
-import cors from "cors";
 import { fileURLToPath } from "url";
+import searchHandler from "./handlers/search.js";
+import healthHandler from "./handlers/health.js";
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const distDir = path.join(__dirname, "../frontend/dist");
 
 const port = process.env.PORT || 5000;
 const app = express();
 
-// Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
-app.use(cors());
+app.use(express.json({ limit: "16kb" }));
 
-// Health check endpoint
-app.get("/health", (req, res) => {
-  res.status(200).json({
-    status: "ok",
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV,
-  });
-});
+/** Runs a shared handler, passing async errors to the error middleware. */
+const route = (handler) => (req, res, next) =>
+  Promise.resolve(handler(req, res)).catch(next);
 
-// API routes
-app.use("/api/search", (await import("./routes/search.js")).default);
+app.all(["/health", "/api/health"], route(healthHandler));
+app.all("/api/search", route(searchHandler));
 
-// Serve frontend
+// Anything else under /api is a JSON 404, not the app's HTML.
+app.all("/api/*", (req, res) => res.status(404).json({ error: "Not found" }));
+
 if (process.env.NODE_ENV === "production") {
-  // Serve static files from the React app
-  app.use(express.static(path.join(__dirname, "../frontend/dist"))); // Note: changed build to dist for Vite
-
-  // Handle React routing, return all requests to React app
-  app.get("*", (req, res) => {
-    res.sendFile(path.resolve(__dirname, "../frontend/dist/index.html"));
-  });
+  // Built frontend, with index.html for client-side routes (/library,
+  // /results/...). On Vercel, vercel.json does the same.
+  app.use(express.static(distDir));
+  app.get("*", (req, res) => res.sendFile(path.join(distDir, "index.html")));
 } else {
-  app.get("/", (req, res) => res.send("Server running in development mode"));
+  app.get("/", (req, res) =>
+    res.send("API server running. Open the Vite dev server for the app."),
+  );
 }
 
-// Error handling middleware
+// eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({
-    message: "Something broke!",
-    error: process.env.NODE_ENV === "development" ? err.message : undefined,
+    error: "Something went wrong",
+    detail: process.env.NODE_ENV === "development" ? err.message : undefined,
   });
 });
 

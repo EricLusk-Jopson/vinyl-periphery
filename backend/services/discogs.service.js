@@ -139,4 +139,21 @@ class DiscogsService {
   }
 }
 
+let client = null;
+
+/**
+ * The shared Discogs client, created on first use so a missing key fails the
+ * request that needs it instead of the whole server or function at import.
+ */
+export function getDiscogs() {
+  if (!client) {
+    client = new DiscogsService({
+      consumerKey: process.env.CONSUMER_KEY,
+      consumerSecret: process.env.CONSUMER_SECRET,
+      userAgent: "VinylPeriphery/1.0.0",
+    });
+  }
+  return client;
+}
+
 export default DiscogsService;

@@ -1,5 +1,7 @@
 /** URL paths and where the results page's back link goes. */
 
+import type { SearchParams } from "@/api/types";
+
 export type LibraryTab = "session" | "saved";
 
 export const HOME_PATH = "/";
@@ -12,9 +14,38 @@ export const libraryPath = (tab: LibraryTab = "session"): string =>
 export const libraryTab = (search: string): LibraryTab =>
   new URLSearchParams(search).get("tab") === "saved" ? "saved" : "session";
 
-/** Search ids contain spaces and punctuation, so they are encoded. */
-export const resultPath = (searchId: string): string =>
-  `/results/${encodeURIComponent(searchId)}`;
+export const RESULTS_PATH = "/results";
+
+/**
+ * A search's results page. The URL names the album rather than a cached
+ * search, so it works on any device: where the search isn't cached, the page
+ * offers to run it.
+ */
+export const resultPath = ({ artist, album }: SearchParams): string =>
+  `${RESULTS_PATH}?${new URLSearchParams({
+    artist: artist.trim(),
+    album: album.trim(),
+  })}`;
+
+/** The search named in a results page's query, or null if incomplete. */
+export const resultParams = (search: string): SearchParams | null => {
+  const query = new URLSearchParams(search);
+  const artist = query.get("artist")?.trim() ?? "";
+  const album = query.get("album")?.trim() ?? "";
+  return artist && album ? { artist, album } : null;
+};
+
+/**
+ * The album in an old `/results/<artist>-<album>-<timestamp>` id, when it
+ * splits only one way. Ids whose names contain a hyphen are ambiguous.
+ */
+export const legacyResultParams = (searchId: string): SearchParams | null => {
+  const match = /^(.+)-\d+$/.exec(searchId);
+  const parts = match?.[1].split("-") ?? [];
+  if (parts.length !== 2) return null;
+  const [artist, album] = parts.map((part) => part.trim());
+  return artist && album ? { artist, album } : null;
+};
 
 /** Router state passed when opening a result, naming where it came from. */
 export type ResultFrom =

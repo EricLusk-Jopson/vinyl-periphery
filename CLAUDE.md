@@ -31,8 +31,10 @@ ranks albums by how many of those people worked on them.
   - `src/lib/transformers/`: role and name cleanup, with Jest tests.
   - `src/components/ui/`: shadcn primitives. Edit sparingly.
   - Routes (React Router): `/` home, `/library` (`?tab=saved`), and
-    `/results/:searchId` with the search id URL-encoded. Route helpers live
-    in `src/lib/routes.ts`.
+    `/results?artist=…&album=…`. A results URL names the album, not a cached
+    search, so it works on any device: without the search cached, the page
+    offers to run it. Old `/results/:searchId` links redirect. Route helpers
+    live in `src/lib/routes.ts`.
 - `docs/redesign/`: the current UI redesign. Read `DESIGN.md` before any UI
   work.
 

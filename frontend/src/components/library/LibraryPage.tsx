@@ -60,7 +60,7 @@ const LibraryCard: React.FC<LibraryCardProps> = ({
   return (
     <li className="flex min-w-0 items-center gap-1 rounded-[10px] border bg-surface pr-2 transition-colors hover:border-border-strong">
       <Link
-        to={resultPath(search.searchId)}
+        to={resultPath(search.searchParams)}
         state={from}
         data-library-open
         className={cn(

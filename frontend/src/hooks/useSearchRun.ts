@@ -43,7 +43,8 @@ export interface SearchRun {
 }
 
 /** Where a search was started from, for analytics. */
-export type SearchSource = "form" | "result";
+/** Where a search was started: the form, a result row, or a results link. */
+export type SearchSource = "form" | "result" | "link";
 
 interface SearchRunOptions {
   onComplete: (searchId: string, params: SearchParams) => void;

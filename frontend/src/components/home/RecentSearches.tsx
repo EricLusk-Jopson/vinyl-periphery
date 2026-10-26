@@ -50,7 +50,7 @@ export const RecentSearches: React.FC = () => {
           return (
             <li key={search.searchId} className="min-w-0">
               <Link
-                to={resultPath(search.searchId)}
+                to={resultPath(search.searchParams)}
                 state={FROM_HOME}
                 className="flex w-full items-center gap-3 rounded-[10px] border bg-surface p-2.5 text-left transition-colors hover:border-border-strong hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring md:gap-4 md:p-3.5"
               >

@@ -4,6 +4,7 @@ describe("pageName", () => {
   it("groups paths into pages", () => {
     expect(pageName("/")).toBe("home");
     expect(pageName("/library")).toBe("library");
+    expect(pageName("/results")).toBe("results");
     expect(pageName("/results/Talk%20Talk-Spirit-1")).toBe("results");
     expect(pageName("/elsewhere")).toBe("other");
   });

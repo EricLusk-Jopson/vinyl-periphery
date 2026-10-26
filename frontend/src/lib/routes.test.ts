@@ -2,15 +2,48 @@ import {
   backLink,
   fromLocation,
   libraryPath,
+  legacyResultParams,
   libraryTab,
+  resultParams,
   resultPath,
 } from "./routes";
 
 describe("resultPath", () => {
-  it("encodes the search id", () => {
-    expect(resultPath("AC/DC-Back in Black-1700000000000")).toBe(
-      "/results/AC%2FDC-Back%20in%20Black-1700000000000",
+  it("names the album in the query", () => {
+    expect(resultPath({ artist: " AC/DC ", album: "Back in Black & Blue" })).toBe(
+      "/results?artist=AC%2FDC&album=Back+in+Black+%26+Blue",
     );
+  });
+
+  it("round-trips through resultParams", () => {
+    const params = { artist: "Sigur Rós", album: "( )" };
+    expect(resultParams(resultPath(params).split("?")[1])).toEqual(params);
+  });
+});
+
+describe("resultParams", () => {
+  it("needs both an artist and an album", () => {
+    expect(resultParams("?artist=Talk+Talk&album=Spirit+of+Eden")).toEqual({
+      artist: "Talk Talk",
+      album: "Spirit of Eden",
+    });
+    expect(resultParams("?artist=Talk+Talk")).toBeNull();
+    expect(resultParams("?artist=+&album=Spirit")).toBeNull();
+    expect(resultParams("")).toBeNull();
+  });
+});
+
+describe("legacyResultParams", () => {
+  it("reads old ids that split one way", () => {
+    expect(legacyResultParams("Talk Talk-Spirit of Eden-1700000000000")).toEqual(
+      { artist: "Talk Talk", album: "Spirit of Eden" },
+    );
+  });
+
+  it("gives up on hyphenated names and odd ids", () => {
+    expect(legacyResultParams("Jay-Z-The Blueprint-1700000000000")).toBeNull();
+    expect(legacyResultParams("Talk Talk-Spirit of Eden")).toBeNull();
+    expect(legacyResultParams("junk")).toBeNull();
   });
 });
 
@@ -49,6 +82,6 @@ describe("fromLocation", () => {
       tab: "saved",
     });
     expect(fromLocation("/", "")).toEqual({ from: "home" });
-    expect(fromLocation("/results/x", "")).toEqual({ from: "home" });
+    expect(fromLocation("/results", "?artist=a&album=b")).toEqual({ from: "home" });
   });
 });

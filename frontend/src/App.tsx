@@ -13,18 +13,22 @@ import { Header } from "./components/layout/Header";
 import { Footer } from "./components/layout/Footer";
 import { Home } from "./components/home/Home";
 import { LibraryPage } from "./components/library/LibraryPage";
-import { ResultsPage } from "./components/results/ResultsPage";
+import {
+  LegacyResultsRedirect,
+  ResultsPage,
+} from "./components/results/ResultsPage";
 import { SearchForm } from "./components/search/SearchForm";
 import { SearchProgress } from "./components/search/SearchProgress";
 import { SearchBanner } from "./components/search/SearchBanner";
 import { ToastAction } from "./components/ui/toast";
 import { useToast } from "./hooks/use-toast";
-import { useSearchRun } from "./hooks/useSearchRun";
+import { SearchSource, useSearchRun } from "./hooks/useSearchRun";
 import { useLingering } from "./hooks/useLingering";
 import { pageName, track } from "./lib/analytics";
 import {
   HOME_PATH,
   LIBRARY_PATH,
+  RESULTS_PATH,
   fromLocation,
   resultPath,
 } from "./lib/routes";
@@ -62,19 +66,26 @@ const App: React.FC = () => {
   watchingRef.current = progressExpanded;
 
   const openResult = useCallback(
-    (searchId: string) => {
-      const { pathname, search } = locationRef.current;
-      navigate(resultPath(searchId), { state: fromLocation(pathname, search) });
+    (params: SearchParams) => {
+      const { pathname, search, state } = locationRef.current;
+      const to = resultPath(params);
+      // Already on this results page (run from a link): stay, keeping its
+      // back link, rather than stacking a second history entry.
+      if (pathname + search === to) {
+        navigate(to, { replace: true, state });
+        return;
+      }
+      navigate(to, { state: fromLocation(pathname, search) });
     },
     [navigate],
   );
 
   const { run, isSearching, start, cancel } = useSearchRun({
-    onComplete: (searchId, params) => {
+    onComplete: (_searchId, params) => {
       // Open the results if the user is watching the search; otherwise say
       // they are ready and let them choose.
       if (watchingRef.current) {
-        openResult(searchId);
+        openResult(params);
         return;
       }
       toast({
@@ -83,7 +94,7 @@ const App: React.FC = () => {
         action: (
           <ToastAction
             altText="View results"
-            onClick={() => openResult(searchId)}
+            onClick={() => openResult(params)}
           >
             View results
           </ToastAction>
@@ -121,7 +132,7 @@ const App: React.FC = () => {
 
   // The URL decides which search is open: leaving a results page closes it.
   useEffect(() => {
-    if (!location.pathname.startsWith("/results/")) clearActiveSearch();
+    if (location.pathname !== RESULTS_PATH) clearActiveSearch();
   }, [location.pathname, clearActiveSearch]);
 
   // On each page change: start at the top, with a running search minimised.
@@ -146,7 +157,7 @@ const App: React.FC = () => {
 
   const handleSearch = (
     params: SearchParams,
-    source: "form" | "result" = "form",
+    source: SearchSource = "form",
   ) => {
     setProgressExpanded(true);
     void start(params, source);
@@ -217,13 +228,22 @@ const App: React.FC = () => {
           />
           <Route path={LIBRARY_PATH} element={<LibraryPage />} />
           <Route
-            path="/results/:searchId"
+            path={RESULTS_PATH}
             element={
               <ResultsPage
                 onSearchFrom={searchFrom}
+                onRunSearch={(params) => {
+                  setFormValues(params);
+                  handleSearch(params, "link");
+                }}
                 isSearching={isSearching}
               />
             }
+          />
+          {/* Links from before the URL named the album. */}
+          <Route
+            path={`${RESULTS_PATH}/:searchId`}
+            element={<LegacyResultsRedirect />}
           />
           <Route path="*" element={<Navigate to={HOME_PATH} replace />} />
         </Routes>

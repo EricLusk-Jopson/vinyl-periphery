@@ -46,7 +46,7 @@ const sessionId = randomId();
 export const pageName = (pathname: string): string => {
   if (pathname === "/") return "home";
   if (pathname === "/library") return "library";
-  if (pathname.startsWith("/results/")) return "results";
+  if (pathname === "/results" || pathname.startsWith("/results/")) return "results";
   return "other";
 };
 

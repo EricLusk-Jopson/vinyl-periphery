@@ -1,9 +1,16 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { Link, Navigate, useLocation, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { SearchParams } from "@/api/types";
 import { useCache } from "@/contexts/cache/CacheContext";
-import { LIBRARY_PATH, HOME_PATH, backLink, resultPath } from "@/lib/routes";
+import {
+  HOME_PATH,
+  backLink,
+  legacyResultParams,
+  resultParams,
+  resultPath,
+} from "@/lib/routes";
+import { sameSearchIds } from "@/lib/searches";
 import { cn } from "@/lib/utils";
 import { FilterPanel } from "../filters/FilterPanel";
 import { FilterFrame } from "../filters/FilterFrame";
@@ -12,71 +19,77 @@ import { ReleaseList } from "./ReleaseList";
 
 interface ResultsPageProps {
   onSearchFrom: (params: SearchParams) => void;
+  /** Runs the search named in the URL, when it isn't cached here. */
+  onRunSearch: (params: SearchParams) => void;
   isSearching: boolean;
 }
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
 
-/** /results/:searchId — one search's results, with a way back. */
+const primaryButton = cn(
+  "inline-flex h-11 items-center rounded-lg bg-primary px-4 font-semibold text-primary-foreground hover:bg-primary-dark disabled:pointer-events-none disabled:opacity-60",
+  focusRing,
+);
+
+const secondaryButton = cn(
+  "inline-flex h-11 items-center rounded-lg border border-border-strong px-4 font-medium text-foreground hover:bg-secondary",
+  focusRing,
+);
+
+/**
+ * /results?artist=…&album=… — one search's results, with a way back. The URL
+ * names the album, so on a device without that search cached (a shared link,
+ * or a session that has ended) the page offers to run it.
+ */
 export const ResultsPage: React.FC<ResultsPageProps> = ({
   onSearchFrom,
+  onRunSearch,
   isSearching,
 }) => {
-  const { searchId = "" } = useParams();
   const location = useLocation();
-  const { searches, setActiveSearch, savedSearchesLoaded, replacedBy } =
-    useCache();
+  const params = useMemo(
+    () => resultParams(location.search),
+    [location.search],
+  );
+  const { searches, setActiveSearch, savedSearchesLoaded } = useCache();
+  // One cached search per album: a repeat run replaces the earlier one.
+  const searchId = params ? sameSearchIds(searches, params)[0] ?? "" : "";
   const search = searches[searchId];
   const back = backLink(location.state);
 
   // Keep the cache's active search in step with the URL.
-  const found = Boolean(search);
   useEffect(() => {
-    if (found) setActiveSearch(searchId);
-  }, [found, searchId, setActiveSearch]);
+    if (searchId) setActiveSearch(searchId);
+  }, [searchId, setActiveSearch]);
 
-  if (!search && replacedBy[searchId]) {
-    // This search was run again; show the newer results instead.
-    return (
-      <Navigate
-        to={resultPath(replacedBy[searchId])}
-        state={location.state}
-        replace
-      />
-    );
-  }
+  if (!params) return <Navigate to={HOME_PATH} replace />;
 
   if (!search) {
-    // A saved search opened by URL may still be loading from IndexedDB.
+    // A saved search may still be loading from IndexedDB.
     if (!savedSearchesLoaded) return null;
     return (
       <div className="mx-auto flex max-w-[640px] flex-col items-center gap-3 px-4 py-20 text-center">
+        <p className="text-sm text-muted-foreground">{params.artist}</p>
         <h1 className="font-display text-[30px] font-normal leading-none md:text-[34px]">
-          This search isn't available
+          {params.album}
         </h1>
-        <p className="text-muted-foreground">
-          Searches last until you close the tab, unless you save them. Run it
-          again, or look in your library.
+        <p className="mt-2 text-muted-foreground">
+          This search isn't on this device yet. Running it reads everyone
+          credited on the album and their other work, which takes about a
+          minute.
         </p>
-        <div className="mt-2 flex gap-3">
-          <Link
-            to={HOME_PATH}
-            className={cn(
-              "inline-flex h-11 items-center rounded-lg bg-primary px-4 font-semibold text-primary-foreground hover:bg-primary-dark",
-              focusRing,
-            )}
+        <div className="mt-2 flex flex-wrap justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => onRunSearch(params)}
+            disabled={isSearching}
+            className={primaryButton}
           >
+            {isSearching ? "Search in progress" : "Run this search"}
+          </button>
+          <Link to={HOME_PATH} className={secondaryButton}>
             New search
-          </Link>
-          <Link
-            to={LIBRARY_PATH}
-            className={cn(
-              "inline-flex h-11 items-center rounded-lg border border-border-strong px-4 font-medium text-foreground hover:bg-secondary",
-              focusRing,
-            )}
-          >
-            Library
           </Link>
         </div>
       </div>
@@ -120,5 +133,23 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
         </div>
       </div>
     </div>
+  );
+};
+
+/**
+ * /results/:searchId, the URL before it named the album. Sends the link on to
+ * the new URL: from the cached search, the one that replaced it, or the
+ * names in the id where they split one way.
+ */
+export const LegacyResultsRedirect: React.FC = () => {
+  const { searchId = "" } = useParams();
+  const { state } = useLocation();
+  const { searches, savedSearchesLoaded, replacedBy } = useCache();
+  const cached = searches[searchId] ?? searches[replacedBy[searchId]];
+  const params = cached?.searchParams ?? legacyResultParams(searchId);
+
+  if (!params && !savedSearchesLoaded) return null;
+  return (
+    <Navigate to={params ? resultPath(params) : HOME_PATH} state={state} replace />
   );
 };

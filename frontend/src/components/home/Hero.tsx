@@ -116,7 +116,7 @@ export const Hero: React.FC<HeroProps> = (formProps) => {
         </div>
 
         {mobileExamples.length > 0 && (
-          <div className="flex flex-col gap-2 px-4 pb-10 md:hidden">
+          <div className="flex flex-col gap-2 px-4 pb-8 md:hidden">
             <span className="text-sm text-faint">Try</span>
             <div className="grid grid-cols-2 gap-2">
               {mobileExamples.map((example) => (

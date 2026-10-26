@@ -19,7 +19,7 @@ export const HowItWorks: React.FC = () => (
   <section
     id="how"
     aria-labelledby="how-heading"
-    className="mx-auto w-full max-w-[1200px] scroll-mt-4 px-4 pb-10 pt-20 md:px-6 md:pb-24 md:pt-14"
+    className="mx-auto w-full max-w-[1200px] scroll-mt-4 px-4 pb-10 pt-16 md:px-6 md:pb-24 md:pt-14"
   >
     <h2
       id="how-heading"

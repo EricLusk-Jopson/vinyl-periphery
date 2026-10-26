@@ -104,19 +104,19 @@ export const Hero: React.FC<HeroProps> = (formProps) => {
     <section className="relative overflow-hidden md:border-b">
       <Grain className="hidden opacity-[0.14] md:block" />
       <div className="relative mx-auto max-w-[1200px] md:flex md:flex-col md:gap-6 md:px-6 md:pb-16 md:pt-12 lg:gap-7 lg:pb-24 lg:pt-16">
-        <div className="relative flex flex-col gap-2.5 overflow-hidden border-b px-4 pb-5 pt-6 md:contents md:border-0 md:p-0">
+        <div className="relative flex flex-col gap-2.5 overflow-hidden border-b px-4 pb-8 pt-10 md:contents md:border-0 md:p-0">
           <Grain className="opacity-[0.14] md:hidden" />
           <div className="relative flex flex-col gap-2.5 md:contents">
             <Intro />
           </div>
         </div>
 
-        <div className="px-4 pb-5 pt-7 md:mt-3 md:max-w-[920px] md:p-0">
+        <div className="px-4 pb-5 pt-9 md:mt-3 md:max-w-[920px] md:p-0">
           <SearchForm ref={formRef} variant="hero" {...formProps} />
         </div>
 
         {mobileExamples.length > 0 && (
-          <div className="flex flex-col gap-2 px-4 pb-8 md:hidden">
+          <div className="flex flex-col gap-2 px-4 pb-10 md:hidden">
             <span className="text-sm text-faint">Try</span>
             <div className="grid grid-cols-2 gap-2">
               {mobileExamples.map((example) => (

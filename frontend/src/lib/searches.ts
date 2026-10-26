@@ -1,4 +1,5 @@
 import { SearchCache } from "@/contexts/cache/types";
+import { discogsWebUrl } from "./results";
 
 /**
  * When a search ran. Search ids end in `-<Date.now()>`; anything without a
@@ -34,6 +35,29 @@ export const coverUrl = (
   result: { thumb?: string; cover_image?: string } | undefined,
 ): string =>
   usableImageUrl(result?.thumb) || usableImageUrl(result?.cover_image);
+
+/**
+ * The Discogs page for a searched album: its master when it has one, so the
+ * link isn't tied to one pressing, else the top matching release.
+ */
+export const albumDiscogsUrl = (
+  result: { master_url?: string | null; resource_url?: string } | undefined,
+): string | null =>
+  discogsWebUrl(result?.master_url ?? undefined) ??
+  discogsWebUrl(result?.resource_url);
+
+/**
+ * Where a library card links on Discogs. Searches saved before the album's
+ * page was stored link to a Discogs search for it instead.
+ */
+export const searchDiscogsUrl = (
+  search: Pick<SearchCache, "discogsUrl" | "searchParams">,
+): string => {
+  if (search.discogsUrl) return search.discogsUrl;
+  const { artist, album } = search.searchParams;
+  const q = encodeURIComponent(`${artist} ${album}`.trim());
+  return `https://www.discogs.com/search/?q=${q}&type=all`;
+};
 
 /** Up to two initials for a cover placeholder: "Spirit of Eden" -> "SE". */
 export const titleInitials = (title: string): string => {

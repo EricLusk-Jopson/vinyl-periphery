@@ -129,7 +129,8 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
       params: SearchParams,
       contributorSet: ContributorSet,
       releases: Record<number, EnrichedRelease>,
-      thumb: string
+      thumb: string,
+      discogsUrl?: string | null
     ): string => {
       const searchId = `${params.artist}-${params.album}-${Date.now()}`;
 
@@ -175,6 +176,7 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
         releases,
         filterState,
         thumb,
+        ...(discogsUrl ? { discogsUrl } : {}),
         ...(wasSaved ? { savedAt: Date.now() } : {}),
       };
 

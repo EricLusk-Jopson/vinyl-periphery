@@ -1,7 +1,9 @@
 import {
+  albumDiscogsUrl,
   coverUrl,
   recentSearches,
   sameSearchIds,
+  searchDiscogsUrl,
   searchStartedAt,
   timeAgo,
   titleInitials,
@@ -124,6 +126,50 @@ describe("coverUrl", () => {
   it("returns an empty string when neither is usable", () => {
     expect(coverUrl({ thumb: SPACER, cover_image: SPACER })).toBe("");
     expect(coverUrl(undefined)).toBe("");
+  });
+});
+
+describe("albumDiscogsUrl", () => {
+  it("prefers the master", () => {
+    expect(
+      albumDiscogsUrl({
+        master_url: "https://api.discogs.com/masters/10362",
+        resource_url: "https://api.discogs.com/releases/249504",
+      }),
+    ).toBe("https://www.discogs.com/master/10362");
+  });
+
+  it("falls back to the release when there is no master", () => {
+    expect(
+      albumDiscogsUrl({
+        master_url: null,
+        resource_url: "https://api.discogs.com/releases/249504",
+      }),
+    ).toBe("https://www.discogs.com/release/249504");
+  });
+
+  it("is null when neither is a Discogs release or master", () => {
+    expect(albumDiscogsUrl({ resource_url: "" })).toBeNull();
+    expect(albumDiscogsUrl(undefined)).toBeNull();
+  });
+});
+
+describe("searchDiscogsUrl", () => {
+  const searchParams = { artist: "Talk Talk", album: "Spirit of Eden" };
+
+  it("uses the stored page", () => {
+    expect(
+      searchDiscogsUrl({
+        searchParams,
+        discogsUrl: "https://www.discogs.com/master/10362",
+      }),
+    ).toBe("https://www.discogs.com/master/10362");
+  });
+
+  it("searches Discogs for searches stored without one", () => {
+    expect(searchDiscogsUrl({ searchParams })).toBe(
+      "https://www.discogs.com/search/?q=Talk%20Talk%20Spirit%20of%20Eden&type=all",
+    );
   });
 });
 

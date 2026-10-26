@@ -19,6 +19,8 @@ export interface SearchCache {
     excludeVarious: boolean;
   };
   thumb: string;
+  /** The searched album on Discogs. Missing on searches stored before it. */
+  discogsUrl?: string;
   savedAt?: number;
 }
 
@@ -40,7 +42,8 @@ export interface CacheContextValue extends CacheState {
     params: SearchParams,
     contributorSet: ContributorSet,
     releases: Record<number, EnrichedRelease>,
-    thumb: string
+    thumb: string,
+    discogsUrl?: string | null
   ) => string;
   updateFilterState: (
     searchId: string,

@@ -8,7 +8,7 @@ import { EnrichedRelease, SearchParams, SearchStage } from "@/api/types";
 import { isAbortError, throwIfAborted } from "@/api/abort";
 import { MAX_RELEASES } from "@/api/limits";
 import { useCache } from "@/contexts/cache/CacheContext";
-import { coverUrl } from "@/lib/searches";
+import { albumDiscogsUrl, coverUrl } from "@/lib/searches";
 import { preloadImage } from "@/lib/preloadImage";
 import { secondsSince, track } from "@/lib/analytics";
 
@@ -184,6 +184,7 @@ export const useSearchRun = ({
           contributorSet,
           releasesRecord,
           thumb,
+          albumDiscogsUrl(searchResults[0]),
         );
         track("search_completed", {
           ...searched,

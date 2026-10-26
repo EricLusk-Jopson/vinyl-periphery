@@ -1,6 +1,6 @@
 import React, { useId, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowUpRight, Star, Trash2 } from "lucide-react";
+import { Star, Trash2 } from "lucide-react";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { SearchCache } from "@/contexts/cache/types";
 import {
@@ -10,12 +10,7 @@ import {
   libraryTab,
   resultPath,
 } from "@/lib/routes";
-import {
-  recentSearches,
-  searchDiscogsUrl,
-  searchStartedAt,
-  timeAgo,
-} from "@/lib/searches";
+import { recentSearches, searchStartedAt, timeAgo } from "@/lib/searches";
 import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { AlbumCover } from "../search/AlbumCover";
@@ -93,17 +88,6 @@ const LibraryCard: React.FC<LibraryCardProps> = ({
       </Link>
       {/* Always visible, not only on hover, so touch and keyboard users
           can reach them. */}
-      <a
-        href={searchDiscogsUrl(search)}
-        onClick={() => track("discogs_opened", { from: "library" })}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label={`View ${album} on Discogs (opens in a new tab)`}
-        title="View on Discogs"
-        className={cn(iconButton, "text-muted-foreground hover:text-foreground")}
-      >
-        <ArrowUpRight className="h-[18px] w-[18px]" aria-hidden="true" />
-      </a>
       <button
         type="button"
         onClick={run(onToggleSave)}

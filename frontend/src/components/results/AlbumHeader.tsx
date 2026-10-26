@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { Star } from "lucide-react";
+import { ArrowUpRight, Star } from "lucide-react";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { SearchCache } from "@/contexts/cache/types";
 import { track } from "@/lib/analytics";
+import { searchDiscogsUrl } from "@/lib/searches";
 import { cn } from "@/lib/utils";
 import { Grain } from "../layout/Grain";
 import { AlbumCover } from "../search/AlbumCover";
@@ -11,7 +12,10 @@ interface AlbumHeaderProps {
   search: SearchCache;
 }
 
-/** The searched album above its results: cover, title, meta and Save. */
+/**
+ * The searched album above its results: cover, title, meta, a link to it on
+ * Discogs, and Save.
+ */
 export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search }) => {
   const { isSearchSaved, saveSearch, unsaveSearch } = useCache();
   const [busy, setBusy] = useState(false);
@@ -53,6 +57,19 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search }) => {
             <span className="hidden md:inline">credited </span>
             {contributorCount === 1 ? "contributor" : "contributors"}
           </p>
+          {/* Negative margins keep the 44px target without spacing the
+              header out. */}
+          <a
+            href={searchDiscogsUrl(search)}
+            onClick={() => track("discogs_opened", { from: "header" })}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="-my-2.5 inline-flex min-h-11 items-center gap-1 self-start rounded-sm text-[13px] text-primary-text transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring md:-my-1.5 md:text-sm"
+          >
+            View on Discogs
+            <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+            <span className="sr-only">(opens in a new tab)</span>
+          </a>
         </div>
         <button
           type="button"

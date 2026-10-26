@@ -47,7 +47,7 @@ export const albumDiscogsUrl = (
   discogsWebUrl(result?.resource_url);
 
 /**
- * Where a library card links on Discogs. Searches saved before the album's
+ * Where the searched album links on Discogs. Searches saved before the album's
  * page was stored link to a Discogs search for it instead.
  */
 export const searchDiscogsUrl = (

@@ -88,7 +88,7 @@ To test locally, put both Vinyl Periphery variables in `.env` and run
 | `search_cancelled` | The user cancels, or leaves mid-search | `artist`, `album`, `phase`, `seconds` |
 | `example_filled` | An example search fills the form | `artist`, `album` |
 | `result_opened` | A result row is expanded | `rank`, `shared`, `sort` |
-| `discogs_opened` | "View on Discogs" is followed, on a result or a library card | `rank`, `shared`, `sort` from results; `from`: library from the library |
+| `discogs_opened` | "View on Discogs" is followed, on a result or the searched album | `rank`, `shared`, `sort` on a result; `from`: header on the searched album |
 | `filter_changed` | Any filter, switch, select-all or reset | `filter`, `on` |
 | `search_saved` | A search is saved or unsaved | `saved`, `from`: results or library |
 

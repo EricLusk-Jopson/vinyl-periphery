@@ -231,15 +231,12 @@ export const SearchForm = React.forwardRef<HTMLFormElement, SearchFormProps>(
         </button>
         <p
           id={hintId}
-          className="font-mono text-xs leading-normal text-faint md:basis-full"
+          className="hidden font-mono text-xs leading-normal text-faint md:block md:basis-full"
         >
-          <span className="md:hidden">
-            Takes 1 to 3 minutes. Discogs limits how fast we can read it.
-          </span>
-          <span className="hidden md:inline">
-            A full search takes 1 to 3 minutes. Discogs limits how quickly we
-            can read its data.
-          </span>
+          {/* Off on phones to keep the form compact. Still read out via
+              aria-describedby, which works on hidden elements. */}
+          A full search takes 1 to 3 minutes. Discogs limits how quickly we can
+          read its data.
         </p>
       </form>
     );

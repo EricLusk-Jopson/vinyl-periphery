@@ -83,8 +83,8 @@ export const Hero: React.FC<HeroProps> = (formProps) => {
   const formRef = useRef<HTMLFormElement>(null);
   // A fresh three each time the home page appears.
   const [examples] = useState(() => pickRandom(EXAMPLE_ALBUMS, EXAMPLE_COUNT));
-  // On phones: one long album on its own row, then two short ones side by
-  // side, chosen to fit this screen. Truncation catches any misestimate.
+  // On phones: two short albums side by side, chosen to fit this screen.
+  // Truncation catches any misestimate.
   const [mobileExamples] = useState(() =>
     pickMobileExamples(EXAMPLE_ALBUMS, mobileChipLayout()),
   );
@@ -111,23 +111,15 @@ export const Hero: React.FC<HeroProps> = (formProps) => {
           </div>
         </div>
 
-        <div className="px-4 py-4 md:mt-3 md:max-w-[920px] md:p-0">
+        <div className="px-4 pb-5 pt-7 md:mt-3 md:max-w-[920px] md:p-0">
           <SearchForm ref={formRef} variant="hero" {...formProps} />
         </div>
 
-        {(mobileExamples.wide || mobileExamples.pair.length > 0) && (
-          <div className="flex flex-col gap-2 px-4 pb-6 md:hidden">
+        {mobileExamples.length > 0 && (
+          <div className="flex flex-col gap-2 px-4 pb-8 md:hidden">
             <span className="text-sm text-faint">Try</span>
             <div className="grid grid-cols-2 gap-2">
-              {mobileExamples.wide && (
-                <ExampleButton
-                  example={mobileExamples.wide}
-                  disabled={isSearching}
-                  onClick={() => tryExample(mobileExamples.wide!)}
-                  className="col-span-2 h-11"
-                />
-              )}
-              {mobileExamples.pair.map((example) => (
+              {mobileExamples.map((example) => (
                 <ExampleButton
                   key={exampleLabel(example)}
                   example={example}

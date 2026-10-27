@@ -10,12 +10,13 @@ import {
   Contributor,
   ContributorSet,
   SearchParams,
+  SearchTarget,
   EnrichedRelease,
 } from "../../api/types";
 import { db } from "@/services/db";
 import { CacheContextValue, CacheState, SearchCache } from "./types";
 import { calculateReleaseScore } from "@/api/contributorSet";
-import { sameSearchIds } from "@/lib/searches";
+import { matchingSearchIds } from "@/lib/searchTarget";
 import { migrateSearch } from "@/lib/releases";
 import {
   enforceRequired,
@@ -144,7 +145,8 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
       params: SearchParams,
       contributorSet: ContributorSet,
       releases: Record<string, EnrichedRelease>,
-      thumb: string
+      thumb: string,
+      target?: SearchTarget | null
     ): string => {
       const searchId = `${params.artist}-${params.album}-${Date.now()}`;
 
@@ -177,15 +179,21 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
         required: { contributors: [], roles: [] },
       };
 
-      // A repeat run of the same album replaces the earlier result rather
+      // A repeat run of the same album (same target, or same typed text for
+      // searches from before targets) replaces the earlier result rather
       // than sitting beside it, and stays saved if the earlier one was.
-      const replaced = sameSearchIds(stateRef.current.searches, params);
+      const replaced = matchingSearchIds(
+        stateRef.current.searches,
+        params,
+        target
+      );
       const wasSaved = replaced.some((id) =>
         stateRef.current.savedSearchIds.has(id)
       );
       const newSearch: SearchCache = {
         searchId,
         searchParams: params,
+        ...(target ? { target } : {}),
         contributors,
         roles,
         releases,

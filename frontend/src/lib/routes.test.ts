@@ -6,18 +6,44 @@ import {
   libraryTab,
   resultParams,
   resultPath,
+  resultTarget,
 } from "./routes";
+import { searchTarget } from "./searchTarget";
 
 describe("resultPath", () => {
   it("names the album in the query", () => {
-    expect(resultPath({ artist: " AC/DC ", album: "Back in Black & Blue" })).toBe(
-      "/results?artist=AC%2FDC&album=Back+in+Black+%26+Blue",
-    );
+    expect(
+      resultPath({ artist: " AC/DC ", album: "Back in Black & Blue" }),
+    ).toBe("/results?artist=AC%2FDC&album=Back+in+Black+%26+Blue");
   });
 
   it("round-trips through resultParams", () => {
     const params = { artist: "Sigur Rós", album: "( )" };
     expect(resultParams(resultPath(params).split("?")[1])).toEqual(params);
+  });
+});
+
+describe("resultTarget", () => {
+  const params = { artist: "Bon Iver", album: "Bon Iver" };
+
+  it("adds the album id and round-trips it", () => {
+    const master = searchTarget("master", 51539);
+    const path = resultPath(params, master);
+    expect(path).toBe("/results?artist=Bon+Iver&album=Bon+Iver&master=51539");
+    const query = path.split("?")[1];
+    expect(resultTarget(query)).toEqual(master);
+    expect(resultParams(query)).toEqual(params);
+    expect(
+      resultTarget(
+        resultPath(params, searchTarget("release", 7)).split("?")[1],
+      ),
+    ).toEqual(searchTarget("release", 7));
+  });
+
+  it("is null for text-only and malformed links", () => {
+    expect(resultTarget(resultPath(params).split("?")[1])).toBeNull();
+    expect(resultTarget("?artist=a&album=b&master=abc")).toBeNull();
+    expect(resultTarget("?master=-3")).toBeNull();
   });
 });
 
@@ -35,9 +61,9 @@ describe("resultParams", () => {
 
 describe("legacyResultParams", () => {
   it("reads old ids that split one way", () => {
-    expect(legacyResultParams("Talk Talk-Spirit of Eden-1700000000000")).toEqual(
-      { artist: "Talk Talk", album: "Spirit of Eden" },
-    );
+    expect(
+      legacyResultParams("Talk Talk-Spirit of Eden-1700000000000"),
+    ).toEqual({ artist: "Talk Talk", album: "Spirit of Eden" });
   });
 
   it("gives up on hyphenated names and odd ids", () => {
@@ -82,6 +108,8 @@ describe("fromLocation", () => {
       tab: "saved",
     });
     expect(fromLocation("/", "")).toEqual({ from: "home" });
-    expect(fromLocation("/results", "?artist=a&album=b")).toEqual({ from: "home" });
+    expect(fromLocation("/results", "?artist=a&album=b")).toEqual({
+      from: "home",
+    });
   });
 });

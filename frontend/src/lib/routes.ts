@@ -1,6 +1,7 @@
 /** URL paths and where the results page's back link goes. */
 
-import type { SearchParams } from "@/api/types";
+import type { SearchParams, SearchTarget } from "@/api/types";
+import { searchTarget } from "./searchTarget";
 
 export type LibraryTab = "session" | "saved";
 
@@ -19,13 +20,29 @@ export const RESULTS_PATH = "/results";
 /**
  * A search's results page. The URL names the album rather than a cached
  * search, so it works on any device: where the search isn't cached, the page
- * offers to run it.
+ * offers to run it. With a target it adds `&master=` or `&release=`, so the
+ * link reproduces the exact album; artist and album stay for display and for
+ * links shared before ids.
  */
-export const resultPath = ({ artist, album }: SearchParams): string =>
+export const resultPath = (
+  { artist, album }: SearchParams,
+  target?: SearchTarget | null,
+): string =>
   `${RESULTS_PATH}?${new URLSearchParams({
     artist: artist.trim(),
     album: album.trim(),
+    ...(target ? { [target.type]: String(target.id) } : {}),
   })}`;
+
+/** The album a results URL names by id, or null for a text-only link. */
+export const resultTarget = (search: string): SearchTarget | null => {
+  const query = new URLSearchParams(search);
+  for (const type of ["master", "release"] as const) {
+    const id = Number(query.get(type));
+    if (Number.isInteger(id) && id > 0) return searchTarget(type, id);
+  }
+  return null;
+};
 
 /** The search named in a results page's query, or null if incomplete. */
 export const resultParams = (search: string): SearchParams | null => {

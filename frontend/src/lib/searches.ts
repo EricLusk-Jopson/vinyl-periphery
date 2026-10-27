@@ -77,24 +77,3 @@ export const timeAgo = (
     ...(sameYear ? {} : { year: "numeric" }),
   });
 };
-
-const normalise = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
-
-/**
- * Ids of stored searches for the same artist and album, ignoring case and
- * extra spaces. A new run of the same search replaces these.
- */
-export const sameSearchIds = (
-  searches: Record<string, SearchCache>,
-  params: { artist: string; album: string },
-): string[] => {
-  const artist = normalise(params.artist);
-  const album = normalise(params.album);
-  return Object.values(searches)
-    .filter(
-      (s) =>
-        normalise(s.searchParams.artist) === artist &&
-        normalise(s.searchParams.album) === album,
-    )
-    .map((s) => s.searchId);
-};

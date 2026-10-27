@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo } from "react";
 import { Link, Navigate, useLocation, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
-import { SearchParams } from "@/api/types";
+import { SearchParams, SearchTarget } from "@/api/types";
+import { KnownAlbum } from "@/hooks/useSearchRun";
 import { useCache } from "@/contexts/cache/CacheContext";
 import {
   HOME_PATH,
@@ -9,8 +10,9 @@ import {
   legacyResultParams,
   resultParams,
   resultPath,
+  resultTarget,
 } from "@/lib/routes";
-import { sameSearchIds } from "@/lib/searches";
+import { matchingSearchIds } from "@/lib/searchTarget";
 import { cn } from "@/lib/utils";
 import { FilterPanel } from "../filters/FilterPanel";
 import { FilterFrame } from "../filters/FilterFrame";
@@ -18,9 +20,9 @@ import { AlbumHeader } from "./AlbumHeader";
 import { ReleaseList } from "./ReleaseList";
 
 interface ResultsPageProps {
-  onSearchFrom: (params: SearchParams) => void;
+  onSearchFrom: (params: SearchParams, known: KnownAlbum) => void;
   /** Runs the search named in the URL, when it isn't cached here. */
-  onRunSearch: (params: SearchParams) => void;
+  onRunSearch: (params: SearchParams, target: SearchTarget | null) => void;
   isSearching: boolean;
 }
 
@@ -52,9 +54,16 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
     () => resultParams(location.search),
     [location.search],
   );
+  // `&master=` / `&release=` when the link names the exact album.
+  const target = useMemo(
+    () => resultTarget(location.search),
+    [location.search],
+  );
   const { searches, setActiveSearch, savedSearchesLoaded } = useCache();
   // One cached search per album: a repeat run replaces the earlier one.
-  const searchId = params ? sameSearchIds(searches, params)[0] ?? "" : "";
+  const searchId = params
+    ? (matchingSearchIds(searches, params, target)[0] ?? "")
+    : "";
   const search = searches[searchId];
   const back = backLink(location.state);
 
@@ -82,7 +91,7 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
         <div className="mt-2 flex flex-wrap justify-center gap-3">
           <button
             type="button"
-            onClick={() => onRunSearch(params)}
+            onClick={() => onRunSearch(params, target)}
             disabled={isSearching}
             className={primaryButton}
           >
@@ -150,6 +159,10 @@ export const LegacyResultsRedirect: React.FC = () => {
 
   if (!params && !savedSearchesLoaded) return null;
   return (
-    <Navigate to={params ? resultPath(params) : HOME_PATH} state={state} replace />
+    <Navigate
+      to={params ? resultPath(params, cached?.target) : HOME_PATH}
+      state={state}
+      replace
+    />
   );
 };

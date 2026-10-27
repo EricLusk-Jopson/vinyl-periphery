@@ -44,9 +44,13 @@ ranks albums by how many of those people worked on them.
     optional because older saved searches lack it), active filter count.
   - `src/components/ui/`: shadcn primitives. Edit sparingly.
   - Routes (React Router): `/` home, `/library` (`?tab=saved`), and
-    `/results?artist=…&album=…`. A results URL names the album, not a cached
+    `/results?artist=…&album=…`, plus `&master=N` or `&release=N` when the
+    Discogs album is known. A results URL names the album, not a cached
     search, so it works on any device: without the search cached, the page
-    offers to run it. Old `/results/:searchId` links redirect. Route helpers
+    offers to run it. Each search has a `target` (`src/lib/searchTarget.ts`):
+    the first search result's master, or the clicked row's master or
+    release. Searches started from a row skip `/api/search`
+    (`src/api/searchTarget.ts`). Old `/results/:searchId` links redirect. Route helpers
     live in `src/lib/routes.ts`.
 - `docs/redesign/`: the current UI redesign. Read `DESIGN.md` before any UI
   work.

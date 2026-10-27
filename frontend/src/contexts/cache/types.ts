@@ -1,5 +1,6 @@
 import {
   SearchParams,
+  SearchTarget,
   Contributor,
   EnrichedRelease,
   ContributorSet,
@@ -12,7 +13,10 @@ export interface RequiredFilters {
 
 export interface SearchCache {
   searchId: string;
+  /** What was typed or clicked, for display and URLs. */
   searchParams: SearchParams;
+  /** Which Discogs album this is. Missing on searches from before ids. */
+  target?: SearchTarget;
   contributors: Record<number, Contributor>;
   roles: Record<string, boolean>;
   /** Keyed by `EnrichedRelease.key` ("master:N" / "release:N"). */
@@ -52,7 +56,8 @@ export interface CacheContextValue extends CacheState {
     params: SearchParams,
     contributorSet: ContributorSet,
     releases: Record<string, EnrichedRelease>,
-    thumb: string
+    thumb: string,
+    target?: SearchTarget | null
   ) => string;
   updateFilterState: (
     searchId: string,

@@ -4,11 +4,19 @@ import {
   useListContributorReleases,
   useListReleaseContributors,
 } from "@/api/mutations";
-import { EnrichedRelease, SearchParams, SearchStage } from "@/api/types";
+import {
+  EnrichedRelease,
+  ReleaseToRead,
+  SearchParams,
+  SearchStage,
+  SearchTarget,
+} from "@/api/types";
+import { targetReleases } from "@/api/searchTarget";
 import { isAbortError, throwIfAborted } from "@/api/abort";
 import { MAX_RELEASES } from "@/api/limits";
 import { useCache } from "@/contexts/cache/CacheContext";
-import { coverUrl } from "@/lib/searches";
+import { coverUrl, usableImageUrl } from "@/lib/searches";
+import { targetFromSearchResult } from "@/lib/searchTarget";
 import { preloadImage } from "@/lib/preloadImage";
 import { joinWithin, secondsSince, track } from "@/lib/analytics";
 import { uncategorizedRoles } from "@/lib/transformers/roleCategories";
@@ -47,8 +55,22 @@ export interface SearchRun {
 /** Where a search was started: the form, a result row, or a results link. */
 export type SearchSource = "form" | "result" | "link";
 
+/**
+ * A search for a known album, started from a result row: skips the text
+ * search and reads that album's own releases.
+ */
+export interface KnownAlbum {
+  target: SearchTarget;
+  /** The row's cover, if it had one. */
+  thumb?: string;
+}
+
 interface SearchRunOptions {
-  onComplete: (searchId: string, params: SearchParams) => void;
+  onComplete: (
+    searchId: string,
+    params: SearchParams,
+    target: SearchTarget | null,
+  ) => void;
   /** The album search found nothing. */
   onNotFound: (params: SearchParams) => void;
   /** `phase` says whether it failed before or after the album was found. */
@@ -80,7 +102,11 @@ export const useSearchRun = ({
   useEffect(() => () => controllerRef.current?.abort(), []);
 
   const start = useCallback(
-    async (params: SearchParams, source: SearchSource = "form") => {
+    async (
+      params: SearchParams,
+      source: SearchSource = "form",
+      known?: KnownAlbum,
+    ) => {
       if (controllerRef.current) return;
       const controller = new AbortController();
       const { signal } = controller;
@@ -88,7 +114,11 @@ export const useSearchRun = ({
 
       const startedAt = Date.now();
       const searched = { artist: params.artist, album: params.album };
-      track("search_started", { ...searched, source });
+      track("search_started", {
+        ...searched,
+        source,
+        by_id: Boolean(known),
+      });
 
       const update = (changes: Partial<SearchRun>) =>
         setRun((prev) => (prev ? { ...prev, ...changes } : prev));
@@ -119,26 +149,42 @@ export const useSearchRun = ({
       });
 
       try {
-        const searchResults = await searchMutation.mutateAsync({
-          params,
-          callbacks: { onProgress },
-          signal,
-        });
-        if (!searchResults || searchResults.length === 0) {
-          track("search_not_found", {
-            ...searched,
-            seconds: secondsSince(startedAt),
+        let releasesToRead: ReleaseToRead[];
+        let thumb: string;
+        let target: SearchTarget | null;
+        if (known) {
+          // The album is known: read its own releases, no text search.
+          target = known.target;
+          releasesToRead = await targetReleases(
+            known.target,
+            { onProgress },
+            signal,
+          );
+          thumb = usableImageUrl(known.thumb);
+        } else {
+          const searchResults = await searchMutation.mutateAsync({
+            params,
+            callbacks: { onProgress },
+            signal,
           });
-          callbacksRef.current.onNotFound(params);
-          return;
+          if (!searchResults || searchResults.length === 0) {
+            track("search_not_found", {
+              ...searched,
+              seconds: secondsSince(startedAt),
+            });
+            callbacksRef.current.onNotFound(params);
+            return;
+          }
+          target = targetFromSearchResult(searchResults[0]);
+          releasesToRead = searchResults;
+          thumb = coverUrl(searchResults[0]);
         }
 
         // Load the cover before progress appears, so it doesn't pop in.
-        const thumb = coverUrl(searchResults[0]);
         await preloadImage(thumb, COVER_WAIT_MS, signal);
         throwIfAborted(signal);
 
-        const matches = Math.min(MAX_RELEASES, searchResults.length);
+        const matches = Math.min(MAX_RELEASES, releasesToRead.length);
         phase = "running";
         update({
           phase,
@@ -154,7 +200,7 @@ export const useSearchRun = ({
         });
 
         const contributorSet = await contributorsMutation.mutateAsync({
-          releases: searchResults,
+          releases: releasesToRead,
           maxReleases: MAX_RELEASES,
           callbacks: { onProgress },
           signal,
@@ -185,6 +231,7 @@ export const useSearchRun = ({
           contributorSet,
           releasesRecord,
           thumb,
+          target,
         );
         // Roles the category table doesn't know yet, so it can grow.
         const allRoles = Object.values(contributorSet.contributors).flatMap(
@@ -201,7 +248,7 @@ export const useSearchRun = ({
           roles_uncategorized_count: unknownRoles.length,
           roles_uncategorized: joinWithin(unknownRoles),
         });
-        callbacksRef.current.onComplete(searchId, params);
+        callbacksRef.current.onComplete(searchId, params, target);
       } catch (error) {
         const timing = { ...searched, phase, seconds: secondsSince(startedAt) };
         if (isAbortError(error)) {

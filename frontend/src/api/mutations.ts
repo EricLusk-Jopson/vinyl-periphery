@@ -201,7 +201,9 @@ async function listContributorReleases(
         `Fetching releases for contributor: ${contributor.name} (${contributor.id})`
       );
       const response = await fetch(
-        `https://api.discogs.com/artists/${contributor.id}/releases`,
+        // 100 is Discogs's page maximum: the same one call per contributor
+        // reads twice the default 50 items.
+        `https://api.discogs.com/artists/${contributor.id}/releases?per_page=100`,
         { signal }
       );
 

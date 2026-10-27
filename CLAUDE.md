@@ -92,7 +92,7 @@ switch both run from `main`, so keep `backend/server.js` and
 
 ## Known issues (not fixed yet)
 
-- Contributor discographies only read the first page of results.
+- Contributor discographies only read the first page of results (100 items).
 - Results fold a release into its master only when the master's `main_release`
   is that release (or the item carries `master_id`, unverified). Other
   versions of the same album can still show as separate rows.

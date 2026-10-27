@@ -14,7 +14,11 @@ import {
   SearchMutationParams,
 } from "./types";
 import { addContributorToSet } from "./contributorSet";
-import { discographyAppearance } from "./releaseCredits";
+import {
+  addRelease,
+  DiscographyItem,
+  toEnrichedRelease,
+} from "../lib/releases";
 import { sleep, throwIfAborted } from "./abort";
 import { REQUEST_DELAY_MS } from "./limits";
 
@@ -178,8 +182,8 @@ async function listContributorReleases(
   },
   callbacks?: MutationCallbacks,
   signal?: AbortSignal
-): Promise<Map<number, EnrichedRelease>> {
-  const releaseMap = new Map<number, EnrichedRelease>();
+): Promise<Map<string, EnrichedRelease>> {
+  const releaseMap = new Map<string, EnrichedRelease>();
 
   const contributors = Object.values(contributorSet.contributors);
   let currentContributor = 0;
@@ -208,41 +212,14 @@ async function listContributorReleases(
       }
 
       const data: {
-        releases: Array<
-          Omit<EnrichedRelease, "contributorIds" | "appearances"> & {
-            role?: string;
-            trackinfo?: string;
-          }
-        >;
+        releases: DiscographyItem[];
         pagination: { pages: number; items: number };
       } = await response.json();
 
-      for (const release of data.releases) {
-        // How this contributor's discography lists it, kept per person
-        // (the spread below only carries the first person's role).
-        const appearance = discographyAppearance(release);
-        const existingRelease = releaseMap.get(release.id);
-        if (existingRelease) {
-          // Use a Set to ensure unique contributor IDs
-          const contributorIds = new Set(existingRelease.contributorIds);
-          contributorIds.add(contributor.id);
-          existingRelease.contributorIds = Array.from(contributorIds);
-          if (appearance) {
-            existingRelease.appearances = {
-              ...existingRelease.appearances,
-              [contributor.id]: appearance,
-            };
-          }
-        } else {
-          const newRelease: EnrichedRelease = {
-            ...release,
-            contributorIds: [contributor.id],
-            ...(appearance
-              ? { appearances: { [contributor.id]: appearance } }
-              : {}),
-          };
-          releaseMap.set(release.id, newRelease);
-        }
+      // Keyed by "master:N" / "release:N"; the same album from several
+      // contributors becomes one entry.
+      for (const item of data.releases) {
+        addRelease(releaseMap, toEnrichedRelease(item, contributor.id));
       }
 
       callbacks?.onContributorChecked?.(

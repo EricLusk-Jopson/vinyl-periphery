@@ -36,6 +36,10 @@ ranks albums by how many of those people worked on them.
   - `src/lib/transformers/`: role and name cleanup, with Jest tests.
     `roleCategories.ts` puts roles into the buckets the Roles filter groups
     by (Musicians, Writing, Audio, Physical media, Management, Other).
+  - `src/lib/releases.ts`: discography items to results. Each result has a
+    `type` and a `key` (`"master:N"` / `"release:N"`); `SearchCache.releases`
+    is keyed by `key`. Searches stored before keys existed are migrated as
+    they load (`migrateSearch`).
   - `src/lib/filters.ts`: chip state, "must include" (`filterState.required`,
     optional because older saved searches lack it), active filter count.
   - `src/components/ui/`: shadcn primitives. Edit sparingly.
@@ -89,6 +93,8 @@ switch both run from `main`, so keep `backend/server.js` and
 ## Known issues (not fixed yet)
 
 - Contributor discographies only read the first page of results.
-- Master and release IDs share one map key and can collide.
+- Results fold a release into its master only when the master's `main_release`
+  is that release (or the item carries `master_id`, unverified). Other
+  versions of the same album can still show as separate rows.
 - "Exclude main artist" matches the first word of the typed artist name.
 - Most Discogs calls go from the browser unauthenticated.

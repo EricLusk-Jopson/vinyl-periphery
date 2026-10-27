@@ -44,8 +44,10 @@ const makeSearch = (): SearchCache => ({
   },
   roles: { Engineer: true, Design: true, Photography: true, Vocals: true },
   releases: {
-    10: {
+    "release:10": {
       id: 10,
+      type: "release",
+      key: "release:10",
       title: "Eve",
       year: "1979",
       artist: "APP",
@@ -53,8 +55,10 @@ const makeSearch = (): SearchCache => ({
       resource_url: "",
       contributorIds: [1, 3, 1],
     },
-    11: {
+    "release:11": {
       id: 11,
+      type: "release",
+      key: "release:11",
       title: "Year of the Cat",
       year: "1976",
       artist: "Al Stewart",
@@ -62,8 +66,10 @@ const makeSearch = (): SearchCache => ({
       resource_url: "",
       contributorIds: [1],
     },
-    12: {
+    "release:12": {
       id: 12,
+      type: "release",
+      key: "release:12",
       title: "Houses of the Holy",
       year: "1973",
       artist: "Led Zeppelin",

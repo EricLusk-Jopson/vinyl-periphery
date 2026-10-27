@@ -45,10 +45,25 @@ export type CreditsTarget =
   | { kind: "release"; id: number }
   | { kind: "master"; id: number; mainRelease?: number };
 
-/** Artist releases list masters with `main_release`; the type omits it. */
-type ResultRelease = EnrichedRelease & { main_release?: number };
+/**
+ * Older searches spread the raw item, so a master may still carry
+ * `main_release` instead of `mainRelease`.
+ */
+type ResultRelease = Partial<EnrichedRelease> & {
+  resource_url?: string;
+  main_release?: number;
+};
 
 export const creditsTarget = (release: ResultRelease): CreditsTarget | null => {
+  if (release.type && release.id) {
+    return release.type === "release"
+      ? { kind: "release", id: release.id }
+      : {
+          kind: "master",
+          id: release.id,
+          ...(release.mainRelease ? { mainRelease: release.mainRelease } : {}),
+        };
+  }
   const match = release.resource_url?.match(
     /^https:\/\/api\.discogs\.com\/(releases|masters)\/(\d+)\/?$/,
   );

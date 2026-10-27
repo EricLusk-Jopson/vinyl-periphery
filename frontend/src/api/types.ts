@@ -87,8 +87,21 @@ export interface Appearance {
   trackinfo?: string;
 }
 
+export type ReleaseType = "master" | "release";
+
 export interface EnrichedRelease {
   id: number;
+  /** Masters and releases have separate id spaces. */
+  type: ReleaseType;
+  /** "master:123" or "release:456": unique across both, used as the map key. */
+  key: string;
+  /** For a master, the release Discogs lists as its main version. */
+  mainRelease?: number;
+  /**
+   * For a release, its master when the discography item says so. Unverified
+   * whether Discogs sends this on artist releases; folded on when present.
+   */
+  masterId?: number;
   title: string;
   year: string;
   artist: string;

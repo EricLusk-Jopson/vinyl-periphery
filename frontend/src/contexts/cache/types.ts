@@ -15,7 +15,8 @@ export interface SearchCache {
   searchParams: SearchParams;
   contributors: Record<number, Contributor>;
   roles: Record<string, boolean>;
-  releases: Record<number, EnrichedRelease>;
+  /** Keyed by `EnrichedRelease.key` ("master:N" / "release:N"). */
+  releases: Record<string, EnrichedRelease>;
   filterState: {
     contributors: Record<number, boolean>;
     roles: Record<string, boolean>;
@@ -50,7 +51,7 @@ export interface CacheContextValue extends CacheState {
   addSearch: (
     params: SearchParams,
     contributorSet: ContributorSet,
-    releases: Record<number, EnrichedRelease>,
+    releases: Record<string, EnrichedRelease>,
     thumb: string
   ) => string;
   updateFilterState: (

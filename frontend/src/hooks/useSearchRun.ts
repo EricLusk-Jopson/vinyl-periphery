@@ -171,14 +171,14 @@ export const useSearchRun = ({
 
         // Convert Map to Record before adding to cache
         const releasesRecord = Object.fromEntries(
-          Array.from(releasesMap.entries()).map(([id, release]) => [
-            id,
+          Array.from(releasesMap.entries()).map(([key, release]) => [
+            key,
             {
               ...release,
               contributorIds: Array.from(release.contributorIds),
             },
           ]),
-        ) as Record<number, EnrichedRelease>;
+        ) as Record<string, EnrichedRelease>;
 
         const searchId = addSearch(
           params,

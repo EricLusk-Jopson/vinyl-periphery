@@ -53,11 +53,12 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
 
   const [sort, setSort] = useState<SortKey>("shared");
   const [visible, setVisible] = useState(PAGE_SIZE);
-  const [openId, setOpenId] = useState<number | null>(null);
-  const [pendingId, setPendingId] = useState<number | null>(null);
+  // By release key: masters and releases can share a numeric id.
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isSearching) setPendingId(null);
+    if (!isSearching) setPendingKey(null);
   }, [isSearching]);
 
   const sorted = useMemo(
@@ -74,7 +75,7 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
   const hasAnyReleases = Object.keys(search.releases).length > 0;
 
   const searchFrom = (release: ScoredRelease) => {
-    setPendingId(release.id);
+    setPendingKey(release.key);
     onSearchFrom({ artist: release.artist, album: release.title });
   };
 
@@ -129,19 +130,21 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
             const position = { rank: i + 1, shared: people.length, sort };
             return (
               <ReleaseRow
-                key={release.id}
+                key={release.key}
                 release={release}
                 people={people}
                 searchedAlbum={search.searchParams.album}
-                open={openId === release.id}
+                open={openKey === release.key}
                 onToggle={() => {
-                  if (openId !== release.id) track("result_opened", position);
-                  setOpenId((id) => (id === release.id ? null : release.id));
+                  if (openKey !== release.key) track("result_opened", position);
+                  setOpenKey((key) =>
+                    key === release.key ? null : release.key,
+                  );
                 }}
                 onSearchFrom={() => searchFrom(release)}
                 onOpenDiscogs={() => track("discogs_opened", position)}
                 searching={isSearching}
-                searchingFromHere={isSearching && pendingId === release.id}
+                searchingFromHere={isSearching && pendingKey === release.key}
               />
             );
           })}

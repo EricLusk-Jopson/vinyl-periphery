@@ -4,6 +4,7 @@ import {
   contributorChips,
   matchesName,
   roleChips,
+  roleGroups,
   setIncluded,
 } from "@/lib/filters";
 import { resetFilterState } from "@/lib/results";
@@ -11,6 +12,7 @@ import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { Chip } from "./Chip";
 import { FilterGroup } from "./FilterGroup";
+import { MustInclude } from "./MustInclude";
 import { Switch } from "./Switch";
 
 interface FilterPanelProps {
@@ -22,7 +24,10 @@ interface FilterPanelProps {
   variant: "sidebar" | "frame";
 }
 
-/** Switches, contributor chips with a name filter, and role chips. */
+/**
+ * Switches, "must include", contributor chips with a name filter, and role
+ * chips grouped by category.
+ */
 export const FilterPanel: React.FC<FilterPanelProps> = ({
   searchId,
   variant,
@@ -44,6 +49,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     [search],
   );
   const roles = useMemo(() => (search ? roleChips(search) : []), [search]);
+  const groups = useMemo(() => (search ? roleGroups(search) : []), [search]);
 
   if (!search) return null;
   const { filterState } = search;
@@ -62,13 +68,9 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         on,
       ),
     });
-  const setRoles = (on: boolean) =>
+  const setRoles = (on: boolean, names = roles.map((r) => r.role)) =>
     updateFilterState(searchId, {
-      roles: setIncluded(
-        filterState.roles,
-        roles.map((r) => r.role),
-        on,
-      ),
+      roles: setIncluded(filterState.roles, names, on),
     });
 
   return (
@@ -115,6 +117,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           }}
         />
       </div>
+
+      <MustInclude searchId={searchId} />
 
       <FilterGroup
         title="Contributors"
@@ -186,20 +190,56 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           setRoles(false);
         }}
       >
-        <div className="flex flex-wrap gap-2">
-          {roles.map((r) => (
-            <Chip
-              key={r.role}
-              label={r.role}
-              included={r.included}
-              available={r.available}
-              unavailableNote="everyone with this role is switched off"
-              onToggle={() => {
-                changed("role", !r.included);
-                toggleRole(r.role);
-              }}
-            />
-          ))}
+        <div className="flex flex-col gap-3">
+          {groups.map((group) => {
+            const on = group.roles.filter((r) => r.included).length;
+            const next = on === 0;
+            return (
+              <div key={group.id} className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs uppercase tracking-[1px] text-faint">
+                    {group.label}
+                  </span>
+                  <span className="font-mono text-xs text-faint">
+                    {on}/{group.roles.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      track("filter_changed", {
+                        filter: "role_category",
+                        on: next,
+                        category: group.id,
+                      });
+                      setRoles(
+                        next,
+                        group.roles.map((r) => r.role),
+                      );
+                    }}
+                    aria-label={`${next ? "Select" : "Deselect"} all ${group.label} roles`}
+                    className="ml-auto h-11 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring lg:h-8"
+                  >
+                    {next ? "Select" : "Deselect"}
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {group.roles.map((r) => (
+                    <Chip
+                      key={r.role}
+                      label={r.role}
+                      included={r.included}
+                      available={r.available}
+                      unavailableNote="everyone with this role is switched off"
+                      onToggle={() => {
+                        changed("role", !r.included);
+                        toggleRole(r.role);
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </FilterGroup>
     </div>

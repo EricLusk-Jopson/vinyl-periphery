@@ -112,8 +112,8 @@ export const sharedPeople = (
 };
 
 /**
- * Filter state for "Reset filters": every contributor and role back on, the
- * 2+ and Various Artists filters off. Hiding the searched artist's own
+ * Filter state for "Reset filters": every contributor and role back on,
+ * nothing required, the 2+ and Various Artists filters off. Hiding the searched artist's own
  * releases stays on, since those are rarely what anyone is after.
  */
 export const resetFilterState = (
@@ -126,4 +126,5 @@ export const resetFilterState = (
   excludeMainArtist: true,
   collaborationsOnly: false,
   excludeVarious: false,
+  required: { contributors: [], roles: [] },
 });

@@ -82,7 +82,7 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
       return withAppearance(personId, "Unavailable");
     }
     return (
-      <span className="inline-flex items-center gap-1.5 font-sans text-faint">
+      <span className="inline-flex items-center gap-1.5">
         <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
         Checking
       </span>
@@ -90,23 +90,11 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
   };
 
   /**
-   * A fallback note, plus how the person's own discography lists this
-   * album when the search kept that.
+   * How the person's own discography lists this album, when the search kept
+   * that ("Appears on this album"); otherwise the fallback note.
    */
-  const withAppearance = (personId: number, note: string) => {
-    const listed = appearanceText(release.appearances?.[personId]);
-    return (
-      <span className="flex flex-col">
-        <span className="font-sans text-faint">{note}</span>
-        {listed && (
-          <span>
-            <span className="font-sans text-faint">Their discography: </span>
-            {listed}
-          </span>
-        )}
-      </span>
-    );
-  };
+  const withAppearance = (personId: number, note: string) =>
+    appearanceText(release.appearances?.[personId]) ?? note;
 
   return (
     <li className="border-b">
@@ -182,20 +170,20 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
               <span className="text-sm font-medium md:text-[15px]">
                 {person.name}
               </span>
-              <dl className="flex flex-col gap-0.5 text-xs md:gap-1.5">
-                <div className="flex min-w-0 gap-2 md:flex-col md:gap-0">
-                  <dt className="max-w-[45%] shrink-0 truncate text-faint md:max-w-full">
+              <dl className="grid grid-cols-[fit-content(45%)_1fr] gap-x-2 gap-y-2 text-xs md:flex md:flex-col md:gap-3">
+                <div className="contents md:flex md:min-w-0 md:flex-col">
+                  <dt className="min-w-0 truncate text-faint">
                     {searchedAlbum}
                   </dt>
                   <dd className="min-w-0 font-mono text-muted-foreground">
                     {person.roles || "Credited"}
                   </dd>
                 </div>
-                <div className="flex min-w-0 gap-2 md:flex-col md:gap-0">
-                  <dt className="max-w-[45%] shrink-0 truncate text-faint md:max-w-full">
+                <div className="contents md:flex md:min-w-0 md:flex-col">
+                  <dt className="min-w-0 truncate text-faint">
                     {release.title}
                   </dt>
-                  <dd className="min-w-0 font-mono text-foreground">
+                  <dd className="min-w-0 font-mono text-muted-foreground">
                     {onThisAlbum(person.id)}
                   </dd>
                 </div>

@@ -19,8 +19,10 @@ export interface ContributorChip {
   count: number;
   /** Not switched off by the user. */
   included: boolean;
-  /** At least one of their roles is on, so they can count. */
+  /** At least one of their roles is on (or they're required), so they count. */
   available: boolean;
+  /** On "must include": locked on, changed only from that list. */
+  required: boolean;
 }
 
 export interface RoleChip {
@@ -28,6 +30,8 @@ export interface RoleChip {
   included: boolean;
   /** At least one included contributor has this role. */
   available: boolean;
+  /** On "must include": locked on, changed only from that list. */
+  required: boolean;
 }
 
 /** Contributor chips, most albums first, then by name. */
@@ -39,6 +43,7 @@ export const contributorChips = (search: SearchCache): ContributorChip[] => {
     }
   }
   const { filterState } = search;
+  const required = requiredFilters(filterState);
   return Object.values(search.contributors)
     .map((c) => ({
       id: c.id,
@@ -46,7 +51,10 @@ export const contributorChips = (search: SearchCache): ContributorChip[] => {
       roles: defaultRolePipeline(c.roles),
       count: counts.get(c.id) ?? 0,
       included: filterState.contributors[c.id] ?? true,
-      available: c.roles.some((role) => filterState.roles[role]),
+      available:
+        required.contributors.includes(c.id) ||
+        c.roles.some((role) => filterState.roles[role]),
+      required: required.contributors.includes(c.id),
     }))
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 };
@@ -54,6 +62,7 @@ export const contributorChips = (search: SearchCache): ContributorChip[] => {
 /** Role chips, in alphabetical order. */
 export const roleChips = (search: SearchCache): RoleChip[] => {
   const { filterState } = search;
+  const required = requiredFilters(filterState);
   return Object.keys(search.roles)
     .sort((a, b) => a.localeCompare(b))
     .map((role) => ({
@@ -62,6 +71,7 @@ export const roleChips = (search: SearchCache): RoleChip[] => {
       available: Object.values(search.contributors).some(
         (c) => c.roles.includes(role) && filterState.contributors[c.id],
       ),
+      required: required.roles.includes(role),
     }));
 };
 
@@ -83,9 +93,27 @@ export const requiredFilters = (filterState: FilterState): RequiredFilters =>
   filterState.required ?? { contributors: [], roles: [] };
 
 /**
- * Whether a release with these active contributors has everyone and every
- * role marked "must include". A role counts when one of the release's active
- * contributors had it on the searched album.
+ * Whether a contributor counts towards results: switched on, and either
+ * required or with at least one role on. A required person counts whatever
+ * their roles, since it's the person that was asked for.
+ */
+export const isContributorCounted = (
+  search: SearchCache,
+  id: number,
+): boolean => {
+  const { filterState } = search;
+  if (!filterState.contributors[id]) return false;
+  if (requiredFilters(filterState).contributors.includes(id)) return true;
+  return (
+    search.contributors[id]?.roles.some((role) => filterState.roles[role]) ??
+    false
+  );
+};
+
+/**
+ * Whether a release with these counted contributors has everyone and every
+ * role marked "must include". A role counts when one of them had it on the
+ * searched album.
  */
 export const meetsRequired = (
   activeContributorIds: number[],
@@ -102,17 +130,12 @@ export const meetsRequired = (
   );
 };
 
-/**
- * Filter updates that mark a contributor "must include". Switches them on,
- * and their roles too if every one is off, so the requirement can be met.
- */
+/** Filter updates that mark a contributor "must include". */
 export const requireContributor = (
   search: SearchCache,
   id: number,
 ): Partial<FilterState> => {
-  const { filterState } = search;
-  const required = requiredFilters(filterState);
-  const roles = search.contributors[id]?.roles ?? [];
+  const required = requiredFilters(search.filterState);
   return {
     required: {
       ...required,
@@ -120,26 +143,15 @@ export const requireContributor = (
         ? required.contributors
         : [...required.contributors, id],
     },
-    contributors: { ...filterState.contributors, [id]: true },
-    ...(roles.some((role) => filterState.roles[role])
-      ? {}
-      : { roles: setIncluded(filterState.roles, roles, true) }),
   };
 };
 
-/**
- * Filter updates that mark a role "must include". Switches it on, and the
- * people who had it too if every one of them is off.
- */
+/** Filter updates that mark a role "must include". */
 export const requireRole = (
   search: SearchCache,
   role: string,
 ): Partial<FilterState> => {
-  const { filterState } = search;
-  const required = requiredFilters(filterState);
-  const holders = Object.values(search.contributors)
-    .filter((c) => c.roles.includes(role))
-    .map((c) => c.id);
+  const required = requiredFilters(search.filterState);
   return {
     required: {
       ...required,
@@ -147,14 +159,13 @@ export const requireRole = (
         ? required.roles
         : [...required.roles, role],
     },
-    roles: { ...filterState.roles, [role]: true },
-    ...(holders.some((id) => filterState.contributors[id])
-      ? {}
-      : { contributors: setIncluded(filterState.contributors, holders, true) }),
   };
 };
 
-/** Filter updates that take a contributor or role off "must include". */
+/**
+ * Filter updates that take a contributor or role off "must include". It
+ * stays switched on, so results don't jump.
+ */
 export const unrequire = (
   search: SearchCache,
   item: { contributor: number } | { role: string },
@@ -174,46 +185,53 @@ export const unrequire = (
 };
 
 /**
- * Drops "must include" entries whose contributor or role has been switched
- * off: switching something off says it shouldn't count, so it can't also be
- * required. Returns the same object when nothing changes.
+ * "Must include" wins over every other filter change: required contributors
+ * and roles stay switched on, and a required role keeps someone with it on.
+ * If an update (say "Deselect all" contributors) would leave a required role
+ * with nobody, everyone with that role is switched back on. Applied after
+ * every filter update. Returns the same object when nothing changes.
  */
-export const reconcileRequired = (filterState: FilterState): FilterState => {
-  if (!filterState.required) return filterState;
-  const { contributors, roles } = filterState.required;
-  const keptContributors = contributors.filter(
-    (id) => filterState.contributors[id],
-  );
-  const keptRoles = roles.filter((role) => filterState.roles[role]);
-  if (
-    keptContributors.length === contributors.length &&
-    keptRoles.length === roles.length
-  ) {
-    return filterState;
-  }
-  return {
-    ...filterState,
-    required: { contributors: keptContributors, roles: keptRoles },
+export const enforceRequired = (
+  search: Pick<SearchCache, "contributors">,
+  filterState: FilterState,
+): FilterState => {
+  const required = requiredFilters(filterState);
+  const contributors = { ...filterState.contributors };
+  const roles = { ...filterState.roles };
+  let changed = false;
+  const switchOn = (
+    states: Record<string | number, boolean>,
+    key: string | number,
+  ) => {
+    if (!states[key]) {
+      states[key] = true;
+      changed = true;
+    }
   };
+  required.contributors.forEach((id) => switchOn(contributors, id));
+  for (const role of required.roles) {
+    switchOn(roles, role);
+    const holders = Object.values(search.contributors)
+      .filter((c) => c.roles.includes(role))
+      .map((c) => c.id);
+    if (!holders.some((id) => contributors[id])) {
+      holders.forEach((id) => switchOn(contributors, id));
+    }
+  }
+  return changed ? { ...filterState, contributors, roles } : filterState;
 };
 
 export type MustIncludeItem =
   | { kind: "contributor"; id: number; label: string; detail: string }
   | { kind: "role"; role: string; label: string; detail: string };
 
-export type RequiredChip = MustIncludeItem & {
-  /** Can be met with the other filters as they are. */
-  available: boolean;
-};
-
 const categoryLabel = (role: string) =>
   ROLE_CATEGORIES.find((c) => c.id === roleCategory(role))?.label ?? "";
 
 /** The "must include" entries, contributors first, in the order added. */
-export const requiredChips = (search: SearchCache): RequiredChip[] => {
-  const { filterState } = search;
-  const required = requiredFilters(filterState);
-  const people: RequiredChip[] = required.contributors.flatMap((id) => {
+export const requiredChips = (search: SearchCache): MustIncludeItem[] => {
+  const required = requiredFilters(search.filterState);
+  const people: MustIncludeItem[] = required.contributors.flatMap((id) => {
     const c = search.contributors[id];
     if (!c) return [];
     return [
@@ -222,18 +240,14 @@ export const requiredChips = (search: SearchCache): RequiredChip[] => {
         id,
         label: defaultContributorDisplayPipeline(c.name),
         detail: defaultRolePipeline(c.roles).join(", "),
-        available: c.roles.some((role) => filterState.roles[role]),
       },
     ];
   });
-  const roles: RequiredChip[] = required.roles.map((role) => ({
+  const roles: MustIncludeItem[] = required.roles.map((role) => ({
     kind: "role" as const,
     role,
     label: role,
     detail: categoryLabel(role),
-    available: Object.values(search.contributors).some(
-      (c) => c.roles.includes(role) && filterState.contributors[c.id],
-    ),
   }));
   return [...people, ...roles];
 };
@@ -251,7 +265,8 @@ export const mustIncludeOptions = (
   const required = requiredFilters(search.filterState);
   const people: MustIncludeItem[] = contributorChips(search)
     .filter(
-      (c) => !required.contributors.includes(c.id) && matchesName(c.name, query),
+      (c) =>
+        !required.contributors.includes(c.id) && matchesName(c.name, query),
     )
     .map((c) => ({
       kind: "contributor",
@@ -260,7 +275,9 @@ export const mustIncludeOptions = (
       detail: c.roles.join(", "),
     }));
   const roles: MustIncludeItem[] = Object.keys(search.roles)
-    .filter((role) => !required.roles.includes(role) && matchesName(role, query))
+    .filter(
+      (role) => !required.roles.includes(role) && matchesName(role, query),
+    )
     .sort((a, b) => a.localeCompare(b))
     .map((role) => ({
       kind: "role",

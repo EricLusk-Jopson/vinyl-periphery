@@ -4,7 +4,8 @@ import {
   matchesName,
   meetsRequired,
   mustIncludeOptions,
-  reconcileRequired,
+  enforceRequired,
+  isContributorCounted,
   requireContributor,
   requiredChips,
   requireRole,
@@ -119,11 +120,17 @@ describe("roleChips", () => {
     const search = makeSearch();
     search.filterState.roles.Engineer = false;
     search.filterState.contributors[3] = false;
+    search.filterState.required = { contributors: [], roles: [] };
     expect(roleChips(search)).toEqual([
-      { role: "Design", included: true, available: true },
-      { role: "Engineer", included: false, available: true },
-      { role: "Photography", included: true, available: true },
-      { role: "Vocals", included: true, available: false },
+      { role: "Design", included: true, available: true, required: false },
+      { role: "Engineer", included: false, available: true, required: false },
+      {
+        role: "Photography",
+        included: true,
+        available: true,
+        required: false,
+      },
+      { role: "Vocals", included: true, available: false, required: false },
     ]);
   });
 });
@@ -178,7 +185,10 @@ describe("setIncluded", () => {
 describe("roleGroups", () => {
   it("groups role chips by category in display order", () => {
     expect(
-      roleGroups(makeSearch()).map((g) => [g.label, g.roles.map((r) => r.role)]),
+      roleGroups(makeSearch()).map((g) => [
+        g.label,
+        g.roles.map((r) => r.role),
+      ]),
     ).toEqual([
       ["Musicians", ["Vocals"]],
       ["Audio", ["Engineer"]],
@@ -213,41 +223,47 @@ describe("meetsRequired", () => {
   });
 });
 
-describe("requireContributor", () => {
-  it("adds them once and switches them on", () => {
+describe("isContributorCounted", () => {
+  it("needs them on and one of their roles on", () => {
     const search = makeSearch();
-    search.filterState.contributors[1] = false;
-    const updates = requireContributor(search, 1);
-    expect(updates.required).toEqual({ contributors: [1], roles: [] });
-    expect(updates.contributors?.[1]).toBe(true);
-    // Engineer is still on, so roles are left alone.
-    expect(updates.roles).toBeUndefined();
-    search.filterState = { ...search.filterState, ...updates };
-    expect(requireContributor(search, 1).required?.contributors).toEqual([1]);
+    expect(isContributorCounted(search, 3)).toBe(true);
+    search.filterState.roles.Vocals = false;
+    expect(isContributorCounted(search, 3)).toBe(false);
   });
 
-  it("switches their roles on when every one is off", () => {
+  it("counts a required contributor whatever their roles", () => {
     const search = makeSearch();
-    search.filterState.roles.Design = false;
-    search.filterState.roles.Photography = false;
-    const updates = requireContributor(search, 2);
-    expect(updates.roles).toMatchObject({ Design: true, Photography: true });
+    search.filterState.roles.Vocals = false;
+    search.filterState.required = { contributors: [3], roles: [] };
+    expect(isContributorCounted(search, 3)).toBe(true);
+    expect(contributorChips(search).find((c) => c.id === 3)).toMatchObject({
+      available: true,
+      required: true,
+    });
+    search.filterState.contributors[3] = false;
+    expect(isContributorCounted(search, 3)).toBe(false);
   });
 });
 
-describe("requireRole", () => {
-  it("switches the role on, and its people when all are off", () => {
+describe("requireContributor and requireRole", () => {
+  it("add each once", () => {
     const search = makeSearch();
-    search.filterState.roles.Vocals = false;
-    search.filterState.contributors[3] = false;
-    const updates = requireRole(search, "Vocals");
-    expect(updates.required).toEqual({ contributors: [], roles: ["Vocals"] });
-    expect(updates.roles?.Vocals).toBe(true);
-    expect(updates.contributors?.[3]).toBe(true);
-  });
-
-  it("leaves contributors alone when someone with the role is on", () => {
-    expect(requireRole(makeSearch(), "Engineer").contributors).toBeUndefined();
+    search.filterState = {
+      ...search.filterState,
+      ...requireContributor(search, 1),
+    };
+    search.filterState = {
+      ...search.filterState,
+      ...requireRole(search, "Vocals"),
+    };
+    expect(requireContributor(search, 1).required).toEqual({
+      contributors: [1],
+      roles: ["Vocals"],
+    });
+    expect(requireRole(search, "Vocals").required).toEqual({
+      contributors: [1],
+      roles: ["Vocals"],
+    });
   });
 });
 
@@ -266,48 +282,67 @@ describe("unrequire", () => {
   });
 });
 
-describe("reconcileRequired", () => {
-  it("drops entries that were switched off", () => {
-    const { filterState } = makeSearch();
-    filterState.required = { contributors: [1, 2], roles: ["Vocals", "Design"] };
-    filterState.contributors[1] = false;
-    filterState.roles.Design = false;
-    expect(reconcileRequired(filterState).required).toEqual({
-      contributors: [2],
-      roles: ["Vocals"],
+describe("enforceRequired", () => {
+  it("keeps required contributors and roles on through deselect all", () => {
+    const search = makeSearch();
+    const filterState = {
+      ...search.filterState,
+      required: { contributors: [2], roles: ["Engineer"] },
+      contributors: { 1: false, 2: false, 3: false },
+      roles: {
+        Engineer: false,
+        Design: false,
+        Photography: false,
+        Vocals: false,
+      },
+    };
+    const enforced = enforceRequired(search, filterState);
+    // 2 is required; 1 is switched back on as the only Engineer.
+    expect(enforced.contributors).toEqual({ 1: true, 2: true, 3: false });
+    expect(enforced.roles).toEqual({
+      Engineer: true,
+      Design: false,
+      Photography: false,
+      Vocals: false,
     });
   });
 
+  it("leaves a required role's people alone while one of them is on", () => {
+    const search = makeSearch();
+    search.contributors[3].roles.push("Engineer");
+    const filterState = {
+      ...search.filterState,
+      required: { contributors: [], roles: ["Engineer"] },
+      contributors: { 1: false, 2: true, 3: true },
+    };
+    expect(enforceRequired(search, filterState).contributors[1]).toBe(false);
+  });
+
   it("returns the same object when nothing changes", () => {
-    const { filterState } = makeSearch();
-    expect(reconcileRequired(filterState)).toBe(filterState);
-    filterState.required = { contributors: [1], roles: ["Vocals"] };
-    expect(reconcileRequired(filterState)).toBe(filterState);
+    const search = makeSearch();
+    expect(enforceRequired(search, search.filterState)).toBe(
+      search.filterState,
+    );
+    const filterState = {
+      ...search.filterState,
+      required: { contributors: [1], roles: ["Vocals"] },
+    };
+    expect(enforceRequired(search, filterState)).toBe(filterState);
   });
 });
 
 describe("requiredChips", () => {
-  it("lists required contributors then roles, with availability", () => {
+  it("lists required contributors then roles", () => {
     const search = makeSearch();
     search.filterState.required = { contributors: [2], roles: ["Vocals"] };
-    search.filterState.roles.Design = false;
-    search.filterState.roles.Photography = false;
-    search.filterState.contributors[3] = false;
     expect(requiredChips(search)).toEqual([
       {
         kind: "contributor",
         id: 2,
         label: "Storm Thorgerson",
         detail: "Design, Photography",
-        available: false,
       },
-      {
-        kind: "role",
-        role: "Vocals",
-        label: "Vocals",
-        detail: "Musicians",
-        available: false,
-      },
+      { kind: "role", role: "Vocals", label: "Vocals", detail: "Musicians" },
     ]);
   });
 });
@@ -319,9 +354,7 @@ describe("mustIncludeOptions", () => {
 
   it("matches contributors then roles, leaving out required ones", () => {
     const search = makeSearch();
-    expect(
-      mustIncludeOptions(search, "o").map((o) => o.label),
-    ).toEqual([
+    expect(mustIncludeOptions(search, "o").map((o) => o.label)).toEqual([
       "Alan Parsons",
       "Clare Torry",
       "Storm Thorgerson",

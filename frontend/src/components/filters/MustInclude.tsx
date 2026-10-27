@@ -14,8 +14,9 @@ import { cn } from "@/lib/utils";
 
 /**
  * "Must include": contributors and roles every result has to feature, on top
- * of the other filters. A name filter finds them; required ones show as
- * chips that remove themselves when pressed.
+ * of the other filters, and locked on in the chips below. A name filter
+ * finds them; required ones show as chips that remove themselves when
+ * pressed. This list is the only way to change them.
  */
 export const MustInclude: React.FC<{ searchId: string }> = ({ searchId }) => {
   const { searches, updateFilterState } = useCache();
@@ -58,7 +59,10 @@ export const MustInclude: React.FC<{ searchId: string }> = ({ searchId }) => {
   };
 
   return (
-    <section aria-labelledby={`${id}-heading`} className="flex flex-col gap-2.5 lg:gap-3">
+    <section
+      aria-labelledby={`${id}-heading`}
+      className="flex flex-col gap-2.5 lg:gap-3"
+    >
       <h3
         id={`${id}-heading`}
         className="flex min-h-11 items-center gap-2 lg:min-h-9"
@@ -76,28 +80,29 @@ export const MustInclude: React.FC<{ searchId: string }> = ({ searchId }) => {
       {chips.length > 0 ? (
         <ul className="flex flex-wrap gap-2">
           {chips.map((chip) => (
-            <li key={chip.kind === "contributor" ? `c${chip.id}` : `r${chip.role}`}>
+            <li
+              key={
+                chip.kind === "contributor" ? `c${chip.id}` : `r${chip.role}`
+              }
+            >
               <button
                 type="button"
                 onClick={() => remove(chip)}
                 className={cn(
                   "inline-flex h-9 max-w-full items-center gap-1.5 rounded-md border border-border-emphasis bg-secondary pl-2.5 pr-2 text-sm text-foreground transition-colors duration-150 hover:border-border-strong lg:h-[34px]",
                   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring",
-                  !chip.available && "border-dashed text-muted-foreground",
                 )}
               >
                 <span className="truncate">{chip.label}</span>
                 {chip.kind === "role" && (
                   <span className="font-mono text-xs text-faint">role</span>
                 )}
-                <X className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <X
+                  className="h-4 w-4 shrink-0 text-muted-foreground"
+                  aria-hidden="true"
+                />
                 <span className="sr-only">
-                  {chip.detail && `, ${chip.detail}`}
-                  {!chip.available &&
-                    (chip.kind === "contributor"
-                      ? ", can't be met: all their roles are switched off"
-                      : ", can't be met: everyone with this role is switched off")}
-                  , remove from must include
+                  {chip.detail && `, ${chip.detail}`}, remove from must include
                 </span>
               </button>
             </li>

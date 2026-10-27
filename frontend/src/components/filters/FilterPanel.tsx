@@ -57,18 +57,21 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     track("filter_changed", { filter, on });
   const shown = contributors.filter((c) => matchesName(c.name, query));
   const filtering = query.trim() !== "";
+  // Required chips are locked: the select and deselect buttons leave them be.
+  const shownUnlocked = shown.filter((c) => !c.required);
+  const rolesUnlocked = roles.filter((r) => !r.required);
 
   // Select or deselect the contributors in view (all of them unless a name
-  // filter narrows the list) or every role.
+  // filter narrows the list) or every role, except required ones.
   const setContributors = (on: boolean) =>
     updateFilterState(searchId, {
       contributors: setIncluded(
         filterState.contributors,
-        shown.map((c) => c.id),
+        shownUnlocked.map((c) => c.id),
         on,
       ),
     });
-  const setRoles = (on: boolean, names = roles.map((r) => r.role)) =>
+  const setRoles = (on: boolean, names = rolesUnlocked.map((r) => r.role)) =>
     updateFilterState(searchId, {
       roles: setIncluded(filterState.roles, names, on),
     });
@@ -125,8 +128,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         on={contributors.filter((c) => c.included).length}
         total={contributors.length}
         scope={filtering ? "matches" : "all"}
-        canSelect={shown.some((c) => !c.included)}
-        canDeselect={shown.some((c) => c.included)}
+        canSelect={shownUnlocked.some((c) => !c.included)}
+        canDeselect={shownUnlocked.some((c) => c.included)}
         onSelect={() => {
           changed("all_contributors", true);
           setContributors(true);
@@ -162,6 +165,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                 description={c.roles.join(", ")}
                 included={c.included}
                 available={c.available}
+                required={c.required}
                 unavailableNote="all their roles are switched off"
                 onToggle={() => {
                   changed("contributor", !c.included);
@@ -179,8 +183,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         title="Roles"
         on={roles.filter((r) => r.included).length}
         total={roles.length}
-        canSelect={roles.some((r) => !r.included)}
-        canDeselect={roles.some((r) => r.included)}
+        canSelect={rolesUnlocked.some((r) => !r.included)}
+        canDeselect={rolesUnlocked.some((r) => r.included)}
         onSelect={() => {
           changed("all_roles", true);
           setRoles(true);
@@ -193,7 +197,9 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         <div className="flex flex-col gap-3">
           {groups.map((group) => {
             const on = group.roles.filter((r) => r.included).length;
-            const next = on === 0;
+            const unlocked = group.roles.filter((r) => !r.required);
+            // Deselect while any unlocked role is on; Select once none are.
+            const next = !unlocked.some((r) => r.included);
             return (
               <div key={group.id} className="flex flex-col gap-1.5">
                 <div className="flex items-center gap-2">
@@ -203,24 +209,26 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                   <span className="font-mono text-xs text-faint">
                     {on}/{group.roles.length}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      track("filter_changed", {
-                        filter: "role_category",
-                        on: next,
-                        category: group.id,
-                      });
-                      setRoles(
-                        next,
-                        group.roles.map((r) => r.role),
-                      );
-                    }}
-                    aria-label={`${next ? "Select" : "Deselect"} all ${group.label} roles`}
-                    className="ml-auto h-11 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring lg:h-8"
-                  >
-                    {next ? "Select" : "Deselect"}
-                  </button>
+                  {unlocked.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        track("filter_changed", {
+                          filter: "role_category",
+                          on: next,
+                          category: group.id,
+                        });
+                        setRoles(
+                          next,
+                          unlocked.map((r) => r.role),
+                        );
+                      }}
+                      aria-label={`${next ? "Select" : "Deselect"} all ${group.label} roles`}
+                      className="ml-auto h-11 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring lg:h-8"
+                    >
+                      {next ? "Select" : "Deselect"}
+                    </button>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {group.roles.map((r) => (
@@ -229,6 +237,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                       label={r.role}
                       included={r.included}
                       available={r.available}
+                      required={r.required}
                       unavailableNote="everyone with this role is switched off"
                       onToggle={() => {
                         changed("role", !r.included);

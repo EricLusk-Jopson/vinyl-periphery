@@ -24,7 +24,7 @@ Two smaller causes give the same result:
 - Opening a result fetches its credits once and keeps them in localStorage
   (`frontend/src/api/releaseCredits.ts`, `services/creditsCache.ts`).
 - When the credits don't name someone, the row shows how that person's own
-  discography lists the album, e.g. "Appears on some tracks (Trailer Trash)".
+  discography lists the album, e.g. "Appears on some tracks".
   This comes from the `role` and `trackinfo` fields the search already
   receives, so it costs no extra calls.
 - The `result_credits` analytics event records, per fetch, how many people

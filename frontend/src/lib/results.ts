@@ -1,4 +1,4 @@
-import { Credit, ReleaseCredits } from "@/api/releaseCredits";
+import { ReleaseCredits } from "@/api/releaseCredits";
 import { Appearance, Contributor, EnrichedRelease } from "@/api/types";
 import { SearchCache } from "@/contexts/cache/types";
 import { defaultContributorDisplayPipeline } from "./transformers/contributorProcessor";
@@ -130,18 +130,10 @@ export const resetFilterState = (
   required: { contributors: [], roles: [] },
 });
 
-/** Track lists longer than this are cut short, with a count of the rest. */
-const MAX_TRACKS_SHOWN = 4;
-
-/** "Guitar", or "Guitar (A1, B2)" for a role on some tracks only. */
-export const formatCredit = ({ role, tracks }: Credit): string => {
-  if (!tracks?.length) return role;
-  const shown = tracks.slice(0, MAX_TRACKS_SHOWN).join(", ");
-  const more = tracks.length - MAX_TRACKS_SHOWN;
-  return `${role} (${shown}${more > 0 ? ` +${more}` : ""})`;
-};
-
-/** What a person did on a result album, once its credits are loaded. */
+/**
+ * What a person did on a result album, once its credits are loaded. Roles
+ * only: which tracks they cover isn't shown.
+ */
 export type CreditOnResult =
   | { status: "found"; roles: string }
   /** Credited, but with no role given. */
@@ -156,7 +148,7 @@ export const creditOnResult = (
   const found = credits.credits[personId];
   if (!found) return { status: "not-found" };
   if (found.length === 0) return { status: "no-role" };
-  return { status: "found", roles: found.map(formatCredit).join(", ") };
+  return { status: "found", roles: found.map((c) => c.role).join(", ") };
 };
 
 /** Why a result's credits couldn't be loaded, from the HTTP status. */
@@ -177,8 +169,9 @@ const APPEARANCE_ROLES: Record<string, string> = {
 
 /**
  * How a contributor's discography lists a result, as a short line: "Appears
- * on some tracks (Trailer Trash)". A credit role ("Producer") goes through
- * the same cleanup as other roles. Null when there's nothing to say.
+ * on some tracks". Track details (`trackinfo`) aren't shown. A credit role
+ * ("Producer") goes through the same cleanup as other roles. Null when
+ * there's nothing to say.
  */
 export const appearanceText = (
   appearance: Appearance | undefined,
@@ -187,6 +180,5 @@ export const appearanceText = (
   const role =
     APPEARANCE_ROLES[appearance.role] ??
     defaultRolePipeline([appearance.role]).join(", ");
-  if (!role) return null;
-  return appearance.trackinfo ? `${role} (${appearance.trackinfo})` : role;
+  return role || null;
 };

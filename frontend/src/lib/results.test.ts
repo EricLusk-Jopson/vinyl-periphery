@@ -5,7 +5,6 @@ import {
   appearanceText,
   creditOnResult,
   creditsErrorMessage,
-  formatCredit,
   resetFilterState,
   sharedPeople,
   sortReleases,
@@ -142,18 +141,6 @@ describe("resetFilterState", () => {
   });
 });
 
-describe("formatCredit", () => {
-  it("adds track positions, cutting long lists short", () => {
-    expect(formatCredit({ role: "Guitar" })).toBe("Guitar");
-    expect(formatCredit({ role: "Bass", tracks: ["A1", "B2"] })).toBe(
-      "Bass (A1, B2)",
-    );
-    expect(
-      formatCredit({ role: "Bass", tracks: ["1", "2", "3", "4", "5", "6"] }),
-    ).toBe("Bass (1, 2, 3, 4 +2)");
-  });
-});
-
 describe("creditOnResult", () => {
   const credits = {
     releaseId: 1,
@@ -164,10 +151,10 @@ describe("creditOnResult", () => {
     },
   };
 
-  it("lists roles, or says there are none or no credit", () => {
+  it("lists roles without tracks, or says there are none or no credit", () => {
     expect(creditOnResult(credits, 1)).toEqual({
       status: "found",
-      roles: "Producer, Bass (A1)",
+      roles: "Producer, Bass",
     });
     expect(creditOnResult(credits, 2)).toEqual({ status: "no-role" });
     expect(creditOnResult(credits, 3)).toEqual({ status: "not-found" });
@@ -196,13 +183,13 @@ describe("appearanceText", () => {
     );
     expect(
       appearanceText({ role: "TrackAppearance", trackinfo: "Trailer Trash" }),
-    ).toBe("Appears on some tracks (Trailer Trash)");
+    ).toBe("Appears on some tracks");
   });
 
   it("cleans up credit roles and skips empty ones", () => {
     expect(appearanceText({ role: "Written-By" })).toBe("Written By");
     expect(appearanceText({ role: "Producer", trackinfo: "A1" })).toBe(
-      "Producer (A1)",
+      "Producer",
     );
     expect(appearanceText({ role: "[ ]" })).toBeNull();
     expect(appearanceText(undefined)).toBeNull();

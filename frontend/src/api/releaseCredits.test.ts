@@ -1,5 +1,6 @@
 import {
   creditsTarget,
+  discographyAppearance,
   DiscogsError,
   fetchReleaseCredits,
   parseReleaseCredits,
@@ -29,6 +30,29 @@ const result = (
     contributorIds: [],
     ...extra,
   }) as EnrichedRelease;
+
+describe("discographyAppearance", () => {
+  it("reads role and trackinfo from a discography entry", () => {
+    // As in a real /artists/{id}/releases entry.
+    expect(
+      discographyAppearance({
+        id: 51539,
+        type: "master",
+        main_release: 22460452,
+        role: "Appearance",
+      } as { role: string }),
+    ).toEqual({ role: "Appearance" });
+    expect(
+      discographyAppearance({ role: "TrackAppearance", trackinfo: " Gas " }),
+    ).toEqual({ role: "TrackAppearance", trackinfo: "Gas" });
+  });
+
+  it("is undefined without a role", () => {
+    expect(discographyAppearance({})).toBeUndefined();
+    expect(discographyAppearance({ role: " " })).toBeUndefined();
+    expect(discographyAppearance({ role: 3 })).toBeUndefined();
+  });
+});
 
 describe("creditsTarget", () => {
   it("reads releases and masters, with the main release when given", () => {

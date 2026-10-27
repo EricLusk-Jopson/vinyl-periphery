@@ -5,6 +5,7 @@ import { useReleaseCredits } from "@/api/useReleaseCredits";
 import {
   ScoredRelease,
   SharedPerson,
+  appearanceText,
   creditOnResult,
   creditsErrorMessage,
   discogsWebUrl,
@@ -68,23 +69,41 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
     if (credits.data) {
       const credit = creditOnResult(credits.data, personId);
       if (credit.status === "found") return credit.roles;
-      return (
-        <span className="font-sans text-faint">
-          {credit.status === "no-role"
-            ? "Credited, no role given"
-            : credits.data.fromMainRelease
-              ? "Not in the main release's credits"
-              : "Not in this release's credits"}
-        </span>
+      return withAppearance(
+        personId,
+        credit.status === "no-role"
+          ? "Credited, no role given"
+          : credits.data.fromMainRelease
+            ? "Not in the main release's credits"
+            : "Not in this release's credits",
       );
     }
     if (credits.isError || noCredits) {
-      return <span className="font-sans text-faint">Unavailable</span>;
+      return withAppearance(personId, "Unavailable");
     }
     return (
       <span className="inline-flex items-center gap-1.5 font-sans text-faint">
         <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
         Checking
+      </span>
+    );
+  };
+
+  /**
+   * A fallback note, plus how the person's own discography lists this
+   * album when the search kept that.
+   */
+  const withAppearance = (personId: number, note: string) => {
+    const listed = appearanceText(release.appearances?.[personId]);
+    return (
+      <span className="flex flex-col">
+        <span className="font-sans text-faint">{note}</span>
+        {listed && (
+          <span>
+            <span className="font-sans text-faint">Their discography: </span>
+            {listed}
+          </span>
+        )}
       </span>
     );
   };

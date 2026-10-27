@@ -28,7 +28,9 @@ ranks albums by how many of those people worked on them.
   - `src/api/`: Discogs calls and the search pipeline (as mutations).
     `releaseCredits.ts` reads what each person did on a result album, fetched
     when its row is first opened (`useReleaseCredits`), queued 2.5s apart,
-    and kept in localStorage by `src/services/creditsCache.ts`.
+    and kept in localStorage by `src/services/creditsCache.ts`. When the
+    credits don't name someone, the row falls back to how their own
+    discography lists the album (`EnrichedRelease.appearances`).
   - `src/contexts/cache/`: search results, filter state, persistence
     (sessionStorage and IndexedDB).
   - `src/lib/transformers/`: role and name cleanup, with Jest tests.
@@ -44,6 +46,7 @@ ranks albums by how many of those people worked on them.
     live in `src/lib/routes.ts`.
 - `docs/redesign/`: the current UI redesign. Read `DESIGN.md` before any UI
   work.
+- `features/`: proposals for features not built yet, one Markdown file each.
 
 ## Commands
 

@@ -91,7 +91,7 @@ To test locally, put both Vinyl Periphery variables in `.env` and run
 | `discogs_opened` | "View on Discogs" is followed | `rank`, `shared`, `sort` |
 | `filter_changed` | Any filter, switch, select-all or reset | `filter`, `on`; `category` for `role_category`. `filter` is one of `hide_main_artist`, `two_plus_shared`, `hide_various`, `contributor`, `role`, `all_contributors`, `all_roles`, `role_category`, `must_include_contributor`, `must_include_role`, `reset` |
 | `search_saved` | A search is saved or unsaved | `saved`, `from`: results or library |
-| `result_credits` | An opened result's credits are fetched from Discogs (not when read from storage) | `outcome`: loaded or failed, `shared` (people linking it), `found` (of those, how many its credits name), `from_main_release`; `status` (HTTP status, 0 offline) when failed |
+| `result_credits` | An opened result's credits are fetched from Discogs (not when read from storage) | `outcome`: loaded or failed, `shared` (people linking it), `found` (of those, how many its credits name), `hinted` (of the rest, how many have a discography role to show instead), `from_main_release`; `status` (HTTP status, 0 offline) when failed |
 
 ## Uncategorized roles
 

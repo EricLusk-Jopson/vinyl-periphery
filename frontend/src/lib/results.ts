@@ -1,5 +1,5 @@
 import { Credit, ReleaseCredits } from "@/api/releaseCredits";
-import { Contributor, EnrichedRelease } from "@/api/types";
+import { Appearance, Contributor, EnrichedRelease } from "@/api/types";
 import { SearchCache } from "@/contexts/cache/types";
 import { defaultContributorDisplayPipeline } from "./transformers/contributorProcessor";
 import { defaultRolePipeline } from "./transformers/roleProcessor";
@@ -165,4 +165,28 @@ export const creditsErrorMessage = (status: number | undefined): string => {
   if (status === 404) return "Discogs has no release to read credits from.";
   if (status === 0) return "Couldn't reach Discogs. Check your connection.";
   return "Couldn't load this album's credits.";
+};
+
+/** Discogs's coarse discography roles, in words. */
+const APPEARANCE_ROLES: Record<string, string> = {
+  Main: "Main artist",
+  UnofficialRelease: "Main artist (unofficial release)",
+  Appearance: "Appears on this album",
+  TrackAppearance: "Appears on some tracks",
+};
+
+/**
+ * How a contributor's discography lists a result, as a short line: "Appears
+ * on some tracks (Trailer Trash)". A credit role ("Producer") goes through
+ * the same cleanup as other roles. Null when there's nothing to say.
+ */
+export const appearanceText = (
+  appearance: Appearance | undefined,
+): string | null => {
+  if (!appearance) return null;
+  const role =
+    APPEARANCE_ROLES[appearance.role] ??
+    defaultRolePipeline([appearance.role]).join(", ");
+  if (!role) return null;
+  return appearance.trackinfo ? `${role} (${appearance.trackinfo})` : role;
 };

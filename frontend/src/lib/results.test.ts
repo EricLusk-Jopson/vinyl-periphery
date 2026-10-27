@@ -2,6 +2,7 @@ import {
   ScoredRelease,
   discogsWebUrl,
   releaseYear,
+  appearanceText,
   creditOnResult,
   creditsErrorMessage,
   formatCredit,
@@ -184,5 +185,26 @@ describe("creditsErrorMessage", () => {
     expect(creditsErrorMessage(undefined)).toBe(
       "Couldn't load this album's credits.",
     );
+  });
+});
+
+describe("appearanceText", () => {
+  it("puts Discogs's discography roles into words", () => {
+    expect(appearanceText({ role: "Main" })).toBe("Main artist");
+    expect(appearanceText({ role: "Appearance" })).toBe(
+      "Appears on this album",
+    );
+    expect(
+      appearanceText({ role: "TrackAppearance", trackinfo: "Trailer Trash" }),
+    ).toBe("Appears on some tracks (Trailer Trash)");
+  });
+
+  it("cleans up credit roles and skips empty ones", () => {
+    expect(appearanceText({ role: "Written-By" })).toBe("Written By");
+    expect(appearanceText({ role: "Producer", trackinfo: "A1" })).toBe(
+      "Producer (A1)",
+    );
+    expect(appearanceText({ role: "[ ]" })).toBeNull();
+    expect(appearanceText(undefined)).toBeNull();
   });
 });

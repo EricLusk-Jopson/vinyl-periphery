@@ -52,6 +52,10 @@ export function useReleaseCredits(
           outcome: "loaded",
           shared: peopleIds.length,
           found: peopleIds.filter((id) => credits.credits[id]).length,
+          // Not in the credits, but their discography says how they appear.
+          hinted: peopleIds.filter(
+            (id) => !credits.credits[id] && release.appearances?.[id],
+          ).length,
           from_main_release: credits.fromMainRelease,
         });
         return credits;

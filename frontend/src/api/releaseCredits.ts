@@ -1,7 +1,7 @@
 import { defaultRolePipeline } from "../lib/transformers/roleProcessor";
 import { sleep } from "./abort";
 import { REQUEST_DELAY_MS } from "./limits";
-import { EnrichedRelease, RawArtist } from "./types";
+import { Appearance, EnrichedRelease, RawArtist } from "./types";
 
 /**
  * What each person did on a result album, read from that album's Discogs
@@ -24,6 +24,21 @@ export interface ReleaseCredits {
   /** Artist id -> what they did. Empty array: credited with no role. */
   credits: Record<number, Credit[]>;
 }
+
+/**
+ * How a discography entry lists the contributor, from its `role` and
+ * `trackinfo`, or undefined when it has no role.
+ */
+export const discographyAppearance = (entry: {
+  role?: unknown;
+  trackinfo?: unknown;
+}): Appearance | undefined => {
+  const role = typeof entry.role === "string" ? entry.role.trim() : "";
+  if (!role) return undefined;
+  const trackinfo =
+    typeof entry.trackinfo === "string" ? entry.trackinfo.trim() : "";
+  return trackinfo ? { role, trackinfo } : { role };
+};
 
 /** Which Discogs object a result is, from its API resource URL. */
 export type CreditsTarget =

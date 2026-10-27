@@ -77,6 +77,16 @@ export interface ContributorSetInternal {
   >;
 }
 
+/**
+ * How a contributor's own discography lists a release: a coarse role
+ * ("Main", "Appearance", "TrackAppearance", or a credit such as "Producer")
+ * and, for some, the tracks or titles it covers.
+ */
+export interface Appearance {
+  role: string;
+  trackinfo?: string;
+}
+
 export interface EnrichedRelease {
   id: number;
   title: string;
@@ -85,6 +95,12 @@ export interface EnrichedRelease {
   thumb: string;
   resource_url: string;
   contributorIds: number[];
+  /**
+   * Contributor id -> how their discography lists this release. A fallback
+   * when the release's own credits don't name them. Missing on searches run
+   * before it was kept.
+   */
+  appearances?: Record<number, Appearance>;
 }
 
 export interface SearchParams {

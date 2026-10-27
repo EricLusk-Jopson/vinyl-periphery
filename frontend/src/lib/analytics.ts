@@ -20,7 +20,8 @@ export type AnalyticsEvent =
   | "filter_changed"
   | "search_saved"
   | "result_credits"
-  | "cover_lookup";
+  | "cover_lookup"
+  | "search_blocked";
 
 export type EventProperties = Record<string, string | number | boolean>;
 

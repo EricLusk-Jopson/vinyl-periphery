@@ -90,7 +90,12 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
     setPendingKey(release.key);
     onSearchFrom(
       { artist: release.artist, album: release.title },
-      { target: searchTarget(release.type, release.id), thumb: release.thumb },
+      {
+        target: searchTarget(release.type, release.id),
+        thumb: cover(release.key) || release.thumb,
+        // Lineage: this search, and who linked the row to it.
+        from: { parentSearchId: searchId, via: release.activeContributors },
+      },
     );
   };
 

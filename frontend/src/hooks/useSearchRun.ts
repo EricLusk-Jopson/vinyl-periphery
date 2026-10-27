@@ -17,6 +17,7 @@ import { MAX_RELEASES } from "@/api/limits";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { coverUrl, usableImageUrl } from "@/lib/searches";
 import { targetFromSearchResult } from "@/lib/searchTarget";
+import { SearchOrigin } from "@/lib/lineage";
 import { preloadImage } from "@/lib/preloadImage";
 import { joinWithin, secondsSince, track } from "@/lib/analytics";
 import { uncategorizedRoles } from "@/lib/transformers/roleCategories";
@@ -63,6 +64,8 @@ export interface KnownAlbum {
   target: SearchTarget;
   /** The row's cover, if it had one. */
   thumb?: string;
+  /** The search and row it was started from, for lineage. */
+  from?: SearchOrigin;
 }
 
 interface SearchRunOptions {
@@ -73,6 +76,8 @@ interface SearchRunOptions {
   ) => void;
   /** The album search found nothing. */
   onNotFound: (params: SearchParams) => void;
+  /** Not started: the session has no room for another search. */
+  onSessionFull: () => void;
   /** `phase` says whether it failed before or after the album was found. */
   onError: (error: unknown, phase: SearchRun["phase"]) => void;
 }
@@ -85,9 +90,10 @@ interface SearchRunOptions {
 export const useSearchRun = ({
   onComplete,
   onNotFound,
+  onSessionFull,
   onError,
 }: SearchRunOptions) => {
-  const { addSearch } = useCache();
+  const { addSearch, hasRoomForAnotherSearch } = useCache();
   const searchMutation = useDiscogsSearch();
   const contributorsMutation = useListReleaseContributors();
   const releasesMutation = useListContributorReleases();
@@ -96,8 +102,13 @@ export const useSearchRun = ({
   const controllerRef = useRef<AbortController | null>(null);
 
   // Keep the latest callbacks without restarting anything.
-  const callbacksRef = useRef({ onComplete, onNotFound, onError });
-  callbacksRef.current = { onComplete, onNotFound, onError };
+  const callbacksRef = useRef({
+    onComplete,
+    onNotFound,
+    onSessionFull,
+    onError,
+  });
+  callbacksRef.current = { onComplete, onNotFound, onSessionFull, onError };
 
   useEffect(() => () => controllerRef.current?.abort(), []);
 
@@ -108,6 +119,11 @@ export const useSearchRun = ({
       known?: KnownAlbum,
     ) => {
       if (controllerRef.current) return;
+      if (!hasRoomForAnotherSearch()) {
+        track("search_blocked", { reason: "session_full", source });
+        callbacksRef.current.onSessionFull();
+        return;
+      }
       const controller = new AbortController();
       const { signal } = controller;
       controllerRef.current = controller;
@@ -232,6 +248,7 @@ export const useSearchRun = ({
           releasesRecord,
           thumb,
           target,
+          known?.from,
         );
         // Roles the category table doesn't know yet, so it can grow.
         const allRoles = Object.values(contributorSet.contributors).flatMap(
@@ -266,7 +283,13 @@ export const useSearchRun = ({
         setRun(null);
       }
     },
-    [addSearch, searchMutation, contributorsMutation, releasesMutation],
+    [
+      addSearch,
+      hasRoomForAnotherSearch,
+      searchMutation,
+      contributorsMutation,
+      releasesMutation,
+    ],
   );
 
   const cancel = useCallback(() => controllerRef.current?.abort(), []);

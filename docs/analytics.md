@@ -82,15 +82,26 @@ To test locally, put both Vinyl Periphery variables in `.env` and run
 |---|---|---|
 | `page_view` | Every route change, including the first load | `page`: home, library, results |
 | `search_started` | A search begins | `artist`, `album`, `source`: form or result |
-| `search_completed` | Results are stored | `artist`, `album`, `seconds`, `releases_read`, `contributors`, `albums` |
+| `search_completed` | Results are stored | `artist`, `album`, `seconds`, `releases_read`, `contributors`, `albums`, `roles` (distinct roles), `roles_uncategorized_count`, `roles_uncategorized` (see below) |
 | `search_not_found` | Discogs has no match | `artist`, `album`, `seconds` |
 | `search_failed` | An error stops the search | `artist`, `album`, `phase`, `seconds`, `error` |
 | `search_cancelled` | The user cancels, or leaves mid-search | `artist`, `album`, `phase`, `seconds` |
 | `example_filled` | An example search fills the form | `artist`, `album` |
 | `result_opened` | A result row is expanded | `rank`, `shared`, `sort` |
 | `discogs_opened` | "View on Discogs" is followed | `rank`, `shared`, `sort` |
-| `filter_changed` | Any filter, switch, select-all or reset | `filter`, `on` |
+| `filter_changed` | Any filter, switch, select-all or reset | `filter`, `on`; `category` for `role_category`. `filter` is one of `hide_main_artist`, `two_plus_shared`, `hide_various`, `contributor`, `role`, `all_contributors`, `all_roles`, `role_category`, `must_include_contributor`, `must_include_role`, `reset` |
 | `search_saved` | A search is saved or unsaved | `saved`, `from`: results or library |
+
+## Uncategorized roles
+
+The Roles filter groups roles into Musicians, Writing, Audio, Physical media,
+Management and Other, using the patterns in
+`frontend/src/lib/transformers/roleCategories.ts`. `search_completed` reports
+the roles that fell into Other: `roles_uncategorized` is the list joined with
+`|`, cut to whole roles within the 200-character limit, and
+`roles_uncategorized_count` is the full count, so a cut list shows. Every few
+hundred searches, tally the values in that column, add patterns for the
+common ones (with a test case each) and ship.
 
 ## Adding an event
 

@@ -29,6 +29,10 @@ ranks albums by how many of those people worked on them.
   - `src/contexts/cache/`: search results, filter state, persistence
     (sessionStorage and IndexedDB).
   - `src/lib/transformers/`: role and name cleanup, with Jest tests.
+    `roleCategories.ts` puts roles into the buckets the Roles filter groups
+    by (Musicians, Writing, Audio, Physical media, Management, Other).
+  - `src/lib/filters.ts`: chip state, "must include" (`filterState.required`,
+    optional because older saved searches lack it), active filter count.
   - `src/components/ui/`: shadcn primitives. Edit sparingly.
   - Routes (React Router): `/` home, `/library` (`?tab=saved`), and
     `/results?artist=…&album=…`. A results URL names the album, not a cached

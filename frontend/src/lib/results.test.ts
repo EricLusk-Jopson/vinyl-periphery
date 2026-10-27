@@ -133,6 +133,7 @@ describe("resetFilterState", () => {
       excludeMainArtist: true,
       collaborationsOnly: false,
       excludeVarious: false,
+      required: { contributors: [], roles: [] },
     });
   });
 });

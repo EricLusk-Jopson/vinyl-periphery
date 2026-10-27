@@ -5,6 +5,11 @@ import {
   ContributorSet,
 } from "../../api/types";
 
+export interface RequiredFilters {
+  contributors: number[];
+  roles: string[];
+}
+
 export interface SearchCache {
   searchId: string;
   searchParams: SearchParams;
@@ -17,6 +22,12 @@ export interface SearchCache {
     excludeMainArtist: boolean;
     collaborationsOnly: boolean;
     excludeVarious: boolean;
+    /**
+     * "Must include": every result has each of these contributors, and for
+     * each role, a contributor who had it on the searched album. Missing on
+     * searches saved before it existed.
+     */
+    required?: RequiredFilters;
   };
   thumb: string;
   savedAt?: number;

@@ -16,6 +16,7 @@ import { db } from "@/services/db";
 import { CacheContextValue, CacheState, SearchCache } from "./types";
 import { calculateReleaseScore } from "@/api/contributorSet";
 import { sameSearchIds } from "@/lib/searches";
+import { meetsRequired, reconcileRequired } from "@/lib/filters";
 
 const CacheContext = createContext<CacheContextValue | null>(null);
 
@@ -159,6 +160,7 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
         excludeMainArtist: true,
         collaborationsOnly: true,
         excludeVarious: false,
+        required: { contributors: [], roles: [] },
       };
 
       // A repeat run of the same album replaces the earlier result rather
@@ -290,10 +292,10 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
           ...prev.searches,
           [searchId]: {
             ...prev.searches[searchId],
-            filterState: {
+            filterState: reconcileRequired({
               ...prev.searches[searchId].filterState,
               ...updates,
-            },
+            }),
           },
         },
       }));
@@ -613,6 +615,9 @@ export const useFilteredAndScoredReleases = (searchId: string) => {
 
         // Skip if no active contributors
         if (activeContributors.length === 0) return null;
+
+        // Apply "must include"
+        if (!meetsRequired(activeContributors, search)) return null;
 
         // Apply collaborations only filter
         if (

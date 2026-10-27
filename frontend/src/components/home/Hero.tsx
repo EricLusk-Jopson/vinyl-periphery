@@ -1,12 +1,57 @@
 import React, { useRef, useState } from "react";
 import { SearchParams } from "@/api/types";
 import { track } from "@/lib/analytics";
+import { exampleLabel, pickMobileExamples } from "@/lib/examples";
 import { pickRandom } from "@/lib/random";
 import { EXAMPLE_ALBUMS } from "@/lib/topAlbums";
+import { cn } from "@/lib/utils";
 import { Grain } from "../layout/Grain";
 import { SearchForm, SearchFormProps } from "../search/SearchForm";
 
 const EXAMPLE_COUNT = 3;
+
+/**
+ * The phone example buttons' layout, from the screen: the row is the
+ * viewport less the hero's 16px gutters, and the text is `text-sm` (0.875rem)
+ * so it follows the browser's text size.
+ */
+const mobileChipLayout = () => {
+  const root = document.documentElement;
+  const rem = parseFloat(getComputedStyle(root).fontSize) || 16;
+  return {
+    rowWidth: root.clientWidth - 32,
+    fontSize: 0.875 * rem,
+    chipInset: 30, // px-3.5 each side plus a 1px border
+    gap: 8, // gap-2
+  };
+};
+
+interface ExampleButtonProps {
+  example: SearchParams;
+  disabled?: boolean;
+  onClick: () => void;
+  className?: string;
+}
+
+const ExampleButton: React.FC<ExampleButtonProps> = ({
+  example,
+  disabled,
+  onClick,
+  className,
+}) => (
+  <button
+    type="button"
+    disabled={disabled}
+    onClick={onClick}
+    aria-label={`Fill in ${example.artist}, ${example.album}`}
+    className={cn(
+      "max-w-full truncate rounded-full border px-3.5 text-sm text-muted-foreground transition-colors hover:border-border-strong hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-60",
+      className,
+    )}
+  >
+    {exampleLabel(example)}
+  </button>
+);
 
 type HeroProps = Omit<SearchFormProps, "variant">;
 
@@ -38,6 +83,11 @@ export const Hero: React.FC<HeroProps> = (formProps) => {
   const formRef = useRef<HTMLFormElement>(null);
   // A fresh three each time the home page appears.
   const [examples] = useState(() => pickRandom(EXAMPLE_ALBUMS, EXAMPLE_COUNT));
+  // On phones: one long album on its own row, then two short ones side by
+  // side, chosen to fit this screen. Truncation catches any misestimate.
+  const [mobileExamples] = useState(() =>
+    pickMobileExamples(EXAMPLE_ALBUMS, mobileChipLayout()),
+  );
   const { onValuesChange, isSearching } = formProps;
 
   // Fill the form rather than search straight away: a search takes minutes
@@ -65,19 +115,41 @@ export const Hero: React.FC<HeroProps> = (formProps) => {
           <SearchForm ref={formRef} variant="hero" {...formProps} />
         </div>
 
+        {(mobileExamples.wide || mobileExamples.pair.length > 0) && (
+          <div className="flex flex-col gap-2 px-4 pb-6 md:hidden">
+            <span className="text-sm text-faint">Try</span>
+            <div className="grid grid-cols-2 gap-2">
+              {mobileExamples.wide && (
+                <ExampleButton
+                  example={mobileExamples.wide}
+                  disabled={isSearching}
+                  onClick={() => tryExample(mobileExamples.wide!)}
+                  className="col-span-2 h-11"
+                />
+              )}
+              {mobileExamples.pair.map((example) => (
+                <ExampleButton
+                  key={exampleLabel(example)}
+                  example={example}
+                  disabled={isSearching}
+                  onClick={() => tryExample(example)}
+                  className="h-11"
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="hidden flex-wrap items-center gap-2.5 md:flex">
           <span className="text-sm text-faint">Try</span>
           {examples.map((example) => (
-            <button
-              key={`${example.artist}-${example.album}`}
-              type="button"
+            <ExampleButton
+              key={exampleLabel(example)}
+              example={example}
               disabled={isSearching}
               onClick={() => tryExample(example)}
-              aria-label={`Fill in ${example.artist}, ${example.album}`}
-              className="h-9 max-w-full truncate rounded-full border px-3.5 text-sm text-muted-foreground transition-colors hover:border-border-strong hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {example.artist} · {example.album}
-            </button>
+              className="h-9"
+            />
           ))}
         </div>
       </div>

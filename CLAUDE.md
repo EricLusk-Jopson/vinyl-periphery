@@ -26,6 +26,9 @@ ranks albums by how many of those people worked on them.
 - `frontend/`: React 18, TypeScript, Vite, Tailwind 3, shadcn/ui (Radix),
   TanStack Query.
   - `src/api/`: Discogs calls and the search pipeline (as mutations).
+    `releaseCredits.ts` reads what each person did on a result album, fetched
+    when its row is first opened (`useReleaseCredits`), queued 2.5s apart,
+    and kept in localStorage by `src/services/creditsCache.ts`.
   - `src/contexts/cache/`: search results, filter state, persistence
     (sessionStorage and IndexedDB).
   - `src/lib/transformers/`: role and name cleanup, with Jest tests.

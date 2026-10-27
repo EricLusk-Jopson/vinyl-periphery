@@ -1,3 +1,4 @@
+import { Credit, ReleaseCredits } from "@/api/releaseCredits";
 import { Contributor, EnrichedRelease } from "@/api/types";
 import { SearchCache } from "@/contexts/cache/types";
 import { defaultContributorDisplayPipeline } from "./transformers/contributorProcessor";
@@ -128,3 +129,40 @@ export const resetFilterState = (
   excludeVarious: false,
   required: { contributors: [], roles: [] },
 });
+
+/** Track lists longer than this are cut short, with a count of the rest. */
+const MAX_TRACKS_SHOWN = 4;
+
+/** "Guitar", or "Guitar (A1, B2)" for a role on some tracks only. */
+export const formatCredit = ({ role, tracks }: Credit): string => {
+  if (!tracks?.length) return role;
+  const shown = tracks.slice(0, MAX_TRACKS_SHOWN).join(", ");
+  const more = tracks.length - MAX_TRACKS_SHOWN;
+  return `${role} (${shown}${more > 0 ? ` +${more}` : ""})`;
+};
+
+/** What a person did on a result album, once its credits are loaded. */
+export type CreditOnResult =
+  | { status: "found"; roles: string }
+  /** Credited, but with no role given. */
+  | { status: "no-role" }
+  /** Not in the credits Discogs has for this release. */
+  | { status: "not-found" };
+
+export const creditOnResult = (
+  credits: ReleaseCredits,
+  personId: number,
+): CreditOnResult => {
+  const found = credits.credits[personId];
+  if (!found) return { status: "not-found" };
+  if (found.length === 0) return { status: "no-role" };
+  return { status: "found", roles: found.map(formatCredit).join(", ") };
+};
+
+/** Why a result's credits couldn't be loaded, from the HTTP status. */
+export const creditsErrorMessage = (status: number | undefined): string => {
+  if (status === 429) return "Discogs is busy. Try again in a minute.";
+  if (status === 404) return "Discogs has no release to read credits from.";
+  if (status === 0) return "Couldn't reach Discogs. Check your connection.";
+  return "Couldn't load this album's credits.";
+};

@@ -1,0 +1,33 @@
+{
+  "id": 6237894,
+  "title": "The Lonesome Crowded West",
+  "artists": [
+    { "name": "Modest Mouse", "anv": "", "join": "", "role": "", "tracks": "", "id": 187919, "resource_url": "https://api.discogs.com/artists/187919" }
+  ],
+  "tracklist": [
+    { "position": "A1", "type_": "track", "title": "Teeth Like God's Shoeshine", "extraartists": [
+      { "name": "Phil Ek", "anv": "", "join": "", "role": "Recorded By", "tracks": "", "id": 254426, "resource_url": "https://api.discogs.com/artists/254426" } ] },
+    { "position": "A2", "type_": "track", "title": "Heart Cooks Brain", "extraartists": [
+      { "name": "K.O. (6)", "anv": "", "join": "", "role": "Scratches [Phonogram Player K-ep 6]", "tracks": "", "id": 173248, "resource_url": "https://api.discogs.com/artists/173248" } ] },
+    { "position": "A3", "type_": "track", "title": "Convenient Parking", "extraartists": [
+      { "name": "Scott Swayze", "anv": "", "join": "", "role": "Guitar", "tracks": "", "id": 281540, "resource_url": "https://api.discogs.com/artists/281540" } ] },
+    { "position": "A4", "type_": "track", "title": "Baby Blue Sedan" },
+    { "position": "B2", "type_": "track", "title": "Doin' The Cockroach", "extraartists": [
+      { "name": "Phil Ek", "anv": "", "join": "", "role": "Recorded By", "tracks": "", "id": 254426, "resource_url": "https://api.discogs.com/artists/254426" } ] },
+    { "position": "B3", "type_": "track", "title": "Cowboy Dan", "extraartists": [
+      { "name": "Phil Ek", "anv": "", "join": "", "role": "Recorded By", "tracks": "", "id": 254426, "resource_url": "https://api.discogs.com/artists/254426" } ] },
+    { "position": "D3", "type_": "track", "title": "Lounge (Closing Time)", "extraartists": [
+      { "name": "Scott Swayze", "anv": "", "join": "", "role": "Guitar", "tracks": "", "id": 281540, "resource_url": "https://api.discogs.com/artists/281540" } ] }
+  ],
+  "extraartists": [
+    { "name": "Eric Judy", "anv": "", "join": "", "role": "Bass", "tracks": "", "id": 260713, "resource_url": "https://api.discogs.com/artists/260713" },
+    { "name": "Scott Swayze", "anv": "", "join": "", "role": "Engineer", "tracks": "", "id": 281540, "resource_url": "https://api.discogs.com/artists/281540" },
+    { "name": "Isaac Brock", "anv": "", "join": "", "role": "Guitar", "tracks": "", "id": 260715, "resource_url": "https://api.discogs.com/artists/260715" },
+    { "name": "Brian Weber", "anv": "", "join": "", "role": "Other [Bartender]", "tracks": "", "id": 0, "resource_url": "" },
+    { "name": "Isaac Brock", "anv": "I. Brock", "join": "", "role": "Photography By [Other Photos]", "tracks": "", "id": 260715, "resource_url": "https://api.discogs.com/artists/260715" },
+    { "name": "Isaac Brock", "anv": "", "join": "", "role": "Producer [Produced With]", "tracks": "", "id": 260715, "resource_url": "https://api.discogs.com/artists/260715" },
+    { "name": "Scott Swayze", "anv": "", "join": "", "role": "Producer [Produced With]", "tracks": "", "id": 281540, "resource_url": "https://api.discogs.com/artists/281540" },
+    { "name": "Isaac Brock", "anv": "", "join": "", "role": "Vocals", "tracks": "", "id": 260715, "resource_url": "https://api.discogs.com/artists/260715" },
+    { "name": "Modest Mouse", "anv": "", "join": "", "role": "Written-By", "tracks": "", "id": 187919, "resource_url": "https://api.discogs.com/artists/187919" }
+  ]
+}

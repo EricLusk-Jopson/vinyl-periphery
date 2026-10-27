@@ -18,7 +18,8 @@ export type AnalyticsEvent =
   | "result_opened"
   | "discogs_opened"
   | "filter_changed"
-  | "search_saved";
+  | "search_saved"
+  | "result_credits";
 
 export type EventProperties = Record<string, string | number | boolean>;
 

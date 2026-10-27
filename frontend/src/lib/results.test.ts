@@ -2,6 +2,9 @@ import {
   ScoredRelease,
   discogsWebUrl,
   releaseYear,
+  creditOnResult,
+  creditsErrorMessage,
+  formatCredit,
   resetFilterState,
   sharedPeople,
   sortReleases,
@@ -135,5 +138,51 @@ describe("resetFilterState", () => {
       excludeVarious: false,
       required: { contributors: [], roles: [] },
     });
+  });
+});
+
+describe("formatCredit", () => {
+  it("adds track positions, cutting long lists short", () => {
+    expect(formatCredit({ role: "Guitar" })).toBe("Guitar");
+    expect(formatCredit({ role: "Bass", tracks: ["A1", "B2"] })).toBe(
+      "Bass (A1, B2)",
+    );
+    expect(
+      formatCredit({ role: "Bass", tracks: ["1", "2", "3", "4", "5", "6"] }),
+    ).toBe("Bass (1, 2, 3, 4 +2)");
+  });
+});
+
+describe("creditOnResult", () => {
+  const credits = {
+    releaseId: 1,
+    fromMainRelease: false,
+    credits: {
+      1: [{ role: "Producer" }, { role: "Bass", tracks: ["A1"] }],
+      2: [],
+    },
+  };
+
+  it("lists roles, or says there are none or no credit", () => {
+    expect(creditOnResult(credits, 1)).toEqual({
+      status: "found",
+      roles: "Producer, Bass (A1)",
+    });
+    expect(creditOnResult(credits, 2)).toEqual({ status: "no-role" });
+    expect(creditOnResult(credits, 3)).toEqual({ status: "not-found" });
+  });
+});
+
+describe("creditsErrorMessage", () => {
+  it("explains rate limits, missing releases and being offline", () => {
+    expect(creditsErrorMessage(429)).toMatch(/busy/);
+    expect(creditsErrorMessage(404)).toMatch(/no release/);
+    expect(creditsErrorMessage(0)).toMatch(/reach Discogs/);
+    expect(creditsErrorMessage(500)).toBe(
+      "Couldn't load this album's credits.",
+    );
+    expect(creditsErrorMessage(undefined)).toBe(
+      "Couldn't load this album's credits.",
+    );
   });
 });

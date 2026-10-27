@@ -54,7 +54,11 @@ ranks albums by how many of those people worked on them.
   - `src/lib/filters.ts`: chip state, "must include" (`filterState.required`,
     optional because older saved searches lack it), active filter count.
   - `src/components/ui/`: shadcn primitives. Edit sparingly.
-  - Routes (React Router): `/` home, `/library` (`?tab=saved`), and
+  - `src/lib/stacks.ts`: saved searches grouped by `lineage.stackId` (two or
+    more make a stack), the stack's root, ghosted unsaved steps, and the
+    ancestors the save drawer offers. No stack entity is stored.
+  - Routes (React Router): `/` home, `/library` (`?tab=saved`),
+    `/library/stack/:stackId`, and
     `/results?artist=…&album=…`, plus `&master=N` or `&release=N` when the
     Discogs album is known. A results URL names the album, not a cached
     search, so it works on any device: without the search cached, the page

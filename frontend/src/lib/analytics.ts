@@ -21,7 +21,13 @@ export type AnalyticsEvent =
   | "search_saved"
   | "result_credits"
   | "cover_lookup"
-  | "search_blocked";
+  | "search_blocked"
+  | "stack_saved"
+  | "stack_opened"
+  | "stack_deleted"
+  | "search_jumped"
+  | "library_view_toggled"
+  | "library_searched";
 
 export type EventProperties = Record<string, string | number | boolean>;
 

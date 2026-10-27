@@ -14,11 +14,17 @@ import {
   EnrichedRelease,
 } from "../../api/types";
 import { db } from "@/services/db";
-import { CacheContextValue, CacheState, SearchCache } from "./types";
+import {
+  CacheContextValue,
+  CacheState,
+  SaveOptions,
+  SearchCache,
+  SearchLineage,
+} from "./types";
 import { calculateReleaseScore } from "@/api/contributorSet";
 import { matchingSearchIds } from "@/lib/searchTarget";
 import { migrateSearch } from "@/lib/releases";
-import { lineageForNewSearch, SearchOrigin } from "@/lib/lineage";
+import { lineageForNewSearch, lineageOf, SearchOrigin } from "@/lib/lineage";
 import {
   estimateNextSearch,
   hasRoomForSearch,
@@ -170,7 +176,8 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
       releases: Record<string, EnrichedRelease>,
       thumb: string,
       target?: SearchTarget | null,
-      origin?: SearchOrigin
+      origin?: SearchOrigin,
+      lineageOverride?: SearchLineage
     ): string => {
       const searchId = `${params.artist}-${params.album}-${Date.now()}`;
 
@@ -219,7 +226,7 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
       const parent = origin
         ? stateRef.current.searches[origin.parentSearchId]
         : undefined;
-      const lineage = lineageForNewSearch({
+      const lineage = lineageOverride ?? lineageForNewSearch({
         searchId,
         replaced: replaced.map((id) => stateRef.current.searches[id]),
         parent,
@@ -291,12 +298,17 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const saveSearch = useCallback(
-    async (searchId: string) => {
-      const search = state.searches[searchId];
+    async (searchId: string, options: SaveOptions = {}) => {
+      const search = stateRef.current.searches[searchId];
       if (!search) return;
 
       try {
-        const savedSearch = { ...search, savedAt: Date.now() };
+        // "Save on its own" drops the lineage, so it never regroups.
+        const { lineage, ...rest } = search;
+        const savedSearch: SearchCache = {
+          ...(options.withoutLineage ? rest : { ...rest, lineage }),
+          savedAt: Date.now(),
+        };
         await db.saveSearch(savedSearch);
         setState((prev) => ({
           ...prev,
@@ -311,7 +323,50 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
         throw error;
       }
     },
-    [state.searches]
+    []
+  );
+
+  /** Deletes every saved search in a stack. Returns how many. */
+  const deleteStack = useCallback(async (stackId: string) => {
+    const ids = Object.values(stateRef.current.searches)
+      .filter(
+        (s) =>
+          stateRef.current.savedSearchIds.has(s.searchId) &&
+          lineageOf(s).stackId === stackId
+      )
+      .map((s) => s.searchId);
+    for (const id of ids) await db.deleteSavedSearch(id);
+    setState((prev) => {
+      const searches = { ...prev.searches };
+      const savedSearchIds = new Set(prev.savedSearchIds);
+      ids.forEach((id) => {
+        delete searches[id];
+        savedSearchIds.delete(id);
+      });
+      return {
+        searches,
+        activeSearchId: ids.includes(prev.activeSearchId ?? "")
+          ? null
+          : prev.activeSearchId,
+        savedSearchIds,
+      };
+    });
+    return ids.length;
+  }, []);
+
+  /** Puts a deleted search back (undo), saved again if it was. */
+  const restoreSearch = useCallback(
+    async (search: SearchCache, saved: boolean) => {
+      if (saved) await db.saveSearch(search);
+      setState((prev) => ({
+        ...prev,
+        searches: { ...prev.searches, [search.searchId]: search },
+        savedSearchIds: saved
+          ? new Set([...prev.savedSearchIds, search.searchId])
+          : prev.savedSearchIds,
+      }));
+    },
+    []
   );
 
   const unsaveSearch = useCallback(async (searchId: string) => {
@@ -451,6 +506,8 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
     hasRoomForAnotherSearch,
     saveSearch,
     unsaveSearch,
+    deleteStack,
+    restoreSearch,
     isSearchSaved,
     updateFilterState,
     getActiveSearch,

@@ -69,6 +69,11 @@ export interface SearchCache {
   savedAt?: number;
 }
 
+export interface SaveOptions {
+  /** "Save on its own": without lineage, so it never joins a stack. */
+  withoutLineage?: boolean;
+}
+
 export interface CacheState {
   searches: Record<string, SearchCache>;
   activeSearchId: string | null;
@@ -89,7 +94,9 @@ export interface CacheContextValue extends CacheState {
     releases: Record<string, EnrichedRelease>,
     thumb: string,
     target?: SearchTarget | null,
-    origin?: SearchOrigin
+    origin?: SearchOrigin,
+    /** Rejoins a known trail, e.g. searching a ghosted stack step again. */
+    lineage?: SearchLineage
   ) => string;
   /** Whether another search is expected to fit in sessionStorage. */
   hasRoomForAnotherSearch: () => boolean;
@@ -101,7 +108,11 @@ export interface CacheContextValue extends CacheState {
   clearSearch: (searchId: string) => void;
   clearSessionHistory: () => void;
   clearSavedSearches: () => void;
-  saveSearch: (searchId: string) => Promise<void>;
+  saveSearch: (searchId: string, options?: SaveOptions) => Promise<void>;
+  /** Deletes every saved search with this stack id; resolves to how many. */
+  deleteStack: (stackId: string) => Promise<number>;
+  /** Puts a deleted search back, saved again if `saved`. */
+  restoreSearch: (search: SearchCache, saved: boolean) => Promise<void>;
   unsaveSearch: (searchId: string) => Promise<void>;
   isSearchSaved: (searchId: string) => boolean;
 }

@@ -1,131 +1,76 @@
-import React, { useId, useRef, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Star, Trash2 } from "lucide-react";
+import { Search } from "lucide-react";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { SearchCache } from "@/contexts/cache/types";
+import { useToast } from "@/hooks/use-toast";
+import { HOME_PATH, LibraryTab, libraryTab } from "@/lib/routes";
+import { recentSearches } from "@/lib/searches";
 import {
-  HOME_PATH,
-  LibraryTab,
-  ResultFrom,
-  libraryTab,
-  resultPath,
-} from "@/lib/routes";
-import { recentSearches, searchStartedAt, timeAgo } from "@/lib/searches";
+  groupStacks,
+  LibraryStack,
+  searchLibrary,
+  stackLabel,
+} from "@/lib/stacks";
 import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
-import { SearchCover } from "../search/SearchCover";
+import { ToastAction } from "../ui/toast";
+import { ChoiceDialog } from "../common/ChoiceDialog";
+import { dialogButton } from "../common/buttons";
+import { LibraryCard } from "./LibraryCard";
+import { StackCard } from "./StackCard";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
-const iconButton = cn(
-  "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-secondary disabled:opacity-60",
-  focusRing,
-);
 
 const TABS: { id: LibraryTab; label: string }[] = [
   { id: "session", label: "This session" },
   { id: "saved", label: "Saved" },
 ];
 
-interface LibraryCardProps {
-  search: SearchCache;
-  saved: boolean;
-  tab: LibraryTab;
-  onToggleSave: () => Promise<void>;
-  onDelete: () => Promise<void>;
-}
+type SavedView = "stacked" | "flat";
+const VIEW_STORAGE_KEY = "vinyl-periphery-library-view";
 
-const LibraryCard: React.FC<LibraryCardProps> = ({
-  search,
-  saved,
-  tab,
-  onToggleSave,
-  onDelete,
-}) => {
-  const [busy, setBusy] = useState(false);
-  const { artist, album } = search.searchParams;
-  const albums = Object.keys(search.releases).length;
-  const from: ResultFrom = { from: "library", tab };
-
-  const run = (action: () => Promise<void>) => async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      await action();
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <li className="flex min-w-0 items-center gap-1 rounded-[10px] border bg-surface pr-2 transition-colors hover:border-border-strong">
-      <Link
-        to={resultPath(search.searchParams, search.target)}
-        state={from}
-        data-library-open
-        className={cn(
-          "flex min-w-0 flex-1 items-center gap-3 rounded-[10px] p-2.5 lg:gap-4 lg:p-3.5",
-          focusRing,
-        )}
-      >
-        <SearchCover
-          search={search}
-          className="h-12 w-12 rounded-[3px] text-xs lg:h-16 lg:w-16 lg:rounded lg:text-sm"
-        />
-        <span className="flex min-w-0 flex-col gap-0.5 md:gap-1">
-          <span className="truncate text-[15px] font-semibold md:text-base">
-            {album}
-          </span>
-          <span className="truncate text-[13px] text-muted-foreground md:text-sm">
-            {artist}
-          </span>
-          <span className="font-mono text-xs text-faint">
-            {albums.toLocaleString("en-US")} {albums === 1 ? "album" : "albums"}{" "}
-            · {timeAgo(searchStartedAt(search.searchId))}
-          </span>
-        </span>
-      </Link>
-      {/* Always visible, not only on hover, so touch and keyboard users
-          can reach them. */}
-      <button
-        type="button"
-        onClick={run(onToggleSave)}
-        disabled={busy}
-        aria-pressed={saved}
-        aria-label={`Save ${album}`}
-        className={iconButton}
-      >
-        <Star
-          className={cn(
-            "h-[18px] w-[18px]",
-            saved ? "fill-primary text-primary" : "text-muted-foreground",
-          )}
-          aria-hidden="true"
-        />
-      </button>
-      <button
-        type="button"
-        onClick={run(onDelete)}
-        disabled={busy}
-        aria-label={`Delete ${album}`}
-        className={cn(
-          iconButton,
-          "text-muted-foreground hover:text-foreground",
-        )}
-      >
-        <Trash2 className="h-[18px] w-[18px]" aria-hidden="true" />
-      </button>
-    </li>
-  );
+/** The viewer's stacked/flat choice; stacked when unknown or unreadable. */
+const readView = (): SavedView => {
+  try {
+    return localStorage.getItem(VIEW_STORAGE_KEY) === "flat"
+      ? "flat"
+      : "stacked";
+  } catch {
+    return "stacked";
+  }
 };
+
+const writeView = (view: SavedView) => {
+  try {
+    localStorage.setItem(VIEW_STORAGE_KEY, view);
+  } catch {
+    // Blocked storage: the choice lasts until reload.
+  }
+};
+
+const VIEWS: { id: SavedView; label: string }[] = [
+  { id: "stacked", label: "Stacks" },
+  { id: "flat", label: "All" },
+];
 
 /**
  * Every search from this session, and the saved ones, as tabs. The chosen tab
- * is in the URL (?tab=saved) so "Back to library" returns to it.
+ * is in the URL (?tab=saved) so "Back to library" returns to it. Saved
+ * searches group into stacks by lineage (or show flat), and can be searched.
  */
 export const LibraryPage: React.FC = () => {
-  const { searches, savedSearchIds, saveSearch, unsaveSearch, clearSearch } =
-    useCache();
+  const {
+    searches,
+    savedSearchIds,
+    saveSearch,
+    unsaveSearch,
+    clearSearch,
+    deleteStack,
+    restoreSearch,
+  } = useCache();
+  const { toast } = useToast();
   const [params, setParams] = useSearchParams();
   const tab = libraryTab(`?${params.toString()}`);
   const id = useId();
@@ -134,13 +79,43 @@ export const LibraryPage: React.FC = () => {
     saved: null,
   });
   const panelRef = useRef<HTMLDivElement>(null);
+  const [view, setView] = useState<SavedView>(readView);
+  const [query, setQuery] = useState("");
+  const [stackToDelete, setStackToDelete] = useState<LibraryStack | null>(null);
 
   const all = recentSearches(searches, Number.POSITIVE_INFINITY);
   const lists: Record<LibraryTab, SearchCache[]> = {
     session: all.filter((s) => !savedSearchIds.has(s.searchId)),
     saved: all.filter((s) => savedSearchIds.has(s.searchId)),
   };
-  const items = lists[tab];
+  const saved = lists.saved;
+  const searching = tab === "saved" && query.trim() !== "";
+  const found = useMemo(() => searchLibrary(saved, query), [saved, query]);
+  const entries = useMemo(() => groupStacks(saved), [saved]);
+  // Which stack (two or more saved) each saved search is in, for search results.
+  const stackNotes = useMemo(() => {
+    const notes = new Map<string, string>();
+    for (const entry of entries) {
+      if (entry.kind !== "stack") continue;
+      const label = `In ${stackLabel(entry)}`;
+      entry.members.forEach((m) => notes.set(m.searchId, label));
+    }
+    return notes;
+  }, [entries]);
+
+  // Report a library search once typing pauses; the text isn't sent.
+  useEffect(() => {
+    if (!searching) return;
+    const timer = setTimeout(
+      () =>
+        track("library_searched", {
+          results: found.length,
+          length: query.trim().length,
+        }),
+      1000,
+    );
+    return () => clearTimeout(timer);
+  }, [searching, query, found.length]);
 
   const selectTab = (next: LibraryTab, focus = false) => {
     setParams(next === "saved" ? { tab: "saved" } : {}, { replace: true });
@@ -165,23 +140,8 @@ export const LibraryPage: React.FC = () => {
     selectTab(TABS[next].id, true);
   };
 
-  const remove = async (searchId: string) => {
-    const links = [
-      ...(panelRef.current?.querySelectorAll<HTMLAnchorElement>(
-        "[data-library-open]",
-      ) ?? []),
-    ];
-    const index = links.findIndex((a) =>
-      a.closest("li")?.contains(document.activeElement),
-    );
-    try {
-      if (savedSearchIds.has(searchId)) await unsaveSearch(searchId);
-      clearSearch(searchId);
-    } catch (error) {
-      console.error("Failed to delete search:", error);
-      return;
-    }
-    // The deleted card is gone; move focus to the next one, or the tab.
+  /** After a card goes, focus the next one, or the tab. */
+  const keepFocus = (index: number) =>
     requestAnimationFrame(() => {
       const left = panelRef.current?.querySelectorAll<HTMLAnchorElement>(
         "[data-library-open]",
@@ -189,13 +149,120 @@ export const LibraryPage: React.FC = () => {
       const next = left?.[Math.min(Math.max(index, 0), left.length - 1)];
       (next ?? tabRefs.current[tab])?.focus();
     });
+
+  const focusedIndex = () =>
+    [
+      ...(panelRef.current?.querySelectorAll<HTMLAnchorElement>(
+        "[data-library-open]",
+      ) ?? []),
+    ].findIndex((a) => a.closest("li")?.contains(document.activeElement));
+
+  // Deleting one search needs no warning: the toast can undo it.
+  const remove = async (searchId: string) => {
+    const index = focusedIndex();
+    const search = searches[searchId];
+    const wasSaved = savedSearchIds.has(searchId);
+    try {
+      if (wasSaved) await unsaveSearch(searchId);
+      clearSearch(searchId);
+    } catch (error) {
+      console.error("Failed to delete search:", error);
+      return;
+    }
+    keepFocus(index);
+    if (!search) return;
+    toast({
+      title: "Search deleted",
+      description: `${search.searchParams.album} by ${search.searchParams.artist}`,
+      action: (
+        <ToastAction
+          altText="Undo delete"
+          onClick={() => void restoreSearch(search, wasSaved)}
+        >
+          Undo
+        </ToastAction>
+      ),
+    });
+  };
+
+  const confirmDeleteStack = async () => {
+    if (!stackToDelete) return;
+    const index = focusedIndex();
+    const removed = await deleteStack(stackToDelete.stackId);
+    track("stack_deleted", { members: removed });
+    setStackToDelete(null);
+    keepFocus(index);
   };
 
   const toggleSave = async (searchId: string) => {
-    const saved = savedSearchIds.has(searchId);
-    await (saved ? unsaveSearch : saveSearch)(searchId);
-    track("search_saved", { saved: !saved, from: "library" });
+    const wasSaved = savedSearchIds.has(searchId);
+    await (wasSaved ? unsaveSearch : saveSearch)(searchId);
+    track("search_saved", { saved: !wasSaved, from: "library" });
   };
+
+  const chooseView = (next: SavedView) => {
+    if (next === view) return;
+    setView(next);
+    writeView(next);
+    track("library_view_toggled", { view: next });
+  };
+
+  const card = (search: SearchCache, note?: string) => (
+    <LibraryCard
+      key={search.searchId}
+      search={search}
+      saved={savedSearchIds.has(search.searchId)}
+      from={{ from: "library", tab }}
+      note={note}
+      onToggleSave={() => toggleSave(search.searchId)}
+      onDelete={() => remove(search.searchId)}
+    />
+  );
+
+  const grid =
+    "grid gap-2.5 md:grid-cols-2 md:gap-4 lg:grid-cols-[repeat(auto-fill,minmax(360px,1fr))]";
+
+  let body: React.ReactNode;
+  if (tab === "session") {
+    body = lists.session.length > 0 && (
+      <ul className={grid}>{lists.session.map((s) => card(s))}</ul>
+    );
+  } else if (searching) {
+    body =
+      found.length > 0 ? (
+        <ul className={grid}>
+          {found.map((s) => card(s, stackNotes.get(s.searchId)))}
+        </ul>
+      ) : (
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          No saved searches match "{query.trim()}".
+        </p>
+      );
+  } else if (view === "stacked") {
+    body = saved.length > 0 && (
+      <ul className={grid}>
+        {entries.map((entry) =>
+          entry.kind === "stack" ? (
+            <StackCard
+              key={entry.stackId}
+              stack={entry}
+              onDelete={() => setStackToDelete(entry)}
+            />
+          ) : (
+            card(entry.search)
+          ),
+        )}
+      </ul>
+    );
+  } else {
+    body = saved.length > 0 && (
+      <ul className={grid}>
+        {saved.map((s) => card(s, stackNotes.get(s.searchId)))}
+      </ul>
+    );
+  }
+
+  const empty = lists[tab].length === 0;
 
   return (
     <div className="mx-auto w-full max-w-[1200px] px-4 pb-24 pt-8 md:px-6 md:pt-14">
@@ -247,20 +314,59 @@ export const LibraryPage: React.FC = () => {
         aria-labelledby={`${id}-tab-${tab}`}
         className="pt-5 md:pt-6"
       >
-        {items.length > 0 ? (
-          <ul className="grid gap-2.5 md:grid-cols-2 md:gap-4 lg:grid-cols-[repeat(auto-fill,minmax(360px,1fr))]">
-            {items.map((search) => (
-              <LibraryCard
-                key={search.searchId}
-                search={search}
-                saved={savedSearchIds.has(search.searchId)}
-                tab={tab}
-                onToggleSave={() => toggleSave(search.searchId)}
-                onDelete={() => remove(search.searchId)}
+        {tab === "saved" && !empty && (
+          <div className="mb-4 flex flex-col gap-3 md:mb-5 md:flex-row md:items-center md:justify-between">
+            <div className="relative md:w-[320px]">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint"
+                aria-hidden="true"
               />
-            ))}
-          </ul>
-        ) : (
+              <label htmlFor={`${id}-search`} className="sr-only">
+                Search saved searches
+              </label>
+              <input
+                id={`${id}-search`}
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search saved albums and artists"
+                autoComplete="off"
+                className={cn(
+                  "h-11 w-full rounded-lg border bg-surface pl-9 pr-3 text-[15px] text-foreground placeholder:text-faint md:text-sm",
+                  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring",
+                )}
+              />
+            </div>
+            {!searching && (
+              <div
+                role="radiogroup"
+                aria-label="Show saved searches as"
+                className="flex self-start rounded-lg border p-1"
+              >
+                {VIEWS.map((v) => (
+                  <button
+                    key={v.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={view === v.id}
+                    onClick={() => chooseView(v.id)}
+                    className={cn(
+                      "h-9 rounded-md px-4 text-sm font-medium transition-colors",
+                      focusRing,
+                      view === v.id
+                        ? "bg-secondary text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {v.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {empty ? (
           <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed px-6 py-12 text-center">
             <p className="text-base font-semibold">
               {tab === "saved" ? "No saved searches" : "No searches yet"}
@@ -280,8 +386,35 @@ export const LibraryPage: React.FC = () => {
               Start a search
             </Link>
           </div>
+        ) : (
+          body
         )}
       </div>
+
+      <ChoiceDialog
+        open={stackToDelete !== null}
+        onOpenChange={(open) => !open && setStackToDelete(null)}
+        title="Delete this stack?"
+        description={
+          stackToDelete &&
+          `This removes ${stackToDelete.members.length} saved searches from the ${stackLabel(stackToDelete)} stack. Searches still open in this session stay there.`
+        }
+      >
+        <button
+          type="button"
+          onClick={() => setStackToDelete(null)}
+          className={dialogButton.secondary}
+        >
+          Keep it
+        </button>
+        <button
+          type="button"
+          onClick={() => void confirmDeleteStack()}
+          className={dialogButton.primary}
+        >
+          Delete {stackToDelete?.members.length} searches
+        </button>
+      </ChoiceDialog>
     </div>
   );
 };

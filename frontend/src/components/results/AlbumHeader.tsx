@@ -6,6 +6,8 @@ import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { Grain } from "../layout/Grain";
 import { SearchCover } from "../search/SearchCover";
+import { SaveDrawer } from "../library/SaveDrawer";
+import { ancestorsAvailableToSave } from "@/lib/stacks";
 
 interface AlbumHeaderProps {
   search: SearchCache;
@@ -13,14 +15,25 @@ interface AlbumHeaderProps {
 
 /** The searched album above its results: cover, title, meta and Save. */
 export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search }) => {
-  const { isSearchSaved, saveSearch, unsaveSearch } = useCache();
+  const { isSearchSaved, saveSearch, unsaveSearch, searches, savedSearchIds } =
+    useCache();
   const [busy, setBusy] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const saved = isSearchSaved(search.searchId);
   const { artist, album } = search.searchParams;
   const contributorCount = Object.keys(search.contributors).length;
 
   const toggleSave = async () => {
     if (busy) return;
+    // With ancestors in the session or library, ask how to save it; with
+    // none, it's one tap.
+    if (
+      !saved &&
+      ancestorsAvailableToSave(search, searches, savedSearchIds).length > 0
+    ) {
+      setDrawerOpen(true);
+      return;
+    }
     setBusy(true);
     try {
       await (saved ? unsaveSearch : saveSearch)(search.searchId);
@@ -77,6 +90,11 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search }) => {
           </span>
         </button>
       </div>
+      <SaveDrawer
+        search={search}
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+      />
     </section>
   );
 };

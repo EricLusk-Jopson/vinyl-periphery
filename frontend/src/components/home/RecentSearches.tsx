@@ -4,7 +4,7 @@ import { ChevronRight, Star } from "lucide-react";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { LIBRARY_PATH, ResultFrom, resultPath } from "@/lib/routes";
 import { recentSearches } from "@/lib/searches";
-import { AlbumCover } from "../search/AlbumCover";
+import { SearchCover } from "../search/SearchCover";
 
 const RECENT_LIMIT = 3;
 
@@ -54,9 +54,8 @@ export const RecentSearches: React.FC = () => {
                 state={FROM_HOME}
                 className="flex w-full items-center gap-3 rounded-[10px] border bg-surface p-2.5 text-left transition-colors hover:border-border-strong hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring md:gap-4 md:p-3.5"
               >
-                <AlbumCover
-                  src={search.thumb}
-                  title={album}
+                <SearchCover
+                  search={search}
                   className="h-12 w-12 rounded-[3px] text-xs md:h-16 md:w-16 md:rounded md:text-sm"
                 />
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5 md:gap-1">

@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useMemo, useState } from "react";
 import { SearchParams } from "@/api/types";
 import { KnownAlbum } from "@/hooks/useSearchRun";
+import { useCoverArt } from "@/hooks/useCoverArt";
 import { searchTarget } from "@/lib/searchTarget";
 import {
   useCache,
@@ -67,6 +68,14 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
   const sorted = useMemo(
     () => sortReleases(releases as ScoredRelease[], sort),
     [releases, sort],
+  );
+
+  // Art for rows on screen first, then the rest of the list.
+  const coverKeys = useMemo(() => sorted.map((r) => r.key), [sorted]);
+  const shownKeys = coverKeys.slice(0, visible);
+  const cover = useCoverArt(
+    [...shownKeys, ...coverKeys.slice(visible)],
+    searchId,
   );
 
   if (!search) return null;
@@ -138,6 +147,7 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
               <ReleaseRow
                 key={release.key}
                 release={release}
+                cover={cover(release.key)}
                 people={people}
                 searchedAlbum={search.searchParams.album}
                 open={openKey === release.key}

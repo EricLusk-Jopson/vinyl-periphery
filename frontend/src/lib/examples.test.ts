@@ -43,26 +43,20 @@ describe("displayLength", () => {
 describe("pickMobileExamples", () => {
   const each = () => 0;
 
-  it("picks one wide example and a pair that each fit half a row", () => {
-    const { wide, pair } = pickMobileExamples(albums, layout, each);
-    expect(wide && exampleLabel(wide).length).toBeGreaterThan(17);
-    expect(wide && exampleLabel(wide).length).toBeLessThanOrEqual(40);
-    expect(pair).toHaveLength(2);
-    pair.forEach((a) => expect(exampleLabel(a).length).toBeLessThanOrEqual(17));
-  });
-
-  it("never offers a wide example longer than a row", () => {
+  it("picks two that each fit half a row", () => {
     for (let i = 0; i < 20; i++) {
-      const { wide } = pickMobileExamples(albums, layout);
-      expect(wide?.artist).not.toBe("David Bowie");
+      const pair = pickMobileExamples(albums, layout);
+      expect(pair).toHaveLength(2);
+      pair.forEach((a) =>
+        expect(exampleLabel(a).length).toBeLessThanOrEqual(17),
+      );
     }
+    expect(pickMobileExamples(albums, layout, each)).toHaveLength(2);
   });
 
-  it("offers fewer when the screen is narrow", () => {
+  it("offers none when the screen is too narrow", () => {
     const narrow = { ...layout, rowWidth: 288 }; // 320px phone
-    const { wide, pair } = pickMobileExamples(albums, narrow, each);
     // Half a row fits 13 characters, shorter than any of these albums.
-    expect(pair).toHaveLength(0);
-    expect(wide).not.toBeNull();
+    expect(pickMobileExamples(albums, narrow, each)).toHaveLength(0);
   });
 });

@@ -41,37 +41,19 @@ export const charsThatFit = (
 ): number =>
   Math.max(0, Math.floor((width - chipInset) / (fontSize * CHAR_WIDTH_EM)));
 
-export interface MobileExamples {
-  /** A long example that takes a row to itself. */
-  wide: SearchParams | null;
-  /** Up to two short examples that sit side by side. */
-  pair: SearchParams[];
-}
-
 /**
- * Examples for a phone: one long album on its own row, then two short ones
- * side by side. The wide one is too long for half a row but fits a whole
- * one; each of the pair fits half a row. Narrow screens with no short
- * enough albums get fewer.
+ * Two examples for a phone, short enough to sit side by side: each fits half
+ * the row. Fewer on a screen too narrow for any.
  */
 export const pickMobileExamples = (
   albums: readonly SearchParams[],
   layout: ChipLayout,
   random: () => number = Math.random,
-): MobileExamples => {
-  const full = charsThatFit(layout.rowWidth, layout);
+): SearchParams[] => {
   const half = charsThatFit((layout.rowWidth - layout.gap) / 2, layout);
-  const length = (album: SearchParams) => displayLength(exampleLabel(album));
-
-  const [wide = null] = pickRandom(
-    albums.filter((a) => length(a) > half && length(a) <= full),
-    1,
-    random,
-  );
-  const pair = pickRandom(
-    albums.filter((a) => length(a) <= half),
+  return pickRandom(
+    albums.filter((a) => displayLength(exampleLabel(a)) <= half),
     2,
     random,
   );
-  return { wide, pair };
 };

@@ -1,4 +1,11 @@
-import { buildPayload, isOptedOut, pageName, secondsSince, track } from "./analytics";
+import {
+  buildPayload,
+  isOptedOut,
+  joinWithin,
+  pageName,
+  secondsSince,
+  track,
+} from "./analytics";
 
 describe("pageName", () => {
   it("groups paths into pages", () => {
@@ -14,6 +21,15 @@ describe("secondsSince", () => {
   it("rounds to whole seconds and never goes negative", () => {
     expect(secondsSince(1000, 62_600)).toBe(62);
     expect(secondsSince(5000, 1000)).toBe(0);
+  });
+});
+
+describe("joinWithin", () => {
+  it("joins with | and keeps only whole values that fit", () => {
+    expect(joinWithin([])).toBe("");
+    expect(joinWithin(["Other", "Compiled By"])).toBe("Other|Compiled By");
+    expect(joinWithin(["abc", "def", "ghi"], 8)).toBe("abc|def");
+    expect(joinWithin(["toolongvalue", "ab"], 5)).toBe("");
   });
 });
 

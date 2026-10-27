@@ -1,4 +1,5 @@
-import { Contributor, EnrichedRelease } from "@/api/types";
+import { ReleaseCredits } from "@/api/releaseCredits";
+import { Appearance, Contributor, EnrichedRelease } from "@/api/types";
 import { SearchCache } from "@/contexts/cache/types";
 import { defaultContributorDisplayPipeline } from "./transformers/contributorProcessor";
 import { defaultRolePipeline } from "./transformers/roleProcessor";
@@ -112,8 +113,8 @@ export const sharedPeople = (
 };
 
 /**
- * Filter state for "Reset filters": every contributor and role back on, the
- * 2+ and Various Artists filters off. Hiding the searched artist's own
+ * Filter state for "Reset filters": every contributor and role back on,
+ * nothing required, the 2+ and Various Artists filters off. Hiding the searched artist's own
  * releases stays on, since those are rarely what anyone is after.
  */
 export const resetFilterState = (
@@ -126,4 +127,58 @@ export const resetFilterState = (
   excludeMainArtist: true,
   collaborationsOnly: false,
   excludeVarious: false,
+  required: { contributors: [], roles: [] },
 });
+
+/**
+ * What a person did on a result album, once its credits are loaded. Roles
+ * only: which tracks they cover isn't shown.
+ */
+export type CreditOnResult =
+  | { status: "found"; roles: string }
+  /** Credited, but with no role given. */
+  | { status: "no-role" }
+  /** Not in the credits Discogs has for this release. */
+  | { status: "not-found" };
+
+export const creditOnResult = (
+  credits: ReleaseCredits,
+  personId: number,
+): CreditOnResult => {
+  const found = credits.credits[personId];
+  if (!found) return { status: "not-found" };
+  if (found.length === 0) return { status: "no-role" };
+  return { status: "found", roles: found.map((c) => c.role).join(", ") };
+};
+
+/** Why a result's credits couldn't be loaded, from the HTTP status. */
+export const creditsErrorMessage = (status: number | undefined): string => {
+  if (status === 429) return "Discogs is busy. Try again in a minute.";
+  if (status === 404) return "Discogs has no release to read credits from.";
+  if (status === 0) return "Couldn't reach Discogs. Check your connection.";
+  return "Couldn't load this album's credits.";
+};
+
+/** Discogs's coarse discography roles, in words. */
+const APPEARANCE_ROLES: Record<string, string> = {
+  Main: "Main artist",
+  UnofficialRelease: "Main artist (unofficial release)",
+  Appearance: "Appears on this album",
+  TrackAppearance: "Appears on some tracks",
+};
+
+/**
+ * How a contributor's discography lists a result, as a short line: "Appears
+ * on some tracks". Track details (`trackinfo`) aren't shown. A credit role
+ * ("Producer") goes through the same cleanup as other roles. Null when
+ * there's nothing to say.
+ */
+export const appearanceText = (
+  appearance: Appearance | undefined,
+): string | null => {
+  if (!appearance) return null;
+  const role =
+    APPEARANCE_ROLES[appearance.role] ??
+    defaultRolePipeline([appearance.role]).join(", ");
+  return role || null;
+};

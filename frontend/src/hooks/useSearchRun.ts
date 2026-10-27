@@ -10,7 +10,8 @@ import { MAX_RELEASES } from "@/api/limits";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { coverUrl } from "@/lib/searches";
 import { preloadImage } from "@/lib/preloadImage";
-import { secondsSince, track } from "@/lib/analytics";
+import { joinWithin, secondsSince, track } from "@/lib/analytics";
+import { uncategorizedRoles } from "@/lib/transformers/roleCategories";
 
 const CHECKED_SHOWN = 4;
 /** Longest we wait for the cover before showing progress without it. */
@@ -185,12 +186,20 @@ export const useSearchRun = ({
           releasesRecord,
           thumb,
         );
+        // Roles the category table doesn't know yet, so it can grow.
+        const allRoles = Object.values(contributorSet.contributors).flatMap(
+          (c) => c.roles,
+        );
+        const unknownRoles = uncategorizedRoles(allRoles);
         track("search_completed", {
           ...searched,
           seconds: secondsSince(startedAt),
           releases_read: matches,
           contributors: Object.keys(contributorSet.contributors).length,
           albums: releasesMap.size,
+          roles: new Set(allRoles).size,
+          roles_uncategorized_count: unknownRoles.length,
+          roles_uncategorized: joinWithin(unknownRoles),
         });
         callbacksRef.current.onComplete(searchId, params);
       } catch (error) {

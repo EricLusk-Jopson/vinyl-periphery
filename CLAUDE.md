@@ -26,9 +26,18 @@ ranks albums by how many of those people worked on them.
 - `frontend/`: React 18, TypeScript, Vite, Tailwind 3, shadcn/ui (Radix),
   TanStack Query.
   - `src/api/`: Discogs calls and the search pipeline (as mutations).
+    `releaseCredits.ts` reads what each person did on a result album, fetched
+    when its row is first opened (`useReleaseCredits`), queued 2.5s apart,
+    and kept in localStorage by `src/services/creditsCache.ts`. When the
+    credits don't name someone, the row falls back to how their own
+    discography lists the album (`EnrichedRelease.appearances`).
   - `src/contexts/cache/`: search results, filter state, persistence
     (sessionStorage and IndexedDB).
   - `src/lib/transformers/`: role and name cleanup, with Jest tests.
+    `roleCategories.ts` puts roles into the buckets the Roles filter groups
+    by (Musicians, Writing, Audio, Physical media, Management, Other).
+  - `src/lib/filters.ts`: chip state, "must include" (`filterState.required`,
+    optional because older saved searches lack it), active filter count.
   - `src/components/ui/`: shadcn primitives. Edit sparingly.
   - Routes (React Router): `/` home, `/library` (`?tab=saved`), and
     `/results?artist=…&album=…`. A results URL names the album, not a cached
@@ -37,6 +46,7 @@ ranks albums by how many of those people worked on them.
     live in `src/lib/routes.ts`.
 - `docs/redesign/`: the current UI redesign. Read `DESIGN.md` before any UI
   work.
+- `features/`: proposals for features not built yet, one Markdown file each.
 
 ## Commands
 

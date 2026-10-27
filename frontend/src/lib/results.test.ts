@@ -2,6 +2,9 @@ import {
   ScoredRelease,
   discogsWebUrl,
   releaseYear,
+  appearanceText,
+  creditOnResult,
+  creditsErrorMessage,
   resetFilterState,
   sharedPeople,
   sortReleases,
@@ -133,6 +136,62 @@ describe("resetFilterState", () => {
       excludeMainArtist: true,
       collaborationsOnly: false,
       excludeVarious: false,
+      required: { contributors: [], roles: [] },
     });
+  });
+});
+
+describe("creditOnResult", () => {
+  const credits = {
+    releaseId: 1,
+    fromMainRelease: false,
+    credits: {
+      1: [{ role: "Producer" }, { role: "Bass", tracks: ["A1"] }],
+      2: [],
+    },
+  };
+
+  it("lists roles without tracks, or says there are none or no credit", () => {
+    expect(creditOnResult(credits, 1)).toEqual({
+      status: "found",
+      roles: "Producer, Bass",
+    });
+    expect(creditOnResult(credits, 2)).toEqual({ status: "no-role" });
+    expect(creditOnResult(credits, 3)).toEqual({ status: "not-found" });
+  });
+});
+
+describe("creditsErrorMessage", () => {
+  it("explains rate limits, missing releases and being offline", () => {
+    expect(creditsErrorMessage(429)).toMatch(/busy/);
+    expect(creditsErrorMessage(404)).toMatch(/no release/);
+    expect(creditsErrorMessage(0)).toMatch(/reach Discogs/);
+    expect(creditsErrorMessage(500)).toBe(
+      "Couldn't load this album's credits.",
+    );
+    expect(creditsErrorMessage(undefined)).toBe(
+      "Couldn't load this album's credits.",
+    );
+  });
+});
+
+describe("appearanceText", () => {
+  it("puts Discogs's discography roles into words", () => {
+    expect(appearanceText({ role: "Main" })).toBe("Main artist");
+    expect(appearanceText({ role: "Appearance" })).toBe(
+      "Appears on this album",
+    );
+    expect(
+      appearanceText({ role: "TrackAppearance", trackinfo: "Trailer Trash" }),
+    ).toBe("Appears on some tracks");
+  });
+
+  it("cleans up credit roles and skips empty ones", () => {
+    expect(appearanceText({ role: "Written-By" })).toBe("Written By");
+    expect(appearanceText({ role: "Producer", trackinfo: "A1" })).toBe(
+      "Producer",
+    );
+    expect(appearanceText({ role: "[ ]" })).toBeNull();
+    expect(appearanceText(undefined)).toBeNull();
   });
 });

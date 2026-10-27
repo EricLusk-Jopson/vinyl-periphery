@@ -18,7 +18,8 @@ export type AnalyticsEvent =
   | "result_opened"
   | "discogs_opened"
   | "filter_changed"
-  | "search_saved";
+  | "search_saved"
+  | "result_credits";
 
 export type EventProperties = Record<string, string | number | boolean>;
 
@@ -53,6 +54,26 @@ export const pageName = (pathname: string): string => {
 /** Whole seconds since a start time, for durations. */
 export const secondsSince = (start: number, now = Date.now()): number =>
   Math.max(0, Math.round((now - start) / 1000));
+
+/** The server's limit on string property values. */
+export const MAX_PROPERTY_LENGTH = 200;
+
+/**
+ * Joins values with "|", keeping only whole values that fit in `max`
+ * characters, so the server's clip never cuts one in half.
+ */
+export const joinWithin = (
+  values: string[],
+  max = MAX_PROPERTY_LENGTH,
+): string => {
+  let out = "";
+  for (const value of values) {
+    const next = out === "" ? value : `${out}|${value}`;
+    if (next.length > max) break;
+    out = next;
+  }
+  return out;
+};
 
 interface PrivacySignals {
   globalPrivacyControl?: boolean;

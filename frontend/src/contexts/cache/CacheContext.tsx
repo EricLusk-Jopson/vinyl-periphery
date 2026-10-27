@@ -16,6 +16,11 @@ import { db } from "@/services/db";
 import { CacheContextValue, CacheState, SearchCache } from "./types";
 import { calculateReleaseScore } from "@/api/contributorSet";
 import { sameSearchIds } from "@/lib/searches";
+import {
+  enforceRequired,
+  isContributorCounted,
+  meetsRequired,
+} from "@/lib/filters";
 
 const CacheContext = createContext<CacheContextValue | null>(null);
 
@@ -159,6 +164,7 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
         excludeMainArtist: true,
         collaborationsOnly: true,
         excludeVarious: false,
+        required: { contributors: [], roles: [] },
       };
 
       // A repeat run of the same album replaces the earlier result rather
@@ -290,10 +296,10 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
           ...prev.searches,
           [searchId]: {
             ...prev.searches[searchId],
-            filterState: {
+            filterState: enforceRequired(prev.searches[searchId], {
               ...prev.searches[searchId].filterState,
               ...updates,
-            },
+            }),
           },
         },
       }));
@@ -486,16 +492,8 @@ export const useSearchFilters = (searchId: string) => {
   const isContributorActive = useCallback(
     (contributorId: number): boolean => {
       if (!search) return false;
-
-      const isContributorIncluded =
-        search.filterState.contributors[contributorId];
-      if (!isContributorIncluded) return false;
-
-      const contributor = search.contributors[contributorId];
-      if (!contributor) return false;
-
-      // Check if any of the contributor's roles are active
-      return contributor.roles.some((role) => search.filterState.roles[role]);
+      // Switched on, and required or with a role on.
+      return isContributorCounted(search, contributorId);
     },
     [search]
   );
@@ -514,7 +512,10 @@ export const useSearchFilters = (searchId: string) => {
       const contributor = search.contributors[contributorId];
       if (!contributor) return true;
 
-      // A contributor is disabled only if all their roles are inactive
+      // A contributor is disabled only if all their roles are inactive,
+      // unless they're required
+      if (search.filterState.required?.contributors.includes(contributorId))
+        return false;
       return !contributor.roles.some((role) => search.filterState.roles[role]);
     },
     [search]
@@ -613,6 +614,9 @@ export const useFilteredAndScoredReleases = (searchId: string) => {
 
         // Skip if no active contributors
         if (activeContributors.length === 0) return null;
+
+        // Apply "must include"
+        if (!meetsRequired(activeContributors, search)) return null;
 
         // Apply collaborations only filter
         if (

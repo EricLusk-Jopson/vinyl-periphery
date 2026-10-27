@@ -1,8 +1,13 @@
 import React, { useId } from "react";
-import { ArrowUpRight, Loader2 } from "lucide-react";
+import { ArrowUpRight, Loader2, RotateCw } from "lucide-react";
+import { creditsTarget } from "@/api/releaseCredits";
+import { useReleaseCredits } from "@/api/useReleaseCredits";
 import {
   ScoredRelease,
   SharedPerson,
+  appearanceText,
+  creditOnResult,
+  creditsErrorMessage,
   discogsWebUrl,
   releaseYear,
 } from "@/lib/results";
@@ -31,8 +36,9 @@ const focusRing =
 
 /**
  * One result: cover, title, artist and year, who links it to the searched
- * album, and how many people it shares. Expands in place to show each shared
- * person's roles and links.
+ * album, and how many people it shares. Expands in place to show what each
+ * shared person did on the searched album and on this one, and links. This
+ * album's credits are fetched the first time it's opened, then kept.
  */
 export const ReleaseRow: React.FC<ReleaseRowProps> = ({
   release,
@@ -50,6 +56,45 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
   const year = releaseYear(release.year);
   const discogsUrl = discogsWebUrl(release.resource_url);
   const strong = shared > 1;
+  const credits = useReleaseCredits(
+    release,
+    open,
+    people.map((p) => p.id),
+  );
+  // No Discogs release to read (an unexpected resource URL).
+  const noCredits = open && creditsTarget(release) === null;
+
+  /** What a person did on this album, or why it isn't known. */
+  const onThisAlbum = (personId: number): React.ReactNode => {
+    if (credits.data) {
+      const credit = creditOnResult(credits.data, personId);
+      if (credit.status === "found") return credit.roles;
+      return withAppearance(
+        personId,
+        credit.status === "no-role"
+          ? "Credited, no role given"
+          : credits.data.fromMainRelease
+            ? "Not in the main release's credits"
+            : "Not in this release's credits",
+      );
+    }
+    if (credits.isError || noCredits) {
+      return withAppearance(personId, "Unavailable");
+    }
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+        Checking
+      </span>
+    );
+  };
+
+  /**
+   * How the person's own discography lists this album, when the search kept
+   * that ("Appears on this album"); otherwise the fallback note.
+   */
+  const withAppearance = (personId: number, note: string) =>
+    appearanceText(release.appearances?.[personId]) ?? note;
 
   return (
     <li className="border-b">
@@ -113,27 +158,68 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
         )}
       >
         <p className="text-[13px] text-faint">
-          <span className="md:hidden">Their roles on {searchedAlbum}:</span>
-          <span className="hidden md:inline">
-            Roles shown are what each person did on {searchedAlbum}.
-          </span>
+          What each person did on {searchedAlbum} and on this album.
         </p>
         {/* Phones: one line per person. From md: a card each. */}
         <ul className="flex flex-col divide-y rounded-lg border bg-surface md:grid md:grid-cols-[repeat(auto-fill,minmax(220px,1fr))] md:gap-2.5 md:divide-y-0 md:border-0 md:bg-transparent">
           {people.map((person) => (
             <li
               key={person.id}
-              className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-3 py-2 md:flex-col md:flex-nowrap md:items-start md:rounded-lg md:border md:bg-surface md:py-2.5"
+              className="flex flex-col gap-1 px-3 py-2.5 md:rounded-lg md:border md:bg-surface"
             >
               <span className="text-sm font-medium md:text-[15px]">
                 {person.name}
               </span>
-              <span className="font-mono text-xs text-muted-foreground">
-                {person.roles || "Credited"}
-              </span>
+              <dl className="grid grid-cols-[fit-content(45%)_1fr] gap-x-2 gap-y-2 text-xs md:flex md:flex-col md:gap-3">
+                <div className="contents md:flex md:min-w-0 md:flex-col">
+                  <dt className="min-w-0 truncate text-faint">
+                    {searchedAlbum}
+                  </dt>
+                  <dd className="min-w-0 font-mono text-muted-foreground">
+                    {person.roles || "Credited"}
+                  </dd>
+                </div>
+                <div className="contents md:flex md:min-w-0 md:flex-col">
+                  <dt className="min-w-0 truncate text-faint">
+                    {release.title}
+                  </dt>
+                  <dd className="min-w-0 font-mono text-muted-foreground">
+                    {onThisAlbum(person.id)}
+                  </dd>
+                </div>
+              </dl>
             </li>
           ))}
         </ul>
+        <div aria-live="polite" className="contents">
+          {credits.isError && (
+            <p className="flex flex-wrap items-center gap-x-3 text-[13px] text-muted-foreground">
+              {creditsErrorMessage(credits.error.status)}
+              <button
+                type="button"
+                onClick={() => void credits.refetch()}
+                className={cn(
+                  "inline-flex min-h-11 items-center gap-1.5 rounded-sm font-medium text-foreground transition-colors hover:text-primary-text lg:min-h-8",
+                  focusRing,
+                )}
+              >
+                <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
+                Try again
+              </button>
+            </p>
+          )}
+          {noCredits && (
+            <p className="text-[13px] text-faint">
+              Discogs doesn't list credits for this album.
+            </p>
+          )}
+          {credits.data?.fromMainRelease && (
+            <p className="text-[13px] text-faint">
+              This album has several versions; its credits come from the one
+              Discogs lists as main.
+            </p>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
           {discogsUrl && (
             <a

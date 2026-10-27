@@ -28,6 +28,7 @@ export const EVENTS = new Set([
   "discogs_opened",
   "filter_changed",
   "search_saved",
+  "result_credits",
 ]);
 
 const MAX_PROPERTIES = 20;

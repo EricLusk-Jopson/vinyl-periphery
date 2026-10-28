@@ -3,7 +3,8 @@ import {
   discogsWebUrl,
   releaseYear,
   appearanceText,
-  creditOnResult,
+  contributionsText,
+  creditAcrossVersions,
   creditsErrorMessage,
   resetFilterState,
   sharedPeople,
@@ -143,23 +144,56 @@ describe("resetFilterState", () => {
   });
 });
 
-describe("creditOnResult", () => {
-  const credits = {
-    releaseId: 1,
-    fromMainRelease: false,
-    credits: {
-      1: [{ role: "Producer" }, { role: "Bass", tracks: ["A1"] }],
-      2: [],
-    },
-  };
+describe("creditAcrossVersions", () => {
+  const credits = (
+    releaseId: number,
+    byPerson: Record<number, { role: string; tracks?: string[] }[]>,
+  ) => ({ releaseId, fromMainRelease: false, credits: byPerson });
+  // In Utero: Albini produced one version, remixed another.
+  const produced = credits(465796, {
+    1: [{ role: "Producer" }, { role: "Bass", tracks: ["A1"] }],
+    2: [],
+  });
+  const remixed = credits(4943830, { 1: [{ role: "Remix" }] });
 
-  it("lists roles without tracks, or says there are none or no credit", () => {
-    expect(creditOnResult(credits, 1)).toEqual({
+  it("joins roles from every version naming the person, without tracks", () => {
+    expect(creditAcrossVersions([produced, remixed], true, 1)).toEqual({
       status: "found",
-      roles: "Producer, Bass",
+      roles: "Producer, Bass, Remix",
     });
-    expect(creditOnResult(credits, 2)).toEqual({ status: "no-role" });
-    expect(creditOnResult(credits, 3)).toEqual({ status: "not-found" });
+    expect(
+      creditAcrossVersions(
+        [produced, credits(9, { 1: [{ role: "Producer" }] })],
+        true,
+        1,
+      ),
+    ).toEqual({ status: "found", roles: "Producer, Bass" });
+  });
+
+  it("shows roles as soon as one version has them", () => {
+    expect(creditAcrossVersions([remixed], false, 1)).toEqual({
+      status: "found",
+      roles: "Remix",
+    });
+  });
+
+  it("waits for every version before saying there's no role", () => {
+    expect(creditAcrossVersions([produced], false, 2)).toEqual({
+      status: "pending",
+    });
+    expect(creditAcrossVersions([produced, remixed], true, 2)).toEqual({
+      status: "no-role",
+    });
+    expect(creditAcrossVersions([produced, remixed], true, 3)).toEqual({
+      status: "not-found",
+    });
+  });
+
+  it("is unavailable when no version loaded", () => {
+    expect(creditAcrossVersions([], true, 1)).toEqual({
+      status: "unavailable",
+    });
+    expect(creditAcrossVersions([], false, 1)).toEqual({ status: "pending" });
   });
 });
 
@@ -195,5 +229,25 @@ describe("appearanceText", () => {
     );
     expect(appearanceText({ role: "[ ]" })).toBeNull();
     expect(appearanceText(undefined)).toBeNull();
+  });
+});
+
+describe("contributionsText", () => {
+  it("lists every role once", () => {
+    expect(
+      contributionsText([
+        { role: "Producer", release: 465796 },
+        { role: "Remix", release: 4943830 },
+        { role: "Producer", trackinfo: "A1", release: 1 },
+      ]),
+    ).toBe("Producer, Remix");
+    expect(contributionsText([{ role: "Appearance" }])).toBe(
+      "Appears on this album",
+    );
+  });
+
+  it("is null with nothing to say", () => {
+    expect(contributionsText([])).toBeNull();
+    expect(contributionsText([{ role: "[ ]" }])).toBeNull();
   });
 });

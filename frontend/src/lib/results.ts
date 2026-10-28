@@ -141,14 +141,35 @@ export type CreditOnResult =
   /** Not in the credits Discogs has for this release. */
   | { status: "not-found" };
 
-export const creditOnResult = (
-  credits: ReleaseCredits,
+/**
+ * What a person did on a result album read from one or more of its versions
+ * (`loaded`, the person's own versions first). Roles from every version
+ * that names them, as they load; anything less waits for all of them
+ * (`settled`).
+ */
+export type CreditAcrossVersions =
+  | CreditOnResult
+  /** Still loading, and nothing found yet. */
+  | { status: "pending" }
+  /** No version's credits could be loaded. */
+  | { status: "unavailable" };
+
+export const creditAcrossVersions = (
+  loaded: ReleaseCredits[],
+  settled: boolean,
   personId: number,
-): CreditOnResult => {
-  const found = credits.credits[personId];
-  if (!found) return { status: "not-found" };
-  if (found.length === 0) return { status: "no-role" };
-  return { status: "found", roles: found.map((c) => c.role).join(", ") };
+): CreditAcrossVersions => {
+  const roles = Array.from(
+    new Set(
+      loaded.flatMap((c) => (c.credits[personId] ?? []).map((r) => r.role)),
+    ),
+  );
+  if (roles.length > 0) return { status: "found", roles: roles.join(", ") };
+  if (!settled) return { status: "pending" };
+  if (loaded.some((c) => c.credits[personId])) return { status: "no-role" };
+  return loaded.length > 0
+    ? { status: "not-found" }
+    : { status: "unavailable" };
 };
 
 /** Why a result's credits couldn't be loaded, from the HTTP status. */
@@ -181,4 +202,15 @@ export const appearanceText = (
     APPEARANCE_ROLES[appearance.role] ??
     defaultRolePipeline([appearance.role]).join(", ");
   return role || null;
+};
+
+/**
+ * Every way a contributor's discography lists a result, in one line:
+ * "Producer, Remix". Null when there's nothing to say.
+ */
+export const contributionsText = (entries: Appearance[]): string | null => {
+  const texts = Array.from(
+    new Set(entries.map(appearanceText).filter((t): t is string => Boolean(t))),
+  );
+  return texts.length > 0 ? texts.join(", ") : null;
 };

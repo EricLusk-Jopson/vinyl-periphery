@@ -37,7 +37,9 @@ ranks albums by how many of those people worked on them.
     when its row is first opened (`useReleaseCredits`), queued 2.5s apart,
     and kept in localStorage by `src/services/creditsCache.ts`. When the
     credits don't name someone, the row falls back to how their own
-    discography lists the album (`EnrichedRelease.appearances`).
+    discography lists the album (`EnrichedRelease.contributions`; older
+    searches have `appearances`, the first entry only). A master row reads
+    the versions its people are listed on (`versionTargets`).
   - Album art: `src/api/musicbrainz.ts` maps Discogs URLs to MusicBrainz
     ids in batches (about 1 request a second), `src/api/coverArt.ts` queues
     them with rows on screen first, `src/services/coverCache.ts` keeps the
@@ -133,7 +135,9 @@ switch both run from `main`, so keep `backend/server.js` and
 - An item's `main_release` is the release where that person has that role,
   not the master's main release: the same master can appear several times
   with different ones (In Utero: Producer 465796, Remix 4943830). Results
-  keep the first contributor's, and a second role on the same master is
-  dropped.
+  keep every entry per person (`EnrichedRelease.contributions`, each with
+  its version), and an opened master row reads credits from those versions,
+  up to `MAX_CREDIT_VERSIONS` (3). The result's own `mainRelease` is still
+  the first contributor's.
 - "Exclude main artist" matches the first word of the typed artist name.
 - Most Discogs calls go from the browser unauthenticated.

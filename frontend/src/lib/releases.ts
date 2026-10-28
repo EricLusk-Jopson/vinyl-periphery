@@ -1,6 +1,10 @@
-import { discographyAppearance } from "@/api/releaseCredits";
-import { MAX_DISCOGRAPHY_PAGES } from "@/api/limits";
-import { EnrichedRelease, ReleaseType } from "@/api/types";
+import {
+  creditsTarget,
+  CreditsTarget,
+  discographyAppearance,
+} from "@/api/releaseCredits";
+import { MAX_CREDIT_VERSIONS, MAX_DISCOGRAPHY_PAGES } from "@/api/limits";
+import { Appearance, EnrichedRelease, ReleaseType } from "@/api/types";
 import { SearchCache } from "@/contexts/cache/types";
 
 /**
@@ -56,6 +60,9 @@ export const toEnrichedRelease = (
   const mainRelease =
     type === "master" ? positive(item.main_release) : undefined;
   const masterId = type === "release" ? positive(item.master_id) : undefined;
+  const version = type === "release" ? item.id : mainRelease;
+  const contribution =
+    appearance && version ? { ...appearance, release: version } : appearance;
   return {
     id: item.id,
     type,
@@ -69,11 +76,32 @@ export const toEnrichedRelease = (
     thumb: item.thumb ?? "",
     resource_url: item.resource_url ?? "",
     contributorIds: [contributorId],
-    ...(appearance ? { appearances: { [contributorId]: appearance } } : {}),
+    ...(contribution
+      ? { contributions: { [contributorId]: [contribution] } }
+      : {}),
   };
 };
 
-/** `into` with `from`'s contributors and appearances added. */
+const sameEntry = (a: Appearance, b: Appearance) =>
+  a.role === b.role && a.trackinfo === b.trackinfo && a.release === b.release;
+
+/** Each person's entries from both, without repeats. */
+const mergedContributions = (
+  into: Record<number, Appearance[]> = {},
+  from: Record<number, Appearance[]> = {},
+): Record<number, Appearance[]> => {
+  const result = { ...into };
+  for (const [id, entries] of Object.entries(from)) {
+    const kept = result[Number(id)] ?? [];
+    result[Number(id)] = [
+      ...kept,
+      ...entries.filter((e) => !kept.some((k) => sameEntry(k, e))),
+    ];
+  }
+  return result;
+};
+
+/** `into` with `from`'s contributors and their entries added. */
 const merged = (
   into: EnrichedRelease,
   from: EnrichedRelease,
@@ -85,7 +113,29 @@ const merged = (
   ...(into.appearances || from.appearances
     ? { appearances: { ...from.appearances, ...into.appearances } }
     : {}),
+  ...(into.contributions || from.contributions
+    ? {
+        contributions: mergedContributions(
+          into.contributions,
+          from.contributions,
+        ),
+      }
+    : {}),
 });
+
+/**
+ * Every discography entry linking a person to a result, in the order they
+ * were read. Searches stored before `contributions` have one at most.
+ */
+export const contributionsOf = (
+  release: Pick<EnrichedRelease, "contributions" | "appearances">,
+  personId: number,
+): Appearance[] => {
+  const entries = release.contributions?.[personId];
+  if (entries) return entries;
+  const appearance = release.appearances?.[personId];
+  return appearance ? [appearance] : [];
+};
 
 /** Whether `release` is a version of `master`, as far as the data shows. */
 const isVersionOf = (release: EnrichedRelease, master: EnrichedRelease) =>
@@ -154,6 +204,37 @@ export const addRelease = (
 };
 
 /**
+ * The Discogs releases to read a result's credits from. A release is read
+ * itself. A master is read from the versions its people are listed on
+ * (each person's first, then their others), then the version its result
+ * entry names, up to `max`; with none known, from the master's own main
+ * release. Empty when the result has no Discogs object to read.
+ */
+export const versionTargets = (
+  release: Parameters<typeof creditsTarget>[0] &
+    Pick<EnrichedRelease, "contributions" | "appearances">,
+  peopleIds: number[],
+  max = MAX_CREDIT_VERSIONS,
+): CreditsTarget[] => {
+  const target = creditsTarget(release);
+  if (!target || target.kind === "release") return target ? [target] : [];
+  const versions = peopleIds.map((id) =>
+    contributionsOf(release, id)
+      .map((c) => c.release)
+      .filter((v): v is number => Boolean(v)),
+  );
+  const ids = new Set<number>([
+    ...versions.flatMap((v) => v.slice(0, 1)),
+    ...(target.mainRelease ? [target.mainRelease] : []),
+    ...versions.flatMap((v) => v.slice(1)),
+  ]);
+  const targets = Array.from(ids)
+    .slice(0, max)
+    .map((id): CreditsTarget => ({ kind: "release", id }));
+  return targets.length > 0 ? targets : [target];
+};
+
+/**
  * Releases from a search saved before results had a type and key: keyed by
  * Discogs id, with the raw discography item spread in. The type comes from
  * the resource URL (masters/ or releases/), `main_release` becomes
@@ -192,6 +273,7 @@ export const migrateReleases = (
       resource_url: raw.resource_url ?? "",
       contributorIds: Array.from(new Set(raw.contributorIds ?? [])),
       ...(raw.appearances ? { appearances: raw.appearances } : {}),
+      ...(raw.contributions ? { contributions: raw.contributions } : {}),
     });
   }
   return Object.fromEntries(map);

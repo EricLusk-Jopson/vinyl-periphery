@@ -85,6 +85,12 @@ export interface ContributorSetInternal {
 export interface Appearance {
   role: string;
   trackinfo?: string;
+  /**
+   * The Discogs release this entry is about: a release item's own id, or a
+   * master item's `main_release` (the version where this person has this
+   * role). Missing on searches run before it was kept.
+   */
+  release?: number;
 }
 
 export type ReleaseType = "master" | "release";
@@ -116,10 +122,16 @@ export interface EnrichedRelease {
   contributorIds: number[];
   /**
    * Contributor id -> how their discography lists this release. A fallback
-   * when the release's own credits don't name them. Missing on searches run
-   * before it was kept.
+   * when the release's own credits don't name them. Only the first entry
+   * per person; kept for searches stored before `contributions`.
    */
   appearances?: Record<number, Appearance>;
+  /**
+   * Contributor id -> every discography entry that led here: each role, and
+   * the version it's on. A person can be listed several times on one master
+   * (Producer on one release, Remix on another).
+   */
+  contributions?: Record<number, Appearance[]>;
 }
 
 export interface SearchParams {
@@ -167,7 +179,7 @@ export interface MutationCallbacks {
   onContributorChecked?: (
     name: string,
     releaseCount: number,
-    read?: { pages: number; capped: boolean }
+    read?: { pages: number; capped: boolean },
   ) => void;
 }
 

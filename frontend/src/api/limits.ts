@@ -16,3 +16,9 @@ export const MAX_DISCOGRAPHY_PAGES = 4;
 
 /** How many of the top search results we read credits from. */
 export const MAX_RELEASES = 5;
+
+/**
+ * Most versions of one result album read for credits when its row opens:
+ * the ones its people are listed on, then the master's main release.
+ */
+export const MAX_CREDIT_VERSIONS = 3;

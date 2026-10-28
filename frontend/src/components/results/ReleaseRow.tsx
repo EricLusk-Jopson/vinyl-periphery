@@ -1,13 +1,13 @@
 import React, { useId } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, ArrowUpRight, Loader2, RotateCw } from "lucide-react";
-import { creditsTarget } from "@/api/releaseCredits";
 import { useReleaseCredits } from "@/api/useReleaseCredits";
+import { contributionsOf } from "@/lib/releases";
 import {
   ScoredRelease,
   SharedPerson,
-  appearanceText,
-  creditOnResult,
+  contributionsText,
+  creditAcrossVersions,
   creditsErrorMessage,
   discogsWebUrl,
   releaseYear,
@@ -72,39 +72,48 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
     people.map((p) => p.id),
   );
   // No Discogs release to read (an unexpected resource URL).
-  const noCredits = open && creditsTarget(release) === null;
+  const noCredits = open && credits.targets.length === 0;
+  const master = release.type === "master";
+  const failed = credits.settled && credits.error !== null;
 
   /** What a person did on this album, or why it isn't known. */
   const onThisAlbum = (personId: number): React.ReactNode => {
-    if (credits.data) {
-      const credit = creditOnResult(credits.data, personId);
-      if (credit.status === "found") return credit.roles;
-      return withAppearance(
-        personId,
-        credit.status === "no-role"
-          ? "Credited, no role given"
-          : credits.data.fromMainRelease
-            ? "Not in the main release's credits"
-            : "Not in this release's credits",
-      );
-    }
-    if (credits.isError || noCredits) {
-      return withAppearance(personId, "Unavailable");
-    }
-    return (
-      <span className="inline-flex items-center gap-1.5">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-        Checking
-      </span>
+    if (noCredits) return withContributions(personId, "Unavailable");
+    const credit = creditAcrossVersions(
+      credits.loaded,
+      credits.settled,
+      personId,
     );
+    switch (credit.status) {
+      case "found":
+        return credit.roles;
+      case "no-role":
+        return withContributions(personId, "Credited, no role given");
+      case "not-found":
+        return withContributions(
+          personId,
+          master
+            ? "Not in the credits checked"
+            : "Not in this release's credits",
+        );
+      case "unavailable":
+        return withContributions(personId, "Unavailable");
+      default:
+        return (
+          <span className="inline-flex items-center gap-1.5">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+            Checking
+          </span>
+        );
+    }
   };
 
   /**
-   * How the person's own discography lists this album, when the search kept
-   * that ("Appears on this album"); otherwise the fallback note.
+   * How the person's own discography lists this album, every role it
+   * names ("Producer, Remix"); otherwise the fallback note.
    */
-  const withAppearance = (personId: number, note: string) =>
-    appearanceText(release.appearances?.[personId]) ?? note;
+  const withContributions = (personId: number, note: string) =>
+    contributionsText(contributionsOf(release, personId)) ?? note;
 
   return (
     <li className="border-b">
@@ -202,12 +211,14 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
           ))}
         </ul>
         <div aria-live="polite" className="contents">
-          {credits.isError && (
+          {failed && (
             <p className="flex flex-wrap items-center gap-x-3 text-[13px] text-muted-foreground">
-              {creditsErrorMessage(credits.error.status)}
+              {credits.loaded.length > 0
+                ? "Some versions' credits didn't load."
+                : creditsErrorMessage(credits.error?.status)}
               <button
                 type="button"
-                onClick={() => void credits.refetch()}
+                onClick={credits.retry}
                 className={cn(
                   "inline-flex min-h-11 items-center gap-1.5 rounded-sm font-medium text-foreground transition-colors hover:text-primary-text lg:min-h-8",
                   focusRing,
@@ -223,10 +234,11 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
               Discogs doesn't list credits for this album.
             </p>
           )}
-          {credits.data?.fromMainRelease && (
+          {master && credits.loaded.length > 0 && (
             <p className="text-[13px] text-faint">
-              This album has several versions; its credits come from the one
-              Discogs lists as main.
+              {credits.targets.length > 1
+                ? "This album has several versions; credits come from the ones these people are listed on."
+                : "This album has several versions; credits come from one of them."}
             </p>
           )}
         </div>

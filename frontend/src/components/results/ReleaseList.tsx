@@ -18,6 +18,8 @@ import {
   sortReleases,
 } from "@/lib/results";
 import { track } from "@/lib/analytics";
+import { useLikes } from "@/hooks/useLikes";
+import { setLiked } from "@/services/likes";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import {
@@ -51,6 +53,7 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
   toolbarAction,
 }) => {
   const { searches, updateFilterState } = useCache();
+  const likes = useLikes();
   const { releases } = useFilteredAndScoredReleases(searchId);
   const search = searches[searchId];
   const sortId = useId();
@@ -189,6 +192,14 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
                 onOpenDiscogs={() => track("discogs_opened", position)}
                 searching={isSearching}
                 searchingFromHere={isSearching && pendingKey === release.key}
+                liked={Boolean(likes[release.key])}
+                onToggleLike={() => {
+                  const liked = setLiked(release.key, !likes[release.key], {
+                    title: release.title,
+                    artist: release.artist,
+                  });
+                  track("result_liked", { liked, ...position });
+                }}
               />
             );
           })}

@@ -20,7 +20,9 @@ ranks albums by how many of those people worked on them.
     them to the Google Sheet. See `docs/analytics.md`.
   - `og.js`: `GET /api/og?p=…&size=story|square` renders a share image
     (`@vercel/og`) from a payload in the URL (`backend/og/payload.js`;
-    built by `frontend/src/lib/share.ts`). Never calls Discogs; only Cover
+    built by `frontend/src/lib/share.ts`): a map of a stack (or one
+    search) and the liked albums around it, laid out by the client
+    (`frontend/src/lib/shareMap.ts`), or a list of top results. Never calls Discogs; only Cover
     Art Archive images, with initials when they don't load. Fonts are
     vendored in `backend/og/fonts` (SIL OFL).
   - `share.js`: `/s?p=…&to=…` (rewritten to `/api/share`) serves Open Graph
@@ -62,6 +64,10 @@ ranks albums by how many of those people worked on them.
     `type` and a `key` (`"master:N"` / `"release:N"`); `SearchCache.releases`
     is keyed by `key`. Searches stored before keys existed are migrated as
     they load (`migrateSearch`).
+  - Likes: a heart on each result row. A like belongs to the album (its
+    result key), so it shows in every search; kept in localStorage by
+    `src/services/likes.ts` (`useLikes`). Liked albums fill in the share
+    map.
   - `src/lib/filters.ts`: chip state, "must include" (`filterState.required`,
     optional because older saved searches lack it), active filter count.
   - `src/components/ui/`: shadcn primitives. Edit sparingly.

@@ -36,6 +36,7 @@ export const EVENTS = new Set([
   "stack_deleted",
   "search_unstacked",
   "stack_disbanded",
+  "result_liked",
   "search_jumped",
   "library_view_toggled",
   "library_searched",

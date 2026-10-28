@@ -4,19 +4,24 @@
 // only fetches are Cover Art Archive images.
 //
 // Version 1:
-//   { v: 1, l: "card",  a: Album, x: Result[] }   periphery card
-//   { v: 1, l: "trail", s: Step[] }               trail, root first
+//   { v: 1, l: "card", a: Album, x: Result[] }             periphery card
+//   { v: 1, l: "map",  c: Album, n: Placed[], p: Person[] } map
 //   Album  = { t: title, r: artist, i: art }
 //   Result = Album & { n: shared count }
-//   Step   = Album & { v: via names (the link from the previous step) }
+//   Placed = Album & { x, y: thousandths of the radius from the centre,
+//            y up; z: size tier, 1 or 2 }
+//   Person = { n: name, a: angle in degrees, counter-clockwise from the right }
 //   art    = "g:<release-group mbid>" | "r:<release mbid>" | ""
+//
+// The map's positions are worked out by the client (shareMap.ts); the
+// renderer only draws them.
 //
 // Keep in step with frontend/src/lib/share.ts, which builds it.
 
-export const MAX_PAYLOAD_CHARS = 4000;
+export const MAX_PAYLOAD_CHARS = 6000;
 export const MAX_RESULTS = 6;
-export const MAX_STEPS = 6;
-export const MAX_VIA = 4;
+export const MAX_MAP_ALBUMS = 24;
+export const MAX_MAP_PEOPLE = 8;
 const MAX_TITLE = 80;
 const MAX_ARTIST = 60;
 const MAX_NAME = 40;
@@ -67,16 +72,26 @@ export function decodePayload(encoded) {
     return { layout: "card", album: searched, results };
   }
 
-  if (raw.l === "trail") {
-    const steps = list(raw.s, MAX_STEPS)
-      .map((s) => ({
-        ...album(s),
-        via: list(s?.v, MAX_VIA)
-          .map((name) => text(name, MAX_NAME))
-          .filter(Boolean),
+  if (raw.l === "map") {
+    const centre = album(raw.c);
+    if (!centre.t) return null;
+    const coordinate = (value) =>
+      Math.max(-1000, Math.min(1000, Math.round(Number(value) || 0))) / 1000;
+    const albums = list(raw.n, MAX_MAP_ALBUMS)
+      .map((n) => ({
+        ...album(n),
+        x: coordinate(n?.x),
+        y: coordinate(n?.y),
+        z: n?.z === 2 ? 2 : 1,
       }))
-      .filter((s) => s.t);
-    return steps.length > 0 ? { layout: "trail", steps } : null;
+      .filter((n) => n.t);
+    const people = list(raw.p, MAX_MAP_PEOPLE)
+      .map((p) => ({
+        name: text(p?.n, MAX_NAME),
+        angle: ((Math.round(Number(p?.a) || 0) % 360) + 360) % 360,
+      }))
+      .filter((p) => p.name);
+    return albums.length > 0 ? { layout: "map", centre, albums, people } : null;
   }
 
   return null;

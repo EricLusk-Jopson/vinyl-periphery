@@ -6,6 +6,7 @@ import {
   encodePayload,
   imageSize,
   MAX_PAYLOAD_CHARS,
+  MAX_MAP_ALBUMS,
   MAX_RESULTS,
 } from "./payload.js";
 
@@ -31,21 +32,34 @@ test("decodes a periphery card, cleaning and clipping", () => {
   assert.ok(payload.results.every((r) => r.t));
 });
 
-test("decodes a trail with via names", () => {
+test("decodes a map, clamping places and clipping names", () => {
   const payload = decodePayload(
     encodePayload({
       v: 1,
-      l: "trail",
-      s: [
-        { t: "Unmap", r: "Volcano Choir", i: "", v: [] },
-        { t: "Bon Iver", r: "Bon Iver", i: `r:${MBID}`, v: ["Justin Vernon", 7, "x".repeat(99)] },
+      l: "map",
+      c: { t: "The New Sound", r: "Geordie Greep", i: `g:${MBID}` },
+      n: [
+        { t: "Schlagenheim", r: "Black Midi", i: "", x: 512.4, y: -2000, z: 2 },
+        { t: "Endlessness", r: "Nala Sinephro", x: "nope", y: 10, z: 7 },
+        { t: "", x: 0, y: 0 },
+        ...Array(30).fill({ t: "More", r: "A", x: 1, y: 1, z: 1 }),
+      ],
+      p: [
+        { n: "Morgan Simpson", a: 370 },
+        { n: "x".repeat(99), a: -90 },
+        { n: "", a: 0 },
       ],
     }),
   );
-  assert.equal(payload.layout, "trail");
-  assert.equal(payload.steps[1].via[0], "Justin Vernon");
-  assert.equal(payload.steps[1].via.length, 2);
-  assert.equal(payload.steps[1].via[1].length, 40);
+  assert.equal(payload.layout, "map");
+  assert.deepEqual(payload.centre, { t: "The New Sound", r: "Geordie Greep", i: `g:${MBID}` });
+  assert.deepEqual(payload.albums[0], { t: "Schlagenheim", r: "Black Midi", i: "", x: 0.512, y: -1, z: 2 });
+  assert.deepEqual(payload.albums[1], { t: "Endlessness", r: "Nala Sinephro", i: "", x: 0, y: 0.01, z: 1 });
+  assert.ok(payload.albums.length <= MAX_MAP_ALBUMS);
+  assert.deepEqual(payload.people[0], { name: "Morgan Simpson", angle: 10 });
+  assert.equal(payload.people[1].name.length, 40);
+  assert.equal(payload.people[1].angle, 270);
+  assert.equal(payload.people.length, 2);
 });
 
 test("rejects missing, oversized, malformed and empty payloads", () => {
@@ -55,7 +69,8 @@ test("rejects missing, oversized, malformed and empty payloads", () => {
   assert.equal(decodePayload("not base64 json"), null);
   assert.equal(decodePayload(encodePayload({ v: 2, l: "card", a: { t: "x" } })), null);
   assert.equal(decodePayload(encodePayload({ v: 1, l: "card", a: { t: "" } })), null);
-  assert.equal(decodePayload(encodePayload({ v: 1, l: "trail", s: [] })), null);
+  assert.equal(decodePayload(encodePayload({ v: 1, l: "map", c: { t: "x" }, n: [] })), null);
+  assert.equal(decodePayload(encodePayload({ v: 1, l: "map", c: { t: "" }, n: [{ t: "y" }] })), null);
   assert.equal(decodePayload(encodePayload({ v: 1, l: "poster" })), null);
 });
 

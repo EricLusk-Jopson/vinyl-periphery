@@ -31,6 +31,7 @@ export interface DiscographyItem {
   resource_url?: string;
   role?: string;
   trackinfo?: string;
+  stats?: { community?: { in_wantlist?: number; in_collection?: number } };
 }
 
 export const releaseKey = (type: ReleaseType, id: number): string =>
@@ -76,10 +77,27 @@ export const toEnrichedRelease = (
     thumb: item.thumb ?? "",
     resource_url: item.resource_url ?? "",
     contributorIds: [contributorId],
+    ...communityOf(item),
     ...(contribution
       ? { contributions: { [contributorId]: [contribution] } }
       : {}),
   };
+};
+
+const count = (n: unknown): number | undefined =>
+  Number.isFinite(Number(n)) && Number(n) >= 0 && n !== null && n !== ""
+    ? Math.floor(Number(n))
+    : undefined;
+
+/** Want and have counts from an item's `stats.community`, when it has them. */
+const communityOf = (
+  item: Pick<DiscographyItem, "stats">,
+): Pick<EnrichedRelease, "community"> => {
+  const want = count(item.stats?.community?.in_wantlist);
+  const have = count(item.stats?.community?.in_collection);
+  return want === undefined && have === undefined
+    ? {}
+    : { community: { want: want ?? 0, have: have ?? 0 } };
 };
 
 const sameEntry = (a: Appearance, b: Appearance) =>
@@ -112,6 +130,16 @@ const merged = (
   ),
   ...(into.appearances || from.appearances
     ? { appearances: { ...from.appearances, ...into.appearances } }
+    : {}),
+  // The same album from another person: the larger counts (they can
+  // differ when Discogs reports a different version for each).
+  ...(into.community || from.community
+    ? {
+        community: {
+          want: Math.max(into.community?.want ?? 0, from.community?.want ?? 0),
+          have: Math.max(into.community?.have ?? 0, from.community?.have ?? 0),
+        },
+      }
     : {}),
   ...(into.contributions || from.contributions
     ? {
@@ -245,7 +273,11 @@ export const migrateReleases = (
   releases: Record<string, unknown>,
 ): Record<string, EnrichedRelease> => {
   const values = Object.values(releases) as Array<
-    Partial<EnrichedRelease> & { main_release?: number; master_id?: number }
+    Partial<EnrichedRelease> & {
+      main_release?: number;
+      master_id?: number;
+      stats?: DiscographyItem["stats"];
+    }
   >;
   if (values.every((r) => r.key && r.type)) {
     return releases as Record<string, EnrichedRelease>;
@@ -274,6 +306,7 @@ export const migrateReleases = (
       contributorIds: Array.from(new Set(raw.contributorIds ?? [])),
       ...(raw.appearances ? { appearances: raw.appearances } : {}),
       ...(raw.contributions ? { contributions: raw.contributions } : {}),
+      ...(raw.community ? { community: raw.community } : communityOf(raw)),
     });
   }
   return Object.fromEntries(map);

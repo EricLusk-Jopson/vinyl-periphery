@@ -10,6 +10,8 @@ import {
   sharedPeople,
   sortReleases,
   popularity,
+  compactCount,
+  hasPopularity,
 } from "./results";
 import { SearchCache } from "@/contexts/cache/types";
 
@@ -272,5 +274,27 @@ describe("contributionsText", () => {
   it("is null with nothing to say", () => {
     expect(contributionsText([])).toBeNull();
     expect(contributionsText([{ role: "[ ]" }])).toBeNull();
+  });
+});
+
+describe("compactCount", () => {
+  it("shortens counts without rounding up", () => {
+    expect(compactCount(950)).toBe("950");
+    expect(compactCount(1_000)).toBe("1k");
+    expect(compactCount(1_299)).toBe("1.2k");
+    expect(compactCount(12_999)).toBe("12k");
+    expect(compactCount(3_450_000)).toBe("3.4M");
+  });
+});
+
+describe("hasPopularity", () => {
+  it("is false for searches stored before counts were kept", () => {
+    const none = release(1, "A", "2000");
+    const counted = {
+      ...release(2, "B", "2000"),
+      community: { want: 0, have: 0 },
+    };
+    expect(hasPopularity([none, none])).toBe(false);
+    expect(hasPopularity([none, counted])).toBe(true);
   });
 });

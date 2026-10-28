@@ -6,16 +6,19 @@ import {
   Heart,
   Loader2,
   RotateCw,
+  Users,
 } from "lucide-react";
 import { useReleaseCredits } from "@/api/useReleaseCredits";
 import { contributionsOf } from "@/lib/releases";
 import {
   ScoredRelease,
   SharedPerson,
+  compactCount,
   contributionsText,
   creditAcrossVersions,
   creditsErrorMessage,
   discogsWebUrl,
+  popularity,
   releaseYear,
 } from "@/lib/results";
 import { cn } from "@/lib/utils";
@@ -77,6 +80,8 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
   const year = releaseYear(release.year);
   const discogsUrl = discogsWebUrl(release.resource_url);
   const strong = shared > 1;
+  // Discogs want + have; null for searches stored before it was kept.
+  const popular = popularity(release);
   const credits = useReleaseCredits(
     release,
     open,
@@ -177,6 +182,13 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
                 />
               ))}
             </span>
+            {popular !== null && (
+              <span className="inline-flex items-center gap-1 font-mono text-xs text-faint">
+                <Users className="h-3.5 w-3.5" aria-hidden="true" />
+                {compactCount(popular)}
+                <span className="sr-only"> want or have it on Discogs</span>
+              </span>
+            )}
           </span>
         </button>
         <button
@@ -273,6 +285,19 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
             </p>
           )}
         </div>
+        {release.community && (
+          <p className="text-[13px] text-faint">
+            On Discogs,{" "}
+            <span className="font-mono text-muted-foreground">
+              {release.community.want.toLocaleString("en-US")}
+            </span>{" "}
+            want it and{" "}
+            <span className="font-mono text-muted-foreground">
+              {release.community.have.toLocaleString("en-US")}
+            </span>{" "}
+            have it. Popularity is the two added up.
+          </p>
+        )}
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
           {discogsUrl && (
             <a

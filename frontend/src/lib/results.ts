@@ -54,6 +54,19 @@ const byYear = (direction: 1 | -1) => (a: ScoredRelease, b: ScoredRelease) => {
 export const popularity = (release: EnrichedRelease): number | null =>
   release.community ? release.community.want + release.community.have : null;
 
+/** A count in a few characters: 950, 1.2k, 12k, 3.4M. */
+export const compactCount = (n: number): string => {
+  const round = (x: number, unit: string) =>
+    `${x < 10 ? Math.floor(x * 10) / 10 : Math.floor(x)}${unit}`;
+  if (n >= 1_000_000) return round(n / 1_000_000, "M");
+  if (n >= 1_000) return round(n / 1_000, "k");
+  return String(n);
+};
+
+/** Whether any result in a search has Discogs counts to sort by. */
+export const hasPopularity = (releases: EnrichedRelease[]): boolean =>
+  releases.some((r) => r.community !== undefined);
+
 /**
  * Releases in the chosen order. "shared" keeps the incoming order, which is
  * the existing ranking (shared contributors, weighted by confidence). Ties

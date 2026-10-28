@@ -116,6 +116,26 @@ describe("community counts", () => {
     expect(toEnrichedRelease(master, 1).community).toBeUndefined();
   });
 
+  it("reads a discography item as Discogs sends it", () => {
+    // From /artists/{id}/releases (Capitol K).
+    const item = {
+      artist: "Capitol K",
+      id: 33251,
+      main_release: 21651,
+      resource_url: "https://api.discogs.com/masters/33251",
+      role: "Main",
+      stats: { community: { in_wantlist: 42, in_collection: 250 } },
+      thumb: "",
+      title: "Sounds Of The Empire",
+      type: "master",
+      year: 1999,
+    };
+    expect(toEnrichedRelease(item, 7).community).toEqual({
+      want: 42,
+      have: 250,
+    });
+  });
+
   it("takes the larger counts when the same album comes from two people", () => {
     const map = new Map<string, EnrichedRelease>();
     const stats = (want: number, have: number) => ({

@@ -13,6 +13,7 @@ import {
   SORT_OPTIONS,
   ScoredRelease,
   SortKey,
+  hasPopularity,
   resetFilterState,
   sharedPeople,
   sortReleases,
@@ -157,6 +158,16 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
           {toolbarAction}
         </div>
       </div>
+
+      {sort === "popular" &&
+        total > 0 &&
+        !hasPopularity(Object.values(search.releases)) && (
+          <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
+            This search was run before Discogs want and have counts were kept,
+            so it can't be sorted by popularity. Delete it and search for the
+            album again to get them.
+          </p>
+        )}
 
       {total > 0 ? (
         <ul className="lg:border-t">

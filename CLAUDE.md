@@ -76,7 +76,8 @@ ranks albums by how many of those people worked on them.
   - `src/lib/stacks.ts`: searches grouped by `lineage.stackId` (two or more
     make a stack), the stack's root, and the stacks a search fits
     (`stacksThisFits`: a member has it in its results; the Stack drawer
-    offers them). A stack is a graph (`stackLayout`): albums link
+    offers them, each with what links it by role category:
+    `src/lib/linkSummary.ts`). A stack is a graph (`stackLayout`): albums link
     when one is in the other's results, and each member's step is its
     fewest links from the root; members nothing links fall back to their
     trail, with its deleted steps ghosted. No stack entity is stored.

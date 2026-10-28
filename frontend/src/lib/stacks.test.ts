@@ -8,7 +8,7 @@ import {
   stackMembersByDepth,
   stackRoot,
   stacksThisFits,
-  fitViaText,
+  fitLinkText,
   stackDepth,
   stackLayout,
   isInStack,
@@ -370,19 +370,20 @@ describe("stackLayout", () => {
   });
 });
 
-describe("fitViaText", () => {
+describe("fitLinkText", () => {
   const parent = {
     contributors: {
-      1: { id: 1, name: "Paul Jones (13)" },
-      2: { id: 2, name: "Morgan Simpson" },
+      1: { id: 1, name: "Paul Jones (13)", roles: ["Lacquer Cut By"] },
+      2: { id: 2, name: "Morgan Simpson", roles: ["Drums"] },
+      3: { id: 3, name: "Seth Evans", roles: ["Keyboards", "Producer"] },
     },
   } as unknown as SearchCache;
 
-  it("names one person, counts more", () => {
-    expect(fitViaText({ parent, via: [2] })).toBe("via Morgan Simpson");
-    // Discogs's "(13)" disambiguation is dropped, as elsewhere.
-    expect(fitViaText({ parent, via: [1] })).toBe("via Paul Jones");
-    expect(fitViaText({ parent, via: [1, 2] })).toBe("via 2 contributors");
-    expect(fitViaText({ parent, via: [9] })).toBe("via 1 contributor");
+  it("says what links them by role, not by name", () => {
+    expect(fitLinkText({ parent, via: [1] })).toBe("via Lacquer Cut By");
+    expect(fitLinkText({ parent, via: [2, 3] })).toBe(
+      "via Musicians (2) · Audio (1)",
+    );
+    expect(fitLinkText({ parent, via: [9] })).toBe("via 1 contributor");
   });
 });

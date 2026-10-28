@@ -5,7 +5,7 @@ import {
 } from "@/contexts/cache/types";
 import { childLineage, lineageOf } from "./lineage";
 import { matchesName } from "./filters";
-import { defaultContributorDisplayPipeline } from "./transformers/contributorProcessor";
+import { linkSummary } from "./linkSummary";
 import { searchStartedAt } from "./searches";
 
 /**
@@ -355,16 +355,14 @@ export const stacksThisFits = (
 };
 
 /**
- * Who links a fit to its parent, in a few words: "via Jim Keltner" for one
- * person, "via 3 contributors" for more.
+ * What links a fit to its parent, by role: their roles on the parent album,
+ * as `linkSummary` puts them ("via Musicians (2) · Audio (1)", "via Lacquer
+ * Cut By").
  */
-export const fitViaText = (fit: Pick<StackFit, "parent" | "via">): string => {
-  if (fit.via.length !== 1) return `via ${fit.via.length} contributors`;
-  const name = fit.parent.contributors?.[fit.via[0]]?.name;
-  return name
-    ? `via ${defaultContributorDisplayPipeline(name)}`
-    : "via 1 contributor";
-};
+export const fitLinkText = (fit: Pick<StackFit, "parent" | "via">): string =>
+  linkSummary(
+    fit.via.map((id) => fit.parent.contributors?.[id] ?? { id, roles: [] }),
+  );
 
 /** Whether a saved search is grouped with others (a stack of two or more). */
 export const isInStack = (

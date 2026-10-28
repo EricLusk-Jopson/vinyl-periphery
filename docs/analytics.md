@@ -100,6 +100,8 @@ To test locally, put both Vinyl Periphery variables in `.env` and run
 | `search_jumped` | An existing search is opened instead of running a new one | `from`: result (a result row) or form (the search bar) |
 | `library_view_toggled` | The Saved tab switches between stacked and flat | `view`: stacked or flat |
 | `library_searched` | The library search is used (once typing pauses) | `results`, `length` (characters typed; the text isn't sent) |
+| `share_created` | Share or Download is pressed and the image is made | `layout`: card or trail, `size`: story or square |
+| `share_completed` | The share sheet finished, the image downloaded, or the link was copied | `layout`, `size`, `method`: share, download or link |
 
 ## Uncategorized roles
 

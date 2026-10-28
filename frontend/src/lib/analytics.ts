@@ -27,7 +27,9 @@ export type AnalyticsEvent =
   | "stack_deleted"
   | "search_jumped"
   | "library_view_toggled"
-  | "library_searched";
+  | "library_searched"
+  | "share_created"
+  | "share_completed";
 
 export type EventProperties = Record<string, string | number | boolean>;
 

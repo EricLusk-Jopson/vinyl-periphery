@@ -18,6 +18,13 @@ ranks albums by how many of those people worked on them.
   - `health.js`: `GET /api/health`.
   - `event.js`: `POST /api/event` validates analytics events and forwards
     them to the Google Sheet. See `docs/analytics.md`.
+  - `og.js`: `GET /api/og?p=…&size=story|square` renders a share image
+    (`@vercel/og`) from a payload in the URL (`backend/og/payload.js`;
+    built by `frontend/src/lib/share.ts`). Never calls Discogs; only Cover
+    Art Archive images, with initials when they don't load. Fonts are
+    vendored in `backend/og/fonts` (SIL OFL).
+  - `share.js`: `/s?p=…&to=…` (rewritten to `/api/share`) serves Open Graph
+    tags for a shared link, then redirects to the app.
 - `backend/server.js`: Express server that mounts the same handlers, for
   local development (and Heroku until the move to Vercel is finished). In
   production mode it also serves `frontend/dist`.

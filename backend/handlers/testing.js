@@ -24,7 +24,8 @@ export function mockResponse() {
       this.ended = true;
       return this;
     },
-    end() {
+    end(body) {
+      if (body !== undefined) this.body = body;
       this.ended = true;
       return this;
     },

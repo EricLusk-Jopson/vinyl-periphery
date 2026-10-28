@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { Grain } from "../layout/Grain";
 import { SearchCover } from "../search/SearchCover";
 import { SaveDrawer } from "../library/SaveDrawer";
+import { ShareButton } from "../share/ShareButton";
+import { resultPath } from "@/lib/routes";
 import { ancestorsAvailableToSave } from "@/lib/stacks";
 
 interface AlbumHeaderProps {
@@ -66,29 +68,36 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search }) => {
             {contributorCount === 1 ? "contributor" : "contributors"}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={toggleSave}
-          disabled={busy}
-          aria-pressed={saved}
-          aria-label={saved ? "Saved" : "Save"}
-          className={cn(
-            "inline-flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-lg text-[15px] font-medium text-foreground transition-colors",
-            "hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-60",
-            "md:w-auto md:border md:border-border-strong md:px-4",
-          )}
-        >
-          <Star
-            className={cn(
-              "h-5 w-5 md:h-4 md:w-4",
-              saved ? "fill-primary text-primary" : "text-muted-foreground",
-            )}
-            aria-hidden="true"
+        <div className="flex shrink-0 items-center gap-1 md:gap-2">
+          <ShareButton
+            search={search}
+            to={resultPath(search.searchParams, search.target)}
+            compact
           />
-          <span className="hidden md:inline" aria-hidden="true">
-            {saved ? "Saved" : "Save"}
-          </span>
-        </button>
+          <button
+            type="button"
+            onClick={toggleSave}
+            disabled={busy}
+            aria-pressed={saved}
+            aria-label={saved ? "Saved" : "Save"}
+            className={cn(
+              "inline-flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-lg text-[15px] font-medium text-foreground transition-colors",
+              "hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-60",
+              "md:w-auto md:border md:border-border-strong md:px-4",
+            )}
+          >
+            <Star
+              className={cn(
+                "h-5 w-5 md:h-4 md:w-4",
+                saved ? "fill-primary text-primary" : "text-muted-foreground",
+              )}
+              aria-hidden="true"
+            />
+            <span className="hidden md:inline" aria-hidden="true">
+              {saved ? "Saved" : "Save"}
+            </span>
+          </button>
+        </div>
       </div>
       <SaveDrawer
         search={search}

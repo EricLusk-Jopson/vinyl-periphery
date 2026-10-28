@@ -7,7 +7,8 @@ import { SearchCache } from "@/contexts/cache/types";
 import { KnownAlbum } from "@/hooks/useSearchRun";
 import { track } from "@/lib/analytics";
 import { lineageOf } from "@/lib/lineage";
-import { libraryPath } from "@/lib/routes";
+import { libraryPath, stackPath } from "@/lib/routes";
+import { ShareButton } from "../share/ShareButton";
 import { targetFromKey } from "@/lib/searchTarget";
 import {
   GhostStep,
@@ -139,6 +140,8 @@ export const StackPage: React.FC<StackPageProps> = ({
 
   const root = stackRoot(stack);
   const sorted = stackMembersByDepth(stack, order);
+  // The share image draws the trail to the deepest saved search.
+  const deepest = stackMembersByDepth(stack, "depth").at(-1)!;
 
   // In trail order, ghosts sit at their depth among the saved searches.
   type Entry =
@@ -232,17 +235,24 @@ export const StackPage: React.FC<StackPageProps> = ({
             {ghosts.length > 0 && ` · ${ghosts.length} not saved`}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setConfirming(true)}
-          className={cn(
-            "inline-flex h-11 items-center gap-2 rounded-lg border border-border-strong px-4 text-sm font-medium text-foreground hover:bg-secondary",
-            focusRing,
-          )}
-        >
-          <Trash2 className="h-4 w-4" aria-hidden="true" />
-          Delete stack
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <ShareButton
+            search={deepest}
+            to={stackPath(stackId)}
+            defaultLayout="trail"
+          />
+          <button
+            type="button"
+            onClick={() => setConfirming(true)}
+            className={cn(
+              "inline-flex h-11 items-center gap-2 rounded-lg border border-border-strong px-4 text-sm font-medium text-foreground hover:bg-secondary",
+              focusRing,
+            )}
+          >
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
+            Delete stack
+          </button>
+        </div>
       </header>
 
       <div

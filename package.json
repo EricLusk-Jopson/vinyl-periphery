@@ -13,6 +13,7 @@
     "test": "node --test \"backend/**/*.test.js\" docs/analytics/apps-script.test.mjs"
   },
   "dependencies": {
+    "@vercel/og": "^0.11.1",
     "dotenv": "^16.0.3",
     "express": "^4.18.2"
   },

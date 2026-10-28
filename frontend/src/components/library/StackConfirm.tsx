@@ -16,8 +16,8 @@ interface StackConfirmProps {
 }
 
 /**
- * Confirms a whole-stack action. Delete removes every saved search in it.
- * Disband keeps them all saved, each on its own.
+ * Confirms a whole-stack action. Delete removes every search in it.
+ * Disband keeps them all, each on its own.
  */
 export const StackConfirm: React.FC<StackConfirmProps> = ({
   request,
@@ -55,8 +55,8 @@ export const StackConfirm: React.FC<StackConfirmProps> = ({
       title={deleting ? "Delete this stack?" : "Disband this stack?"}
       description={
         deleting
-          ? `This deletes the ${count} saved searches in ${label}. Searches still open in this session stay there.`
-          : `The ${count} searches in ${label} stay saved, each on its own.`
+          ? `This deletes the ${count} searches in ${label}.`
+          : `The ${count} searches in ${label} stay in your library, each on its own.`
       }
     >
       <button

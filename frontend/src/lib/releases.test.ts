@@ -2,12 +2,14 @@ import { EnrichedRelease } from "@/api/types";
 import { SearchCache } from "@/contexts/cache/types";
 import {
   addRelease,
+  contributionsOf,
   migrateReleases,
   migrateSearch,
   discographyPagesToRead,
   releaseKey,
   releaseType,
   toEnrichedRelease,
+  versionTargets,
 } from "./releases";
 
 // Shaped like real /artists/{id}/releases items.
@@ -76,8 +78,21 @@ describe("toEnrichedRelease", () => {
       thumb: "",
       resource_url: "https://api.discogs.com/masters/51539",
       contributorIds: [7],
-      appearances: { 7: { role: "Appearance" } },
+      contributions: { 7: [{ role: "Appearance", release: 22460452 }] },
     });
+  });
+
+  it("notes the version: a release's own id, a master's main_release", () => {
+    expect(toEnrichedRelease(mainVersion, 1).contributions).toEqual({
+      1: [{ role: "Main", release: 22460452 }],
+    });
+    const noVersion = { ...master, main_release: undefined };
+    expect(toEnrichedRelease(noVersion, 1).contributions).toEqual({
+      1: [{ role: "Appearance" }],
+    });
+    expect(
+      toEnrichedRelease({ ...master, role: undefined }, 1).contributions,
+    ).toBeUndefined();
   });
 
   it("reads master_id on releases when present", () => {
@@ -105,10 +120,42 @@ describe("addRelease", () => {
     addRelease(map, toEnrichedRelease({ ...master, role: "Main" }, 2));
     addRelease(map, toEnrichedRelease(master, 1));
     expect(results(map)).toEqual([["master:51539", [1, 2]]]);
-    expect(map.get("master:51539")?.appearances).toEqual({
-      1: { role: "Appearance" },
-      2: { role: "Main" },
+    expect(map.get("master:51539")?.contributions).toEqual({
+      1: [{ role: "Appearance", release: 22460452 }],
+      2: [{ role: "Main", release: 22460452 }],
     });
+  });
+
+  it("keeps every role a person has on one master", () => {
+    // In Utero, from Albini's discography: Producer on one version, Remix
+    // on another.
+    const inUtero = {
+      id: 42177,
+      type: "master",
+      title: "In Utero",
+      resource_url: "https://api.discogs.com/masters/42177",
+    };
+    const map = new Map<string, EnrichedRelease>();
+    addRelease(
+      map,
+      toEnrichedRelease(
+        { ...inUtero, role: "Producer", main_release: 465796 },
+        9,
+      ),
+    );
+    addRelease(
+      map,
+      toEnrichedRelease(
+        { ...inUtero, role: "Remix", main_release: 4943830 },
+        9,
+      ),
+    );
+    const merged = map.get("master:42177")!;
+    expect(merged.mainRelease).toBe(465796);
+    expect(contributionsOf(merged, 9)).toEqual([
+      { role: "Producer", release: 465796 },
+      { role: "Remix", release: 4943830 },
+    ]);
   });
 
   it("folds the master's main release into the master, either order", () => {
@@ -143,6 +190,69 @@ describe("addRelease", () => {
       ["master:51539", [1]],
       ["release:379811", [3]],
     ]);
+  });
+});
+
+describe("contributionsOf", () => {
+  it("falls back to the one appearance older searches kept", () => {
+    expect(
+      contributionsOf({ appearances: { 1: { role: "Main" } } }, 1),
+    ).toEqual([{ role: "Main" }]);
+    expect(contributionsOf({}, 1)).toEqual([]);
+  });
+});
+
+describe("versionTargets", () => {
+  const inUtero = {
+    id: 42177,
+    type: "master" as const,
+    mainRelease: 465796,
+    resource_url: "https://api.discogs.com/masters/42177",
+  };
+
+  it("reads a release itself", () => {
+    expect(
+      versionTargets({ id: 5, type: "release", resource_url: "" }, [1]),
+    ).toEqual([{ kind: "release", id: 5 }]);
+  });
+
+  it("reads a master's versions its people are on, each person's first first", () => {
+    const release = {
+      ...inUtero,
+      contributions: {
+        1: [
+          { role: "Producer", release: 465796 },
+          { role: "Remix", release: 4943830 },
+        ],
+        2: [{ role: "Bass", release: 111 }],
+        3: [{ role: "Drums", release: 465796 }],
+      },
+    };
+    expect(versionTargets(release, [1, 2, 3])).toEqual([
+      { kind: "release", id: 465796 },
+      { kind: "release", id: 111 },
+      { kind: "release", id: 4943830 },
+    ]);
+    expect(versionTargets(release, [1, 2, 3], 2)).toHaveLength(2);
+    // Only the people shown count.
+    expect(versionTargets(release, [2])).toEqual([
+      { kind: "release", id: 111 },
+      { kind: "release", id: 465796 },
+    ]);
+  });
+
+  it("falls back to the result's main release, then the master", () => {
+    expect(versionTargets(inUtero, [1])).toEqual([
+      { kind: "release", id: 465796 },
+    ]);
+    const bare = { ...inUtero, mainRelease: undefined };
+    expect(versionTargets(bare, [1])).toEqual([{ kind: "master", id: 42177 }]);
+  });
+
+  it("has nothing to read without a Discogs object", () => {
+    expect(
+      versionTargets({ resource_url: "https://example.com/x" }, [1]),
+    ).toEqual([]);
   });
 });
 

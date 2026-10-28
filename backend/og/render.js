@@ -348,127 +348,236 @@ export const mapReach = (albums, angle) => {
   return reach;
 };
 
+/**
+ * Where everything on a map goes, in a box `width` x `height` (origin at
+ * its top-left): the circle's radius, as large as fits with every cover
+ * and name inside the box, and each name's place.
+ *
+ * Names sit just past their dot, or past any covers just outside the
+ * circle near it. Names that would overlap are moved apart around the
+ * circle (their dots stay put).
+ */
+export function mapGeometry(payload, { width, height, labelWidth, labelHeight, gap, edge }) {
+  const halfW = width / 2 - edge;
+  const halfH = height / 2 - edge;
+  const { albums } = payload;
+  const peopleAngles = payload.people.map((p) => (p.angle * Math.PI) / 180);
+  const along = (angle) => {
+    const c = Math.abs(Math.cos(angle));
+    const s = Math.abs(Math.sin(angle));
+    return { c, s, push: gap + (c * labelWidth) / 2 + (s * labelHeight) / 2 };
+  };
+
+  // The largest radius at which, in every direction, the covers and the
+  // names stay in the box.
+  let radius = Math.min(halfW, halfH) / (MAP_SIZES.centre * 0.71);
+  for (let i = 0; i < 72; i++) {
+    const angle = (i / 72) * 2 * Math.PI;
+    const reach = mapReach(albums, angle);
+    const { c, s } = along(angle);
+    if (c > 1e-6) radius = Math.min(radius, halfW / (c * reach));
+    if (s > 1e-6) radius = Math.min(radius, halfH / (s * reach));
+  }
+  for (const angle of peopleAngles) {
+    const reach = mapReach(albums, angle);
+    const { c, s, push } = along(angle);
+    if (c > 1e-6) radius = Math.min(radius, (halfW - labelWidth / 2 - c * push) / (c * reach));
+    if (s > 1e-6) radius = Math.min(radius, (halfH - labelHeight / 2 - s * push) / (s * reach));
+  }
+
+  const middle = { x: width / 2, y: height / 2 };
+  const place = (angle) => {
+    const out = radius * mapReach(albums, angle) + along(angle).push;
+    const x = middle.x + Math.cos(angle) * out - labelWidth / 2;
+    const y = middle.y - Math.sin(angle) * out - labelHeight / 2;
+    // Kept inside the box.
+    return {
+      x: Math.max(edge, Math.min(width - edge - labelWidth, x)),
+      y: Math.max(edge, Math.min(height - edge - labelHeight, y)),
+    };
+  };
+
+  const labelAngles = [...peopleAngles];
+  const overlap = (a, b) =>
+    Math.abs(a.x - b.x) < labelWidth + 4 && Math.abs(a.y - b.y) < labelHeight + 2;
+  for (let step = 0; step < 200; step++) {
+    const spots = labelAngles.map(place);
+    let moved = false;
+    for (let i = 0; i < spots.length; i++) {
+      for (let j = i + 1; j < spots.length; j++) {
+        if (!overlap(spots[i], spots[j])) continue;
+        // Apart around the circle, each away from the other.
+        const apart = Math.sin(labelAngles[j] - labelAngles[i]) >= 0 ? 1 : -1;
+        labelAngles[i] -= apart * 0.02;
+        labelAngles[j] += apart * 0.02;
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+
+  return {
+    radius,
+    middle,
+    labels: payload.people.map((p, i) => ({
+      name: p.name,
+      dot: {
+        x: middle.x + Math.cos(peopleAngles[i]) * radius,
+        y: middle.y - Math.sin(peopleAngles[i]) * radius,
+      },
+      ...place(labelAngles[i]),
+    })),
+  };
+}
+
+/** The footer, compact: for the map, where the picture needs the room. */
+const smallWatermark = (story) =>
+  h(
+    "div",
+    { alignItems: "center", justifyContent: "space-between", width: "100%" },
+    h(
+      "div",
+      { alignItems: "center", gap: 10 },
+      h(
+        "div",
+        {
+          width: story ? 34 : 28,
+          height: story ? 34 : 28,
+          borderRadius: 999,
+          border: `${story ? 4 : 3}px solid ${C.foreground}`,
+          alignItems: "center",
+          justifyContent: "center",
+        },
+        h("div", { width: 10, height: 10, borderRadius: 999, background: C.primary }),
+      ),
+      line("VINYL PERIPHERY", {
+        fontFamily: "Bebas Neue",
+        fontSize: story ? 40 : 32,
+        letterSpacing: 1.5,
+        color: C.foreground,
+      }),
+    ),
+    line("vinylperiphery.com", {
+      fontFamily: "IBM Plex Mono",
+      fontSize: story ? 24 : 19,
+      color: C.muted,
+    }),
+  );
+
 /** Map: the centre album, the albums around it, the people on the rim. */
 export function mapElement(payload, size, art) {
   const story = size.name === "story";
-  const scale = story ? 1 : 0.8;
-  const labelWidth = story ? 150 : 130;
-  const labelHeight = story ? 56 : 46;
-  const labelGap = story ? 20 : 16;
-  // Stories are narrow: the map takes the full width, and names at the
-  // sides fit beside the circle. Squares are short: the names above and
-  // below fit, and those at the sides spill into the frame's padding.
-  const box = story ? size.width : 770;
-  // Room for any covers past the circle, then the names.
-  const radius =
-    (story
-      ? box / 2 - labelGap - labelWidth - 8
-      : box / 2 - labelGap - labelHeight) / mapReach(payload.albums);
-  const middle = box / 2;
+  const pad = story ? 88 : 48;
+  const headerHeight = story ? 190 : 118;
+  const footerHeight = story ? 40 : 32;
+  // The map runs edge to edge, between the header and the footer.
+  const box = {
+    width: size.width,
+    height: size.height - 2 * pad - headerHeight - footerHeight + (story ? 0 : 24),
+  };
+  const top = pad + headerHeight;
+  const { radius, middle, labels } = mapGeometry(payload, {
+    ...box,
+    labelWidth: story ? 140 : 112,
+    labelHeight: story ? 48 : 36,
+    gap: story ? 14 : 10,
+    edge: story ? 16 : 10,
+  });
   const { centre } = payload;
 
   const at = (x, y, side) => ({
     position: "absolute",
-    left: Math.round(middle + x * radius - side / 2),
-    top: Math.round(middle - y * radius - side / 2),
+    left: Math.round(middle.x + x * radius - side / 2),
+    top: Math.round(middle.y - y * radius - side / 2),
   });
+  const dot = story ? 12 : 9;
+  const centreSide = Math.round(MAP_SIZES.centre * radius);
 
-  const person = (p) => {
-    const radians = (p.angle * Math.PI) / 180;
-    const dot = story ? 12 : 10;
-    // Just outside the dot, whichever side of the circle it's on.
-    // Past the circle, or past any covers just outside it there.
-    const out =
-      radius * mapReach(payload.albums, radians) +
-      labelGap +
-      (Math.abs(Math.cos(radians)) * labelWidth) / 2 +
-      (Math.abs(Math.sin(radians)) * labelHeight) / 2;
-    return [
+  return h(
+    "div",
+    {
+      position: "relative",
+      width: size.width,
+      height: size.height,
+      background: C.background,
+      color: C.foreground,
+      fontFamily: "IBM Plex Sans",
+    },
+    h(
+      "div",
+      { position: "absolute", left: 0, top, width: box.width, height: box.height },
+      // The circle the people sit on.
       h("div", {
         position: "absolute",
-        left: Math.round(middle + Math.cos(radians) * radius - dot / 2),
-        top: Math.round(middle - Math.sin(radians) * radius - dot / 2),
-        width: dot,
-        height: dot,
+        left: Math.round(middle.x - radius),
+        top: Math.round(middle.y - radius),
+        width: Math.round(radius * 2),
+        height: Math.round(radius * 2),
         borderRadius: 999,
-        background: C.primaryText,
+        border: `2px solid ${C.border}`,
       }),
-      h(
-        "div",
-        {
-          position: "absolute",
-          left: Math.round(middle + Math.cos(radians) * out - labelWidth / 2),
-          top: Math.round(middle - Math.sin(radians) * out - labelHeight / 2),
-          width: labelWidth,
-          height: labelHeight,
-          alignItems: "center",
-          justifyContent: "center",
-          textAlign: "center",
-          fontFamily: "IBM Plex Mono",
-          fontSize: story ? 22 : 19,
-          lineHeight: 1.2,
-          color: C.muted,
-          overflow: "hidden",
-        },
-        p.name,
-      ),
-    ];
-  };
-
-  return frame(
-    size,
-    h(
-      "div",
-      { flexDirection: "column", gap: story ? 10 : 6 },
-      eyebrow("Connections around", story ? 1 : 0.75),
-      line(centre.t, {
-        fontFamily: "Bebas Neue",
-        fontSize: story ? 96 : 60,
-        lineHeight: 1,
-        color: C.foreground,
-      }),
-      line(centre.r, { fontSize: story ? 34 : 24, color: C.muted }),
-    ),
-    h(
-      "div",
-      {
-        justifyContent: "center",
-        flexGrow: 1,
-        alignItems: "center",
-        // Stories: edge to edge, past the frame's padding.
-        marginLeft: story ? -88 : 0,
-        marginRight: story ? -88 : 0,
-      },
-      h(
-        "div",
-        { position: "relative", width: box, height: box },
-        // The circle the people sit on.
+      ...labels.flatMap((label) => [
         h("div", {
           position: "absolute",
-          left: middle - radius,
-          top: middle - radius,
-          width: radius * 2,
-          height: radius * 2,
+          left: Math.round(label.dot.x - dot / 2),
+          top: Math.round(label.dot.y - dot / 2),
+          width: dot,
+          height: dot,
           borderRadius: 999,
-          border: `2px solid ${C.border}`,
-        }),
-        ...payload.people.flatMap(person),
-        ...payload.albums.map((album) => {
-          const side = Math.round(MAP_SIZES[album.z] * radius);
-          return h(
-            "div",
-            at(album.x, album.y, side),
-            tile(album, art.get(album.i), side, false),
-          );
+          background: C.primaryText,
         }),
         h(
           "div",
-          at(0, 0, Math.round(MAP_SIZES.centre * radius)),
-          tile(centre, art.get(centre.i), Math.round(MAP_SIZES.centre * radius), true),
+          {
+            position: "absolute",
+            left: Math.round(label.x),
+            top: Math.round(label.y),
+            width: story ? 140 : 112,
+            height: story ? 48 : 36,
+            alignItems: "center",
+            justifyContent: "center",
+            textAlign: "center",
+            fontFamily: "IBM Plex Mono",
+            fontSize: story ? 19 : 15,
+            lineHeight: 1.2,
+            color: C.muted,
+            overflow: "hidden",
+          },
+          label.name,
         ),
-      ),
+      ]),
+      ...payload.albums.map((album) => {
+        const side = Math.round(MAP_SIZES[album.z] * radius);
+        return h("div", at(album.x, album.y, side), tile(album, art.get(album.i), side, false));
+      }),
+      h("div", at(0, 0, centreSide), tile(centre, art.get(centre.i), centreSide, true)),
     ),
-    watermark(scale),
+    // Header, top left.
+    h(
+      "div",
+      {
+        position: "absolute",
+        left: pad,
+        top: pad,
+        width: size.width - 2 * pad,
+        flexDirection: "column",
+        gap: story ? 10 : 4,
+      },
+      eyebrow("Connections around", story ? 1 : 0.7),
+      line(centre.t, {
+        fontFamily: "Bebas Neue",
+        fontSize: story ? 96 : 56,
+        lineHeight: 1,
+        color: C.foreground,
+      }),
+      line(centre.r, { fontSize: story ? 34 : 22, color: C.muted }),
+    ),
+    // Footer, along the bottom.
+    h(
+      "div",
+      { position: "absolute", left: pad, bottom: story ? pad : 28, width: size.width - 2 * pad },
+      smallWatermark(story),
+    ),
   );
 }
 

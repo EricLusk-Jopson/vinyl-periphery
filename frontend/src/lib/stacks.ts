@@ -195,8 +195,10 @@ export const ancestorsAvailableToSave = (
 };
 
 export interface StackFit {
+  /** "stack": joins an existing stack. "single": starts one with a saved search. */
+  kind: "stack" | "single";
   stack: LibraryStack;
-  /** The saved member whose results include this album. */
+  /** The saved search whose results include this album. */
   parent: SearchCache;
   /** Who links them: that result's contributors. */
   via: number[];
@@ -204,17 +206,30 @@ export interface StackFit {
   lineage: SearchLineage;
 }
 
+/** `search` is on `other`'s trail, so `other` can't come before it. */
+const isAncestorOf = (search: SearchCache, other: SearchCache) =>
+  lineageOf(other).path.some(
+    (step) =>
+      step.searchId === search.searchId ||
+      (Boolean(step.targetKey) && step.targetKey === search.target?.key),
+  );
+
 /**
- * Existing stacks (two or more saved searches) that this album fits: one of
- * their members has it among its results, so it could have been searched
- * from there. Per stack, the member sharing the most people (then the
- * deepest) is the parent. Leaves out the search's own stack and stacks
- * that already hold this album. Best fit first.
+ * Where this album fits among saved searches: one of them has it among its
+ * results, so it could have been searched from there.
+ *
+ * Existing stacks (two or more saved searches) always count; with
+ * `singles`, so do saved searches on their own, which would start a stack.
+ * Per stack, the member sharing the most people (then the deepest) is the
+ * parent. Leaves out the search's own stack, stacks that already hold this
+ * album, and searches on its own trail below it. Stacks first, then best
+ * fit first.
  */
 export const stacksThisFits = (
   search: SearchCache,
   searches: Record<string, SearchCache>,
   savedIds: Set<string>,
+  { singles = false }: { singles?: boolean } = {},
 ): StackFit[] => {
   const key = search.target?.key;
   if (!key) return [];
@@ -224,12 +239,21 @@ export const stacksThisFits = (
   );
   const fits: StackFit[] = [];
   for (const entry of groupStacks(saved)) {
-    if (entry.kind !== "stack" || entry.stackId === own) continue;
-    if (entry.members.some((m) => m.target?.key === key)) continue;
+    const stack: LibraryStack =
+      entry.kind === "stack"
+        ? entry
+        : {
+            kind: "stack",
+            stackId: stackIdOf(entry.search),
+            members: [entry.search],
+          };
+    if (entry.kind === "single" && !singles) continue;
+    if (stack.stackId === own) continue;
+    if (stack.members.some((m) => m.target?.key === key)) continue;
     let best: { parent: SearchCache; via: number[] } | null = null;
-    for (const member of entry.members) {
+    for (const member of stack.members) {
       const via = member.releases?.[key]?.contributorIds ?? [];
-      if (via.length === 0) continue;
+      if (via.length === 0 || isAncestorOf(search, member)) continue;
       if (
         !best ||
         via.length > best.via.length ||
@@ -241,14 +265,38 @@ export const stacksThisFits = (
     }
     if (best) {
       fits.push({
-        stack: entry,
+        kind: entry.kind,
+        stack,
         ...best,
         lineage: childLineage(best.parent, best.via, best.parent.thumb),
       });
     }
   }
-  return fits.sort((a, b) => b.via.length - a.via.length);
+  return fits.sort(
+    (a, b) =>
+      Number(a.kind === "single") - Number(b.kind === "single") ||
+      b.via.length - a.via.length,
+  );
 };
+
+/**
+ * Whether saving this search should ask how: it has ancestors here, or fits
+ * a saved stack. Otherwise saving is one tap.
+ */
+export const savingNeedsChoice = (
+  search: SearchCache,
+  searches: Record<string, SearchCache>,
+  savedIds: Set<string>,
+): boolean =>
+  ancestorsAvailableToSave(search, searches, savedIds).length > 0 ||
+  stacksThisFits(search, searches, savedIds).length > 0;
+
+/** Whether a saved search is grouped with others (a stack of two or more). */
+export const isInStack = (
+  search: SearchCache,
+  searches: Record<string, SearchCache>,
+  savedIds: Set<string>,
+): boolean => savedInStack(searches, savedIds, stackIdOf(search)).length > 1;
 
 /** Saved searches whose album or artist matches, across stacks and singles. */
 export const searchLibrary = (

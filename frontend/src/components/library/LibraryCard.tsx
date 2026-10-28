@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { Star, Trash2 } from "lucide-react";
+import { Layers, Star, Trash2 } from "lucide-react";
 import { SearchCache } from "@/contexts/cache/types";
 import { ResultFrom, resultPath } from "@/lib/routes";
 import { searchStartedAt, timeAgo } from "@/lib/searches";
@@ -20,9 +20,14 @@ interface LibraryCardProps {
   note?: string;
   onToggleSave: () => Promise<void>;
   onDelete: () => Promise<void>;
+  /**
+   * Put this saved search into a stack. Given only when it's on its own and
+   * fits somewhere.
+   */
+  onStack?: () => void;
 }
 
-/** One search: cover, album, artist, counts, with Save and Delete. */
+/** One search: cover, album, artist, counts, with Save, Stack and Delete. */
 export const LibraryCard: React.FC<LibraryCardProps> = ({
   search,
   saved,
@@ -30,6 +35,7 @@ export const LibraryCard: React.FC<LibraryCardProps> = ({
   note,
   onToggleSave,
   onDelete,
+  onStack,
 }) => {
   const [busy, setBusy] = useState(false);
   const { artist, album } = search.searchParams;
@@ -96,6 +102,20 @@ export const LibraryCard: React.FC<LibraryCardProps> = ({
           aria-hidden="true"
         />
       </button>
+      {onStack && (
+        <button
+          type="button"
+          onClick={onStack}
+          disabled={busy}
+          aria-label={`Add ${album} to a stack`}
+          className={cn(
+            iconButton,
+            "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Layers className="h-[18px] w-[18px]" aria-hidden="true" />
+        </button>
+      )}
       <button
         type="button"
         onClick={run(onDelete)}

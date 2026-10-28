@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Layers, Trash2 } from "lucide-react";
+import { Layers } from "lucide-react";
 import { LayersOff } from "../common/icons";
 import { useCoverArt } from "@/hooks/useCoverArt";
 import { stackPath } from "@/lib/routes";
@@ -44,18 +44,16 @@ export const StackRootCover: React.FC<{
 
 interface StackCardProps {
   stack: LibraryStack;
-  onDelete: () => void;
   onDisband: () => void;
 }
 
 /**
  * The searches in one stack, as one card: the root's cover and name,
  * "+ n" for the rest. Offset edges behind it mark it as a stack. Opens the
- * stack's page; Destack and Delete act on the whole stack.
+ * stack's page; Destack keeps its searches, each on its own.
  */
 export const StackCard: React.FC<StackCardProps> = ({
   stack,
-  onDelete,
   onDisband,
 }) => {
   const root = stackRoot(stack);
@@ -118,17 +116,6 @@ export const StackCard: React.FC<StackCardProps> = ({
           )}
         >
           <LayersOff className="h-[18px] w-[18px]" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          onClick={onDelete}
-          aria-label={`Delete the ${root.title} stack`}
-          className={cn(
-            iconButton,
-            "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <Trash2 className="h-[18px] w-[18px]" aria-hidden="true" />
         </button>
       </div>
     </li>

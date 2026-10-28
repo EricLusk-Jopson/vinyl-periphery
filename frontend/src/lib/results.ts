@@ -38,15 +38,6 @@ export const releaseYear = (
   return Number.isFinite(n) && n > 0 ? n : null;
 };
 
-const byYear = (direction: 1 | -1) => (a: ScoredRelease, b: ScoredRelease) => {
-  const ya = releaseYear(a.year);
-  const yb = releaseYear(b.year);
-  // Releases without a year go last either way.
-  if (ya === null || yb === null)
-    return ya === null ? (yb === null ? 0 : 1) : -1;
-  return direction * (ya - yb);
-};
-
 /**
  * How popular a release is on Discogs: want + have, or null when the search
  * didn't keep the counts.
@@ -67,38 +58,66 @@ export const compactCount = (n: number): string => {
 export const hasPopularity = (releases: EnrichedRelease[]): boolean =>
   releases.some((r) => r.community !== undefined);
 
+type Compare = (a: ScoredRelease, b: ScoredRelease) => number;
+
+/** Releases without a value go last either way. */
+const nullsLast =
+  (value: (r: ScoredRelease) => number | null, direction: 1 | -1): Compare =>
+  (a, b) => {
+    const va = value(a);
+    const vb = value(b);
+    if (va === null || vb === null)
+      return va === null ? (vb === null ? 0 : 1) : -1;
+    return direction * (va - vb);
+  };
+
+/** Each sort as a comparison; 0 is a tie. */
+const COMPARE: Record<SortKey, Compare> = {
+  // The shown count. (As the main sort, the ranking is used instead.)
+  shared: (a, b) =>
+    new Set(b.activeContributors).size - new Set(a.activeContributors).size,
+  // Most wanted and owned first.
+  popular: nullsLast(popularity, -1),
+  newest: nullsLast((r) => releaseYear(r.year), -1),
+  oldest: nullsLast((r) => releaseYear(r.year), 1),
+  artist: (a, b) =>
+    (a.artist ?? "").localeCompare(b.artist ?? "", undefined, {
+      sensitivity: "base",
+    }),
+};
+
 /**
- * Releases in the chosen order. "shared" keeps the incoming order, which is
- * the existing ranking (shared contributors, weighted by confidence). Ties
- * keep their ranking order, since Array.prototype.sort is stable.
+ * The sorts that can break ties in `sort`: the others, leaving out the
+ * other direction of the same thing (year).
+ */
+export const tiebreakOptions = (sort: SortKey) =>
+  SORT_OPTIONS.filter(
+    (o) =>
+      o.value !== sort &&
+      !(
+        ["newest", "oldest"].includes(sort) &&
+        ["newest", "oldest"].includes(o.value)
+      ),
+  );
+
+/**
+ * Releases in the chosen order, ties broken by `then`. "shared" alone
+ * keeps the incoming order, which is the existing ranking (shared
+ * contributors, weighted by confidence); with a tiebreaker it sorts by the
+ * shared count, so albums sharing as many people are ordered by `then`.
+ * Remaining ties keep their ranking order, since Array.prototype.sort is
+ * stable.
  */
 export const sortReleases = (
   releases: ScoredRelease[],
   sort: SortKey,
+  then: SortKey | null = null,
 ): ScoredRelease[] => {
-  switch (sort) {
-    case "shared":
-      return releases;
-    case "popular":
-      // Most wanted and owned first; releases without counts go last.
-      return [...releases].sort((a, b) => {
-        const pa = popularity(a);
-        const pb = popularity(b);
-        if (pa === null || pb === null)
-          return pa === null ? (pb === null ? 0 : 1) : -1;
-        return pb - pa;
-      });
-    case "newest":
-      return [...releases].sort(byYear(-1));
-    case "oldest":
-      return [...releases].sort(byYear(1));
-    case "artist":
-      return [...releases].sort((a, b) =>
-        (a.artist ?? "").localeCompare(b.artist ?? "", undefined, {
-          sensitivity: "base",
-        }),
-      );
-  }
+  const tiebreak = then && then !== sort ? COMPARE[then] : null;
+  if (sort === "shared" && !tiebreak) return releases;
+  return [...releases].sort(
+    (a, b) => COMPARE[sort](a, b) || (tiebreak ? tiebreak(a, b) : 0),
+  );
 };
 
 /**

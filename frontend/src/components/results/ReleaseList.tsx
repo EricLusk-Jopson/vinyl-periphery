@@ -18,6 +18,7 @@ import {
   resetFilterState,
   sharedPeople,
   sortReleases,
+  tiebreakOptions,
 } from "@/lib/results";
 import { track } from "@/lib/analytics";
 import { useLikes } from "@/hooks/useLikes";
@@ -66,6 +67,12 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
   const wide = useMediaQuery("(min-width: 768px)");
 
   const [sort, setSort] = useState<SortKey>("shared");
+  // "Then by": a second sort for ties, offered on desktop only.
+  const desktop = useMediaQuery("(min-width: 1024px)");
+  const [thenBy, setThenBy] = useState<SortKey | null>(null);
+  const tiebreaks = tiebreakOptions(sort);
+  const then =
+    desktop && tiebreaks.some((o) => o.value === thenBy) ? thenBy : null;
   const [visible, setVisible] = useState(PAGE_SIZE);
   // By release key: masters and releases can share a numeric id.
   const [openKey, setOpenKey] = useState<string | null>(null);
@@ -81,8 +88,12 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
   }, [isSearching]);
 
   const sorted = useMemo(
-    () => pinToTop(sortReleases(releases as ScoredRelease[], sort), pinnedKey),
-    [releases, sort, pinnedKey],
+    () =>
+      pinToTop(
+        sortReleases(releases as ScoredRelease[], sort, then),
+        pinnedKey,
+      ),
+    [releases, sort, then, pinnedKey],
   );
   const visibleKeys = useMemo(
     () => new Set(releases.map((r) => r.key)),
@@ -200,6 +211,40 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
               ))}
             </SelectContent>
           </Select>
+          {desktop && (
+            <>
+              <label
+                htmlFor={`${sortId}-then`}
+                className="shrink-0 text-sm text-muted-foreground"
+              >
+                then
+              </label>
+              <Select
+                value={then ?? "ranking"}
+                onValueChange={(value) => {
+                  setThenBy(value === "ranking" ? null : (value as SortKey));
+                  setVisible(PAGE_SIZE);
+                }}
+              >
+                <SelectTrigger id={`${sortId}-then`} className="lg:h-10">
+                  <SelectValue>
+                    {tiebreaks.find((o) => o.value === then)?.short ??
+                      "Ranking"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent align="end">
+                  <SelectItem value="ranking">
+                    Ranking (no tiebreaker)
+                  </SelectItem>
+                  {tiebreaks.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          )}
           {toolbarAction}
         </div>
       </div>
@@ -218,7 +263,12 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
         <ul ref={listRef} className="scroll-mt-20 lg:scroll-mt-6 lg:border-t">
           {shown.map((release, i) => {
             const people = sharedPeople(release, search.contributors);
-            const position = { rank: i + 1, shared: people.length, sort };
+            const position = {
+              rank: i + 1,
+              shared: people.length,
+              sort,
+              ...(then ? { then } : {}),
+            };
             return (
               <ReleaseRow
                 key={release.key}

@@ -12,6 +12,7 @@ import {
   popularity,
   compactCount,
   hasPopularity,
+  tiebreakOptions,
 } from "./results";
 import { SearchCache } from "@/contexts/cache/types";
 
@@ -74,6 +75,46 @@ describe("sortReleases", () => {
   it("does not change the input", () => {
     sortReleases(list, "newest");
     expect(ids(list)).toEqual([1, 2, 3, 4]);
+  });
+});
+
+describe("tiebreaker", () => {
+  const ids = (r: ScoredRelease[]) => r.map((x) => x.id);
+  // Ranked 1-4; 1 and 3 share two people, 2 and 4 share one.
+  const ranked = [
+    release(1, "Roxy Music", "1973", [7, 8]),
+    release(2, "Wire", "1977", [7]),
+    release(3, "Eno", "1975", [7, 8]),
+    release(4, "Can", "1971", [8]),
+  ];
+
+  it("orders albums sharing as many people by the tiebreaker", () => {
+    expect(ids(sortReleases(ranked, "shared", "newest"))).toEqual([3, 1, 2, 4]);
+    expect(ids(sortReleases(ranked, "shared", "artist"))).toEqual([3, 1, 4, 2]);
+  });
+
+  it("breaks ties in other sorts too, ranking last", () => {
+    const sameYear = [
+      release(1, "B", "1980", [7]),
+      release(2, "A", "1980", [7, 8]),
+      release(3, "C", "1990", [7]),
+    ];
+    expect(ids(sortReleases(sameYear, "newest", "shared"))).toEqual([3, 2, 1]);
+    expect(ids(sortReleases(sameYear, "newest"))).toEqual([3, 1, 2]);
+  });
+
+  it("offers every other sort, but not the other year direction", () => {
+    expect(tiebreakOptions("newest").map((o) => o.value)).toEqual([
+      "shared",
+      "popular",
+      "artist",
+    ]);
+    expect(tiebreakOptions("shared").map((o) => o.value)).toEqual([
+      "popular",
+      "newest",
+      "oldest",
+      "artist",
+    ]);
   });
 });
 

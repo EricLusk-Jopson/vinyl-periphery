@@ -303,10 +303,13 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
       if (!search) return;
 
       try {
-        // "Save on its own" drops the lineage, so it never regroups.
+        // "Save on its own" drops the lineage, so it never regroups;
+        // joining another stack replaces it.
         const { lineage, ...rest } = search;
         const savedSearch: SearchCache = {
-          ...(options.withoutLineage ? rest : { ...rest, lineage }),
+          ...(options.withoutLineage
+            ? rest
+            : { ...rest, lineage: options.lineage ?? lineage }),
           savedAt: Date.now(),
         };
         await db.saveSearch(savedSearch);

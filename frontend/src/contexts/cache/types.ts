@@ -72,6 +72,11 @@ export interface SearchCache {
 export interface SaveOptions {
   /** "Save on its own": without lineage, so it never joins a stack. */
   withoutLineage?: boolean;
+  /**
+   * Joins another stack: saved with this lineage instead of its own, as if
+   * searched from a member of that stack (see `stacksThisFits`).
+   */
+  lineage?: SearchLineage;
 }
 
 export interface CacheState {

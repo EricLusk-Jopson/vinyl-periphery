@@ -3,6 +3,7 @@ import { Search, X } from "lucide-react";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { track } from "@/lib/analytics";
 import { filtersToShow, ResultMatch, searchResults } from "@/lib/resultSearch";
+import { resetFilterState } from "@/lib/results";
 import { cn } from "@/lib/utils";
 import { ChoiceDialog } from "../common/ChoiceDialog";
 import { dialogButton } from "../common/buttons";
@@ -39,6 +40,8 @@ export const ResultSearch: React.FC<ResultSearchProps> = ({
   const [query, setQuery] = useState("");
   const [showOptions, setShowOptions] = useState(false);
   const [pinned, setPinned] = useState<string | null>(null);
+  // The pick reset the filters to show it; they go when it does.
+  const [pinnedFilters, setPinnedFilters] = useState(false);
   const [confirming, setConfirming] = useState<ResultMatch | null>(null);
 
   const matches = useMemo(
@@ -71,6 +74,7 @@ export const ResultSearch: React.FC<ResultSearchProps> = ({
   const pin = (match: ResultMatch, filtered: boolean) => {
     track("result_picked", { filtered });
     setPinned(match.key);
+    setPinnedFilters(filtered);
     setQuery(match.title);
     setShowOptions(false);
     onPin(match.key);
@@ -89,13 +93,24 @@ export const ResultSearch: React.FC<ResultSearchProps> = ({
     setConfirming(null);
   };
 
+  /**
+   * Back to the usual order. Filters set to show the picked album are
+   * cleared with it (Reset filters, on the other hand, keeps the pick).
+   */
+  const unpin = () => {
+    if (!pinned) return;
+    setPinned(null);
+    onPin(null);
+    if (pinnedFilters) {
+      setPinnedFilters(false);
+      updateFilterState(searchId, resetFilterState(search));
+    }
+  };
+
   const clear = () => {
     setQuery("");
     setShowOptions(false);
-    if (pinned) {
-      setPinned(null);
-      onPin(null);
-    }
+    unpin();
     onCollapse();
   };
 
@@ -139,10 +154,7 @@ export const ResultSearch: React.FC<ResultSearchProps> = ({
           setQuery(e.target.value);
           setShowOptions(true);
           // Editing the picked name goes back to the usual order.
-          if (pinned) {
-            setPinned(null);
-            onPin(null);
-          }
+          unpin();
         }}
         onFocus={() => {
           if (!pinned) setShowOptions(true);

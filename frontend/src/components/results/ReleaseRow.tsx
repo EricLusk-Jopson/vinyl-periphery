@@ -133,14 +133,15 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
 
   return (
     <li className="border-b">
-      <div className="flex items-center">
+      {/* The whole card highlights on hover, like button included. */}
+      <div className="flex items-center rounded-lg transition-colors hover:bg-surface">
         <button
           type="button"
           aria-expanded={open}
           aria-controls={panelId}
           onClick={onToggle}
           className={cn(
-            "flex min-w-0 flex-1 items-center gap-3 rounded-lg py-3 pl-3 pr-1 text-left transition-colors hover:bg-surface md:gap-4 md:py-3.5 md:pl-4",
+            "flex min-w-0 flex-1 items-center gap-3 rounded-lg py-3 pl-3 pr-1 text-left md:gap-4 md:py-3.5 md:pl-4",
             focusRing,
           )}
         >
@@ -197,14 +198,17 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
           aria-pressed={liked}
           aria-label={`Like ${release.title}`}
           className={cn(
-            "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-surface md:mr-1",
+            // No fill of its own: hover and press change the heart only.
+            "group/like flex h-11 w-11 shrink-0 items-center justify-center rounded-lg md:mr-1",
             focusRing,
           )}
         >
           <Heart
             className={cn(
-              "h-5 w-5",
-              liked ? "fill-primary text-primary" : "text-muted-foreground",
+              "h-5 w-5 transition-[color,transform] duration-150 group-active/like:scale-90",
+              liked
+                ? "fill-primary text-primary"
+                : "text-muted-foreground group-hover/like:text-foreground",
             )}
             aria-hidden="true"
           />

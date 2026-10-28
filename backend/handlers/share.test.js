@@ -34,7 +34,6 @@ test("serves Open Graph tags and sends people on", () => {
   assert.equal(res.statusCode, 200);
   assert.match(res.headers["content-type"], /text\/html/);
   assert.match(html, /<meta property="og:image" content="https:\/\/vinylperiphery\.com\/api\/og\?p=/);
-  assert.match(html, /size=square/);
   assert.match(html, /url=\/results\?artist=Bon\+Iver&amp;album=Bon\+Iver&amp;master=100/);
   // Titles are escaped.
   assert.match(html, /Bon &quot;Iver&quot; &lt;b&gt;/);

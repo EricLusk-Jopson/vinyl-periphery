@@ -117,60 +117,6 @@ const eyebrow = (text, scale) =>
     textTransform: "uppercase",
   });
 
-/** The watermark: wordmark, site and tagline. */
-const watermark = (scale) =>
-  h(
-    "div",
-    {
-      alignItems: "center",
-      justifyContent: "space-between",
-      borderTop: `2px solid ${C.border}`,
-      paddingTop: 24 * scale,
-    },
-    h(
-      "div",
-      { alignItems: "center", gap: 14 * scale },
-      // The disc mark: a ring with a red centre.
-      h(
-        "div",
-        {
-          width: 40 * scale,
-          height: 40 * scale,
-          borderRadius: 999,
-          border: `${4 * scale}px solid ${C.foreground}`,
-          alignItems: "center",
-          justifyContent: "center",
-        },
-        h("div", {
-          width: 12 * scale,
-          height: 12 * scale,
-          borderRadius: 999,
-          background: C.primary,
-        }),
-      ),
-      line("VINYL PERIPHERY", {
-        fontFamily: "Bebas Neue",
-        fontSize: 44 * scale,
-        letterSpacing: 2 * scale,
-        color: C.foreground,
-      }),
-    ),
-    h(
-      "div",
-      { flexDirection: "column", alignItems: "flex-end", gap: 2 * scale },
-      line("vinylperiphery.com", {
-        fontFamily: "IBM Plex Mono",
-        fontSize: 24 * scale,
-        color: C.foreground,
-      }),
-      line("Follow the credit-brick road", {
-        fontFamily: "IBM Plex Mono",
-        fontSize: 20 * scale,
-        color: C.faint,
-      }),
-    ),
-  );
-
 const frame = (size, ...children) =>
   h(
     "div",
@@ -182,73 +128,65 @@ const frame = (size, ...children) =>
       background: C.background,
       color: C.foreground,
       fontFamily: "IBM Plex Sans",
-      padding: size.name === "story" ? 88 : 52,
+      padding: 52,
     },
     ...children,
   );
 
 /** Periphery card: the searched album, then its top results. */
 export function cardElement(payload, size, art) {
-  const story = size.name === "story";
-  const scale = story ? 1 : 0.8;
-  const heroSize = story ? 420 : 250;
-  const rowSize = story ? 136 : 92;
-  const rows = payload.results.slice(0, story ? 6 : 5);
+  const rows = payload.results.slice(0, 5);
   const { album } = payload;
 
   return frame(
     size,
     h(
       "div",
-      { flexDirection: "column", gap: (story ? 48 : 28) },
+      { flexDirection: "column", gap: 28 },
       h(
         "div",
-        {
-          flexDirection: story ? "column" : "row",
-          alignItems: story ? "flex-start" : "center",
-          gap: story ? 40 : 36,
-        },
-        cover(album.t, art.get(album.i), heroSize, 8),
+        { alignItems: "center", gap: 36 },
+        cover(album.t, art.get(album.i), 250, 8),
         h(
           "div",
-          { flexDirection: "column", gap: 10, maxWidth: story ? 904 : 600 },
-          eyebrow("Connections from", scale),
+          { flexDirection: "column", gap: 10, maxWidth: 600 },
+          eyebrow("Connections from", 0.8),
           line(album.t, {
             fontFamily: "Bebas Neue",
-            fontSize: story ? 120 : 84,
+            fontSize: 84,
             lineHeight: 1,
             color: C.foreground,
           }),
-          line(album.r, { fontSize: 40 * scale, color: C.muted }),
+          line(album.r, { fontSize: 32, color: C.muted }),
         ),
       ),
       rows.length > 0 &&
         h(
           "div",
-          { flexDirection: "column", gap: story ? 26 : 16 },
+          { flexDirection: "column", gap: 16 },
           ...rows.map((r) =>
             h(
               "div",
-              { alignItems: "center", gap: 28 * scale },
-              cover(r.t, art.get(r.i), rowSize),
+              { alignItems: "center", gap: 22 },
+              cover(r.t, art.get(r.i), 92),
               h(
                 "div",
                 // Only the titles give way to a long name; covers and counts keep their size.
                 { flexDirection: "column", flexGrow: 1, flexShrink: 1, minWidth: 0, gap: 6 },
-                line(r.t, { fontSize: 38 * scale, fontWeight: 600 }),
-                line(r.r, { fontSize: 30 * scale, color: C.muted }),
+                line(r.t, { fontSize: 30, fontWeight: 600 }),
+                line(r.r, { fontSize: 24, color: C.muted }),
               ),
               line(`${r.n} shared`, {
                 flexShrink: 0,
                 fontFamily: "IBM Plex Mono",
-                fontSize: 30 * scale,
+                fontSize: 24,
                 color: r.n > 1 ? C.primaryText : C.muted,
               }),
             ),
           ),
         ),
     ),
-    watermark(scale),
+    footer(),
   );
 }
 
@@ -324,115 +262,115 @@ const tile = (album, dataUrl, side, accent) => {
 // MAP_SIZES (shareMap.ts), which placed them.
 const MAP_SIZES = { centre: 0.46, 1: 0.28, 2: 0.36 };
 
-/**
- * How far out the covers reach (in radii, at least the circle itself):
- * overall, or near one angle. Albums only one person links sit just past
- * the circle, so names have to clear them.
- */
-export const mapReach = (albums, angle) => {
-  let reach = 1;
-  for (const album of albums) {
-    const distance = Math.hypot(album.x, album.y);
-    if (angle !== undefined) {
-      const away = Math.abs(
-        Math.atan2(
-          Math.sin(Math.atan2(album.y, album.x) - angle),
-          Math.cos(Math.atan2(album.y, album.x) - angle),
-        ),
-      );
-      if (away > 0.6) continue;
-    }
-    // Half the diagonal: a square's farthest corner.
-    reach = Math.max(reach, distance + MAP_SIZES[album.z] * 0.71);
-  }
-  return reach;
-};
+
+/** Two boxes ({ x, y, w, h }, top-left) overlap, with `margin` to spare. */
+const overlaps = (a, b, margin = 0) =>
+  a.x < b.x + b.w + margin &&
+  b.x < a.x + a.w + margin &&
+  a.y < b.y + b.h + margin &&
+  b.y < a.y + a.h + margin;
 
 /**
- * Where everything on a map goes, in a box `width` x `height` (origin at
- * its top-left): the circle's radius, as large as fits with every cover
- * and name inside the box, and each name's place.
+ * The map laid out with a circle of `radius`, in a box `width` x `height`
+ * (origin at its top-left): every cover's box, and each name's box.
  *
- * Names sit just past their dot, or past any covers just outside the
- * circle near it. Names that would overlap are moved apart around the
- * circle (their dots stay put).
+ * A name starts just past its dot and moves outward only while it would
+ * sit on a cover. Names that would overlap each other are moved apart
+ * around the circle; their dots stay where the person is.
  */
-export function mapGeometry(payload, { width, height, labelWidth, labelHeight, gap, edge }) {
-  const halfW = width / 2 - edge;
-  const halfH = height / 2 - edge;
-  const { albums } = payload;
-  const peopleAngles = payload.people.map((p) => (p.angle * Math.PI) / 180);
-  const along = (angle) => {
-    const c = Math.abs(Math.cos(angle));
-    const s = Math.abs(Math.sin(angle));
-    return { c, s, push: gap + (c * labelWidth) / 2 + (s * labelHeight) / 2 };
-  };
-
-  // The largest radius at which, in every direction, the covers and the
-  // names stay in the box.
-  let radius = Math.min(halfW, halfH) / (MAP_SIZES.centre * 0.71);
-  for (let i = 0; i < 72; i++) {
-    const angle = (i / 72) * 2 * Math.PI;
-    const reach = mapReach(albums, angle);
-    const { c, s } = along(angle);
-    if (c > 1e-6) radius = Math.min(radius, halfW / (c * reach));
-    if (s > 1e-6) radius = Math.min(radius, halfH / (s * reach));
-  }
-  for (const angle of peopleAngles) {
-    const reach = mapReach(albums, angle);
-    const { c, s, push } = along(angle);
-    if (c > 1e-6) radius = Math.min(radius, (halfW - labelWidth / 2 - c * push) / (c * reach));
-    if (s > 1e-6) radius = Math.min(radius, (halfH - labelHeight / 2 - s * push) / (s * reach));
-  }
-
+export function mapLayout(payload, radius, { width, height, labelWidth, labelHeight, gap }) {
   const middle = { x: width / 2, y: height / 2 };
-  const place = (angle) => {
-    const out = radius * mapReach(albums, angle) + along(angle).push;
-    const x = middle.x + Math.cos(angle) * out - labelWidth / 2;
-    const y = middle.y - Math.sin(angle) * out - labelHeight / 2;
-    // Kept inside the box.
+  const coverBox = (x, y, z) => {
+    const side = MAP_SIZES[z] * radius;
     return {
-      x: Math.max(edge, Math.min(width - edge - labelWidth, x)),
-      y: Math.max(edge, Math.min(height - edge - labelHeight, y)),
+      x: middle.x + x * radius - side / 2,
+      y: middle.y - y * radius - side / 2,
+      w: side,
+      h: side,
     };
   };
+  const covers = [
+    coverBox(0, 0, "centre"),
+    ...payload.albums.map((album) => coverBox(album.x, album.y, album.z)),
+  ];
 
-  const labelAngles = [...peopleAngles];
-  const overlap = (a, b) =>
-    Math.abs(a.x - b.x) < labelWidth + 4 && Math.abs(a.y - b.y) < labelHeight + 2;
-  for (let step = 0; step < 200; step++) {
-    const spots = labelAngles.map(place);
+  const labelAt = (angle) => {
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    // Just past the dot, nearest edge toward it.
+    let out = radius + gap + (Math.abs(c) * labelWidth) / 2 + (Math.abs(s) * labelHeight) / 2;
+    const box = () => ({
+      x: middle.x + c * out - labelWidth / 2,
+      y: middle.y - s * out - labelHeight / 2,
+      w: labelWidth,
+      h: labelHeight,
+    });
+    let spot = box();
+    for (let step = 0; step < 120 && covers.some((cover) => overlaps(spot, cover, 6)); step++) {
+      out += 6;
+      spot = box();
+    }
+    return spot;
+  };
+
+  const angles = payload.people.map((p) => (p.angle * Math.PI) / 180);
+  const labelAngles = [...angles];
+  let labels = labelAngles.map(labelAt);
+  for (let step = 0; step < 80; step++) {
     let moved = false;
-    for (let i = 0; i < spots.length; i++) {
-      for (let j = i + 1; j < spots.length; j++) {
-        if (!overlap(spots[i], spots[j])) continue;
+    for (let i = 0; i < labels.length; i++) {
+      for (let j = i + 1; j < labels.length; j++) {
+        if (!overlaps(labels[i], labels[j], 4)) continue;
         // Apart around the circle, each away from the other.
         const apart = Math.sin(labelAngles[j] - labelAngles[i]) >= 0 ? 1 : -1;
-        labelAngles[i] -= apart * 0.02;
-        labelAngles[j] += apart * 0.02;
+        labelAngles[i] -= apart * 0.03;
+        labelAngles[j] += apart * 0.03;
         moved = true;
       }
     }
     if (!moved) break;
+    labels = labelAngles.map(labelAt);
   }
 
   return {
-    radius,
     middle,
+    covers,
     labels: payload.people.map((p, i) => ({
       name: p.name,
       dot: {
-        x: middle.x + Math.cos(peopleAngles[i]) * radius,
-        y: middle.y - Math.sin(peopleAngles[i]) * radius,
+        x: middle.x + Math.cos(angles[i]) * radius,
+        y: middle.y - Math.sin(angles[i]) * radius,
       },
-      ...place(labelAngles[i]),
+      ...labels[i],
     })),
   };
 }
 
-/** The footer, compact: for the map, where the picture needs the room. */
-const smallWatermark = (story) =>
-  h(
+/**
+ * The largest circle whose covers and names all fit in the box, `edge`
+ * clear of its sides, and the layout at that size.
+ */
+export function mapGeometry(payload, options) {
+  const { width, height, edge } = options;
+  const inside = (b) =>
+    b.x >= edge && b.y >= edge && b.x + b.w <= width - edge && b.y + b.h <= height - edge;
+  const fits = (layout) =>
+    layout.covers.every(inside) &&
+    layout.labels.every(inside) &&
+    layout.labels.every((a, i) => layout.labels.every((b, j) => j <= i || !overlaps(a, b)));
+  let low = 40;
+  let high = Math.min(width, height) / 2;
+  for (let step = 0; step < 16; step++) {
+    const mid = (low + high) / 2;
+    if (fits(mapLayout(payload, mid, options))) low = mid;
+    else high = mid;
+  }
+  return { radius: low, ...mapLayout(payload, low, options) };
+}
+
+/** The footer: mark and wordmark, and the site. */
+function footer() {
+  return h(
     "div",
     { alignItems: "center", justifyContent: "space-between", width: "100%" },
     h(
@@ -441,10 +379,10 @@ const smallWatermark = (story) =>
       h(
         "div",
         {
-          width: story ? 34 : 28,
-          height: story ? 34 : 28,
+          width: 28,
+          height: 28,
           borderRadius: 999,
-          border: `${story ? 4 : 3}px solid ${C.foreground}`,
+          border: `3px solid ${C.foreground}`,
           alignItems: "center",
           justifyContent: "center",
         },
@@ -452,46 +390,41 @@ const smallWatermark = (story) =>
       ),
       line("VINYL PERIPHERY", {
         fontFamily: "Bebas Neue",
-        fontSize: story ? 40 : 32,
+        fontSize: 32,
         letterSpacing: 1.5,
         color: C.foreground,
       }),
     ),
     line("vinylperiphery.com", {
       fontFamily: "IBM Plex Mono",
-      fontSize: story ? 24 : 19,
+      fontSize: 19,
       color: C.muted,
     }),
   );
+}
+
+const MAP_LABEL = { labelWidth: 112, labelHeight: 36, gap: 10, edge: 10 };
 
 /** Map: the centre album, the albums around it, the people on the rim. */
 export function mapElement(payload, size, art) {
-  const story = size.name === "story";
-  const pad = story ? 88 : 48;
-  const headerHeight = story ? 190 : 118;
-  const footerHeight = story ? 40 : 32;
+  const pad = 48;
+  const headerHeight = 118;
+  const footerHeight = 32;
   // The map runs edge to edge, between the header and the footer.
+  const top = pad + headerHeight;
   const box = {
     width: size.width,
-    height: size.height - 2 * pad - headerHeight - footerHeight + (story ? 0 : 24),
+    height: size.height - top - footerHeight - 28 - 8,
   };
-  const top = pad + headerHeight;
-  const { radius, middle, labels } = mapGeometry(payload, {
-    ...box,
-    labelWidth: story ? 140 : 112,
-    labelHeight: story ? 48 : 36,
-    gap: story ? 14 : 10,
-    edge: story ? 16 : 10,
-  });
+  const { radius, middle, covers, labels } = mapGeometry(payload, { ...box, ...MAP_LABEL });
   const { centre } = payload;
-
-  const at = (x, y, side) => ({
-    position: "absolute",
-    left: Math.round(middle.x + x * radius - side / 2),
-    top: Math.round(middle.y - y * radius - side / 2),
-  });
-  const dot = story ? 12 : 9;
-  const centreSide = Math.round(MAP_SIZES.centre * radius);
+  const dot = 9;
+  const placed = (b, child) =>
+    h(
+      "div",
+      { position: "absolute", left: Math.round(b.x), top: Math.round(b.y) },
+      child,
+    );
 
   return h(
     "div",
@@ -532,13 +465,13 @@ export function mapElement(payload, size, art) {
             position: "absolute",
             left: Math.round(label.x),
             top: Math.round(label.y),
-            width: story ? 140 : 112,
-            height: story ? 48 : 36,
+            width: MAP_LABEL.labelWidth,
+            height: MAP_LABEL.labelHeight,
             alignItems: "center",
             justifyContent: "center",
             textAlign: "center",
             fontFamily: "IBM Plex Mono",
-            fontSize: story ? 19 : 15,
+            fontSize: 15,
             lineHeight: 1.2,
             color: C.muted,
             overflow: "hidden",
@@ -546,11 +479,10 @@ export function mapElement(payload, size, art) {
           label.name,
         ),
       ]),
-      ...payload.albums.map((album) => {
-        const side = Math.round(MAP_SIZES[album.z] * radius);
-        return h("div", at(album.x, album.y, side), tile(album, art.get(album.i), side, false));
-      }),
-      h("div", at(0, 0, centreSide), tile(centre, art.get(centre.i), centreSide, true)),
+      ...payload.albums.map((album, i) =>
+        placed(covers[i + 1], tile(album, art.get(album.i), Math.round(covers[i + 1].w), false)),
+      ),
+      placed(covers[0], tile(centre, art.get(centre.i), Math.round(covers[0].w), true)),
     ),
     // Header, top left.
     h(
@@ -561,22 +493,22 @@ export function mapElement(payload, size, art) {
         top: pad,
         width: size.width - 2 * pad,
         flexDirection: "column",
-        gap: story ? 10 : 4,
+        gap: 4,
       },
-      eyebrow("Connections around", story ? 1 : 0.7),
+      eyebrow("Connections around", 0.7),
       line(centre.t, {
         fontFamily: "Bebas Neue",
-        fontSize: story ? 96 : 56,
+        fontSize: 56,
         lineHeight: 1,
         color: C.foreground,
       }),
-      line(centre.r, { fontSize: story ? 34 : 22, color: C.muted }),
+      line(centre.r, { fontSize: 22, color: C.muted }),
     ),
     // Footer, along the bottom.
     h(
       "div",
-      { position: "absolute", left: pad, bottom: story ? pad : 28, width: size.width - 2 * pad },
-      smallWatermark(story),
+      { position: "absolute", left: pad, bottom: 28, width: size.width - 2 * pad },
+      footer(),
     ),
   );
 }

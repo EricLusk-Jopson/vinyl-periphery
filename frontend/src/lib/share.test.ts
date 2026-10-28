@@ -173,9 +173,7 @@ describe("URLs", () => {
   });
 
   it("builds the image and link URLs", () => {
-    expect(shareImagePath(payload, "square")).toMatch(
-      /^\/api\/og\?p=[\w-]+&size=square$/,
-    );
+    expect(shareImagePath(payload)).toMatch(/^\/api\/og\?p=[\w-]+$/);
     expect(
       shareLink(
         "https://vinylperiphery.com",

@@ -1,13 +1,13 @@
 import { allowMethods, queryString } from "./http.js";
-import { decodePayload, imageSize } from "../og/payload.js";
+import { decodePayload, IMAGE_SIZE } from "../og/payload.js";
 import { artIds, renderPng } from "../og/render.js";
 import { artSettled, loadArt } from "../og/art.js";
 
 /**
- * GET /api/og?p=<payload>&size=story|square
+ * GET /api/og?p=<payload>
  *
- * Renders a share image (PNG) from the payload in the URL: a periphery card
- * or a trail, 1080x1920 or 1080x1080. Never calls Discogs; the only fetches
+ * Renders a square share image (PNG, 1080x1080) from the payload in the
+ * URL: a map of a stack, or a periphery card. Never calls Discogs; the only fetches
  * are Cover Art Archive images. The URL fully describes the image, so it
  * caches for good, once every cover has loaded or is known to be missing;
  * if one timed out, only briefly, so the next request tries again. Also the
@@ -22,11 +22,10 @@ export const createOgHandler =
       res.status(400).json({ error: "Invalid share payload" });
       return;
     }
-    const size = imageSize(queryString(req.query?.size));
     try {
       const ids = artIds(payload);
       const art = await load(ids);
-      const png = await render(payload, size, art);
+      const png = await render(payload, IMAGE_SIZE, art);
       const complete = ids.every((id) => art.has(id) || settled(id));
       res.setHeader("Content-Type", "image/png");
       res.setHeader(

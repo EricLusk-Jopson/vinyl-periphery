@@ -1,10 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { artIds, initials, mapGeometry, mapReach, renderPng, shorten } from "./render.js";
+import { artIds, initials, mapGeometry, renderPng, shorten } from "./render.js";
 
-const MAP_SIZES_FOR_TEST = { 1: 0.28, 2: 0.36 };
 import { artSettled, fetchArt, loadArt } from "./art.js";
-import { imageSize } from "./payload.js";
+import { IMAGE_SIZE } from "./payload.js";
 
 const MBID = "1b022e01-4da6-387b-8658-8678046e4cef";
 // A 1x1 PNG.
@@ -36,15 +35,12 @@ const map = {
 const isPng = (buffer) => buffer.subarray(1, 4).toString() === "PNG";
 const pngSize = (buffer) => [buffer.readUInt32BE(16), buffer.readUInt32BE(20)];
 
-test("renders both layouts at both sizes", async () => {
+test("renders both layouts, square", async () => {
   const art = new Map([[`g:${MBID}`, PIXEL]]);
   for (const payload of [card, map]) {
-    for (const name of ["story", "square"]) {
-      const size = imageSize(name);
-      const png = await renderPng(payload, size, art);
-      assert.ok(isPng(png), `${payload.layout} ${name} is a PNG`);
-      assert.deepEqual(pngSize(png), [size.width, size.height]);
-    }
+    const png = await renderPng(payload, IMAGE_SIZE, art);
+    assert.ok(isPng(png), `${payload.layout} is a PNG`);
+    assert.deepEqual(pngSize(png), [1080, 1080]);
   }
 });
 
@@ -97,17 +93,6 @@ test("art: data URLs for images, null for anything else, cached", async () => {
   assert.deepEqual([...loaded.keys()], [id]);
 });
 
-test("map reach: past the circle only where covers sit outside it", () => {
-  const albums = [
-    { x: 0.3, y: 0, z: 1 },
-    // Just outside, to the left.
-    { x: -1.17, y: 0, z: 1 },
-  ];
-  assert.equal(mapReach([albums[0]]), 1);
-  assert.ok(mapReach(albums) > 1.3);
-  assert.ok(mapReach(albums, Math.PI) > 1.3);
-  assert.equal(mapReach(albums, 0), 1);
-});
 
 test("shorten: whole words where it can, with an ellipsis", () => {
   assert.equal(shorten("Hellfire", 20), "Hellfire");
@@ -115,38 +100,45 @@ test("shorten: whole words where it can, with an ellipsis", () => {
   assert.equal(shorten("Supercalifragilistic", 8), "Superca…");
 });
 
-test("map geometry: covers and names inside the box, names apart", () => {
+test("map geometry: the largest circle with covers and names inside, names apart", () => {
   const payload = {
     albums: [
       { x: 0.5, y: 0.2, z: 2 },
       { x: -1.17, y: 0, z: 1 },
       { x: 0, y: -0.7, z: 1 },
+      // On the rim right by a person's dot.
+      { x: 0.95, y: 0.05, z: 1 },
     ],
-    // Two people at nearly the same spot.
     people: [
+      // Two people at nearly the same spot.
       { name: "Andrew Cheetham", angle: 100 },
       { name: "Freddy Wordsworth", angle: 104 },
       { name: "Morgan Simpson", angle: 180 },
+      { name: "Geordie Greep", angle: 357 },
       { name: "Seth Evans", angle: 290 },
     ],
   };
-  const box = { width: 1080, height: 800, labelWidth: 112, labelHeight: 36, gap: 10, edge: 10 };
-  const { radius, middle, labels } = mapGeometry(payload, box);
-  assert.ok(radius > 200);
-  for (const album of payload.albums) {
-    const half = (MAP_SIZES_FOR_TEST[album.z] * radius) / 2;
-    const x = middle.x + album.x * radius;
-    const y = middle.y - album.y * radius;
-    assert.ok(x - half >= 0 && x + half <= box.width, "cover inside, across");
-    assert.ok(y - half >= 0 && y + half <= box.height, "cover inside, down");
-  }
-  for (const [i, a] of labels.entries()) {
-    assert.ok(a.x >= box.edge && a.x + box.labelWidth <= box.width - box.edge + 1e-6);
-    assert.ok(a.y >= box.edge && a.y + box.labelHeight <= box.height - box.edge + 1e-6);
-    for (const b of labels.slice(i + 1)) {
-      const apart =
-        Math.abs(a.x - b.x) >= box.labelWidth || Math.abs(a.y - b.y) >= box.labelHeight;
-      assert.ok(apart, `${a.name} and ${b.name} apart`);
+  const box = { width: 1080, height: 860, labelWidth: 112, labelHeight: 36, gap: 10, edge: 10 };
+  const { radius, covers, labels } = mapGeometry(payload, box);
+  const inside = (b) =>
+    b.x >= box.edge - 1e-6 &&
+    b.y >= box.edge - 1e-6 &&
+    b.x + b.w <= box.width - box.edge + 1e-6 &&
+    b.y + b.h <= box.height - box.edge + 1e-6;
+  const clear = (a, b) =>
+    a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y;
+  // Nearly as large as the box allows: something is near an edge.
+  assert.ok(radius > 280, `radius ${radius}`);
+  assert.ok(covers.every(inside));
+  for (const [i, label] of labels.entries()) {
+    assert.ok(inside(label), `${label.name} inside`);
+    assert.ok(covers.every((c) => clear(label, c)), `${label.name} clear of covers`);
+    for (const other of labels.slice(i + 1)) {
+      assert.ok(clear(label, other), `${label.name} and ${other.name} apart`);
     }
   }
+  // A name moves out only as far as the covers make it: Greep's is next to
+  // its dot, just past the cover there.
+  const greep = labels.find((l) => l.name === "Geordie Greep");
+  assert.ok(greep.x - greep.dot.x < 0.35 * radius, `Greep ${greep.x - greep.dot.x}px out`);
 });

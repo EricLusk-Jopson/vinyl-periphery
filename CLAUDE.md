@@ -18,7 +18,7 @@ ranks albums by how many of those people worked on them.
   - `health.js`: `GET /api/health`.
   - `event.js`: `POST /api/event` validates analytics events and forwards
     them to the Google Sheet. See `docs/analytics.md`.
-  - `og.js`: `GET /api/og?p=…&size=story|square` renders a share image
+  - `og.js`: `GET /api/og?p=…` renders a square share image (1080x1080)
     (`@vercel/og`) from a payload in the URL (`backend/og/payload.js`;
     built by `frontend/src/lib/share.ts`): a map of a stack (or one
     search) and the liked albums around it, laid out by the client

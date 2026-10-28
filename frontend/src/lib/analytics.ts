@@ -30,7 +30,8 @@ export type AnalyticsEvent =
   | "library_view_toggled"
   | "library_searched"
   | "share_created"
-  | "share_completed";
+  | "share_completed"
+  | "chip_details";
 
 export type EventProperties = Record<string, string | number | boolean>;
 

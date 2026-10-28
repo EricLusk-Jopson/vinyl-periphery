@@ -10,6 +10,7 @@ import {
   requiredChips,
   requireRole,
   roleChips,
+  rolePeople,
   roleGroups,
   setIncluded,
   unrequire,
@@ -128,15 +129,43 @@ describe("roleChips", () => {
     search.filterState.contributors[3] = false;
     search.filterState.required = { contributors: [], roles: [] };
     expect(roleChips(search)).toEqual([
-      { role: "Design", included: true, available: true, required: false },
-      { role: "Engineer", included: false, available: true, required: false },
+      {
+        role: "Design",
+        included: true,
+        available: true,
+        required: false,
+        people: [{ id: 2, name: "Storm Thorgerson", included: true }],
+      },
+      {
+        role: "Engineer",
+        included: false,
+        available: true,
+        required: false,
+        people: [{ id: 1, name: "Alan Parsons", included: true }],
+      },
       {
         role: "Photography",
         included: true,
         available: true,
         required: false,
+        people: [{ id: 2, name: "Storm Thorgerson", included: true }],
       },
-      { role: "Vocals", included: true, available: false, required: false },
+      {
+        role: "Vocals",
+        included: true,
+        available: false,
+        required: false,
+        people: [{ id: 3, name: "Clare Torry", included: false }],
+      },
+    ]);
+  });
+
+  it("lists everyone with a role, by name", () => {
+    const search = makeSearch();
+    search.contributors[1].roles.push("Vocals");
+    expect(rolePeople(search, "Vocals").map((p) => p.name)).toEqual([
+      "Alan Parsons",
+      "Clare Torry",
     ]);
   });
 });

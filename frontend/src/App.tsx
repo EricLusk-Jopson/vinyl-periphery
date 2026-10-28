@@ -7,7 +7,7 @@ import {
   useNavigate,
 } from "react-router-dom";
 import "./styles/globals.css";
-import { SearchParams } from "./api/types";
+import { SearchParams, SearchTarget } from "./api/types";
 import { useCache } from "./contexts/cache/CacheContext";
 import { Header } from "./components/layout/Header";
 import { Footer } from "./components/layout/Footer";
@@ -22,7 +22,7 @@ import { SearchProgress } from "./components/search/SearchProgress";
 import { SearchBanner } from "./components/search/SearchBanner";
 import { ToastAction } from "./components/ui/toast";
 import { useToast } from "./hooks/use-toast";
-import { SearchSource, useSearchRun } from "./hooks/useSearchRun";
+import { KnownAlbum, SearchSource, useSearchRun } from "./hooks/useSearchRun";
 import { useLingering } from "./hooks/useLingering";
 import { pageName, track } from "./lib/analytics";
 import {
@@ -66,9 +66,9 @@ const App: React.FC = () => {
   watchingRef.current = progressExpanded;
 
   const openResult = useCallback(
-    (params: SearchParams) => {
+    (params: SearchParams, target: SearchTarget | null = null) => {
       const { pathname, search, state } = locationRef.current;
-      const to = resultPath(params);
+      const to = resultPath(params, target);
       // Already on this results page (run from a link): stay, keeping its
       // back link, rather than stacking a second history entry.
       if (pathname + search === to) {
@@ -81,11 +81,11 @@ const App: React.FC = () => {
   );
 
   const { run, isSearching, start, cancel } = useSearchRun({
-    onComplete: (_searchId, params) => {
+    onComplete: (_searchId, params, target) => {
       // Open the results if the user is watching the search; otherwise say
       // they are ready and let them choose.
       if (watchingRef.current) {
-        openResult(params);
+        openResult(params, target);
         return;
       }
       toast({
@@ -94,7 +94,7 @@ const App: React.FC = () => {
         action: (
           <ToastAction
             altText="View results"
-            onClick={() => openResult(params)}
+            onClick={() => openResult(params, target)}
           >
             View results
           </ToastAction>
@@ -158,14 +158,16 @@ const App: React.FC = () => {
   const handleSearch = (
     params: SearchParams,
     source: SearchSource = "form",
+    known?: KnownAlbum,
   ) => {
     setProgressExpanded(true);
-    void start(params, source);
+    void start(params, source, known);
   };
 
-  const searchFrom = (params: SearchParams) => {
+  // From a result row: exactly that album, by its Discogs id.
+  const searchFrom = (params: SearchParams, known: KnownAlbum) => {
     setFormValues(params);
-    handleSearch(params, "result");
+    handleSearch(params, "result", known);
   };
 
   // Progress appears once the album is found; until then the form shows the
@@ -232,9 +234,10 @@ const App: React.FC = () => {
             element={
               <ResultsPage
                 onSearchFrom={searchFrom}
-                onRunSearch={(params) => {
+                onRunSearch={(params, target) => {
                   setFormValues(params);
-                  handleSearch(params, "link");
+                  // A link naming the album by id runs exactly that album.
+                  handleSearch(params, "link", target ? { target } : undefined);
                 }}
                 isSearching={isSearching}
               />

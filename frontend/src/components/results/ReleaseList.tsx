@@ -1,5 +1,7 @@
 import React, { useEffect, useId, useMemo, useState } from "react";
 import { SearchParams } from "@/api/types";
+import { KnownAlbum } from "@/hooks/useSearchRun";
+import { searchTarget } from "@/lib/searchTarget";
 import {
   useCache,
   useFilteredAndScoredReleases,
@@ -28,7 +30,8 @@ const PAGE_SIZE = 20;
 
 interface ReleaseListProps {
   searchId: string;
-  onSearchFrom: (params: SearchParams) => void;
+  /** Starts a search for exactly the row's album, by its Discogs id. */
+  onSearchFrom: (params: SearchParams, known: KnownAlbum) => void;
   isSearching: boolean;
   /** Shown at the end of the toolbar, e.g. the Filters button below lg. */
   toolbarAction?: React.ReactNode;
@@ -76,7 +79,10 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
 
   const searchFrom = (release: ScoredRelease) => {
     setPendingKey(release.key);
-    onSearchFrom({ artist: release.artist, album: release.title });
+    onSearchFrom(
+      { artist: release.artist, album: release.title },
+      { target: searchTarget(release.type, release.id), thumb: release.thumb },
+    );
   };
 
   return (

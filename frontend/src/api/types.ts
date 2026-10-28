@@ -127,8 +127,22 @@ export interface SearchParams {
   album: string;
 }
 
+/**
+ * The Discogs album a search is about. Text searches resolve it from the
+ * first search result; searches started from a result row know it already.
+ */
+export interface SearchTarget {
+  type: ReleaseType;
+  id: number;
+  /** "master:123" / "release:456", as EnrichedRelease.key. */
+  key: string;
+}
+
+/** The credits step reads only each release's id. */
+export type ReleaseToRead = Pick<SearchResult, "id">;
+
 export interface ReleasesParams {
-  releases: SearchResult[];
+  releases: ReleaseToRead[];
   maxReleases: number;
 }
 
@@ -152,7 +166,7 @@ export interface SearchMutationParams {
 }
 
 export interface ContributorMutationParams {
-  releases: SearchResult[];
+  releases: ReleaseToRead[];
   maxReleases: number;
   callbacks?: MutationCallbacks;
   signal?: AbortSignal;

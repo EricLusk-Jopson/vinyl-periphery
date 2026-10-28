@@ -12,7 +12,7 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { track } from "@/lib/analytics";
 import { stackPath } from "@/lib/routes";
 import {
-  fitViaText,
+  fitLinkText,
   LibraryStack,
   savedInStack,
   StackFit,
@@ -198,7 +198,7 @@ export const StackDrawer: React.FC<StackDrawerProps> = ({
                   </span>
                   {fit.via.length > 0 && (
                     <span className="truncate font-mono text-xs text-faint">
-                      {fitViaText(fit)}
+                      {fitLinkText(fit)}
                     </span>
                   )}
                 </span>

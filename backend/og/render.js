@@ -7,7 +7,7 @@
 
 import { readFile } from "node:fs/promises";
 import { ImageResponse } from "@vercel/og";
-import { MAP_SIZES } from "./payload.js";
+import { MAP_SIZES, MAX_RESULTS } from "./payload.js";
 
 // Mirrors docs/redesign/tokens.md. Satori has no CSS variables, so the
 // renderer spells the values out here, once.
@@ -140,10 +140,28 @@ const frame = (size, ...children) =>
     ...children,
   );
 
+/**
+ * Sizes for a card with `count` rows: up to five at full size; more get a
+ * smaller header and rows that shrink to fit (ten at most).
+ */
+export const cardSizes = (count) => {
+  const compact = count > 5;
+  const header = compact ? 180 : 250;
+  const gap = compact ? 10 : 16;
+  // Height left for rows: the frame less its padding, header, caption,
+  // footer and the gaps between them.
+  const room = 1080 - 2 * 52 - header - 28 - 26 - 28 - 32 - 24;
+  const row = Math.min(92, Math.floor((room - (count - 1) * gap) / Math.max(1, count)));
+  return { header, gap, row, scale: row / 92, titleSize: compact ? 64 : 84 };
+};
+
 /** Periphery card: the searched album, then its top results. */
 export function cardElement(payload, size, art) {
-  const rows = payload.results.slice(0, 5);
+  const rows = payload.results.slice(0, MAX_RESULTS);
   const { album } = payload;
+  const fit = cardSizes(rows.length);
+  // Text shrinks with the rows, never below 12px.
+  const px = (n) => Math.max(12, Math.round(n * Math.max(fit.scale, 0.55)));
 
   return frame(
     size,
@@ -153,14 +171,14 @@ export function cardElement(payload, size, art) {
       h(
         "div",
         { alignItems: "center", gap: 36 },
-        cover(album.t, art.get(album.i), 250, 8),
+        cover(album.t, art.get(album.i), fit.header, 8),
         h(
           "div",
           { flexDirection: "column", gap: 10, maxWidth: 600 },
           eyebrow("Connections from", 0.8),
           line(album.t, {
             fontFamily: "Bebas Neue",
-            fontSize: 84,
+            fontSize: fit.titleSize,
             lineHeight: 1,
             color: C.foreground,
           }),
@@ -171,23 +189,29 @@ export function cardElement(payload, size, art) {
       rows.length > 0 &&
         h(
           "div",
-          { flexDirection: "column", gap: 16 },
+          { flexDirection: "column", gap: fit.gap },
           ...rows.map((r) =>
             h(
               "div",
               { alignItems: "center", gap: 22 },
-              cover(r.t, art.get(r.i), 92),
+              cover(r.t, art.get(r.i), fit.row),
               h(
                 "div",
                 // Only the titles give way to a long name; covers and counts keep their size.
-                { flexDirection: "column", flexGrow: 1, flexShrink: 1, minWidth: 0, gap: 6 },
-                line(r.t, { fontSize: 30, fontWeight: 600 }),
-                line(r.r, { fontSize: 24, color: C.muted }),
+                {
+                  flexDirection: "column",
+                  flexGrow: 1,
+                  flexShrink: 1,
+                  minWidth: 0,
+                  gap: fit.row < 70 ? 2 : 6,
+                },
+                line(r.t, { fontSize: px(30), fontWeight: 600 }),
+                line(r.r, { fontSize: px(24), color: C.muted }),
               ),
               line(`${r.n} shared`, {
                 flexShrink: 0,
                 fontFamily: "IBM Plex Mono",
-                fontSize: 24,
+                fontSize: px(24),
                 color: r.n > 1 ? C.primaryText : C.muted,
               }),
             ),

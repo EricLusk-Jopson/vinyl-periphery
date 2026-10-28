@@ -19,7 +19,6 @@ import { useCoverArt } from "@/hooks/useCoverArt";
 import { mapAlbums } from "@/lib/shareMap";
 import { track } from "@/lib/analytics";
 import { ScoredRelease, SortKey, sortReleases } from "@/lib/results";
-import { ALBUM_MAP_RESULTS } from "@/lib/albumMap";
 import {
   albumMapPayload,
   cardPayload,
@@ -28,7 +27,8 @@ import {
   ShareLayout,
   shareImagePath,
   shareLink,
-  SHARE_RESULTS,
+  countOptions,
+  SHARE_COUNTS,
   selectionCaption,
 } from "@/lib/share";
 import { cn } from "@/lib/utils";
@@ -130,6 +130,11 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   const [open, setOpen] = useState(false);
   const likes = useLikes();
   const [chosen, setChosen] = useState<ShareLayout>("map");
+  // How many albums each layout draws (one search only).
+  const [counts, setCounts] = useState<Record<ShareLayout, number>>({
+    map: SHARE_COUNTS.map.start,
+    card: SHARE_COUNTS.card.start,
+  });
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState("");
 
@@ -145,9 +150,10 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
         : (releases as ScoredRelease[]),
     [releases, selection],
   );
+  const cardCount = Math.min(counts.card, ranked.length);
   const mapShown = useMemo(
-    () => (selection ? ranked.slice(0, ALBUM_MAP_RESULTS) : []),
-    [selection, ranked],
+    () => (selection ? ranked.slice(0, counts.map) : []),
+    [selection, ranked, counts.map],
   );
   // What the map would show around its centre.
   const around = useMemo(
@@ -171,10 +177,10 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
             map.centre.key,
             ...around.map((a) => a.key),
             search.target?.key ?? "",
-            ...ranked.slice(0, SHARE_RESULTS).map((r) => r.key),
+            ...ranked.slice(0, cardCount).map((r) => r.key),
           ].filter(Boolean)
         : [],
-    [open, map.centre.key, around, search.target?.key, ranked],
+    [open, map.centre.key, around, search.target?.key, ranked, cardCount],
   );
   const cover = useCoverArt(wanted);
   const [waited, setWaited] = useState(false);
@@ -223,15 +229,13 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     if (!ready) return null;
     return layout === "map"
       ? mapImage
-      : cardPayload(
-          search,
-          ranked,
-          coverFor,
-          caption(Math.min(SHARE_RESULTS, ranked.length)),
-        );
+      : cardPayload(search, ranked, coverFor, caption(cardCount), cardCount);
     // coverFor reads the resolver; `covers` says when it has changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, covers, layout, mapImage, search, ranked, selection]);
+  }, [ready, covers, layout, mapImage, search, ranked, selection, cardCount]);
+  // The album counts to offer for this layout (one search only).
+  const shownCount = layout === "map" ? mapShown.length : cardCount;
+  const countChoices = selection ? countOptions(layout, ranked.length) : [];
 
   const image = payload ? shareImagePath(payload) : "";
   const link = payload ? shareLink(window.location.origin, payload, to) : "";
@@ -253,7 +257,10 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   const shareImage = async () => {
     if (!payload || busy) return;
     setBusy(true);
-    track("share_created", { layout });
+    track("share_created", {
+      layout,
+      ...(selection ? { albums: shownCount } : {}),
+    });
     try {
       const response = await fetch(image);
       if (!response.ok) throw new Error(`Image failed: ${response.status}`);
@@ -362,6 +369,23 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
               value={layout}
               options={LAYOUTS}
               onChange={(value) => setChosen(value)}
+            />
+          )}
+
+          {countChoices.length > 0 && (
+            <Segmented
+              label="Albums"
+              value={String(shownCount)}
+              options={countChoices.map((c) => ({
+                id: String(c.count),
+                label: c.label,
+              }))}
+              onChange={(value) =>
+                setCounts((current) => ({
+                  ...current,
+                  [layout]: Number(value),
+                }))
+              }
             />
           )}
 

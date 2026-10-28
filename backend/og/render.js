@@ -308,6 +308,30 @@ const tile = (album, dataUrl, side, accent) =>
 // MAP_SIZES (shareMap.ts), which placed them.
 const MAP_SIZES = { centre: 0.46, 1: 0.28, 2: 0.36 };
 
+/**
+ * How far out the covers reach (in radii, at least the circle itself):
+ * overall, or near one angle. Albums only one person links sit just past
+ * the circle, so names have to clear them.
+ */
+export const mapReach = (albums, angle) => {
+  let reach = 1;
+  for (const album of albums) {
+    const distance = Math.hypot(album.x, album.y);
+    if (angle !== undefined) {
+      const away = Math.abs(
+        Math.atan2(
+          Math.sin(Math.atan2(album.y, album.x) - angle),
+          Math.cos(Math.atan2(album.y, album.x) - angle),
+        ),
+      );
+      if (away > 0.6) continue;
+    }
+    // Half the diagonal: a square's farthest corner.
+    reach = Math.max(reach, distance + MAP_SIZES[album.z] * 0.71);
+  }
+  return reach;
+};
+
 /** Map: the centre album, the albums around it, the people on the rim. */
 export function mapElement(payload, size, art) {
   const story = size.name === "story";
@@ -319,9 +343,11 @@ export function mapElement(payload, size, art) {
   // sides fit beside the circle. Squares are short: the names above and
   // below fit, and those at the sides spill into the frame's padding.
   const box = story ? size.width : 650;
-  const radius = story
-    ? box / 2 - labelGap - labelWidth - 8
-    : box / 2 - labelGap - labelHeight;
+  // Room for any covers past the circle, then the names.
+  const radius =
+    (story
+      ? box / 2 - labelGap - labelWidth - 8
+      : box / 2 - labelGap - labelHeight) / mapReach(payload.albums);
   const middle = box / 2;
   const { centre } = payload;
 
@@ -335,8 +361,9 @@ export function mapElement(payload, size, art) {
     const radians = (p.angle * Math.PI) / 180;
     const dot = story ? 12 : 10;
     // Just outside the dot, whichever side of the circle it's on.
+    // Past the circle, or past any covers just outside it there.
     const out =
-      radius +
+      radius * mapReach(payload.albums, radians) +
       labelGap +
       (Math.abs(Math.cos(radians)) * labelWidth) / 2 +
       (Math.abs(Math.sin(radians)) * labelHeight) / 2;

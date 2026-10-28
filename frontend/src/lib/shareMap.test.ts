@@ -2,6 +2,7 @@ import { SearchCache } from "@/contexts/cache/types";
 import {
   centreOfMass,
   layoutMap,
+  MAP_OUTER_BAND,
   MAP_SIZES,
   mapAlbums,
   personAngle,
@@ -109,6 +110,51 @@ describe("relax and layoutMap", () => {
     }
     // The same input lands the same way every time.
     expect(relax(ideal, MAP_SIZES.centre)).toEqual(placed);
+  });
+
+  it("puts albums one person links just outside the circle, by them", () => {
+    const side = MAP_SIZES[1];
+    const { albums } = layoutMap([
+      {
+        key: "a",
+        title: "A",
+        artist: "",
+        people: [7],
+        member: false,
+        liked: true,
+      },
+      {
+        key: "b",
+        title: "B",
+        artist: "",
+        people: [7],
+        member: false,
+        liked: true,
+      },
+      {
+        key: "c",
+        title: "C",
+        artist: "",
+        people: [7, 8],
+        member: false,
+        liked: true,
+      },
+    ]);
+    const [a, b, c] = albums;
+    for (const outer of [a, b]) {
+      // On the ring just past the circle, within the band kept for it.
+      const r = Math.hypot(outer.x, outer.y);
+      expect(r).toBeGreaterThan(1 + side / 2);
+      expect(r + side / 2).toBeLessThanOrEqual(1 + MAP_OUTER_BAND);
+    }
+    // Near their person, and not on top of each other.
+    const angle = personAngle(7);
+    expect(Math.cos(Math.atan2(a.y, a.x) - angle)).toBeGreaterThan(0.9);
+    expect(Math.abs(a.x - b.x) >= side || Math.abs(a.y - b.y) >= side).toBe(
+      true,
+    );
+    // Two people: inside.
+    expect(Math.hypot(c.x, c.y)).toBeLessThanOrEqual(1 - side / 2 + 1e-9);
   });
 
   it("sizes liked stack albums up and lists the people by albums linked", () => {

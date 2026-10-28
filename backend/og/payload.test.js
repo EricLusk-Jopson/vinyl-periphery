@@ -53,7 +53,7 @@ test("decodes a map, clamping places and clipping names", () => {
   );
   assert.equal(payload.layout, "map");
   assert.deepEqual(payload.centre, { t: "The New Sound", r: "Geordie Greep", i: `g:${MBID}` });
-  assert.deepEqual(payload.albums[0], { t: "Schlagenheim", r: "Black Midi", i: "", x: 0.512, y: -1, z: 2 });
+  assert.deepEqual(payload.albums[0], { t: "Schlagenheim", r: "Black Midi", i: "", x: 0.512, y: -1.5, z: 2 });
   assert.deepEqual(payload.albums[1], { t: "Endlessness", r: "Nala Sinephro", i: "", x: 0, y: 0.01, z: 1 });
   assert.ok(payload.albums.length <= MAX_MAP_ALBUMS);
   assert.deepEqual(payload.people[0], { name: "Morgan Simpson", angle: 10 });

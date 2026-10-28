@@ -29,8 +29,11 @@ ranks albums by how many of those people worked on them.
     filters (`frontend/src/lib/shareSelection.ts`). Two toggles: album
     covers (off: titles and artists only) and, on that map, lines from
     each person to their albums. Names there come first: covers move off
-    them. For a stack, the map is its searches
-    and the liked albums around them (`frontend/src/lib/shareMap.ts`).
+    them. For a stack, the map is of album
+    overlap, not people (`frontend/src/lib/stackMap.ts`): its start in
+    the middle, each step one unit from the album it came from, and
+    results at the average of the stack albums' places, weighted by the
+    people they share with each.
     Never calls Discogs; only Cover
     Art Archive images, with initials when they don't load. Fonts are
     vendored in `backend/og/fonts` (SIL OFL).

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { artIds, cardSizes, initials, mapGeometry, mapLayout, renderPng, shorten } from "./render.js";
+import { artIds, cardSizes, initials, mapGeometry, mapLayout, renderPng, shorten, stackGeometry } from "./render.js";
 
 import { artSettled, fetchArt, loadArt } from "./art.js";
 import { IMAGE_SIZE } from "./payload.js";
@@ -91,6 +91,34 @@ test("renders lines and the no-cover view", async () => {
   assert.deepEqual(artIds(linked), []);
   assert.ok(isPng(await renderPng(linked, IMAGE_SIZE, art)));
   assert.ok(isPng(await renderPng({ ...card, covers: false }, IMAGE_SIZE, art)));
+});
+
+test("stack maps fit their box and render", async () => {
+  const stack = {
+    layout: "stack",
+    centre: { t: "Unmap", r: "Volcano Choir", i: `g:${MBID}`, side: 0.5 },
+    albums: [
+      { t: "Bon Iver", r: "Bon Iver", i: "", x: 0, y: 1, side: 0.4, member: true, links: [0] },
+      { t: "Hideaway", r: "S. Carey", i: "", x: 1.8, y: 1.6, side: 0.4, member: true, links: [1] },
+      { t: "Blood Bank", r: "Bon Iver", i: "", x: -0.6, y: 0.4, side: 0.25, member: false, links: [0, 1] },
+    ],
+    caption: "3 albums stacked · 1 around them",
+    covers: true,
+    lines: true,
+  };
+  const box = { width: 1080, height: 800, edge: 24, maxStep: 420 };
+  const { boxes, step } = stackGeometry(stack, box);
+  assert.ok(step <= 420);
+  for (const b of boxes) {
+    assert.ok(b.x >= 23 && b.y >= 23, JSON.stringify(b));
+    assert.ok(b.x + b.w <= 1080 - 23 && b.y + b.h <= 800 - 23, JSON.stringify(b));
+  }
+  // y up: the step-1 album is above the centre.
+  assert.ok(boxes[1].y < boxes[0].y);
+  assert.ok(isPng(await renderPng(stack, IMAGE_SIZE, new Map())));
+  // One album alone doesn't blow up to fill the box.
+  const lone = { ...stack, albums: stack.albums.slice(0, 1) };
+  assert.equal(stackGeometry(lone, box).step, 420);
 });
 
 test("helpers", () => {

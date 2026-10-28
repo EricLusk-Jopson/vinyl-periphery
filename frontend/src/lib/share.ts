@@ -8,7 +8,7 @@ import {
   SORT_OPTIONS,
   SortKey,
 } from "./results";
-import { layoutMap, mapAlbums, MAX_MAP_PEOPLE } from "./shareMap";
+import { StackNode } from "./stackMap";
 import { defaultContributorDisplayPipeline } from "./transformers/contributorProcessor";
 
 /**
@@ -18,6 +18,21 @@ import { defaultContributorDisplayPipeline } from "./transformers/contributorPro
  */
 
 export type ShareLayout = "map" | "card";
+
+/** A stack album or result on the stack map, as sent. */
+export interface ShareStackNode {
+  t: string;
+  r: string;
+  i: string;
+  /** Place and cover side, in thousandths of a step; y up. */
+  x: number;
+  y: number;
+  s: number;
+  /** One of the stack's own albums. */
+  m?: 1;
+  /** Nodes it's linked to (0 is the centre, k is n[k - 1]), for lines. */
+  e?: number[];
+}
 
 /** Art id: "g:<release-group mbid>", "r:<release mbid>", or "". */
 type ArtId = string;
@@ -62,6 +77,18 @@ export type SharePayload =
       d?: string;
       nc?: 1;
       /** Lines from each person to their albums (`l`). */
+      ln?: 1;
+    }
+  | {
+      v: 1;
+      l: "stack";
+      /** The stack's start, in the middle. */
+      c: ShareAlbum & { s: number };
+      /** The other stack albums, then the results around them. */
+      n: ShareStackNode[];
+      d?: string;
+      nc?: 1;
+      /** Lines between linked albums (`e`). */
       ln?: 1;
     };
 
@@ -255,7 +282,9 @@ export const DEFAULT_VIEW: ShareView = { covers: true, lines: false };
 
 /** Whether a payload has anything to draw lines from. */
 export const canDrawLines = (payload: SharePayload): boolean =>
-  payload.l === "map" && payload.n.some((n) => (n.l?.length ?? 0) > 0);
+  payload.l === "map"
+    ? payload.n.some((n) => (n.l?.length ?? 0) > 0)
+    : payload.l === "stack" && payload.n.some((n) => (n.e?.length ?? 0) > 0);
 
 /** The payload as `view` draws it: flags set, links kept only for lines. */
 export const withView = (
@@ -265,6 +294,16 @@ export const withView = (
   const covers = view.covers ? {} : { nc: 1 as const };
   if (payload.l === "card") return { ...payload, ...covers };
   const lines = view.lines && canDrawLines(payload);
+  if (payload.l === "stack") {
+    return {
+      ...payload,
+      ...covers,
+      ...(lines ? { ln: 1 as const } : {}),
+      n: payload.n.map(({ e, ...node }) =>
+        lines && e ? { ...node, e } : node,
+      ),
+    };
+  }
   return {
     ...payload,
     ...covers,
@@ -273,28 +312,6 @@ export const withView = (
       lines && l ? { ...album, l } : album,
     ),
   };
-};
-
-/**
- * Contributor id -> display name, from every search here. Ids are Discogs
- * artist ids, the same across searches, so a deleted step's people can
- * still be named from another search that has them.
- */
-export const contributorNames = (
-  searches: Record<string, SearchCache>,
-): Map<number, string> => {
-  const names = new Map<number, string>();
-  for (const search of Object.values(searches)) {
-    for (const contributor of Object.values(search.contributors ?? {})) {
-      if (!names.has(contributor.id)) {
-        names.set(
-          contributor.id,
-          defaultContributorDisplayPipeline(contributor.name),
-        );
-      }
-    }
-  }
-  return names;
 };
 
 /** The album at the middle of a map. */
@@ -307,48 +324,56 @@ export interface MapCentre {
 }
 
 /**
- * Share map: `centre` in the middle, the other `members` (a stack's saved
- * searches, or none) and the liked albums in their results around it. See
- * `shareMap.ts` for how they're placed.
+ * Share map for a stack: its albums a step apart from its start, and
+ * results around them where they overlap most. See `stackMap.ts`.
  */
-export const mapPayload = (
+export const stackMapPayload = (
   centre: MapCentre,
-  members: SearchCache[],
-  searches: Record<string, SearchCache>,
-  likes: Likes,
+  /** From `layoutStackMap`: the centre first. */
+  nodes: StackNode[],
   coverFor: CoverFor,
+  caption?: string,
 ): SharePayload => {
-  const names = contributorNames(searches);
-  const { albums, people } = layoutMap(mapAlbums(centre.key, members, likes));
+  const [middle, ...rest] = nodes;
+  const thousandths = (n: number) => Math.round(n * 1000);
   return {
     v: 1,
-    l: "map",
+    l: "stack",
     c: {
       t: centre.title,
       r: centre.artist,
       i: artFor(centre.key, coverFor) || artIdFromCoverUrl(centre.thumb),
+      s: thousandths(middle.side),
     },
-    n: albums.map((album) => ({
-      t: album.title,
-      r: album.artist,
-      i: artFor(album.key, coverFor),
-      x: Math.round(album.x * 1000),
-      y: Math.round(album.y * 1000),
-      z: album.z,
+    n: rest.map((node) => ({
+      t: node.title,
+      r: node.artist,
+      i: artFor(node.key, coverFor),
+      x: thousandths(node.x - middle.x),
+      y: thousandths(node.y - middle.y),
+      s: thousandths(node.side),
+      ...(node.member ? { m: 1 as const } : {}),
+      e: node.links,
     })),
-    p: people
-      .filter((person) => names.has(person.id))
-      .slice(0, MAX_MAP_PEOPLE)
-      .map((person) => ({
-        n: names.get(person.id)!,
-        a: Math.round((person.angle * 180) / Math.PI) % 360,
-      })),
+    ...(caption ? { d: caption } : {}),
   };
+};
+
+/** What a stack map shows, in a line: "4 albums stacked · 12 around them". */
+export const stackCaption = (nodes: StackNode[]): string => {
+  const stacked = nodes.filter((n) => n.member).length;
+  const around = nodes.length - stacked;
+  return [
+    `${stacked} ${stacked === 1 ? "album" : "albums"} stacked`,
+    around > 0 ? `${around} around them` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
 };
 
 /** Whether a map would have anything around its centre. */
 export const mapHasAlbums = (payload: SharePayload): boolean =>
-  payload.l === "map" && payload.n.length > 0;
+  (payload.l === "map" || payload.l === "stack") && payload.n.length > 0;
 
 /** base64url of the payload's UTF-8 JSON. */
 export const encodeSharePayload = (payload: SharePayload): string => {

@@ -114,6 +114,34 @@ test("decodes lines and no-cover flags, remapping links past nameless people", (
   assert.deepEqual(plain.albums[0].links, []);
 });
 
+test("decodes a stack map, remapping links past untitled nodes", () => {
+  const payload = decodePayload(
+    encodePayload({
+      v: 1,
+      l: "stack",
+      c: { t: "Unmap", r: "Volcano Choir", i: "", s: 500 },
+      n: [
+        { t: "Bon Iver", r: "Bon Iver", x: 0, y: 1000, s: 400, m: 1, e: [0] },
+        { t: "", x: 0, y: 0, s: 300 },
+        { t: "Hideaway", r: "S. Carey", x: 300, y: 99999, s: 250, e: [0, 1, 2, 7] },
+      ],
+      ln: 1,
+      nc: 1,
+    }),
+  );
+  assert.equal(payload.layout, "stack");
+  assert.equal(payload.centre.side, 0.5);
+  assert.equal(payload.albums.length, 2);
+  assert.deepEqual(payload.albums[0], {
+    t: "Bon Iver", r: "Bon Iver", i: "", x: 0, y: 1, side: 0.4, member: true, links: [0],
+  });
+  // y clamped to 12 steps; the untitled node (2) and an unknown one go.
+  assert.equal(payload.albums[1].y, 12);
+  assert.deepEqual(payload.albums[1].links, [0, 1]);
+  assert.equal(payload.covers, false);
+  assert.equal(payload.lines, true);
+});
+
 test("rejects missing, oversized, malformed and empty payloads", () => {
   assert.equal(decodePayload(""), null);
   assert.equal(decodePayload(undefined), null);

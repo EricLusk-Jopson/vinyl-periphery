@@ -9,7 +9,8 @@
 //   Album  = { t: title, r: artist, i: art }
 //   Result = Album & { n: shared count }
 //   Placed = Album & { x, y: thousandths of the radius from the centre,
-//            y up; z: size tier, 1 or 2 }
+//            y up, past 1000 for albums just outside the circle;
+//            z: size tier, 1 or 2 }
 //   Person = { n: name, a: angle in degrees, counter-clockwise from the right }
 //   art    = "g:<release-group mbid>" | "r:<release mbid>" | ""
 //
@@ -76,7 +77,7 @@ export function decodePayload(encoded) {
     const centre = album(raw.c);
     if (!centre.t) return null;
     const coordinate = (value) =>
-      Math.max(-1000, Math.min(1000, Math.round(Number(value) || 0))) / 1000;
+      Math.max(-1500, Math.min(1500, Math.round(Number(value) || 0))) / 1000;
     const albums = list(raw.n, MAX_MAP_ALBUMS)
       .map((n) => ({
         ...album(n),

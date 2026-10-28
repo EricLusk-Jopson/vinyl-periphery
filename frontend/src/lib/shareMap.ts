@@ -10,7 +10,8 @@ import { lineageOf } from "./lineage";
  * same every time: seeded by their Discogs id). An album sits at the centre
  * of mass of the people linking it, so albums sharing people sit together,
  * and an album linked by people from all sides drifts toward the middle.
- * Then overlapping covers are pushed apart. Pure, so it can be tested and
+ * An album only one person links sits just outside the circle, by that
+ * person. Then overlapping covers are pushed apart. Pure, so it can be tested and
  * its output sent to the renderer as plain positions.
  */
 
@@ -21,6 +22,15 @@ export const MAX_MAP_PEOPLE = 8;
 export const MAP_SIZES = { centre: 0.46, 1: 0.28, 2: 0.36 } as const;
 /** Room kept between covers, as a fraction of the radius. */
 const GAP = 0.03;
+/**
+ * The farthest past the circle a cover outside it can reach, as a fraction
+ * of the radius: the largest cover, and a gap either side. (The renderer
+ * works out how far they actually reach, and puts names beyond them.)
+ */
+export const MAP_OUTER_BAND = MAP_SIZES[2] + 2 * GAP;
+
+/** Where a cover outside the circle sits: just past it. */
+const outerRadius = (side: number) => 1 + GAP + side / 2;
 
 export interface MapAlbum {
   key: string;
@@ -145,16 +155,23 @@ const sizeTier = (album: MapAlbum): 1 | 2 =>
  * Deterministic: the same albums always land in the same places.
  */
 export const relax = (
-  ideal: Array<{ x: number; y: number; side: number }>,
+  ideal: Array<{ x: number; y: number; side: number; outer?: boolean }>,
   centreSide: number,
   iterations = 300,
 ): Array<{ x: number; y: number }> => {
   const points = ideal.map((p) => ({ ...p }));
   const all = [{ x: 0, y: 0, side: centreSide, fixed: true }, ...points];
-  const inside = (p: { x: number; y: number; side: number }) => {
-    const limit = 1 - p.side / 2;
-    const length = Math.hypot(p.x, p.y);
-    if (length > limit) {
+  // Inside covers stay in the circle; outside ones stay on their ring
+  // just past it, sliding around it.
+  const inside = (p: {
+    x: number;
+    y: number;
+    side: number;
+    outer?: boolean;
+  }) => {
+    const length = Math.hypot(p.x, p.y) || 1;
+    const limit = p.outer ? outerRadius(p.side) : 1 - p.side / 2;
+    if (p.outer || length > limit) {
       p.x *= limit / length;
       p.y *= limit / length;
     }
@@ -208,11 +225,12 @@ export const layoutMap = (
     const z = sizeTier(album);
     const side = MAP_SIZES[z];
     const point = centreOfMass(album.people);
-    // Keep the ideal spot inside the circle, too.
-    const limit = 1 - side / 2;
+    const outer = album.people.length === 1;
+    // One person: just outside the circle, by them. Otherwise inside it.
+    const limit = outer ? outerRadius(side) : 1 - side / 2;
     const length = Math.hypot(point.x, point.y);
-    const scale = length > limit ? limit / length : 1;
-    return { x: point.x * scale, y: point.y * scale, side };
+    const scale = outer || length > limit ? limit / length : 1;
+    return { x: point.x * scale, y: point.y * scale, side, outer };
   });
   const placed = relax(ideal, MAP_SIZES.centre);
 

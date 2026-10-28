@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { artIds, initials, renderPng } from "./render.js";
+import { artIds, initials, mapReach, renderPng } from "./render.js";
 import { fetchArt, loadArt } from "./art.js";
 import { imageSize } from "./payload.js";
 
@@ -78,4 +78,16 @@ test("art: data URLs for images, null for anything else, cached", async () => {
   );
   const loaded = await loadArt([id, id, other], fetchArt);
   assert.deepEqual([...loaded.keys()], [id]);
+});
+
+test("map reach: past the circle only where covers sit outside it", () => {
+  const albums = [
+    { x: 0.3, y: 0, z: 1 },
+    // Just outside, to the left.
+    { x: -1.17, y: 0, z: 1 },
+  ];
+  assert.equal(mapReach([albums[0]]), 1);
+  assert.ok(mapReach(albums) > 1.3);
+  assert.ok(mapReach(albums, Math.PI) > 1.3);
+  assert.equal(mapReach(albums, 0), 1);
 });

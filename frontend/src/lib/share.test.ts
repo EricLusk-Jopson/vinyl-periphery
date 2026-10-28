@@ -10,6 +10,7 @@ import {
   shareImagePath,
   shareLink,
 } from "./share";
+import { MAP_OUTER_BAND } from "./shareMap";
 
 const MBID = "1b022e01-4da6-387b-8658-8678046e4cef";
 const cover = (kind: string) =>
@@ -122,7 +123,10 @@ describe("mapPayload", () => {
       ["Album 5", 1],
     ]);
     for (const n of payload.n) {
-      expect(Math.hypot(n.x, n.y)).toBeLessThanOrEqual(1000);
+      // Inside the circle, or just past it.
+      expect(Math.hypot(n.x, n.y)).toBeLessThanOrEqual(
+        1000 * (1 + MAP_OUTER_BAND),
+      );
     }
     // People around the rim, by name, disambiguation dropped.
     expect(payload.p.map((p) => p.n).sort()).toEqual([

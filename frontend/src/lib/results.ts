@@ -113,6 +113,18 @@ export const sharedPeople = (
 };
 
 /**
+ * Whether "Hide <artist> releases" hides a release: its artist contains the
+ * first word of the searched artist (see Known issues in CLAUDE.md).
+ */
+export const isMainArtistRelease = (
+  search: Pick<SearchCache, "searchParams">,
+  release: Pick<EnrichedRelease, "artist">,
+): boolean =>
+  release.artist
+    .toLowerCase()
+    .includes(search.searchParams.artist.split(" ")[0].toLowerCase());
+
+/**
  * Filter state for "Reset filters": every contributor and role back on,
  * nothing required, the 2+ and Various Artists filters off. Hiding the searched artist's own
  * releases stays on, since those are rarely what anyone is after.

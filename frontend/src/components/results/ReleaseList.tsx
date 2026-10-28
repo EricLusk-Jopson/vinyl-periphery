@@ -1,4 +1,5 @@
-import React, { useEffect, useId, useMemo, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Search } from "lucide-react";
 import { SearchParams } from "@/api/types";
 import { KnownAlbum } from "@/hooks/useSearchRun";
 import { useCoverArt } from "@/hooks/useCoverArt";
@@ -21,6 +22,8 @@ import { track } from "@/lib/analytics";
 import { useLikes } from "@/hooks/useLikes";
 import { setLiked } from "@/services/likes";
 import { cn } from "@/lib/utils";
+import { pinToTop } from "@/lib/resultSearch";
+import { iconButton } from "../common/buttons";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import {
   Select,
@@ -30,6 +33,7 @@ import {
   SelectValue,
 } from "../ui/select";
 import { ReleaseRow } from "./ReleaseRow";
+import { ResultSearch } from "./ResultSearch";
 
 const PAGE_SIZE = 20;
 
@@ -45,7 +49,7 @@ interface ReleaseListProps {
 const quietButton =
   "h-11 rounded-lg border bg-surface px-6 text-[15px] font-medium text-foreground transition-colors hover:border-border-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
 
-/** Count, sort, the result rows, and "Show more". */
+/** Count, find, sort, the result rows, and "Show more". */
 export const ReleaseList: React.FC<ReleaseListProps> = ({
   searchId,
   onSearchFrom,
@@ -65,15 +69,39 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
   // By release key: masters and releases can share a numeric id.
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
+  // Picked in the results search: shown first, whatever the sort.
+  const [pinnedKey, setPinnedKey] = useState<string | null>(null);
+  // Below md the results search opens from a button.
+  const [findOpen, setFindOpen] = useState(false);
+  const listRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
     if (!isSearching) setPendingKey(null);
   }, [isSearching]);
 
   const sorted = useMemo(
-    () => sortReleases(releases as ScoredRelease[], sort),
-    [releases, sort],
+    () => pinToTop(sortReleases(releases as ScoredRelease[], sort), pinnedKey),
+    [releases, sort, pinnedKey],
   );
+  const visibleKeys = useMemo(
+    () => new Set(releases.map((r) => r.key)),
+    [releases],
+  );
+
+  const pin = (key: string | null) => {
+    setPinnedKey(key);
+    if (!key) return;
+    setOpenKey(key);
+    setVisible(PAGE_SIZE);
+    // After the list re-renders with it on top: if the list's top has
+    // scrolled away (or under the sticky toolbar), bring it back.
+    requestAnimationFrame(() => {
+      const list = listRef.current;
+      if (list && list.getBoundingClientRect().top < 80) {
+        list.scrollIntoView({ block: "start", behavior: "smooth" });
+      }
+    });
+  };
 
   // Albums already searched (this session or saved), by target key, so
   // their rows open that search instead of running another.
@@ -121,14 +149,31 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
     >
       {/* Below lg the toolbar sticks to the top of the screen while the list
           scrolls, so sorting and filters stay in reach. */}
-      <div className="sticky top-0 z-20 -mx-4 flex items-center justify-between gap-2 border-b bg-background px-4 py-2 md:-mx-6 md:gap-3 md:px-6 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0">
+      <div className="sticky top-0 z-20 -mx-4 flex flex-wrap items-center gap-2 border-b bg-background px-4 py-2 md:-mx-6 md:gap-3 md:px-6 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0">
         <h2
           id={`${sortId}-count`}
-          className="shrink-0 text-[15px] font-semibold md:text-lg"
+          className="mr-auto shrink-0 text-[15px] font-semibold md:text-lg"
         >
           {total.toLocaleString("en-US")} {total === 1 ? "album" : "albums"}
         </h2>
+        <ResultSearch
+          searchId={searchId}
+          visibleKeys={visibleKeys}
+          onPin={pin}
+          expanded={findOpen}
+          onCollapse={() => setFindOpen(false)}
+        />
         <div className="flex min-w-0 items-center gap-2 md:gap-2.5">
+          {!findOpen && (
+            <button
+              type="button"
+              onClick={() => setFindOpen(true)}
+              aria-label="Find an album in these results"
+              className={cn(iconButton, "border bg-surface md:hidden")}
+            >
+              <Search className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
           <label
             htmlFor={sortId}
             className="sr-only text-sm text-muted-foreground md:not-sr-only"
@@ -159,7 +204,7 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
       </div>
 
       {total > 0 ? (
-        <ul className="lg:border-t">
+        <ul ref={listRef} className="scroll-mt-20 lg:scroll-mt-6 lg:border-t">
           {shown.map((release, i) => {
             const people = sharedPeople(release, search.contributors);
             const position = { rank: i + 1, shared: people.length, sort };

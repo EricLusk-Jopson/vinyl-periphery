@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Layers, Star, Trash2 } from "lucide-react";
 import { useCache } from "@/contexts/cache/CacheContext";
@@ -33,6 +33,18 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search }) => {
     savedSearchIds,
   } = useCache();
   const navigate = useNavigate();
+  // The share map: this album in the middle, its liked results around it.
+  const map = useMemo(
+    () => ({
+      centre: {
+        key: search.target?.key ?? "",
+        title: search.searchParams.album,
+        artist: search.searchParams.artist,
+      },
+      members: [search],
+    }),
+    [search],
+  );
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [drawer, setDrawer] = useState<"save" | "stack" | null>(null);
@@ -113,6 +125,7 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search }) => {
         <div className="-mt-1 flex w-full shrink-0 items-center justify-end gap-1 md:mt-0 md:w-auto md:gap-2">
           <ShareButton
             search={search}
+            map={map}
             to={resultPath(search.searchParams, search.target)}
             compact
           />

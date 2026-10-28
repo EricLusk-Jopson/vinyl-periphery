@@ -143,8 +143,6 @@ export const StackPage: React.FC<StackPageProps> = ({
 
   const root = stackRoot(stack);
   const sorted = stackMembersByDepth(stack, order, levels);
-  // The share image draws the trail to the deepest saved search.
-  const deepest = stackMembersByDepth(stack, "depth", levels).at(-1)!;
 
   // In step order, ghosts sit at their step among the saved searches.
   type Entry =
@@ -233,9 +231,17 @@ export const StackPage: React.FC<StackPageProps> = ({
         </div>
         <div className="flex w-full flex-wrap gap-2 md:w-auto">
           <ShareButton
-            search={deepest}
+            search={root.search ?? sorted[0]}
+            map={{
+              centre: {
+                key: root.targetKey,
+                title: root.title,
+                artist: root.artist,
+                thumb: root.thumb,
+              },
+              members,
+            }}
             to={stackPath(stackId)}
-            defaultLayout="trail"
           />
           <button
             type="button"

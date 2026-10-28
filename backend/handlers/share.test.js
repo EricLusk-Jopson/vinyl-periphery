@@ -4,13 +4,12 @@ import share, { safeTarget, shareTitle } from "./share.js";
 import { mockRequest, mockResponse } from "./testing.js";
 import { encodePayload } from "../og/payload.js";
 
-const trail = encodePayload({
+const map = encodePayload({
   v: 1,
-  l: "trail",
-  s: [
-    { t: "Unmap", r: "Volcano Choir", i: "", v: [] },
-    { t: 'Bon "Iver" <b>', r: "Bon Iver", i: "", v: ["Justin Vernon"] },
-  ],
+  l: "map",
+  c: { t: 'Bon "Iver" <b>', r: "Bon Iver", i: "" },
+  n: [{ t: "Unmap", r: "Volcano Choir", i: "", x: 500, y: 0, z: 1 }],
+  p: [{ n: "Justin Vernon", a: 0 }],
 });
 
 test("only redirects to the app's own results and stacks", () => {
@@ -26,7 +25,7 @@ test("serves Open Graph tags and sends people on", () => {
   const res = mockResponse();
   share(
     mockRequest({
-      query: { p: trail, to: "/results?artist=Bon+Iver&album=Bon+Iver&master=100" },
+      query: { p: map, to: "/results?artist=Bon+Iver&album=Bon+Iver&master=100" },
       headers: { host: "vinylperiphery.com", "x-forwarded-proto": "https" },
     }),
     res,
@@ -56,7 +55,7 @@ test("titles", () => {
     "Albums connected to Unmap by Volcano Choir",
   );
   assert.equal(
-    shareTitle({ layout: "trail", steps: [{ t: "A" }, { t: "B" }, { t: "C" }] }),
-    "From A to C",
+    shareTitle({ layout: "map", centre: { t: "The New Sound", r: "Geordie Greep" } }),
+    "The New Sound by Geordie Greep, and the albums around it",
   );
 });

@@ -14,17 +14,19 @@ import {
 import { SearchCache } from "@/contexts/cache/types";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useToast } from "@/hooks/use-toast";
+import { useLikes } from "@/hooks/useLikes";
 import { track } from "@/lib/analytics";
 import { ScoredRelease } from "@/lib/results";
 import {
   cardPayload,
-  hasTrail,
+  MapCentre,
+  mapHasAlbums,
+  mapPayload,
   ShareLayout,
   shareImagePath,
   shareLink,
   ShareSize,
   SIZES,
-  trailPayload,
 } from "@/lib/share";
 import { cn } from "@/lib/utils";
 import { dialogButton } from "../common/buttons";
@@ -33,18 +35,22 @@ const focusRing =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
 
 interface ShareButtonProps {
+  /** The search the Results layout lists. */
   search: SearchCache;
+  /**
+   * What the map draws: its centre, and the stack's searches around it (or
+   * just this search), with liked albums from their results.
+   */
+  map: { centre: MapCentre; members: SearchCache[] };
   /** Where the shared link opens: these results, or a stack. */
   to: string;
-  /** Start on the trail, e.g. from a stack. */
-  defaultLayout?: ShareLayout;
   /** Button style: compact icon on phones (results header) or labelled. */
   compact?: boolean;
 }
 
 const LAYOUTS: { id: ShareLayout; label: string }[] = [
+  { id: "map", label: "Map" },
   { id: "card", label: "Results" },
-  { id: "trail", label: "Trail" },
 ];
 
 /** A segmented choice, as radios. */
@@ -91,15 +97,15 @@ const Segmented = <T extends string>({
 );
 
 /**
- * Share: a watermarked image of these results (or the trail that led
- * here), story or square, through the native share sheet where it takes
+ * Share: a watermarked image, story or square: a map of the stack (or this
+ * search) and the liked albums around it, or these results as a list; through the native share sheet where it takes
  * files, as a download otherwise. The image is rendered by /api/og from
  * data in the URL.
  */
 export const ShareButton: React.FC<ShareButtonProps> = ({
   search,
+  map,
   to,
-  defaultLayout = "card",
   compact = false,
 }) => {
   const { searches } = useCache();
@@ -107,25 +113,39 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   const { toast } = useToast();
   const wide = useMediaQuery("(min-width: 768px)");
   const [open, setOpen] = useState(false);
-  const trail = hasTrail(search);
-  const [layout, setLayout] = useState<ShareLayout>(
-    trail ? defaultLayout : "card",
-  );
+  const likes = useLikes();
+  const [chosen, setChosen] = useState<ShareLayout>("map");
   const [size, setSize] = useState<ShareSize>("story");
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState("");
 
+  const coverFor = (key: string) => coverResolver.get(key);
+  const mapImage = useMemo(
+    () =>
+      open
+        ? mapPayload(map.centre, map.members, searches, likes, coverFor)
+        : null,
+    // coverFor reads the resolver as it is when the sheet opens; the
+    // centre is named by its key.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [open, map.centre.key, map.members, searches, likes],
+  );
+  // A map with nothing around its centre isn't worth sharing.
+  const mapReady = mapImage !== null && mapHasAlbums(mapImage);
+  const layout: ShareLayout = mapReady ? chosen : "card";
   const payload = useMemo(() => {
     if (!open) return null;
-    const coverFor = (key: string) => coverResolver.get(key);
-    return layout === "trail" && trail
-      ? trailPayload(search, searches, coverFor)
+    return layout === "map"
+      ? mapImage
       : cardPayload(search, releases as ScoredRelease[], coverFor);
-  }, [open, layout, trail, search, searches, releases]);
+  }, [open, layout, mapImage, search, releases]);
 
   const image = payload ? shareImagePath(payload, size) : "";
   const link = payload ? shareLink(window.location.origin, payload, to) : "";
-  const title = `${search.searchParams.album} by ${search.searchParams.artist} on Vinyl Periphery`;
+  const title =
+    layout === "map"
+      ? `${map.centre.title} by ${map.centre.artist} on Vinyl Periphery`
+      : `${search.searchParams.album} by ${search.searchParams.artist} on Vinyl Periphery`;
   const fileName = `vinyl-periphery-${layout}-${size}.png`;
 
   const download = (blob: Blob) => {
@@ -231,20 +251,22 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
               Share
             </SheetTitle>
             <SheetDescription className="text-left text-sm text-muted-foreground">
-              An image of{" "}
-              {layout === "trail" ? "the trail to " : "what connects to "}
-              {search.searchParams.album}, with a link back here.
+              {layout === "map"
+                ? `A map of ${map.centre.title} and the albums around it, with a link back here.`
+                : `An image of what connects to ${search.searchParams.album}, with a link back here.`}
+              {!mapReady &&
+                " Like albums in the results to share them as a map."}
             </SheetDescription>
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row">
-            {trail && (
+            {mapReady && (
               <div className="flex-1">
                 <Segmented
                   label="Show"
                   value={layout}
                   options={LAYOUTS}
-                  onChange={(value) => setLayout(value)}
+                  onChange={(value) => setChosen(value)}
                 />
               </div>
             )}

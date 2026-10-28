@@ -1,6 +1,7 @@
 import { SearchCache } from "@/contexts/cache/types";
-import { lineageOf } from "./lineage";
+import { Likes } from "@/services/likes";
 import { ScoredRelease } from "./results";
+import { layoutMap, mapAlbums, MAX_MAP_PEOPLE } from "./shareMap";
 import { defaultContributorDisplayPipeline } from "./transformers/contributorProcessor";
 
 /**
@@ -9,7 +10,7 @@ import { defaultContributorDisplayPipeline } from "./transformers/contributorPro
  * so rendering never calls Discogs. Format: backend/og/payload.js.
  */
 
-export type ShareLayout = "card" | "trail";
+export type ShareLayout = "map" | "card";
 export type ShareSize = "story" | "square";
 
 /** Art id: "g:<release-group mbid>", "r:<release mbid>", or "". */
@@ -23,11 +24,17 @@ interface ShareAlbum {
 
 export type SharePayload =
   | { v: 1; l: "card"; a: ShareAlbum; x: Array<ShareAlbum & { n: number }> }
-  | { v: 1; l: "trail"; s: Array<ShareAlbum & { v: string[] }> };
+  | {
+      v: 1;
+      l: "map";
+      c: ShareAlbum;
+      /** x, y: thousandths of the radius, y up; z: size tier. */
+      n: Array<ShareAlbum & { x: number; y: number; z: 1 | 2 }>;
+      /** People around the rim: name, and angle in degrees. */
+      p: Array<{ n: string; a: number }>;
+    };
 
 export const SHARE_RESULTS = 6;
-export const SHARE_STEPS = 6;
-const MAX_VIA = 4;
 
 /** The art id in a Cover Art Archive URL, or "". */
 export const artIdFromCoverUrl = (url: string | null | undefined): ArtId => {
@@ -88,41 +95,58 @@ export const contributorNames = (
   return names;
 };
 
-const viaNames = (ids: number[], names: Map<number, string>) =>
-  ids
-    .map((id) => names.get(id))
-    .filter((name): name is string => Boolean(name))
-    .slice(0, MAX_VIA);
+/** The album at the middle of a map. */
+export interface MapCentre {
+  key: string;
+  title: string;
+  artist: string;
+  /** Art known for it already (e.g. a lineage snapshot's cover URL). */
+  thumb?: string;
+}
 
-/** Trail: root to this search, with who linked each step to the last. */
-export const trailPayload = (
-  search: SearchCache,
+/**
+ * Share map: `centre` in the middle, the other `members` (a stack's saved
+ * searches, or none) and the liked albums in their results around it. See
+ * `shareMap.ts` for how they're placed.
+ */
+export const mapPayload = (
+  centre: MapCentre,
+  members: SearchCache[],
   searches: Record<string, SearchCache>,
+  likes: Likes,
   coverFor: CoverFor,
 ): SharePayload => {
   const names = contributorNames(searches);
-  const lineage = lineageOf(search);
-  const steps = [
-    ...lineage.path.map((step) => ({
-      t: step.title,
-      r: step.artist,
-      // The snapshot's art if it was a cover URL, else whatever is known now.
-      i: artIdFromCoverUrl(step.thumb) || artFor(step.targetKey, coverFor),
-      v: viaNames(step.via, names),
-    })),
-    {
-      t: search.searchParams.album,
-      r: search.searchParams.artist,
-      i: artFor(search.target?.key, coverFor),
-      v: viaNames(lineage.via, names),
+  const { albums, people } = layoutMap(mapAlbums(centre.key, members, likes));
+  return {
+    v: 1,
+    l: "map",
+    c: {
+      t: centre.title,
+      r: centre.artist,
+      i: artFor(centre.key, coverFor) || artIdFromCoverUrl(centre.thumb),
     },
-  ];
-  return { v: 1, l: "trail", s: steps.slice(-SHARE_STEPS) };
+    n: albums.map((album) => ({
+      t: album.title,
+      r: album.artist,
+      i: artFor(album.key, coverFor),
+      x: Math.round(album.x * 1000),
+      y: Math.round(album.y * 1000),
+      z: album.z,
+    })),
+    p: people
+      .filter((person) => names.has(person.id))
+      .slice(0, MAX_MAP_PEOPLE)
+      .map((person) => ({
+        n: names.get(person.id)!,
+        a: Math.round((person.angle * 180) / Math.PI) % 360,
+      })),
+  };
 };
 
-/** Whether a search has a trail worth drawing (it was reached from another). */
-export const hasTrail = (search: SearchCache): boolean =>
-  lineageOf(search).path.length > 0;
+/** Whether a map would have anything around its centre. */
+export const mapHasAlbums = (payload: SharePayload): boolean =>
+  payload.l === "map" && payload.n.length > 0;
 
 /** base64url of the payload's UTF-8 JSON. */
 export const encodeSharePayload = (payload: SharePayload): string => {

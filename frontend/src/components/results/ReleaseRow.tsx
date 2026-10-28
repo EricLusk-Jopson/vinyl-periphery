@@ -1,6 +1,12 @@
 import React, { useId } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, ArrowUpRight, Loader2, RotateCw } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Heart,
+  Loader2,
+  RotateCw,
+} from "lucide-react";
 import { creditsTarget } from "@/api/releaseCredits";
 import { useReleaseCredits } from "@/api/useReleaseCredits";
 import {
@@ -37,6 +43,9 @@ interface ReleaseRowProps {
   /** A search is under way; true for this row if it started it. */
   searching: boolean;
   searchingFromHere: boolean;
+  /** Liked albums show in every search they turn up in. */
+  liked: boolean;
+  onToggleLike: () => void;
 }
 
 const focusRing =
@@ -60,6 +69,8 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
   onOpenDiscogs,
   searching,
   searchingFromHere,
+  liked,
+  onToggleLike,
 }) => {
   const panelId = useId();
   const shared = people.length;
@@ -108,56 +119,76 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
 
   return (
     <li className="border-b">
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={panelId}
-        onClick={onToggle}
-        className={cn(
-          "flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors hover:bg-surface md:gap-4 md:px-4 md:py-3.5",
-          focusRing,
-        )}
-      >
-        <AlbumCover
-          src={cover || release.thumb}
-          title={release.title}
-          className="h-12 w-12 rounded-[3px] text-xs md:h-14 md:w-14"
-        />
-        <span className="flex min-w-0 flex-1 flex-col gap-0.5 md:gap-[3px]">
-          <span className="truncate text-[15px] font-semibold leading-snug md:whitespace-normal md:text-base">
-            {release.title}
+      <div className="flex items-center">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={panelId}
+          onClick={onToggle}
+          className={cn(
+            "flex min-w-0 flex-1 items-center gap-3 rounded-lg py-3 pl-3 pr-1 text-left transition-colors hover:bg-surface md:gap-4 md:py-3.5 md:pl-4",
+            focusRing,
+          )}
+        >
+          <AlbumCover
+            src={cover || release.thumb}
+            title={release.title}
+            className="h-12 w-12 rounded-[3px] text-xs md:h-14 md:w-14"
+          />
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5 md:gap-[3px]">
+            <span className="truncate text-[15px] font-semibold leading-snug md:whitespace-normal md:text-base">
+              {release.title}
+            </span>
+            <span className="truncate text-[13px] text-muted-foreground md:text-sm">
+              {release.artist}
+              {year && ` · ${year}`}
+            </span>
+            <span className="truncate font-mono text-xs text-faint md:whitespace-normal">
+              via {people.map((p) => p.name).join(", ")}
+            </span>
           </span>
-          <span className="truncate text-[13px] text-muted-foreground md:text-sm">
-            {release.artist}
-            {year && ` · ${year}`}
+          <span className="flex shrink-0 flex-col items-end gap-1.5">
+            <span
+              className={cn(
+                "font-mono text-[13px]",
+                strong ? "text-primary-text" : "text-muted-foreground",
+              )}
+            >
+              {shared}
+              <span className="sr-only md:not-sr-only"> shared</span>
+            </span>
+            <span aria-hidden="true" className="hidden gap-[3px] md:flex">
+              {Array.from({ length: MAX_DOTS }, (_, i) => (
+                <span
+                  key={i}
+                  className={cn(
+                    "h-2 w-2 rounded-full",
+                    i < shared ? "bg-primary" : "bg-border",
+                  )}
+                />
+              ))}
+            </span>
           </span>
-          <span className="truncate font-mono text-xs text-faint md:whitespace-normal">
-            via {people.map((p) => p.name).join(", ")}
-          </span>
-        </span>
-        <span className="flex shrink-0 flex-col items-end gap-1.5">
-          <span
+        </button>
+        <button
+          type="button"
+          onClick={onToggleLike}
+          aria-pressed={liked}
+          aria-label={`Like ${release.title}`}
+          className={cn(
+            "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-surface md:mr-1",
+            focusRing,
+          )}
+        >
+          <Heart
             className={cn(
-              "font-mono text-[13px]",
-              strong ? "text-primary-text" : "text-muted-foreground",
+              "h-5 w-5",
+              liked ? "fill-primary text-primary" : "text-muted-foreground",
             )}
-          >
-            {shared}
-            <span className="sr-only md:not-sr-only"> shared</span>
-          </span>
-          <span aria-hidden="true" className="hidden gap-[3px] md:flex">
-            {Array.from({ length: MAX_DOTS }, (_, i) => (
-              <span
-                key={i}
-                className={cn(
-                  "h-2 w-2 rounded-full",
-                  i < shared ? "bg-primary" : "bg-border",
-                )}
-              />
-            ))}
-          </span>
-        </span>
-      </button>
+            aria-hidden="true"
+          />
+        </button>
+      </div>
 
       <div
         id={panelId}

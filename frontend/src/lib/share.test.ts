@@ -1,15 +1,14 @@
 import { SearchCache } from "@/contexts/cache/types";
-import { childLineage, rootLineage } from "./lineage";
 import { ScoredRelease } from "./results";
 import {
   artIdFromCoverUrl,
   cardPayload,
   contributorNames,
   encodeSharePayload,
-  hasTrail,
+  mapHasAlbums,
+  mapPayload,
   shareImagePath,
   shareLink,
-  trailPayload,
 } from "./share";
 
 const MBID = "1b022e01-4da6-387b-8658-8678046e4cef";
@@ -70,62 +69,90 @@ describe("cardPayload", () => {
   });
 });
 
-describe("trailPayload", () => {
-  const root = search(1, "Unmap", [
-    [1, "Justin Vernon"],
-    [2, "Brian Joseph (2)"],
-  ]);
-  root.lineage = rootLineage(root.searchId);
-  const child = search(2, "Bon Iver", [[3, "Sean Carey"]]);
-  child.lineage = childLineage(root, [1, 2], cover("release"));
-  const grand = search(3, "Hideaway");
-  grand.lineage = childLineage(child, [3, 99], "");
+describe("mapPayload", () => {
+  const withResults = (
+    s: SearchCache,
+    results: Record<number, number[]>,
+  ): SearchCache => ({
+    ...s,
+    releases: Object.fromEntries(
+      Object.entries(results).map(([id, contributorIds]) => [
+        `master:${id}`,
+        {
+          key: `master:${id}`,
+          title: `Album ${id}`,
+          artist: "Someone",
+          contributorIds,
+        },
+      ]),
+    ) as unknown as SearchCache["releases"],
+  });
+  const root = withResults(
+    search(1, "Unmap", [
+      [1, "Justin Vernon"],
+      [2, "Brian Joseph (2)"],
+    ]),
+    { 2: [1, 2], 5: [1], 6: [2] },
+  );
+  const child = withResults(search(2, "Bon Iver", [[3, "Sean Carey"]]), {
+    7: [3],
+  });
+  const searches = { [root.searchId]: root, [child.searchId]: child };
+  const centre = { key: "master:1", title: "Unmap", artist: "Volcano Choir" };
+  const likes = {
+    "master:5": { title: "Album 5", artist: "Someone", likedAt: 1 },
+    "master:2": { title: "Bon Iver", artist: "Bon Iver", likedAt: 2 },
+    "master:99": { title: "Elsewhere", artist: "Nobody", likedAt: 3 },
+  };
 
-  it("draws root to current, naming who linked each step", () => {
-    const payload = trailPayload(
-      grand,
-      {
-        [root.searchId]: root,
-        [child.searchId]: child,
-        [grand.searchId]: grand,
-      },
-      () => null,
+  it("puts the stack's albums and the liked ones in their results around the centre", () => {
+    const payload = mapPayload(centre, [root, child], searches, likes, (key) =>
+      key === "master:1" ? cover("release-group") : null,
     );
-    if (payload.l !== "trail") throw new Error();
-    expect(payload.s.map((s) => [s.t, s.v])).toEqual([
-      ["Unmap", []],
-      ["Bon Iver", ["Justin Vernon", "Brian Joseph"]],
-      // 99 has no known name, so it's left out.
-      ["Hideaway", ["Sean Carey"]],
+    if (payload.l !== "map") throw new Error();
+    expect(payload.c).toEqual({
+      t: "Unmap",
+      r: "Volcano Choir",
+      i: `g:${MBID}`,
+    });
+    // Bon Iver (a liked stack album, so bigger), then the liked Album 5;
+    // Album 99 isn't in any result, and Album 6 isn't liked.
+    expect(payload.n.map((n) => [n.t, n.z])).toEqual([
+      ["Bon Iver", 2],
+      ["Album 5", 1],
     ]);
-    // The root's art came from its snapshot.
-    expect(payload.s[0].i).toBe(`r:${MBID}`);
+    for (const n of payload.n) {
+      expect(Math.hypot(n.x, n.y)).toBeLessThanOrEqual(1000);
+    }
+    // People around the rim, by name, disambiguation dropped.
+    expect(payload.p.map((p) => p.n).sort()).toEqual([
+      "Brian Joseph",
+      "Justin Vernon",
+    ]);
+    for (const p of payload.p) {
+      expect(p.a).toBeGreaterThanOrEqual(0);
+      expect(p.a).toBeLessThan(360);
+    }
   });
 
-  it("names people from any search, even once a step is deleted", () => {
-    const names = contributorNames({ [child.searchId]: child });
+  it("names people from any search here", () => {
+    const names = contributorNames(searches);
+    expect(names.get(2)).toBe("Brian Joseph");
     expect(names.get(3)).toBe("Sean Carey");
-    const payload = trailPayload(
-      grand,
-      { [child.searchId]: child },
-      () => null,
-    );
-    if (payload.l !== "trail") throw new Error();
-    expect(payload.s[1].v).toEqual([]);
-    expect(payload.s[2].v).toEqual(["Sean Carey"]);
   });
 
-  it("knows which searches have a trail", () => {
-    expect(hasTrail(root)).toBe(false);
-    expect(hasTrail(grand)).toBe(true);
+  it("knows when there's nothing around the centre", () => {
+    const payload = mapPayload(centre, [root], searches, {}, () => null);
+    expect(mapHasAlbums(payload)).toBe(false);
   });
 });
 
 describe("URLs", () => {
   const payload = {
     v: 1 as const,
-    l: "trail" as const,
-    s: [{ t: "Ünmap ✓", r: "A", i: "", v: [] }],
+    l: "card" as const,
+    a: { t: "Ünmap ✓", r: "A", i: "" },
+    x: [],
   };
 
   it("encodes UTF-8 as base64url", () => {

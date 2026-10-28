@@ -33,7 +33,7 @@ const originOf = (headers = {}) => {
 export const shareTitle = (payload) =>
   payload.layout === "card"
     ? `Albums connected to ${payload.album.t} by ${payload.album.r}`
-    : `From ${payload.steps[0].t} to ${payload.steps[payload.steps.length - 1].t}`;
+    : `${payload.centre.t} by ${payload.centre.r}, and the albums around it`;
 
 export default function share(req, res) {
   if (!allowMethods(req, res, ["GET", "HEAD"])) return;

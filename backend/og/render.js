@@ -1,7 +1,8 @@
 // Share image layouts for @vercel/og (Satori), built as plain element
 // objects so the backend needs no JSX build. Two layouts, two sizes:
-//   card:  the searched album, then its top results with "N shared"
-//   trail: root to current, with the people linking each step
+//   card: the searched album, then its top results with "N shared"
+//   map:  one album in the middle of a circle, the albums around it where
+//         the client placed them, and the people they share around the rim
 // Every element with several children sets display: flex (Satori needs it).
 
 import { readFile } from "node:fs/promises";
@@ -251,83 +252,176 @@ export function cardElement(payload, size, art) {
   );
 }
 
-/**
- * Steps to draw: all of them when they fit, otherwise the root, a gap
- * marker, and the most recent steps.
- */
-export const fitSteps = (steps, max) =>
-  steps.length <= max
-    ? steps.map((s) => ({ ...s, gapBefore: false }))
-    : [
-        { ...steps[0], gapBefore: false },
-        ...steps
-          .slice(steps.length - (max - 1))
-          .map((s, i) => ({ ...s, gapBefore: i === 0 })),
-      ];
+/** A cover, or a box with its title and artist when there's no art. */
+const tile = (album, dataUrl, side, accent) =>
+  dataUrl
+    ? img(dataUrl, {
+        width: side,
+        height: side,
+        borderRadius: 4,
+        objectFit: "cover",
+        border: accent ? `4px solid ${C.primary}` : "none",
+      })
+    : h(
+        "div",
+        {
+          width: side,
+          height: side,
+          borderRadius: 4,
+          background: C.raised,
+          border: `2px solid ${accent ? C.primary : C.border}`,
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: Math.round(side * 0.08),
+          overflow: "hidden",
+          textAlign: "center",
+        },
+        h(
+          "div",
+          {
+            fontSize: Math.max(12, Math.round(side * 0.13)),
+            fontWeight: 600,
+            lineHeight: 1.15,
+            color: C.foreground,
+            maxHeight: Math.round(side * 0.62),
+            overflow: "hidden",
+            justifyContent: "center",
+          },
+          album.t,
+        ),
+        h(
+          "div",
+          {
+            marginTop: 4,
+            fontSize: Math.max(12, Math.round(side * 0.09)),
+            color: C.muted,
+            maxHeight: Math.round(side * 0.24),
+            overflow: "hidden",
+            justifyContent: "center",
+          },
+          album.r,
+        ),
+      );
 
-/** Trail: root to current, with who linked each step to the last. */
-export function trailElement(payload, size, art) {
+// Cover sides as fractions of the circle's radius; same as the client's
+// MAP_SIZES (shareMap.ts), which placed them.
+const MAP_SIZES = { centre: 0.46, 1: 0.28, 2: 0.36 };
+
+/** Map: the centre album, the albums around it, the people on the rim. */
+export function mapElement(payload, size, art) {
   const story = size.name === "story";
   const scale = story ? 1 : 0.8;
-  const steps = fitSteps(payload.steps, story ? 5 : 3);
-  const coverSize = story ? (steps.length > 4 ? 150 : 190) : 130;
+  const labelWidth = story ? 150 : 130;
+  const labelHeight = story ? 56 : 46;
+  const labelGap = story ? 20 : 16;
+  // Stories are narrow: the map takes the full width, and names at the
+  // sides fit beside the circle. Squares are short: the names above and
+  // below fit, and those at the sides spill into the frame's padding.
+  const box = story ? size.width : 650;
+  const radius = story
+    ? box / 2 - labelGap - labelWidth - 8
+    : box / 2 - labelGap - labelHeight;
+  const middle = box / 2;
+  const { centre } = payload;
 
-  const link = (step) =>
-    h(
-      "div",
-      {
-        alignItems: "center",
-        gap: 24 * scale,
-        paddingLeft: coverSize / 2 - 2,
-        minHeight: story ? 70 : 54,
-      },
-      h("div", { width: 4, height: story ? 70 : 54, background: C.primary }),
-      line(
-        step.gapBefore
-          ? "…"
-          : step.via.length
-            ? `via ${step.via.join(", ")}`
-            : "",
+  const at = (x, y, side) => ({
+    position: "absolute",
+    left: Math.round(middle + x * radius - side / 2),
+    top: Math.round(middle - y * radius - side / 2),
+  });
+
+  const person = (p) => {
+    const radians = (p.angle * Math.PI) / 180;
+    const dot = story ? 12 : 10;
+    // Just outside the dot, whichever side of the circle it's on.
+    const out =
+      radius +
+      labelGap +
+      (Math.abs(Math.cos(radians)) * labelWidth) / 2 +
+      (Math.abs(Math.sin(radians)) * labelHeight) / 2;
+    return [
+      h("div", {
+        position: "absolute",
+        left: Math.round(middle + Math.cos(radians) * radius - dot / 2),
+        top: Math.round(middle - Math.sin(radians) * radius - dot / 2),
+        width: dot,
+        height: dot,
+        borderRadius: 999,
+        background: C.primaryText,
+      }),
+      h(
+        "div",
         {
+          position: "absolute",
+          left: Math.round(middle + Math.cos(radians) * out - labelWidth / 2),
+          top: Math.round(middle - Math.sin(radians) * out - labelHeight / 2),
+          width: labelWidth,
+          height: labelHeight,
+          alignItems: "center",
+          justifyContent: "center",
+          textAlign: "center",
           fontFamily: "IBM Plex Mono",
-          fontSize: 26 * scale,
-          color: C.primaryText,
-          maxWidth: 760,
+          fontSize: story ? 22 : 19,
+          lineHeight: 1.2,
+          color: C.muted,
+          overflow: "hidden",
         },
+        p.name,
       ),
-    );
+    ];
+  };
 
   return frame(
     size,
     h(
       "div",
-      // Centred in the space above the watermark.
-      { flexDirection: "column", gap: story ? 36 : 22, flexGrow: 1, justifyContent: "center", paddingBottom: story ? 48 : 32 },
-      eyebrow("Follow the trail", scale),
+      { flexDirection: "column", gap: 10 },
+      eyebrow("Connections around", scale),
+      line(centre.t, {
+        fontFamily: "Bebas Neue",
+        fontSize: story ? 104 : 72,
+        lineHeight: 1,
+        color: C.foreground,
+      }),
+      line(centre.r, { fontSize: 36 * scale, color: C.muted }),
+    ),
+    h(
+      "div",
+      {
+        justifyContent: "center",
+        flexGrow: 1,
+        alignItems: "center",
+        // Stories: edge to edge, past the frame's padding.
+        marginLeft: story ? -88 : 0,
+        marginRight: story ? -88 : 0,
+      },
       h(
         "div",
-        { flexDirection: "column" },
-        ...steps.map((step, i) =>
-          h(
+        { position: "relative", width: box, height: box },
+        // The circle the people sit on.
+        h("div", {
+          position: "absolute",
+          left: middle - radius,
+          top: middle - radius,
+          width: radius * 2,
+          height: radius * 2,
+          borderRadius: 999,
+          border: `2px solid ${C.border}`,
+        }),
+        ...payload.people.flatMap(person),
+        ...payload.albums.map((album) => {
+          const side = Math.round(MAP_SIZES[album.z] * radius);
+          return h(
             "div",
-            { flexDirection: "column" },
-            i > 0 && link(step),
-            h(
-              "div",
-              { alignItems: "center", gap: 32 * scale },
-              cover(step.t, art.get(step.i), coverSize, 8),
-              h(
-                "div",
-                { flexDirection: "column", gap: 6, maxWidth: story ? 680 : 760 },
-                line(step.t, {
-                  fontFamily: "Bebas Neue",
-                  fontSize: (story ? 72 : 60),
-                  lineHeight: 1,
-                }),
-                line(step.r, { fontSize: 32 * scale, color: C.muted }),
-              ),
-            ),
-          ),
+            at(album.x, album.y, side),
+            tile(album, art.get(album.i), side, false),
+          );
+        }),
+        h(
+          "div",
+          at(0, 0, Math.round(MAP_SIZES.centre * radius)),
+          tile(centre, art.get(centre.i), Math.round(MAP_SIZES.centre * radius), true),
         ),
       ),
     ),
@@ -339,7 +433,7 @@ export function trailElement(payload, size, art) {
 export const artIds = (payload) =>
   (payload.layout === "card"
     ? [payload.album, ...payload.results]
-    : payload.steps
+    : [payload.centre, ...payload.albums]
   )
     .map((item) => item.i)
     .filter(Boolean);
@@ -349,7 +443,7 @@ export async function renderPng(payload, size, art) {
   const element =
     payload.layout === "card"
       ? cardElement(payload, size, art)
-      : trailElement(payload, size, art);
+      : mapElement(payload, size, art);
   const response = new ImageResponse(element, {
     width: size.width,
     height: size.height,

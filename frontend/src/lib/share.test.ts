@@ -8,6 +8,8 @@ import {
   mapHasAlbums,
   mapPayload,
   shareImagePath,
+  albumMapPayload,
+  selectionCaption,
   shareLink,
 } from "./share";
 import { MAP_OUTER_BAND } from "./shareMap";
@@ -58,7 +60,7 @@ describe("cardPayload", () => {
       a: { t: "Unmap", r: "Unmap Artist", i: `g:${MBID}` },
     });
     if (payload.l !== "card") throw new Error();
-    expect(payload.x).toHaveLength(6);
+    expect(payload.x).toHaveLength(5);
     expect(payload.x[0]).toEqual({
       t: "Album 0",
       r: "Someone",
@@ -183,5 +185,86 @@ describe("URLs", () => {
     ).toMatch(
       /^https:\/\/vinylperiphery\.com\/s\?p=[\w-]+&to=%2Fresults%3Fartist%3Da%26album%3Db$/,
     );
+  });
+});
+
+describe("selectionCaption", () => {
+  const filtered = () => {
+    const s = search(1, "Unmap", [
+      [1, "Justin Vernon"],
+      [2, "Brian Joseph (2)"],
+      [3, "Chris Rosenau"],
+    ]);
+    s.roles = { Vocals: true, Engineer: true };
+    s.filterState = {
+      contributors: { 1: true, 2: true, 3: true },
+      roles: { Vocals: true, Engineer: true },
+      excludeMainArtist: true,
+      collaborationsOnly: false,
+      excludeVarious: false,
+    };
+    return s;
+  };
+
+  it("names the sorts, and nothing else at the reset state", () => {
+    expect(selectionCaption(filtered(), 12, "shared", null)).toBe(
+      "Top 12 by Shared",
+    );
+    expect(selectionCaption(filtered(), 5, "shared", "newest")).toBe(
+      "Top 5 by Shared, then Newest",
+    );
+  });
+
+  it("names each filter that differs from Reset", () => {
+    const s = filtered();
+    s.filterState.likedOnly = true;
+    s.filterState.collaborationsOnly = true;
+    s.filterState.contributors[3] = false;
+    s.filterState.roles.Engineer = false;
+    s.filterState.required = { contributors: [2], roles: ["Vocals"] };
+    expect(selectionCaption(s, 12, "popular", null)).toBe(
+      "Top 12 by Popular · Liked only · 2+ shared · Must include Brian Joseph, Vocals · 1 person off · 1 role off",
+    );
+  });
+});
+
+describe("albumMapPayload", () => {
+  it("places the top results and labels the people, with the caption", () => {
+    const s = search(1, "Unmap", [
+      [1, "Justin Vernon"],
+      [2, "Brian Joseph"],
+    ]);
+    const shown = [
+      {
+        key: "master:5",
+        title: "Bon Iver",
+        artist: "Bon Iver",
+        activeContributors: [1, 2],
+      },
+      {
+        key: "master:6",
+        title: "Hideaway",
+        artist: "S. Carey",
+        activeContributors: [1],
+      },
+    ] as unknown as ScoredRelease[];
+    const payload = albumMapPayload(
+      s,
+      shown,
+      {},
+      () => null,
+      "Top 2 by Shared",
+    );
+    if (payload.l !== "map") throw new Error();
+    expect(payload.c.t).toBe("Unmap");
+    expect(payload.n.map((n) => n.t)).toEqual(["Bon Iver", "Hideaway"]);
+    expect(payload.n.every((n) => typeof n.s === "number")).toBe(true);
+    // One person: just outside the circle.
+    expect(Math.hypot(payload.n[1].x, payload.n[1].y)).toBeGreaterThan(1000);
+    expect(payload.p.map((p) => p.n).sort()).toEqual([
+      "Brian Joseph",
+      "Justin Vernon",
+    ]);
+    expect(payload.d).toBe("Top 2 by Shared");
   });
 });

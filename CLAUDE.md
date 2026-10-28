@@ -20,9 +20,13 @@ ranks albums by how many of those people worked on them.
     them to the Google Sheet. See `docs/analytics.md`.
   - `og.js`: `GET /api/og?p=…` renders a square share image (1080x1080)
     (`@vercel/og`) from a payload in the URL (`backend/og/payload.js`;
-    built by `frontend/src/lib/share.ts`): a map of a stack (or one
-    search) and the liked albums around it, laid out by the client
-    (`frontend/src/lib/shareMap.ts`), or a list of top results. Never calls Discogs; only Cover
+    built by `frontend/src/lib/share.ts`): a map, laid out by the client,
+    or a list of top results. For one search, both draw its top results
+    as filtered and sorted on the page, with a line saying how they were
+    chosen; the map groups people around the circle by role category
+    (`frontend/src/lib/albumMap.ts`). For a stack, the map is its searches
+    and the liked albums around them (`frontend/src/lib/shareMap.ts`).
+    Never calls Discogs; only Cover
     Art Archive images, with initials when they don't load. Fonts are
     vendored in `backend/og/fonts` (SIL OFL).
   - `share.js`: `/s?p=…&to=…` (rewritten to `/api/share`) serves Open Graph
@@ -72,6 +76,7 @@ ranks albums by how many of those people worked on them.
     map.
   - `src/lib/filters.ts`: chip state, "must include" (`filterState.required`,
     optional because older saved searches lack it), active filter count.
+    "Only liked albums" is `filterState.likedOnly` (also optional).
   - `src/components/ui/`: shadcn primitives. Edit sparingly.
   - `src/lib/stacks.ts`: searches grouped by `lineage.stackId` (two or more
     make a stack), the stack's root, and the stacks a search fits

@@ -18,8 +18,10 @@ import { useLikes } from "@/hooks/useLikes";
 import { useCoverArt } from "@/hooks/useCoverArt";
 import { mapAlbums } from "@/lib/shareMap";
 import { track } from "@/lib/analytics";
-import { ScoredRelease } from "@/lib/results";
+import { ScoredRelease, SortKey, sortReleases } from "@/lib/results";
+import { ALBUM_MAP_RESULTS } from "@/lib/albumMap";
 import {
+  albumMapPayload,
   cardPayload,
   MapCentre,
   mapPayload,
@@ -27,6 +29,7 @@ import {
   shareImagePath,
   shareLink,
   SHARE_RESULTS,
+  selectionCaption,
 } from "@/lib/share";
 import { cn } from "@/lib/utils";
 import { dialogButton } from "../common/buttons";
@@ -45,6 +48,12 @@ interface ShareButtonProps {
    * just this search), with liked albums from their results.
    */
   map: { centre: MapCentre; members: SearchCache[] };
+  /**
+   * For one search: the results' order. Both layouts then draw its top
+   * albums as filtered and sorted on the page (no stack, no picking), and
+   * say how they were chosen. Without it, the map is the stack's.
+   */
+  selection?: { sort: SortKey; then: SortKey | null };
   /** Where the shared link opens: these results, or a stack. */
   to: string;
   /** Button style: compact icon on phones (results header) or labelled. */
@@ -110,6 +119,7 @@ const Segmented = <T extends string>({
 export const ShareButton: React.FC<ShareButtonProps> = ({
   search,
   map,
+  selection,
   to,
   compact = false,
 }) => {
@@ -123,11 +133,36 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState("");
 
+  // One search: its results in the page's order (filters already applied).
+  const ranked = useMemo(
+    () =>
+      selection
+        ? sortReleases(
+            releases as ScoredRelease[],
+            selection.sort,
+            selection.then,
+          )
+        : (releases as ScoredRelease[]),
+    [releases, selection],
+  );
+  const mapShown = useMemo(
+    () => (selection ? ranked.slice(0, ALBUM_MAP_RESULTS) : []),
+    [selection, ranked],
+  );
   // What the map would show around its centre.
   const around = useMemo(
-    () => (open ? mapAlbums(map.centre.key, map.members, likes) : []),
-    [open, map.centre.key, map.members, likes],
+    () =>
+      !open
+        ? []
+        : selection
+          ? mapShown
+          : mapAlbums(map.centre.key, map.members, likes),
+    [open, selection, mapShown, map.centre.key, map.members, likes],
   );
+  const caption = (count: number) =>
+    selection
+      ? selectionCaption(search, count, selection.sort, selection.then)
+      : undefined;
   // The albums either layout draws, so their covers can be looked up.
   const wanted = useMemo(
     () =>
@@ -136,10 +171,10 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
             map.centre.key,
             ...around.map((a) => a.key),
             search.target?.key ?? "",
-            ...releases.slice(0, SHARE_RESULTS).map((r) => r.key),
+            ...ranked.slice(0, SHARE_RESULTS).map((r) => r.key),
           ].filter(Boolean)
         : [],
-    [open, map.centre.key, around, search.target?.key, releases],
+    [open, map.centre.key, around, search.target?.key, ranked],
   );
   const cover = useCoverArt(wanted);
   const [waited, setWaited] = useState(false);
@@ -157,12 +192,29 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   const coverFor = (key: string) => coverResolver.get(key);
   const mapImage = useMemo(
     () =>
-      ready
-        ? mapPayload(map.centre, map.members, searches, likes, coverFor)
-        : null,
+      !ready
+        ? null
+        : selection
+          ? albumMapPayload(
+              search,
+              mapShown,
+              likes,
+              coverFor,
+              caption(mapShown.length),
+            )
+          : mapPayload(map.centre, map.members, searches, likes, coverFor),
     // coverFor reads the resolver; `covers` says when it has changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [ready, covers, map.centre.key, map.members, searches, likes],
+    [
+      ready,
+      covers,
+      selection,
+      mapShown,
+      map.centre.key,
+      map.members,
+      searches,
+      likes,
+    ],
   );
   // A map with nothing around its centre isn't worth sharing.
   const mapReady = around.length > 0;
@@ -171,10 +223,15 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     if (!ready) return null;
     return layout === "map"
       ? mapImage
-      : cardPayload(search, releases as ScoredRelease[], coverFor);
+      : cardPayload(
+          search,
+          ranked,
+          coverFor,
+          caption(Math.min(SHARE_RESULTS, ranked.length)),
+        );
     // coverFor reads the resolver; `covers` says when it has changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, covers, layout, mapImage, search, releases]);
+  }, [ready, covers, layout, mapImage, search, ranked, selection]);
 
   const image = payload ? shareImagePath(payload) : "";
   const link = payload ? shareLink(window.location.origin, payload, to) : "";
@@ -287,11 +344,15 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
               Share
             </SheetTitle>
             <SheetDescription className="text-left text-sm text-muted-foreground">
-              {layout === "map"
-                ? `A map of ${map.centre.title} and the albums around it, with a link back here.`
-                : `An image of what connects to ${search.searchParams.album}, with a link back here.`}
+              {selection
+                ? `The top albums connected to ${search.searchParams.album}, as your filters and sort show them, with a link back here.`
+                : layout === "map"
+                  ? `A map of ${map.centre.title} and the albums around it, with a link back here.`
+                  : `An image of what connects to ${search.searchParams.album}, with a link back here.`}
               {!mapReady &&
-                " Like albums in the results to share them as a map."}
+                (selection
+                  ? " No albums match these filters."
+                  : " Like albums in the results to share them as a map.")}
             </SheetDescription>
           </div>
 

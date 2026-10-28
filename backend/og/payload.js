@@ -4,15 +4,17 @@
 // only fetches are Cover Art Archive images.
 //
 // Version 1:
-//   { v: 1, l: "card", a: Album, x: Result[] }             periphery card
-//   { v: 1, l: "map",  c: Album, n: Placed[], p: Person[] } map
+//   { v: 1, l: "card", a: Album, x: Result[], d? }             periphery card
+//   { v: 1, l: "map",  c: Album, n: Placed[], p: Person[], d? } map
 //   Album  = { t: title, r: artist, i: art }
 //   Result = Album & { n: shared count }
 //   Placed = Album & { x, y: thousandths of the radius from the centre,
 //            y up, past 1000 for albums just outside the circle;
-//            z: size tier, 1 or 2 }
+//            z: size tier, 1 or 2;
+//            s?: cover side in thousandths of the radius, over z }
 //   Person = { n: name, a: angle in degrees, counter-clockwise from the right }
 //   art    = "g:<release-group mbid>" | "r:<release mbid>" | ""
+//   d      = how the albums were chosen ("Top 12 by Shared · Liked only")
 //
 // The map's positions are worked out by the client (shareMap.ts); the
 // renderer only draws them.
@@ -22,10 +24,16 @@
 export const MAX_PAYLOAD_CHARS = 6000;
 export const MAX_RESULTS = 6;
 export const MAX_MAP_ALBUMS = 24;
-export const MAX_MAP_PEOPLE = 8;
+export const MAX_MAP_PEOPLE = 16;
 const MAX_TITLE = 80;
 const MAX_ARTIST = 60;
 const MAX_NAME = 40;
+const MAX_CAPTION = 160;
+// Cover sides, as fractions of the radius; same as the client's MAP_SIZES
+// (shareMap.ts). `s` overrides the tier, within these bounds.
+export const MAP_SIZES = { centre: 0.46, 1: 0.28, 2: 0.36 };
+const MIN_SIDE = 0.12;
+const MAX_SIDE = 0.5;
 
 const MBID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -70,7 +78,8 @@ export function decodePayload(encoded) {
         n: Math.max(0, Math.min(999, Math.floor(Number(r?.n) || 0))),
       }))
       .filter((r) => r.t);
-    return { layout: "card", album: searched, results };
+    const caption = text(raw.d, MAX_CAPTION);
+    return { layout: "card", album: searched, results, caption };
   }
 
   if (raw.l === "map") {
@@ -84,6 +93,9 @@ export function decodePayload(encoded) {
         x: coordinate(n?.x),
         y: coordinate(n?.y),
         z: n?.z === 2 ? 2 : 1,
+        side: Number.isFinite(Number(n?.s)) && n?.s !== null && n?.s !== ""
+          ? Math.max(MIN_SIDE, Math.min(MAX_SIDE, Number(n.s) / 1000))
+          : MAP_SIZES[n?.z === 2 ? 2 : 1],
       }))
       .filter((n) => n.t);
     const people = list(raw.p, MAX_MAP_PEOPLE)
@@ -92,7 +104,8 @@ export function decodePayload(encoded) {
         angle: ((Math.round(Number(p?.a) || 0) % 360) + 360) % 360,
       }))
       .filter((p) => p.name);
-    return albums.length > 0 ? { layout: "map", centre, albums, people } : null;
+    const caption = text(raw.d, MAX_CAPTION);
+    return albums.length > 0 ? { layout: "map", centre, albums, people, caption } : null;
   }
 
   return null;

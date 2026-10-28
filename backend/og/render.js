@@ -7,6 +7,7 @@
 
 import { readFile } from "node:fs/promises";
 import { ImageResponse } from "@vercel/og";
+import { MAP_SIZES } from "./payload.js";
 
 // Mirrors docs/redesign/tokens.md. Satori has no CSS variables, so the
 // renderer spells the values out here, once.
@@ -108,6 +109,12 @@ const line = (text, style) =>
     text,
   );
 
+/** How the albums were chosen: one quiet mono line. */
+const caption = (text, fontSize) =>
+  text
+    ? line(text, { fontFamily: "IBM Plex Mono", fontSize, color: C.faint })
+    : null;
+
 const eyebrow = (text, scale) =>
   line(text, {
     fontFamily: "IBM Plex Mono",
@@ -160,6 +167,7 @@ export function cardElement(payload, size, art) {
           line(album.r, { fontSize: 32, color: C.muted }),
         ),
       ),
+      caption(payload.caption, 20),
       rows.length > 0 &&
         h(
           "div",
@@ -258,9 +266,6 @@ const tile = (album, dataUrl, side, accent) => {
   );
 };
 
-// Cover sides as fractions of the circle's radius; same as the client's
-// MAP_SIZES (shareMap.ts), which placed them.
-const MAP_SIZES = { centre: 0.46, 1: 0.28, 2: 0.36 };
 
 
 /** Two boxes ({ x, y, w, h }, top-left) overlap, with `margin` to spare. */
@@ -280,8 +285,9 @@ const overlaps = (a, b, margin = 0) =>
  */
 export function mapLayout(payload, radius, { width, height, labelWidth, labelHeight, gap }) {
   const middle = { x: width / 2, y: height / 2 };
-  const coverBox = (x, y, z) => {
-    const side = MAP_SIZES[z] * radius;
+  // An album's side as the client sized it (older links: by tier).
+  const coverBox = (x, y, side) => {
+    side *= radius;
     return {
       x: middle.x + x * radius - side / 2,
       y: middle.y - y * radius - side / 2,
@@ -290,8 +296,8 @@ export function mapLayout(payload, radius, { width, height, labelWidth, labelHei
     };
   };
   const covers = [
-    coverBox(0, 0, "centre"),
-    ...payload.albums.map((album) => coverBox(album.x, album.y, album.z)),
+    coverBox(0, 0, MAP_SIZES.centre),
+    ...payload.albums.map((album) => coverBox(album.x, album.y, album.side ?? MAP_SIZES[album.z])),
   ];
 
   const labelAt = (angle) => {
@@ -408,7 +414,7 @@ const MAP_LABEL = { labelWidth: 112, labelHeight: 36, gap: 10, edge: 10 };
 /** Map: the centre album, the albums around it, the people on the rim. */
 export function mapElement(payload, size, art) {
   const pad = 48;
-  const headerHeight = 118;
+  const headerHeight = payload.caption ? 146 : 118;
   const footerHeight = 32;
   // The map runs edge to edge, between the header and the footer.
   const top = pad + headerHeight;
@@ -503,6 +509,7 @@ export function mapElement(payload, size, art) {
         color: C.foreground,
       }),
       line(centre.r, { fontSize: 22, color: C.muted }),
+      payload.caption && h("div", { marginTop: 6 }, caption(payload.caption, 18)),
     ),
     // Footer, along the bottom.
     h(

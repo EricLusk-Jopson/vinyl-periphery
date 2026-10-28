@@ -18,6 +18,7 @@ import { FilterPanel } from "../filters/FilterPanel";
 import { FilterFrame } from "../filters/FilterFrame";
 import { AlbumHeader } from "./AlbumHeader";
 import { ReleaseList } from "./ReleaseList";
+import { useResultsSort } from "@/hooks/useResultsSort";
 
 interface ResultsPageProps {
   onSearchFrom: (params: SearchParams, known: KnownAlbum) => void;
@@ -66,6 +67,7 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
     : "";
   const search = searches[searchId];
   const back = backLink(location.state);
+  const order = useResultsSort();
 
   // Keep the cache's active search in step with the URL.
   useEffect(() => {
@@ -120,7 +122,7 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
           {back.label}
         </Link>
       </div>
-      <AlbumHeader search={search} />
+      <AlbumHeader search={search} order={order} />
       <div className="mx-auto max-w-[1280px] px-4 pb-12 md:px-6 lg:flex lg:pt-8 lg:items-start lg:gap-8 lg:pb-24">
         <aside
           aria-label="Filters"
@@ -131,6 +133,7 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
         <div className="min-w-0 flex-1">
           <ReleaseList
             searchId={searchId}
+            order={order}
             onSearchFrom={onSearchFrom}
             isSearching={isSearching}
             toolbarAction={

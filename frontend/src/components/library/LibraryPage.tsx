@@ -10,7 +10,10 @@ import {
   groupStacks,
   LibraryStack,
   searchLibrary,
+  isInStack,
+  savingNeedsChoice,
   stackLabel,
+  stacksThisFits,
 } from "@/lib/stacks";
 import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
@@ -18,6 +21,7 @@ import { ToastAction } from "../ui/toast";
 import { ChoiceDialog } from "../common/ChoiceDialog";
 import { dialogButton } from "../common/buttons";
 import { LibraryCard } from "./LibraryCard";
+import { SaveDrawer } from "./SaveDrawer";
 import { StackCard } from "./StackCard";
 
 const focusRing =
@@ -194,8 +198,24 @@ export const LibraryPage: React.FC = () => {
     keepFocus(index);
   };
 
+  // The search the save drawer is open for, and how.
+  const [drawer, setDrawer] = useState<{
+    search: SearchCache;
+    mode: "save" | "stack";
+  } | null>(null);
+
   const toggleSave = async (searchId: string) => {
     const wasSaved = savedSearchIds.has(searchId);
+    // As on the results page: with a trail or a stack it fits, ask how.
+    const search = searches[searchId];
+    if (
+      !wasSaved &&
+      search &&
+      savingNeedsChoice(search, searches, savedSearchIds)
+    ) {
+      setDrawer({ search, mode: "save" });
+      return;
+    }
     await (wasSaved ? unsaveSearch : saveSearch)(searchId);
     track("search_saved", { saved: !wasSaved, from: "library" });
   };
@@ -207,6 +227,13 @@ export const LibraryPage: React.FC = () => {
     track("library_view_toggled", { view: next });
   };
 
+  // Saved searches on their own that fit somewhere get a Stack button.
+  const canStack = (search: SearchCache) =>
+    savedSearchIds.has(search.searchId) &&
+    !isInStack(search, searches, savedSearchIds) &&
+    stacksThisFits(search, searches, savedSearchIds, { singles: true }).length >
+      0;
+
   const card = (search: SearchCache, note?: string) => (
     <LibraryCard
       key={search.searchId}
@@ -216,6 +243,11 @@ export const LibraryPage: React.FC = () => {
       note={note}
       onToggleSave={() => toggleSave(search.searchId)}
       onDelete={() => remove(search.searchId)}
+      onStack={
+        canStack(search)
+          ? () => setDrawer({ search, mode: "stack" })
+          : undefined
+      }
     />
   );
 
@@ -390,6 +422,16 @@ export const LibraryPage: React.FC = () => {
           body
         )}
       </div>
+
+      {drawer && (
+        <SaveDrawer
+          search={searches[drawer.search.searchId] ?? drawer.search}
+          mode={drawer.mode}
+          from="library"
+          open
+          onOpenChange={(open) => !open && setDrawer(null)}
+        />
+      )}
 
       <ChoiceDialog
         open={stackToDelete !== null}

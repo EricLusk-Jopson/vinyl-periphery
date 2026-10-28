@@ -62,8 +62,10 @@ ranks albums by how many of those people worked on them.
     optional because older saved searches lack it), active filter count.
   - `src/components/ui/`: shadcn primitives. Edit sparingly.
   - `src/lib/stacks.ts`: saved searches grouped by `lineage.stackId` (two or
-    more make a stack), the stack's root, ghosted unsaved steps, and the
-    ancestors the save drawer offers. No stack entity is stored.
+    more make a stack), the stack's root, ghosted unsaved steps, the
+    ancestors the save drawer offers, and the stacks a search fits
+    (`stacksThisFits`: a saved member has it in its results). No stack
+    entity is stored.
   - Routes (React Router): `/` home, `/library` (`?tab=saved`),
     `/library/stack/:stackId`, and
     `/results?artist=…&album=…`, plus `&master=N` or `&release=N` when the

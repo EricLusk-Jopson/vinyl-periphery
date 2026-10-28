@@ -3,6 +3,8 @@ import { SearchParams } from "@/api/types";
 import { KnownAlbum } from "@/hooks/useSearchRun";
 import { useCoverArt } from "@/hooks/useCoverArt";
 import { searchTarget } from "@/lib/searchTarget";
+import { resultPath } from "@/lib/routes";
+import { SearchCache } from "@/contexts/cache/types";
 import {
   useCache,
   useFilteredAndScoredReleases,
@@ -69,6 +71,16 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
     () => sortReleases(releases as ScoredRelease[], sort),
     [releases, sort],
   );
+
+  // Albums already searched (this session or saved), by target key, so
+  // their rows open that search instead of running another.
+  const searchedByKey = useMemo(() => {
+    const byKey = new Map<string, SearchCache>();
+    for (const s of Object.values(searches)) {
+      if (s.target && s.searchId !== searchId) byKey.set(s.target.key, s);
+    }
+    return byKey;
+  }, [searches, searchId]);
 
   // Art for rows on screen first, then the rest of the list.
   const coverKeys = useMemo(() => sorted.map((r) => r.key), [sorted]);
@@ -153,6 +165,17 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
                 key={release.key}
                 release={release}
                 cover={cover(release.key)}
+                existing={(() => {
+                  const found = searchedByKey.get(release.key);
+                  return found
+                    ? {
+                        to: resultPath(found.searchParams, found.target),
+                        state: { from: "home" },
+                        onOpen: () =>
+                          track("search_jumped", { from: "result" }),
+                      }
+                    : undefined;
+                })()}
                 people={people}
                 searchedAlbum={search.searchParams.album}
                 open={openKey === release.key}

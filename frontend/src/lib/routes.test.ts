@@ -7,6 +7,7 @@ import {
   resultParams,
   resultPath,
   resultTarget,
+  stackPath,
 } from "./routes";
 import { searchTarget } from "./searchTarget";
 
@@ -110,6 +111,23 @@ describe("fromLocation", () => {
     expect(fromLocation("/", "")).toEqual({ from: "home" });
     expect(fromLocation("/results", "?artist=a&album=b")).toEqual({
       from: "home",
+    });
+  });
+});
+
+describe("stack routes", () => {
+  const stackId = "Volcano Choir-Unmap-1700000000000";
+
+  it("encodes the stack id and round-trips through fromLocation", () => {
+    const path = stackPath(stackId);
+    expect(path).toBe("/library/stack/Volcano%20Choir-Unmap-1700000000000");
+    expect(fromLocation(path, "")).toEqual({ from: "stack", stackId });
+  });
+
+  it("sends results opened from a stack back to it", () => {
+    expect(backLink({ from: "stack", stackId })).toEqual({
+      to: stackPath(stackId),
+      label: "Back to stack",
     });
   });
 });

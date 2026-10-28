@@ -2,7 +2,9 @@
 import { SearchCache } from "@/contexts/cache/types";
 
 const DB_NAME = "vinyl-periphery";
-const DB_VERSION = 1;
+// v2: index on lineage.stackId, for library stacks. Records from v1 have no
+// lineage and stay out of the index (roots).
+const DB_VERSION = 2;
 const STORE_NAME = "saved-searches";
 
 interface SavedSearchCache extends SearchCache {
@@ -29,15 +31,21 @@ class DatabaseService {
         const db = (event.target as IDBOpenDBRequest).result;
 
         // Create the object store if it doesn't exist
-        if (!db.objectStoreNames.contains(STORE_NAME)) {
-          const store = db.createObjectStore(STORE_NAME, {
-            keyPath: "searchId",
-          });
+        const store = db.objectStoreNames.contains(STORE_NAME)
+          ? request.transaction!.objectStore(STORE_NAME)
+          : db.createObjectStore(STORE_NAME, { keyPath: "searchId" });
 
-          // Create indexes for searching
-          store.createIndex("artist", "searchParams.artist", { unique: false });
-          store.createIndex("album", "searchParams.album", { unique: false });
-          store.createIndex("savedAt", "savedAt", { unique: false });
+        // Indexes for searching, added by whichever version lacks them.
+        const indexes = [
+          ["artist", "searchParams.artist"],
+          ["album", "searchParams.album"],
+          ["savedAt", "savedAt"],
+          ["stackId", "lineage.stackId"],
+        ];
+        for (const [name, keyPath] of indexes) {
+          if (!store.indexNames.contains(name)) {
+            store.createIndex(name, keyPath, { unique: false });
+          }
         }
       };
     });
@@ -56,18 +64,10 @@ class DatabaseService {
       savedAt: Date.now(),
     };
 
-    // Log the object being saved for debugging
-    console.log("Saving search:", savedSearch);
-
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction(STORE_NAME, "readwrite");
       const store = transaction.objectStore(STORE_NAME);
 
-      console.log("About to save:", {
-        searchId: savedSearch.searchId,
-        type: typeof savedSearch.searchId,
-        fullObject: JSON.stringify(savedSearch, null, 2),
-      });
       const request = store.put(savedSearch);
 
       request.onerror = () => {
@@ -93,7 +93,7 @@ class DatabaseService {
         // Convert SavedSearchCache to SearchCache by omitting savedAt
         const savedSearches = request.result as SavedSearchCache[];
         const searches: SearchCache[] = savedSearches.map(
-          ({ ...search }) => search
+          ({ ...search }) => search,
         );
         resolve(searches);
       };

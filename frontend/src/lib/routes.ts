@@ -11,6 +11,13 @@ export const LIBRARY_PATH = "/library";
 export const libraryPath = (tab: LibraryTab = "session"): string =>
   tab === "session" ? LIBRARY_PATH : `${LIBRARY_PATH}?tab=saved`;
 
+/** Route pattern for one saved stack. */
+export const STACK_ROUTE = `${LIBRARY_PATH}/stack/:stackId`;
+
+/** One saved stack's page. Stack ids contain spaces and hyphens. */
+export const stackPath = (stackId: string): string =>
+  `${LIBRARY_PATH}/stack/${encodeURIComponent(stackId)}`;
+
 /** The tab named in a `?tab=` query, defaulting to this session. */
 export const libraryTab = (search: string): LibraryTab =>
   new URLSearchParams(search).get("tab") === "saved" ? "saved" : "session";
@@ -67,11 +74,17 @@ export const legacyResultParams = (searchId: string): SearchParams | null => {
 /** Router state passed when opening a result, naming where it came from. */
 export type ResultFrom =
   | { from: "home" }
-  | { from: "library"; tab: LibraryTab };
+  | { from: "library"; tab: LibraryTab }
+  | { from: "stack"; stackId: string };
 
 /** The back link for a result, from the state it was opened with. */
 export const backLink = (state: unknown): { to: string; label: string } => {
-  const from = state as Partial<ResultFrom> | null;
+  const from = state as
+    | (Partial<ResultFrom> & { tab?: LibraryTab; stackId?: string })
+    | null;
+  if (from?.from === "stack" && from.stackId) {
+    return { to: stackPath(from.stackId), label: "Back to stack" };
+  }
   if (from?.from === "library") {
     return {
       to: libraryPath(from.tab === "saved" ? "saved" : "session"),
@@ -82,7 +95,10 @@ export const backLink = (state: unknown): { to: string; label: string } => {
 };
 
 /** Where the user is now, as the state for a result opened from here. */
-export const fromLocation = (pathname: string, search: string): ResultFrom =>
-  pathname === LIBRARY_PATH
+export const fromLocation = (pathname: string, search: string): ResultFrom => {
+  const stack = pathname.match(/^\/library\/stack\/([^/]+)$/);
+  if (stack) return { from: "stack", stackId: decodeURIComponent(stack[1]) };
+  return pathname === LIBRARY_PATH
     ? { from: "library", tab: libraryTab(search) }
     : { from: "home" };
+};

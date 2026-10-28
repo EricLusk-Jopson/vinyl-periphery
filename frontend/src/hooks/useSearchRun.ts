@@ -18,6 +18,7 @@ import { useCache } from "@/contexts/cache/CacheContext";
 import { coverUrl, usableImageUrl } from "@/lib/searches";
 import { targetFromSearchResult } from "@/lib/searchTarget";
 import { SearchOrigin } from "@/lib/lineage";
+import { SearchLineage } from "@/contexts/cache/types";
 import { preloadImage } from "@/lib/preloadImage";
 import { joinWithin, secondsSince, track } from "@/lib/analytics";
 import { uncategorizedRoles } from "@/lib/transformers/roleCategories";
@@ -66,6 +67,8 @@ export interface KnownAlbum {
   thumb?: string;
   /** The search and row it was started from, for lineage. */
   from?: SearchOrigin;
+  /** A known place in a trail, e.g. a ghosted stack step searched again. */
+  lineage?: SearchLineage;
 }
 
 interface SearchRunOptions {
@@ -78,6 +81,16 @@ interface SearchRunOptions {
   onNotFound: (params: SearchParams) => void;
   /** Not started: the session has no room for another search. */
   onSessionFull: () => void;
+  /**
+   * A typed search found an album already searched (in this session or
+   * saved). Stopped before reading credits, so the user can open it or
+   * search again.
+   */
+  onAlreadySearched: (
+    searchId: string,
+    params: SearchParams,
+    target: SearchTarget,
+  ) => void;
   /** `phase` says whether it failed before or after the album was found. */
   onError: (error: unknown, phase: SearchRun["phase"]) => void;
 }
@@ -91,9 +104,12 @@ export const useSearchRun = ({
   onComplete,
   onNotFound,
   onSessionFull,
+  onAlreadySearched,
   onError,
 }: SearchRunOptions) => {
-  const { addSearch, hasRoomForAnotherSearch } = useCache();
+  const { addSearch, hasRoomForAnotherSearch, searches } = useCache();
+  const searchesRef = useRef(searches);
+  searchesRef.current = searches;
   const searchMutation = useDiscogsSearch();
   const contributorsMutation = useListReleaseContributors();
   const releasesMutation = useListContributorReleases();
@@ -106,9 +122,16 @@ export const useSearchRun = ({
     onComplete,
     onNotFound,
     onSessionFull,
+    onAlreadySearched,
     onError,
   });
-  callbacksRef.current = { onComplete, onNotFound, onSessionFull, onError };
+  callbacksRef.current = {
+    onComplete,
+    onNotFound,
+    onSessionFull,
+    onAlreadySearched,
+    onError,
+  };
 
   useEffect(() => () => controllerRef.current?.abort(), []);
 
@@ -192,6 +215,20 @@ export const useSearchRun = ({
             return;
           }
           target = targetFromSearchResult(searchResults[0]);
+          // Already searched this album: offer it instead of a new root.
+          const existing =
+            target &&
+            Object.values(searchesRef.current).find(
+              (s) => s.target?.key === target!.key,
+            );
+          if (existing && target) {
+            callbacksRef.current.onAlreadySearched(
+              existing.searchId,
+              params,
+              target,
+            );
+            return;
+          }
           releasesToRead = searchResults;
           thumb = coverUrl(searchResults[0]);
         }
@@ -249,6 +286,7 @@ export const useSearchRun = ({
           thumb,
           target,
           known?.from,
+          known?.lineage,
         );
         // Roles the category table doesn't know yet, so it can grow.
         const allRoles = Object.values(contributorSet.contributors).flatMap(

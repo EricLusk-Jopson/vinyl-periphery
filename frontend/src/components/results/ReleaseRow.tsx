@@ -1,5 +1,6 @@
 import React, { useId } from "react";
-import { ArrowUpRight, Loader2, RotateCw } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ArrowRight, ArrowUpRight, Loader2, RotateCw } from "lucide-react";
 import { creditsTarget } from "@/api/releaseCredits";
 import { useReleaseCredits } from "@/api/useReleaseCredits";
 import {
@@ -26,6 +27,11 @@ interface ReleaseRowProps {
   open: boolean;
   onToggle: () => void;
   onSearchFrom: () => void;
+  /**
+   * This album's results, when it's already been searched (this session or
+   * saved): shown instead of "Search from this album".
+   */
+  existing?: { to: string; state: unknown; onOpen: () => void };
   /** Called when the Discogs link is followed. */
   onOpenDiscogs?: () => void;
   /** A search is under way; true for this row if it started it. */
@@ -50,6 +56,7 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
   open,
   onToggle,
   onSearchFrom,
+  existing,
   onOpenDiscogs,
   searching,
   searchingFromHere,
@@ -240,20 +247,37 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
               <span className="sr-only">(opens in a new tab)</span>
             </a>
           )}
-          <button
-            type="button"
-            onClick={onSearchFrom}
-            disabled={searching}
-            className={cn(
-              "inline-flex min-h-11 items-center gap-2 rounded-sm text-foreground transition-colors hover:text-primary-text disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:text-foreground",
-              focusRing,
-            )}
-          >
-            {searchingFromHere && (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            )}
-            {searchingFromHere ? "Finding the album" : "Search from this album"}
-          </button>
+          {existing ? (
+            <Link
+              to={existing.to}
+              state={existing.state}
+              onClick={existing.onOpen}
+              className={cn(
+                "inline-flex min-h-11 items-center gap-2 rounded-sm text-foreground transition-colors hover:text-primary-text",
+                focusRing,
+              )}
+            >
+              Open your search
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={onSearchFrom}
+              disabled={searching}
+              className={cn(
+                "inline-flex min-h-11 items-center gap-2 rounded-sm text-foreground transition-colors hover:text-primary-text disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:text-foreground",
+                focusRing,
+              )}
+            >
+              {searchingFromHere && (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              )}
+              {searchingFromHere
+                ? "Finding the album"
+                : "Search from this album"}
+            </button>
+          )}
         </div>
       </div>
     </li>

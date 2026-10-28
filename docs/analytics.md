@@ -90,10 +90,18 @@ To test locally, put both Vinyl Periphery variables in `.env` and run
 | `result_opened` | A result row is expanded | `rank`, `shared`, `sort` |
 | `discogs_opened` | "View on Discogs" is followed | `rank`, `shared`, `sort` |
 | `filter_changed` | Any filter, switch, select-all or reset | `filter`, `on`; `category` for `role_category`. `filter` is one of `hide_main_artist`, `two_plus_shared`, `hide_various`, `contributor`, `role`, `all_contributors`, `all_roles`, `role_category`, `must_include_contributor`, `must_include_role`, `reset` |
-| `search_saved` | A search is saved or unsaved | `saved`, `from`: results or library |
+| `search_saved` | A search is saved or unsaved in one tap, or saved on its own from the save drawer | `saved`, `from`: results or library; `alone`: true when saved on its own from the save drawer |
 | `result_credits` | An opened result's credits are fetched from Discogs (not when read from storage) | `outcome`: loaded or failed, `shared` (people linking it), `found` (of those, how many its credits name), `hinted` (of the rest, how many have a discography role to show instead), `from_main_release`; `status` (HTTP status, 0 offline) when failed |
 | `cover_lookup` | Every result in a search has art or is known to have none (once per search per page load) | `albums`, `hits` (art found, from storage or MusicBrainz), `misses` (no MusicBrainz link, or the lookup failed) |
 | `search_blocked` | A search isn't started because the session has no room for it (sessionStorage budget) | `reason`: session_full, `source` |
+| `stack_saved` | Searches are saved together from the save drawer, or a search is added to a saved stack it fits (or starts one after a saved search, from a library card's Stack button) | `members` (saved searches in the stack afterwards), `depth` (of the search saved from), `from`: results or library; `joined`: true when added to a stack it fits; `new_stack`: from the Stack button, true when it starts a stack; `moved`: true when it left another stack to join |
+| `stack_opened` | A stack's page is opened | `members`, `ghosts` (unsaved steps shown) |
+| `stack_deleted` | A whole stack is deleted after confirming (library card or stack page) | `members` |
+| `stack_disbanded` | A stack is disbanded after confirming: its searches stay saved, each on its own | `members` |
+| `search_unstacked` | A saved search is taken out of its stack from a Stack button (results page, library card or stack page; it stays saved, on its own) | `from`: results or library, `members` (saved searches left in the stack), `depth` (its step in the stack) |
+| `search_jumped` | An existing search is opened instead of running a new one | `from`: result (a result row) or form (the search bar) |
+| `library_view_toggled` | The Saved tab switches between stacked and flat | `view`: stacked or flat |
+| `library_searched` | The library search is used (once typing pauses) | `results`, `length` (characters typed; the text isn't sent) |
 
 ## Uncategorized roles
 

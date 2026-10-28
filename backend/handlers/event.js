@@ -31,6 +31,14 @@ export const EVENTS = new Set([
   "result_credits",
   "cover_lookup",
   "search_blocked",
+  "stack_saved",
+  "stack_opened",
+  "stack_deleted",
+  "search_unstacked",
+  "stack_disbanded",
+  "search_jumped",
+  "library_view_toggled",
+  "library_searched",
 ]);
 
 const MAX_PROPERTIES = 20;

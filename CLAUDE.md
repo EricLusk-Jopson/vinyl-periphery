@@ -38,7 +38,12 @@ ranks albums by how many of those people worked on them.
     `useCoverArt` gives rows Cover Art Archive URLs as they resolve. No
     Discogs image calls.
   - `src/contexts/cache/`: search results, filter state, persistence
-    (sessionStorage and IndexedDB).
+    (sessionStorage and IndexedDB). sessionStorage holds unsaved searches
+    only, within `SESSION_BUDGET_CHARS` (`src/lib/sessionBudget.ts`): a
+    search that wouldn't fit is blocked with a prompt to make room.
+  - `src/lib/lineage.ts`: how each search was reached (`SearchCache.lineage`).
+    Searches from a result row continue their parent's trail; everything
+    else is a root. Stored as snapshots, never derived.
   - `src/lib/transformers/`: role and name cleanup, with Jest tests.
     `roleCategories.ts` puts roles into the buckets the Roles filter groups
     by (Musicians, Writing, Audio, Physical media, Management, Other).

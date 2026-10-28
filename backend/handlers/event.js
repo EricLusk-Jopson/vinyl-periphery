@@ -30,6 +30,7 @@ export const EVENTS = new Set([
   "search_saved",
   "result_credits",
   "cover_lookup",
+  "search_blocked",
 ]);
 
 const MAX_PROPERTIES = 20;

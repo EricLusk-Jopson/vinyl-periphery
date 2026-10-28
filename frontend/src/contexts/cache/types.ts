@@ -5,10 +5,39 @@ import {
   EnrichedRelease,
   ContributorSet,
 } from "../../api/types";
+import type { SearchOrigin } from "@/lib/lineage";
 
 export interface RequiredFilters {
   contributors: number[];
   roles: string[];
+}
+
+/** One search on the trail to another, as it was when the child ran. */
+export interface LineageStep {
+  searchId: string;
+  /** e.g. "master:123"; empty for a search from before targets. */
+  targetKey: string;
+  title: string;
+  artist: string;
+  /** Whatever art URL was known at the time. */
+  thumb: string;
+  /** Contributor ids that linked this step to the previous one. Empty for the root. */
+  via: number[];
+}
+
+/**
+ * How a search was reached. Stored, never derived: deleting a search in the
+ * middle of a trail changes nothing for the searches after it.
+ */
+export interface SearchLineage {
+  /** The root search's id when the trail started. Never changes. */
+  stackId: string;
+  /** Steps from the root, as explored. 0 for a root. */
+  depth: number;
+  /** Root first, ending with this search's parent. Snapshots, not references. */
+  path: LineageStep[];
+  /** Contributor ids that linked this search to its parent. Empty for a root. */
+  via: number[];
 }
 
 export interface SearchCache {
@@ -17,6 +46,8 @@ export interface SearchCache {
   searchParams: SearchParams;
   /** Which Discogs album this is. Missing on searches from before ids. */
   target?: SearchTarget;
+  /** How this search was reached. Missing on older searches: those are roots. */
+  lineage?: SearchLineage;
   contributors: Record<number, Contributor>;
   roles: Record<string, boolean>;
   /** Keyed by `EnrichedRelease.key` ("master:N" / "release:N"). */
@@ -57,8 +88,11 @@ export interface CacheContextValue extends CacheState {
     contributorSet: ContributorSet,
     releases: Record<string, EnrichedRelease>,
     thumb: string,
-    target?: SearchTarget | null
+    target?: SearchTarget | null,
+    origin?: SearchOrigin
   ) => string;
+  /** Whether another search is expected to fit in sessionStorage. */
+  hasRoomForAnotherSearch: () => boolean;
   updateFilterState: (
     searchId: string,
     updates: Partial<SearchCache["filterState"]>

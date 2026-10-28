@@ -28,6 +28,7 @@ import { pageName, track } from "./lib/analytics";
 import {
   HOME_PATH,
   LIBRARY_PATH,
+  libraryPath,
   RESULTS_PATH,
   fromLocation,
   resultPath,
@@ -107,6 +108,22 @@ const App: React.FC = () => {
         title: "Album not found",
         description: `Discogs has nothing for ${params.album} by ${params.artist}. Check the spelling and try again.`,
         variant: "destructive",
+      });
+    },
+    onSessionFull: () => {
+      toast({
+        title: "This session is full",
+        description:
+          "Save a search you want to keep, or clear older session searches, to make room for another.",
+        variant: "destructive",
+        action: (
+          <ToastAction
+            altText="Open your library"
+            onClick={() => navigate(libraryPath("session"))}
+          >
+            Open library
+          </ToastAction>
+        ),
       });
     },
     onError: (_error, phase) => {

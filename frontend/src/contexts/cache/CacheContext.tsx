@@ -18,6 +18,14 @@ import { CacheContextValue, CacheState, SearchCache } from "./types";
 import { calculateReleaseScore } from "@/api/contributorSet";
 import { matchingSearchIds } from "@/lib/searchTarget";
 import { migrateSearch } from "@/lib/releases";
+import { lineageForNewSearch, SearchOrigin } from "@/lib/lineage";
+import {
+  estimateNextSearch,
+  hasRoomForSearch,
+  sessionSnapshot,
+  writeSession,
+} from "@/lib/sessionBudget";
+import { coverResolver } from "@/api/coverArt";
 import {
   enforceRequired,
   isContributorCounted,
@@ -131,14 +139,29 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
     }));
   }, []);
 
-  // Sync to session storage whenever state changes
+  // Sync to session storage whenever state changes. Only unsaved searches:
+  // saved ones live in IndexedDB and reload from there. A refused write
+  // (quota, blocked storage) leaves the session in memory only; the budget
+  // check stops it getting there in normal use.
+  const sessionCharsRef = useRef(0);
   useEffect(() => {
-    const toStore = {
-      ...state,
-      savedSearchIds: Array.from(state.savedSearchIds),
-    };
-    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(toStore));
+    const { chars, stored } = writeSession(
+      sessionStorage,
+      SESSION_STORAGE_KEY,
+      sessionSnapshot(state)
+    );
+    sessionCharsRef.current = chars;
+    if (!stored) console.warn("Session storage refused the session.");
   }, [state]);
+
+  const hasRoomForAnotherSearch = useCallback(
+    () =>
+      hasRoomForSearch(
+        sessionCharsRef.current,
+        estimateNextSearch(Object.values(stateRef.current.searches))
+      ),
+    []
+  );
 
   const addSearch = useCallback(
     (
@@ -146,7 +169,8 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
       contributorSet: ContributorSet,
       releases: Record<string, EnrichedRelease>,
       thumb: string,
-      target?: SearchTarget | null
+      target?: SearchTarget | null,
+      origin?: SearchOrigin
     ): string => {
       const searchId = `${params.artist}-${params.album}-${Date.now()}`;
 
@@ -190,6 +214,21 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
       const wasSaved = replaced.some((id) =>
         stateRef.current.savedSearchIds.has(id)
       );
+      // A repeat run keeps the trail it was on; a search from a result row
+      // continues its parent's; anything else starts one.
+      const parent = origin
+        ? stateRef.current.searches[origin.parentSearchId]
+        : undefined;
+      const lineage = lineageForNewSearch({
+        searchId,
+        replaced: replaced.map((id) => stateRef.current.searches[id]),
+        parent,
+        origin,
+        parentThumb:
+          parent?.thumb ||
+          (parent?.target && coverResolver.get(parent.target.key)) ||
+          "",
+      });
       const newSearch: SearchCache = {
         searchId,
         searchParams: params,
@@ -199,6 +238,7 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
         releases,
         filterState,
         thumb,
+        lineage,
         ...(wasSaved ? { savedAt: Date.now() } : {}),
       };
 
@@ -408,6 +448,7 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
     setActiveSearch,
     clearActiveSearch,
     addSearch,
+    hasRoomForAnotherSearch,
     saveSearch,
     unsaveSearch,
     isSearchSaved,

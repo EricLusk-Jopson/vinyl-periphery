@@ -29,7 +29,7 @@ const result = (
     resource_url,
     contributorIds: [],
     ...extra,
-  }) as EnrichedRelease;
+  }) as unknown as EnrichedRelease;
 
 describe("discographyAppearance", () => {
   it("reads role and trackinfo from a discography entry", () => {
@@ -67,6 +67,17 @@ describe("creditsTarget", () => {
     expect(creditsTarget(result("https://api.discogs.com/masters/34"))).toEqual(
       { kind: "master", id: 34 },
     );
+  });
+
+  it("prefers the result's own type, id and main release", () => {
+    expect(
+      creditsTarget({
+        id: 34,
+        type: "master",
+        key: "master:34",
+        mainRelease: 56,
+      } as EnrichedRelease),
+    ).toEqual({ kind: "master", id: 34, mainRelease: 56 });
   });
 
   it("is null for anything else", () => {

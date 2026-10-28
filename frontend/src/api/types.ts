@@ -87,8 +87,27 @@ export interface Appearance {
   trackinfo?: string;
 }
 
+export type ReleaseType = "master" | "release";
+
 export interface EnrichedRelease {
   id: number;
+  /** Masters and releases have separate id spaces. */
+  type: ReleaseType;
+  /** "master:123" or "release:456": unique across both, used as the map key. */
+  key: string;
+  /**
+   * For a master, the `main_release` from the first contributor's
+   * discography item. Artist releases set it per person and role (the
+   * release where they have that credit), not to the master's own main
+   * release.
+   */
+  mainRelease?: number;
+  /**
+   * For a release, its master when the discography item says so. Artist
+   * releases don't send it (none of 32 release items sampled had one); kept
+   * so other sources can fold releases into masters.
+   */
+  masterId?: number;
   title: string;
   year: string;
   artist: string;

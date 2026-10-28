@@ -18,6 +18,8 @@ const release = (
   activeContributors: number[] = [],
 ): ScoredRelease => ({
   id,
+  type: "release",
+  key: `release:${id}`,
   title: `Title ${id}`,
   artist,
   year,

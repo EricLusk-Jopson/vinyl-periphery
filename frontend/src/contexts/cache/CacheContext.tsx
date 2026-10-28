@@ -16,6 +16,7 @@ import { db } from "@/services/db";
 import { CacheContextValue, CacheState, SearchCache } from "./types";
 import { calculateReleaseScore } from "@/api/contributorSet";
 import { sameSearchIds } from "@/lib/searches";
+import { migrateSearch } from "@/lib/releases";
 import {
   enforceRequired,
   isContributorCounted,
@@ -49,6 +50,13 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
         const parsed = JSON.parse(sessionData);
         return {
           ...parsed,
+          // Searches stored before results were keyed by "master:N" /
+          // "release:N" are migrated as they load.
+          searches: Object.fromEntries(
+            Object.entries(
+              (parsed.searches ?? {}) as Record<string, SearchCache>,
+            ).map(([id, s]) => [id, migrateSearch(s)]),
+          ),
           savedSearchIds: new Set(parsed.savedSearchIds || []),
         };
       } catch (e) {
@@ -89,7 +97,9 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
           ...prev,
           searches: {
             ...prev.searches,
-            ...Object.fromEntries(saved.map((s) => [s.searchId, s])),
+            ...Object.fromEntries(
+              saved.map((s) => [s.searchId, migrateSearch(s)]),
+            ),
           },
           savedSearchIds: new Set([
             ...prev.savedSearchIds,
@@ -133,7 +143,7 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
     (
       params: SearchParams,
       contributorSet: ContributorSet,
-      releases: Record<number, EnrichedRelease>,
+      releases: Record<string, EnrichedRelease>,
       thumb: string
     ): string => {
       const searchId = `${params.artist}-${params.album}-${Date.now()}`;

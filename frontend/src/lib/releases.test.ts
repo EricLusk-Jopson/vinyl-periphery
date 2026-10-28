@@ -1,0 +1,192 @@
+import { EnrichedRelease } from "@/api/types";
+import { SearchCache } from "@/contexts/cache/types";
+import {
+  addRelease,
+  migrateReleases,
+  migrateSearch,
+  releaseKey,
+  releaseType,
+  toEnrichedRelease,
+} from "./releases";
+
+// Shaped like real /artists/{id}/releases items.
+const master = {
+  id: 51539,
+  title: "The Lonesome Crowded West",
+  type: "master",
+  main_release: 22460452,
+  artist: "Modest Mouse",
+  role: "Appearance",
+  resource_url: "https://api.discogs.com/masters/51539",
+  year: 2022,
+  thumb: "",
+};
+const mainVersion = {
+  id: 22460452,
+  title: "The Lonesome Crowded West",
+  type: "release",
+  artist: "Modest Mouse",
+  role: "Main",
+  resource_url: "https://api.discogs.com/releases/22460452",
+  year: 2022,
+  thumb: "",
+};
+// A release with the same numeric id as the master, a different album.
+const sameIdRelease = {
+  id: 51539,
+  title: "Something Else",
+  type: "release",
+  artist: "Other Band",
+  resource_url: "https://api.discogs.com/releases/51539",
+  year: 1990,
+};
+
+const results = (map: Map<string, EnrichedRelease>) =>
+  Array.from(map.values()).map((r) => [r.key, r.contributorIds]);
+
+describe("releaseKey and releaseType", () => {
+  it("keys masters and releases apart", () => {
+    expect(releaseKey("master", 1)).toBe("master:1");
+    expect(releaseKey("release", 1)).toBe("release:1");
+  });
+
+  it("reads the type, falling back to the resource URL", () => {
+    expect(releaseType({ type: "master" })).toBe("master");
+    expect(
+      releaseType({ resource_url: "https://api.discogs.com/masters/9" }),
+    ).toBe("master");
+    expect(
+      releaseType({ resource_url: "https://api.discogs.com/releases/9" }),
+    ).toBe("release");
+    expect(releaseType({})).toBe("release");
+  });
+});
+
+describe("toEnrichedRelease", () => {
+  it("keeps only the fields results use, with type and key", () => {
+    expect(toEnrichedRelease(master, 7)).toEqual({
+      id: 51539,
+      type: "master",
+      key: "master:51539",
+      mainRelease: 22460452,
+      title: "The Lonesome Crowded West",
+      year: "2022",
+      artist: "Modest Mouse",
+      thumb: "",
+      resource_url: "https://api.discogs.com/masters/51539",
+      contributorIds: [7],
+      appearances: { 7: { role: "Appearance" } },
+    });
+  });
+
+  it("reads master_id on releases when present", () => {
+    expect(
+      toEnrichedRelease({ ...mainVersion, master_id: 51539 }, 1).masterId,
+    ).toBe(51539);
+    expect(toEnrichedRelease(mainVersion, 1).masterId).toBeUndefined();
+  });
+});
+
+describe("addRelease", () => {
+  it("keeps a master and a release with the same numeric id apart", () => {
+    const map = new Map<string, EnrichedRelease>();
+    addRelease(map, toEnrichedRelease(master, 1));
+    addRelease(map, toEnrichedRelease(sameIdRelease, 2));
+    expect(results(map)).toEqual([
+      ["master:51539", [1]],
+      ["release:51539", [2]],
+    ]);
+  });
+
+  it("merges the same master from several contributors", () => {
+    const map = new Map<string, EnrichedRelease>();
+    addRelease(map, toEnrichedRelease(master, 1));
+    addRelease(map, toEnrichedRelease({ ...master, role: "Main" }, 2));
+    addRelease(map, toEnrichedRelease(master, 1));
+    expect(results(map)).toEqual([["master:51539", [1, 2]]]);
+    expect(map.get("master:51539")?.appearances).toEqual({
+      1: { role: "Appearance" },
+      2: { role: "Main" },
+    });
+  });
+
+  it("folds the master's main release into the master, either order", () => {
+    const first = new Map<string, EnrichedRelease>();
+    addRelease(first, toEnrichedRelease(master, 1));
+    expect(addRelease(first, toEnrichedRelease(mainVersion, 2))).toBe(
+      "master:51539",
+    );
+    expect(results(first)).toEqual([["master:51539", [1, 2]]]);
+
+    const second = new Map<string, EnrichedRelease>();
+    addRelease(second, toEnrichedRelease(mainVersion, 2));
+    addRelease(second, toEnrichedRelease(master, 1));
+    expect(results(second)).toEqual([["master:51539", [1, 2]]]);
+  });
+
+  it("folds a release naming its master, either order", () => {
+    const version = { ...mainVersion, id: 379811, master_id: 51539 };
+    const map = new Map<string, EnrichedRelease>();
+    addRelease(map, toEnrichedRelease(version, 3));
+    addRelease(map, toEnrichedRelease(master, 1));
+    expect(results(map)).toEqual([["master:51539", [1, 3]]]);
+  });
+
+  it("leaves other versions of a master alone when nothing links them", () => {
+    // Without master_id, only the main release can be matched.
+    const version = { ...mainVersion, id: 379811 };
+    const map = new Map<string, EnrichedRelease>();
+    addRelease(map, toEnrichedRelease(master, 1));
+    addRelease(map, toEnrichedRelease(version, 3));
+    expect(results(map)).toEqual([
+      ["master:51539", [1]],
+      ["release:379811", [3]],
+    ]);
+  });
+});
+
+describe("migrateReleases", () => {
+  // As stored before this change: keyed by id, raw item spread in.
+  const legacy = {
+    51539: { ...master, contributorIds: [1, 1] },
+    22460452: { ...mainVersion, contributorIds: [2] },
+    700: {
+      id: 700,
+      title: "Untyped",
+      artist: "A",
+      year: "1999",
+      thumb: "",
+      resource_url: "https://api.discogs.com/masters/700",
+      contributorIds: [4],
+    },
+  };
+
+  it("keys by type, reads the type from the URL, and folds", () => {
+    const migrated = migrateReleases(legacy);
+    expect(Object.keys(migrated).sort()).toEqual([
+      "master:51539",
+      "master:700",
+    ]);
+    expect(migrated["master:51539"]).toMatchObject({
+      type: "master",
+      mainRelease: 22460452,
+      contributorIds: [1, 2],
+    });
+    expect(migrated["master:700"].type).toBe("master");
+  });
+
+  it("leaves migrated releases as they are", () => {
+    const current = migrateReleases(legacy);
+    expect(migrateReleases(current)).toBe(current);
+  });
+
+  it("migrates a whole search, unchanged when already current", () => {
+    const search = {
+      searchId: "s",
+      releases: legacy,
+    } as unknown as SearchCache;
+    const migrated = migrateSearch(search);
+    expect(Object.keys(migrated.releases)).toHaveLength(2);
+    expect(migrateSearch(migrated)).toBe(migrated);
+  });
+});

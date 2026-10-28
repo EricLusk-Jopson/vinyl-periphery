@@ -36,6 +36,10 @@ ranks albums by how many of those people worked on them.
   - `src/lib/transformers/`: role and name cleanup, with Jest tests.
     `roleCategories.ts` puts roles into the buckets the Roles filter groups
     by (Musicians, Writing, Audio, Physical media, Management, Other).
+  - `src/lib/releases.ts`: discography items to results. Each result has a
+    `type` and a `key` (`"master:N"` / `"release:N"`); `SearchCache.releases`
+    is keyed by `key`. Searches stored before keys existed are migrated as
+    they load (`migrateSearch`).
   - `src/lib/filters.ts`: chip state, "must include" (`filterState.required`,
     optional because older saved searches lack it), active filter count.
   - `src/components/ui/`: shadcn primitives. Edit sparingly.
@@ -88,7 +92,21 @@ switch both run from `main`, so keep `backend/server.js` and
 
 ## Known issues (not fixed yet)
 
-- Contributor discographies only read the first page of results.
-- Master and release IDs share one map key and can collide.
+- Contributor discographies only read the first page of results (100 items).
+  Discogs sorts them by role group (Main, production credits, Appearance),
+  then year, so prolific people lose most of their later work: Jim Keltner
+  has 1,445 items, Steve Albini 1,775.
+- In `/artists/{id}/releases`, release-type items carry no `master_id`
+  (none of 32 sampled from Keltner and Albini): they are releases with no
+  master (compilations, promos, singles; confirmed for 2429544, whose own
+  release record has no `master_id`, unlike releases that belong to one).
+  Albums with versions come as one master item, so duplicate versions are
+  rare. A release folds into a master only when the master's
+  `main_release` is that release.
+- An item's `main_release` is the release where that person has that role,
+  not the master's main release: the same master can appear several times
+  with different ones (In Utero: Producer 465796, Remix 4943830). Results
+  keep the first contributor's, and a second role on the same master is
+  dropped.
 - "Exclude main artist" matches the first word of the typed artist name.
 - Most Discogs calls go from the browser unauthenticated.

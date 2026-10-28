@@ -10,10 +10,18 @@ import { SearchCache } from "@/contexts/cache/types";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { track } from "@/lib/analytics";
 import { lineageOf } from "@/lib/lineage";
-import { ancestorsAvailableToSave, stackIdOf } from "@/lib/stacks";
+import {
+  ancestorsAvailableToSave,
+  StackFit,
+  stackIdOf,
+  stackLabel,
+  stackRoot,
+  stacksThisFits,
+} from "@/lib/stacks";
 import { cn } from "@/lib/utils";
 import { dialogButton } from "../common/buttons";
 import { SearchCover } from "../search/SearchCover";
+import { StackRootCover } from "./StackCard";
 
 interface SaveDrawerProps {
   search: SearchCache;
@@ -21,11 +29,23 @@ interface SaveDrawerProps {
   onOpenChange: (open: boolean) => void;
 }
 
+/** "via Jim Keltner, Steve Albini +2": who links a fit to its parent. */
+const viaNames = (fit: StackFit) => {
+  const names = fit.via
+    .map((id) => fit.parent.contributors[id]?.name)
+    .filter(Boolean);
+  const shown = names.slice(0, 2).join(", ");
+  return names.length > 2 ? `${shown} +${names.length - 2}` : shown;
+};
+
 /**
- * Saving a search that has ancestors here: save it with its trail as a
- * stack (this search and the ancestors still in the session, preselected;
- * ancestors already saved shown checked), or on its own, without lineage.
- * A bottom sheet on phones, a side panel from md.
+ * Saving a search that has ancestors here, or that fits an existing stack.
+ * With ancestors: save it with its trail as a stack (this search and the
+ * ancestors still in the session, preselected; ancestors already saved
+ * shown checked), the default. Fitting stacks (a member has this album in
+ * its results) are offered next, to add it to as if searched from there.
+ * Or save it on its own, without lineage. A bottom sheet on phones, a side
+ * panel from md.
  */
 export const SaveDrawer: React.FC<SaveDrawerProps> = ({
   search,
@@ -51,6 +71,11 @@ export const SaveDrawer: React.FC<SaveDrawerProps> = ({
       { search, saved: false, depth: lineageOf(search).depth },
     ],
     [ancestors, search],
+  );
+  const hasTrail = ancestors.length > 0;
+  const fits = useMemo(
+    () => stacksThisFits(search, searches, savedSearchIds),
+    [search, searches, savedSearchIds],
   );
   const savable = rows.filter((r) => !r.saved).map((r) => r.search.searchId);
 
@@ -98,6 +123,16 @@ export const SaveDrawer: React.FC<SaveDrawerProps> = ({
       track("stack_saved", { members, depth: lineageOf(search).depth });
     });
 
+  const addToStack = (fit: StackFit) =>
+    run(async () => {
+      await saveSearch(search.searchId, { lineage: fit.lineage });
+      track("stack_saved", {
+        members: fit.stack.members.length + 1,
+        depth: fit.lineage.depth,
+        joined: true,
+      });
+    });
+
   const saveAlone = () =>
     run(async () => {
       await saveSearch(search.searchId, { withoutLineage: true });
@@ -120,73 +155,127 @@ export const SaveDrawer: React.FC<SaveDrawerProps> = ({
             Save this search
           </SheetTitle>
           <SheetDescription className="text-left text-sm text-muted-foreground">
-            You reached it from other searches. Save them together as a stack,
-            or save this one on its own.
+            {hasTrail
+              ? "You reached it from other searches. Save them together as a stack, or save this one on its own."
+              : fits.length === 1
+                ? "This album is in the results of a saved stack. Add it there, or save it on its own."
+                : "This album is in the results of saved stacks. Add it to one, or save it on its own."}
           </SheetDescription>
         </div>
 
-        <fieldset className="flex flex-col gap-3">
-          <legend className="mb-2 font-mono text-xs uppercase tracking-[1px] text-muted-foreground">
-            Save to stack
-          </legend>
-          <ul className="flex flex-col divide-y rounded-lg border bg-surface">
-            {rows.map((row) => {
-              const rowId = `${id}-${row.search.searchId}`;
-              const checked = row.saved || selected.has(row.search.searchId);
-              return (
-                <li key={row.search.searchId}>
-                  <label
-                    htmlFor={rowId}
-                    className={cn(
-                      "flex min-h-11 items-center gap-3 px-3 py-2",
-                      row.saved ? "cursor-default" : "cursor-pointer",
-                    )}
-                  >
-                    <input
-                      id={rowId}
-                      type="checkbox"
-                      checked={checked}
-                      disabled={row.saved || busy}
-                      onChange={() => toggle(row.search.searchId)}
-                      className="h-5 w-5 shrink-0 accent-primary"
-                    />
-                    <SearchCover
-                      search={row.search}
-                      className="h-10 w-10 rounded-[3px] text-xs"
-                    />
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate text-sm font-medium">
-                        {row.search.searchParams.album}
+        {hasTrail && (
+          <fieldset className="flex flex-col gap-3">
+            <legend className="mb-2 font-mono text-xs uppercase tracking-[1px] text-muted-foreground">
+              Save to stack
+            </legend>
+            <ul className="flex flex-col divide-y rounded-lg border bg-surface">
+              {rows.map((row) => {
+                const rowId = `${id}-${row.search.searchId}`;
+                const checked = row.saved || selected.has(row.search.searchId);
+                return (
+                  <li key={row.search.searchId}>
+                    <label
+                      htmlFor={rowId}
+                      className={cn(
+                        "flex min-h-11 items-center gap-3 px-3 py-2",
+                        row.saved ? "cursor-default" : "cursor-pointer",
+                      )}
+                    >
+                      <input
+                        id={rowId}
+                        type="checkbox"
+                        checked={checked}
+                        disabled={row.saved || busy}
+                        onChange={() => toggle(row.search.searchId)}
+                        className="h-5 w-5 shrink-0 accent-primary"
+                      />
+                      <SearchCover
+                        search={row.search}
+                        className="h-10 w-10 rounded-[3px] text-xs"
+                      />
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate text-sm font-medium">
+                          {row.search.searchParams.album}
+                        </span>
+                        <span className="truncate text-xs text-muted-foreground">
+                          {row.search.searchParams.artist}
+                        </span>
                       </span>
-                      <span className="truncate text-xs text-muted-foreground">
-                        {row.search.searchParams.artist}
+                      <span className="shrink-0 font-mono text-xs text-faint">
+                        {row.saved
+                          ? "Saved"
+                          : row.search.searchId === search.searchId
+                            ? "This search"
+                            : row.depth === 0
+                              ? "Start"
+                              : `Step ${row.depth}`}
                       </span>
-                    </span>
-                    <span className="shrink-0 font-mono text-xs text-faint">
-                      {row.saved
-                        ? "Saved"
-                        : row.search.searchId === search.searchId
-                          ? "This search"
-                          : row.depth === 0
-                            ? "Start"
-                            : `Step ${row.depth}`}
-                    </span>
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
-          <button
-            type="button"
-            onClick={saveToStack}
-            disabled={busy || count === 0}
-            className={dialogButton.primary}
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+            <button
+              type="button"
+              onClick={saveToStack}
+              disabled={busy || count === 0}
+              className={dialogButton.primary}
+            >
+              {count === 1
+                ? "Save 1 search to stack"
+                : `Save ${count} searches to stack`}
+            </button>
+          </fieldset>
+        )}
+
+        {fits.length > 0 && (
+          <section
+            aria-labelledby={`${id}-fits`}
+            className={cn("flex flex-col gap-3", hasTrail && "border-t pt-5")}
           >
-            {count === 1
-              ? "Save 1 search to stack"
-              : `Save ${count} searches to stack`}
-          </button>
-        </fieldset>
+            <h3
+              id={`${id}-fits`}
+              className="font-mono text-xs uppercase tracking-[1px] text-muted-foreground"
+            >
+              {hasTrail ? "Or add to a stack it fits" : "Add to a stack"}
+            </h3>
+            <ul className="flex flex-col divide-y rounded-lg border bg-surface">
+              {fits.map((fit) => (
+                <li
+                  key={fit.stack.stackId}
+                  className="flex items-center gap-3 px-3 py-2"
+                >
+                  <StackRootCover
+                    root={stackRoot(fit.stack)}
+                    className="h-10 w-10 rounded-[3px] text-xs"
+                  />
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-sm font-medium">
+                      {stackLabel(fit.stack)}
+                    </span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      After {fit.parent.searchParams.album}
+                    </span>
+                    {fit.via.length > 0 && (
+                      <span className="truncate font-mono text-xs text-faint">
+                        via {viaNames(fit)}
+                      </span>
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => addToStack(fit)}
+                    disabled={busy}
+                    className={cn(dialogButton.secondary, "shrink-0 px-3")}
+                  >
+                    Add
+                    <span className="sr-only"> to {stackLabel(fit.stack)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <div className="flex flex-col gap-2 border-t pt-5">
           <button
@@ -198,7 +287,9 @@ export const SaveDrawer: React.FC<SaveDrawerProps> = ({
             Save on its own
           </button>
           <p className="text-[13px] text-faint">
-            Saved without its trail, it won't group with these searches.
+            {hasTrail
+              ? "Saved without its trail, it won't group with these searches."
+              : "It won't group with any stack."}
           </p>
         </div>
       </SheetContent>

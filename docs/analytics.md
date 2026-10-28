@@ -94,7 +94,7 @@ To test locally, put both Vinyl Periphery variables in `.env` and run
 | `result_credits` | An opened result's credits are fetched from Discogs (not when read from storage) | `outcome`: loaded or failed, `shared` (people linking it), `found` (of those, how many its credits name), `hinted` (of the rest, how many have a discography role to show instead), `from_main_release`; `status` (HTTP status, 0 offline) when failed |
 | `cover_lookup` | Every result in a search has art or is known to have none (once per search per page load) | `albums`, `hits` (art found, from storage or MusicBrainz), `misses` (no MusicBrainz link, or the lookup failed) |
 | `search_blocked` | A search isn't started because the session has no room for it (sessionStorage budget) | `reason`: session_full, `source` |
-| `stack_saved` | Searches are saved together from the save drawer | `members` (saved searches in the stack afterwards), `depth` (of the search saved from) |
+| `stack_saved` | Searches are saved together from the save drawer, or a search is added to a saved stack it fits | `members` (saved searches in the stack afterwards), `depth` (of the search saved from); `joined`: true when added to a stack it fits |
 | `stack_opened` | A stack's page is opened | `members`, `ghosts` (unsaved steps shown) |
 | `stack_deleted` | A whole stack is deleted after confirming | `members` |
 | `search_jumped` | An existing search is opened instead of running a new one | `from`: result (a result row) or form (the search bar) |

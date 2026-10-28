@@ -63,8 +63,6 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
   const { releases } = useFilteredAndScoredReleases(searchId);
   const search = searches[searchId];
   const sortId = useId();
-  // Short sort labels on phones, where the toolbar shares one row.
-  const wide = useMediaQuery("(min-width: 768px)");
 
   const [sort, setSort] = useState<SortKey>("shared");
   // "Then by": a second sort for ties, offered on desktop only.
@@ -200,8 +198,8 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
             }}
           >
             <SelectTrigger id={sortId} className="lg:h-10">
-              {/* Short label on phones; the menu always shows the full one. */}
-              <SelectValue>{wide ? current.label : current.short}</SelectValue>
+              {/* Short when closed; the menu shows the full labels. */}
+              <SelectValue>{current.short}</SelectValue>
             </SelectTrigger>
             <SelectContent align="end">
               {SORT_OPTIONS.map((option) => (

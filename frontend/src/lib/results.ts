@@ -11,15 +11,18 @@ export type ScoredRelease = EnrichedRelease & {
   activeContributors: number[];
 };
 
-export type SortKey = "shared" | "popular" | "newest" | "oldest" | "artist";
+export type SortKey =
+  | "shared"
+  | "popular"
+  | "newest"
+  | "oldest"
+  | "artist"
+  | "artistDesc";
 
+/** `label` in the menu; `short` on the closed menus. */
 export const SORT_OPTIONS: { value: SortKey; label: string; short: string }[] =
   [
-    {
-      value: "shared",
-      label: "Most shared contributors",
-      short: "Most shared",
-    },
+    { value: "shared", label: "Most shared contributors", short: "Shared" },
     {
       value: "popular",
       label: "Most popular (Discogs want + have)",
@@ -27,7 +30,8 @@ export const SORT_OPTIONS: { value: SortKey; label: string; short: string }[] =
     },
     { value: "newest", label: "Year, newest first", short: "Newest" },
     { value: "oldest", label: "Year, oldest first", short: "Oldest" },
-    { value: "artist", label: "Artist A to Z", short: "Artist A–Z" },
+    { value: "artist", label: "Artist A to Z", short: "A–Z" },
+    { value: "artistDesc", label: "Artist Z to A", short: "Z–A" },
   ];
 
 /** The release year as a number, or null when Discogs has none (0 or ""). */
@@ -71,6 +75,11 @@ const nullsLast =
     return direction * (va - vb);
   };
 
+const byArtist: Compare = (a, b) =>
+  (a.artist ?? "").localeCompare(b.artist ?? "", undefined, {
+    sensitivity: "base",
+  });
+
 /** Each sort as a comparison; 0 is a tie. */
 const COMPARE: Record<SortKey, Compare> = {
   // The shown count. (As the main sort, the ranking is used instead.)
@@ -80,24 +89,25 @@ const COMPARE: Record<SortKey, Compare> = {
   popular: nullsLast(popularity, -1),
   newest: nullsLast((r) => releaseYear(r.year), -1),
   oldest: nullsLast((r) => releaseYear(r.year), 1),
-  artist: (a, b) =>
-    (a.artist ?? "").localeCompare(b.artist ?? "", undefined, {
-      sensitivity: "base",
-    }),
+  artist: (a, b) => byArtist(a, b),
+  artistDesc: (a, b) => byArtist(b, a),
 };
+
+/** Two directions of the same thing can't break each other's ties. */
+const PAIRS: SortKey[][] = [
+  ["newest", "oldest"],
+  ["artist", "artistDesc"],
+];
 
 /**
  * The sorts that can break ties in `sort`: the others, leaving out the
- * other direction of the same thing (year).
+ * other direction of the same thing (year, artist).
  */
 export const tiebreakOptions = (sort: SortKey) =>
   SORT_OPTIONS.filter(
     (o) =>
       o.value !== sort &&
-      !(
-        ["newest", "oldest"].includes(sort) &&
-        ["newest", "oldest"].includes(o.value)
-      ),
+      !PAIRS.some((pair) => pair.includes(sort) && pair.includes(o.value)),
   );
 
 /**

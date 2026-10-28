@@ -70,6 +70,7 @@ describe("sortReleases", () => {
 
   it("sorts by artist ignoring case", () => {
     expect(ids(sortReleases(list, "artist"))).toEqual([2, 4, 1, 3]);
+    expect(ids(sortReleases(list, "artistDesc"))).toEqual([3, 1, 4, 2]);
   });
 
   it("does not change the input", () => {
@@ -103,17 +104,25 @@ describe("tiebreaker", () => {
     expect(ids(sortReleases(sameYear, "newest"))).toEqual([3, 1, 2]);
   });
 
-  it("offers every other sort, but not the other year direction", () => {
+  it("offers every other sort, but not the other direction of the same", () => {
     expect(tiebreakOptions("newest").map((o) => o.value)).toEqual([
       "shared",
       "popular",
       "artist",
+      "artistDesc",
+    ]);
+    expect(tiebreakOptions("artist").map((o) => o.value)).toEqual([
+      "shared",
+      "popular",
+      "newest",
+      "oldest",
     ]);
     expect(tiebreakOptions("shared").map((o) => o.value)).toEqual([
       "popular",
       "newest",
       "oldest",
       "artist",
+      "artistDesc",
     ]);
   });
 });

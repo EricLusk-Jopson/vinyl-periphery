@@ -112,8 +112,18 @@ switch both run from `main`, so keep `backend/server.js` and
 ## Known issues (not fixed yet)
 
 - Contributor discographies only read the first page of results (100 items).
-- Results fold a release into its master only when the master's `main_release`
-  is that release (or the item carries `master_id`, unverified). Other
-  versions of the same album can still show as separate rows.
+  Discogs sorts them by role group (Main, production credits, Appearance),
+  then year, so prolific people lose most of their later work: Jim Keltner
+  has 1,445 items, Steve Albini 1,775.
+- In `/artists/{id}/releases`, release-type items carry no `master_id`
+  (none of 32 sampled from Keltner and Albini). They look like releases
+  with no master (compilations, promos, singles); albums with versions come
+  as one master item. A release folds into a master only when the master's
+  `main_release` is that release.
+- An item's `main_release` is the release where that person has that role,
+  not the master's main release: the same master can appear several times
+  with different ones (In Utero: Producer 465796, Remix 4943830). Results
+  keep the first contributor's, and a second role on the same master is
+  dropped.
 - "Exclude main artist" matches the first word of the typed artist name.
 - Most Discogs calls go from the browser unauthenticated.

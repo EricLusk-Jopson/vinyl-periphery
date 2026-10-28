@@ -9,6 +9,8 @@ import {
   stackMembersByDepth,
   stackRoot,
   stacksThisFits,
+  isInStack,
+  savingNeedsChoice,
   LibraryStack,
 } from "./stacks";
 
@@ -285,4 +287,62 @@ describe("stacksThisFits", () => {
       ),
     ).toEqual([]);
   });
+
+  it("offers saved searches on their own only when asked, after stacks", () => {
+    const lone = withResults(make(7, "Lone"), { 9: [1, 2, 3] });
+    const searches = all(stackRootSearch, stackChild, lone, manual);
+    const saved = new Set([
+      stackRootSearch.searchId,
+      stackChild.searchId,
+      lone.searchId,
+    ]);
+    expect(stacksThisFits(manual, searches, saved).map((f) => f.kind)).toEqual([
+      "stack",
+    ]);
+    const fits = stacksThisFits(manual, searches, saved, { singles: true });
+    // Stacks first, even though the lone search shares more people.
+    expect(fits.map((f) => [f.kind, f.parent.searchId])).toEqual([
+      ["stack", child.searchId],
+      ["single", lone.searchId],
+    ]);
+    expect(fits[1].lineage).toMatchObject({
+      stackId: lone.searchId,
+      depth: 1,
+      via: [1, 2, 3],
+    });
+  });
+
+  it("never puts a search after one on its own trail below it", () => {
+    // Saved on its own, but reached from `manual`: it can't come first.
+    const below = withResults(
+      { ...make(8, "Below"), lineage: childLineage(manual, [1], "") },
+      { 9: [1] },
+    );
+    expect(
+      stacksThisFits(manual, all(below, manual), new Set([below.searchId]), {
+        singles: true,
+      }),
+    ).toEqual([]);
+  });
 });
+
+describe("savingNeedsChoice and isInStack", () => {
+  it("asks how to save with a trail here or a stack it fits", () => {
+    const lone = make(4, "Lone");
+    const bare = { ...lone, releases: {} } as SearchCache;
+    expect(savingNeedsChoice(bare, all2(bare), new Set())).toBe(false);
+    // A child with its parent in the session has a trail to save.
+    expect(savingNeedsChoice(child, all2(root, child), new Set())).toBe(true);
+  });
+
+  it("knows whether a saved search is grouped with others", () => {
+    const searches = all2(root, child, single);
+    const saved = new Set([root.searchId, child.searchId, single.searchId]);
+    expect(isInStack(child, searches, saved)).toBe(true);
+    expect(isInStack(single, searches, saved)).toBe(false);
+  });
+});
+
+function all2(...list: SearchCache[]) {
+  return Object.fromEntries(list.map((s) => [s.searchId, s]));
+}

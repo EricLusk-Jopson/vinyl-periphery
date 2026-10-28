@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { Grain } from "../layout/Grain";
 import { SearchCover } from "../search/SearchCover";
 import { SaveDrawer } from "../library/SaveDrawer";
-import { ancestorsAvailableToSave, stacksThisFits } from "@/lib/stacks";
+import { savingNeedsChoice } from "@/lib/stacks";
 
 interface AlbumHeaderProps {
   search: SearchCache;
@@ -27,11 +27,7 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search }) => {
     if (busy) return;
     // With ancestors in the session or library, or a saved stack it fits,
     // ask how to save it; otherwise it's one tap.
-    if (
-      !saved &&
-      (ancestorsAvailableToSave(search, searches, savedSearchIds).length > 0 ||
-        stacksThisFits(search, searches, savedSearchIds).length > 0)
-    ) {
+    if (!saved && savingNeedsChoice(search, searches, savedSearchIds)) {
       setDrawerOpen(true);
       return;
     }

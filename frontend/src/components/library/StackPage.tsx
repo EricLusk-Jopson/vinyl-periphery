@@ -1,12 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, Search, Trash2, Ungroup } from "lucide-react";
 import { SearchParams } from "@/api/types";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { SearchCache } from "@/contexts/cache/types";
 import { KnownAlbum } from "@/hooks/useSearchRun";
 import { track } from "@/lib/analytics";
-import { lineageOf } from "@/lib/lineage";
 import { libraryPath, stackPath } from "@/lib/routes";
 import { ShareButton } from "../share/ShareButton";
 import { targetFromKey } from "@/lib/searchTarget";
@@ -15,16 +14,16 @@ import {
   LibraryStack,
   savedInStack,
   StackOrder,
-  stackGhosts,
   stackLabel,
+  stackLayout,
   stackMembersByDepth,
   stackRoot,
 } from "@/lib/stacks";
 import { cn } from "@/lib/utils";
-import { ChoiceDialog } from "../common/ChoiceDialog";
+import { SaveDrawer } from "./SaveDrawer";
+import { StackAction, StackConfirm } from "./StackConfirm";
 import { ToastAction } from "../ui/toast";
 import { useToast } from "@/hooks/use-toast";
-import { dialogButton } from "../common/buttons";
 import { AlbumCover } from "../search/AlbumCover";
 import { LibraryCard } from "./LibraryCard";
 import { StackRootCover } from "./StackCard";
@@ -35,7 +34,7 @@ const focusRing =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
 
 const ORDERS: { id: StackOrder; label: string }[] = [
-  { id: "depth", label: "Trail order" },
+  { id: "depth", label: "By step" },
   { id: "time", label: "Newest first" },
 ];
 
@@ -108,20 +107,24 @@ export const StackPage: React.FC<StackPageProps> = ({
     saveSearch,
     unsaveSearch,
     clearSearch,
-    deleteStack,
     restoreSearch,
   } = useCache();
   const { toast } = useToast();
   const [order, setOrder] = useState<StackOrder>("depth");
-  const [confirming, setConfirming] = useState(false);
+  const [confirming, setConfirming] = useState<StackAction | null>(null);
+  // The member whose Stack drawer is open.
+  const [stacking, setStacking] = useState<SearchCache | null>(null);
 
   const members = useMemo(
     () => savedInStack(searches, savedSearchIds, stackId),
     [searches, savedSearchIds, stackId],
   );
   const stack: LibraryStack = { kind: "stack", stackId, members };
-  const ghosts = useMemo(
-    () => (members.length ? stackGhosts(stack) : []),
+  const { levels, ghosts } = useMemo(
+    () =>
+      members.length
+        ? stackLayout(stack)
+        : { levels: new Map<string, number>(), ghosts: [] },
     // stack is built from members.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [members],
@@ -139,18 +142,18 @@ export const StackPage: React.FC<StackPageProps> = ({
     return <Navigate to={libraryPath("saved")} replace />;
 
   const root = stackRoot(stack);
-  const sorted = stackMembersByDepth(stack, order);
+  const sorted = stackMembersByDepth(stack, order, levels);
   // The share image draws the trail to the deepest saved search.
-  const deepest = stackMembersByDepth(stack, "depth").at(-1)!;
+  const deepest = stackMembersByDepth(stack, "depth", levels).at(-1)!;
 
-  // In trail order, ghosts sit at their depth among the saved searches.
+  // In step order, ghosts sit at their step among the saved searches.
   type Entry =
     | { kind: "member"; search: SearchCache; depth: number }
     | { kind: "ghost"; ghost: GhostStep; depth: number };
   const memberEntries: Entry[] = sorted.map((search) => ({
     kind: "member",
     search,
-    depth: lineageOf(search).depth,
+    depth: levels.get(search.searchId) ?? 0,
   }));
   const ghostEntries: Entry[] = ghosts.map((ghost) => ({
     kind: "ghost",
@@ -198,13 +201,6 @@ export const StackPage: React.FC<StackPageProps> = ({
     });
   };
 
-  const confirmDelete = async () => {
-    const removed = await deleteStack(stackId);
-    track("stack_deleted", { members: removed });
-    setConfirming(false);
-    navigate(libraryPath("saved"));
-  };
-
   return (
     <div className="mx-auto w-full max-w-[1200px] px-4 pb-24 pt-4 md:px-6 md:pt-8">
       <Link
@@ -235,7 +231,7 @@ export const StackPage: React.FC<StackPageProps> = ({
             {ghosts.length > 0 && ` · ${ghosts.length} not saved`}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex w-full flex-wrap gap-2 md:w-auto">
           <ShareButton
             search={deepest}
             to={stackPath(stackId)}
@@ -243,7 +239,18 @@ export const StackPage: React.FC<StackPageProps> = ({
           />
           <button
             type="button"
-            onClick={() => setConfirming(true)}
+            onClick={() => setConfirming("disband")}
+            className={cn(
+              "inline-flex h-11 items-center gap-2 rounded-lg border border-border-strong px-4 text-sm font-medium text-foreground hover:bg-secondary",
+              focusRing,
+            )}
+          >
+            <Ungroup className="h-4 w-4" aria-hidden="true" />
+            Disband
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirming("delete")}
             className={cn(
               "inline-flex h-11 items-center gap-2 rounded-lg border border-border-strong px-4 text-sm font-medium text-foreground hover:bg-secondary",
               focusRing,
@@ -301,6 +308,7 @@ export const StackPage: React.FC<StackPageProps> = ({
                   from={{ from: "stack", stackId }}
                   onToggleSave={() => toggleSave(entry.search.searchId)}
                   onDelete={() => remove(entry.search.searchId)}
+                  onStack={() => setStacking(entry.search)}
                 />
               ) : (
                 <GhostCard
@@ -314,27 +322,21 @@ export const StackPage: React.FC<StackPageProps> = ({
         ))}
       </ol>
 
-      <ChoiceDialog
-        open={confirming}
-        onOpenChange={setConfirming}
-        title="Delete this stack?"
-        description={`This removes ${members.length} saved searches from the ${stackLabel(stack)} stack. Searches still open in this session stay there.`}
-      >
-        <button
-          type="button"
-          onClick={() => setConfirming(false)}
-          className={dialogButton.secondary}
-        >
-          Keep it
-        </button>
-        <button
-          type="button"
-          onClick={() => void confirmDelete()}
-          className={dialogButton.primary}
-        >
-          Delete {members.length} searches
-        </button>
-      </ChoiceDialog>
+      <StackConfirm
+        request={confirming && { stack, action: confirming }}
+        onClose={() => setConfirming(null)}
+        onDone={() => navigate(libraryPath("saved"))}
+      />
+
+      {stacking && (
+        <SaveDrawer
+          search={searches[stacking.searchId] ?? stacking}
+          mode="stack"
+          from="library"
+          open
+          onOpenChange={(open) => !open && setStacking(null)}
+        />
+      )}
     </div>
   );
 };

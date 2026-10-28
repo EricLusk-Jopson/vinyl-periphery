@@ -113,20 +113,6 @@ export const stackLabel = (stack: LibraryStack): string => {
   return `${root.title} + ${others.length}`;
 };
 
-export type StackOrder = "depth" | "time";
-
-/** Members by depth (then time), or newest first. */
-export const stackMembersByDepth = (
-  stack: LibraryStack,
-  order: StackOrder = "depth",
-): SearchCache[] =>
-  [...stack.members].sort((a, b) =>
-    order === "depth"
-      ? lineageOf(a).depth - lineageOf(b).depth ||
-        searchStartedAt(a.searchId) - searchStartedAt(b.searchId)
-      : searchStartedAt(b.searchId) - searchStartedAt(a.searchId),
-  );
-
 export interface GhostStep {
   step: LineageStep;
   depth: number;
@@ -134,36 +120,150 @@ export interface GhostStep {
   lineage: SearchLineage;
 }
 
+export interface StackLayout {
+  /** Member search id -> its step: the fewest links from the start. */
+  levels: Map<string, number>;
+  /**
+   * Albums that aren't saved but are needed to show the stack: its start,
+   * when that isn't saved, and steps a member was reached through when no
+   * saved album links it to the rest.
+   */
+  ghosts: GhostStep[];
+}
+
 /**
- * Ancestors on members' trails that aren't saved: shown ghosted on the
- * stack page, with a way to search them again. A step whose album is a
- * saved member (a repeat run changes the id) isn't a ghost.
+ * A stack as a graph. Albums are linked when one has the other among its
+ * results (someone credited on one worked on the other). Each member's
+ * step is its shortest distance from the start, however it was reached:
+ * two albums in the start's results are both step 1.
+ *
+ * The trail each search was reached by (its lineage) only decides which
+ * stack it's in, and, for members no saved album links to the rest,
+ * supplies the unsaved steps between (shown ghosted).
  */
-export const stackGhosts = (stack: LibraryStack): GhostStep[] => {
-  const memberIds = new Set(stack.members.map((m) => m.searchId));
-  const memberTargets = new Set(
-    stack.members.map((m) => m.target?.key).filter(Boolean),
-  );
-  const ghosts = new Map<string, GhostStep>();
+export const stackLayout = (stack: LibraryStack): StackLayout => {
+  const root = stackRoot(stack);
+  // One node per album where the album is known, so a repeat run and the
+  // snapshot of the original are the same node.
+  const node = (searchId: string, targetKey?: string) => targetKey || searchId;
+  const memberNode = (m: SearchCache) => node(m.searchId, m.target?.key);
+  const rootNode = node(root.searchId, root.targetKey);
+  const memberNodes = new Set(stack.members.map(memberNode));
+
+  const adjacent = new Map<string, Set<string>>();
+  const link = (a: string, b: string) => {
+    if (a === b) return;
+    if (!adjacent.has(a)) adjacent.set(a, new Set());
+    if (!adjacent.has(b)) adjacent.set(b, new Set());
+    adjacent.get(a)!.add(b);
+    adjacent.get(b)!.add(a);
+  };
+  const distances = () => {
+    const found = new Map<string, number>([[rootNode, 0]]);
+    const queue = [rootNode];
+    while (queue.length) {
+      const at = queue.shift()!;
+      for (const next of adjacent.get(at) ?? []) {
+        if (found.has(next)) continue;
+        found.set(next, found.get(at)! + 1);
+        queue.push(next);
+      }
+    }
+    return found;
+  };
+
+  // Credit links: a member's results include another album in the stack.
+  const nodes = [rootNode, ...memberNodes];
   for (const member of stack.members) {
-    const { path, stackId } = lineageOf(member);
-    path.forEach((step, depth) => {
-      if (memberIds.has(step.searchId) || ghosts.has(step.searchId)) return;
-      if (step.targetKey && memberTargets.has(step.targetKey)) return;
-      ghosts.set(step.searchId, {
-        step,
-        depth,
-        lineage: {
-          stackId,
-          depth,
-          path: path.slice(0, depth),
-          via: step.via,
-        },
-      });
+    for (const other of nodes) {
+      if (member.releases?.[other]) link(memberNode(member), other);
+    }
+  }
+  let found = distances();
+
+  // Members nothing links to: join them by the trail they were reached by.
+  const ghostSteps = new Map<
+    string,
+    { step: LineageStep; member: SearchCache; index: number }
+  >();
+  for (const member of stack.members) {
+    if (found.has(memberNode(member))) continue;
+    const { path } = lineageOf(member);
+    const chain = [
+      ...path.map((step) => node(step.searchId, step.targetKey)),
+      memberNode(member),
+    ];
+    chain.slice(1).forEach((n, i) => link(chain[i], n));
+    path.forEach((step, index) => {
+      const n = node(step.searchId, step.targetKey);
+      if (!memberNodes.has(n) && n !== rootNode && !ghostSteps.has(n)) {
+        ghostSteps.set(n, { step, member, index });
+      }
     });
   }
-  return [...ghosts.values()].sort((a, b) => a.depth - b.depth);
+  if (ghostSteps.size > 0) found = distances();
+
+  const levels = new Map(
+    stack.members.map((m) => [
+      m.searchId,
+      found.get(memberNode(m)) ?? lineageOf(m).depth,
+    ]),
+  );
+
+  const ghostOf = (
+    step: LineageStep,
+    member: SearchCache,
+    index: number,
+  ): GhostStep => {
+    const { path, stackId } = lineageOf(member);
+    return {
+      step,
+      depth: found.get(node(step.searchId, step.targetKey)) ?? index,
+      lineage: {
+        stackId,
+        depth: index,
+        path: path.slice(0, index),
+        via: step.via,
+      },
+    };
+  };
+  const ghosts: GhostStep[] = [];
+  // The start, when it isn't saved: from the first member's trail.
+  if (!root.search && !memberNodes.has(rootNode)) {
+    const member = stack.members.find(
+      (m) => lineageOf(m).path[0]?.searchId === root.searchId,
+    );
+    if (member) ghosts.push(ghostOf(lineageOf(member).path[0], member, 0));
+  }
+  for (const { step, member, index } of ghostSteps.values()) {
+    ghosts.push(ghostOf(step, member, index));
+  }
+  ghosts.sort((a, b) => a.depth - b.depth);
+  return { levels, ghosts };
 };
+
+export type StackOrder = "depth" | "time";
+
+/** Members by step (then time), or newest first. */
+export const stackMembersByDepth = (
+  stack: LibraryStack,
+  order: StackOrder = "depth",
+  levels: Map<string, number> = stackLayout(stack).levels,
+): SearchCache[] =>
+  [...stack.members].sort((a, b) =>
+    order === "depth"
+      ? (levels.get(a.searchId) ?? 0) - (levels.get(b.searchId) ?? 0) ||
+        searchStartedAt(a.searchId) - searchStartedAt(b.searchId)
+      : searchStartedAt(b.searchId) - searchStartedAt(a.searchId),
+  );
+
+/** Unsaved albums shown ghosted on a stack's page (see `stackLayout`). */
+export const stackGhosts = (stack: LibraryStack): GhostStep[] =>
+  stackLayout(stack).ghosts;
+
+/** The deepest step in a stack. */
+export const stackDepth = (stack: LibraryStack): number =>
+  Math.max(0, ...stackLayout(stack).levels.values());
 
 export interface AncestorToSave {
   step: LineageStep;
@@ -220,8 +320,8 @@ const isAncestorOf = (search: SearchCache, other: SearchCache) =>
  *
  * Existing stacks (two or more saved searches) always count; with
  * `singles`, so do saved searches on their own, which would start a stack.
- * Per stack, the member sharing the most people (then the deepest) is the
- * parent. Leaves out the search's own stack, stacks that already hold this
+ * Per stack, the member nearest the start (then sharing the most people)
+ * is the parent. Leaves out the search's own stack, stacks that already hold this
  * album, and searches on its own trail below it. Stacks first, then best
  * fit first.
  */
@@ -250,15 +350,18 @@ export const stacksThisFits = (
     if (entry.kind === "single" && !singles) continue;
     if (stack.stackId === own) continue;
     if (stack.members.some((m) => m.target?.key === key)) continue;
+    // The parent is the member nearest the start (then sharing the most
+    // people): its step plus one is where this album sits.
+    const { levels } = stackLayout(stack);
+    const level = (m: SearchCache) => levels.get(m.searchId) ?? 0;
     let best: { parent: SearchCache; via: number[] } | null = null;
     for (const member of stack.members) {
       const via = member.releases?.[key]?.contributorIds ?? [];
       if (via.length === 0 || isAncestorOf(search, member)) continue;
       if (
         !best ||
-        via.length > best.via.length ||
-        (via.length === best.via.length &&
-          lineageOf(member).depth > lineageOf(best.parent).depth)
+        level(member) < level(best.parent) ||
+        (level(member) === level(best.parent) && via.length > best.via.length)
       ) {
         best = { parent: member, via };
       }

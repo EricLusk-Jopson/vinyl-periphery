@@ -52,7 +52,9 @@ ranks albums by how many of those people worked on them.
     search that wouldn't fit is blocked with a prompt to make room.
   - `src/lib/lineage.ts`: how each search was reached (`SearchCache.lineage`).
     Searches from a result row continue their parent's trail; everything
-    else is a root. Stored as snapshots, never derived.
+    else is a root. Stored as snapshots, never derived. Its `stackId` says
+    which stack a saved search is in; its steps are only a fallback for
+    placing it (see `stackLayout`).
   - `src/lib/transformers/`: role and name cleanup, with Jest tests.
     `roleCategories.ts` puts roles into the buckets the Roles filter groups
     by (Musicians, Writing, Audio, Physical media, Management, Other).
@@ -64,10 +66,12 @@ ranks albums by how many of those people worked on them.
     optional because older saved searches lack it), active filter count.
   - `src/components/ui/`: shadcn primitives. Edit sparingly.
   - `src/lib/stacks.ts`: saved searches grouped by `lineage.stackId` (two or
-    more make a stack), the stack's root, ghosted unsaved steps, the
-    ancestors the save drawer offers, and the stacks a search fits
-    (`stacksThisFits`: a saved member has it in its results). No stack
-    entity is stored.
+    more make a stack), the stack's root, the ancestors the save drawer
+    offers, and the stacks a search fits (`stacksThisFits`: a saved member
+    has it in its results). A stack is a graph (`stackLayout`): albums link
+    when one is in the other's results, and each member's step is its
+    fewest links from the root; members nothing saved links fall back to
+    their trail, with its unsaved steps ghosted. No stack entity is stored.
   - Routes (React Router): `/` home, `/library` (`?tab=saved`),
     `/library/stack/:stackId`, and
     `/results?artist=…&album=…`, plus `&master=N` or `&release=N` when the

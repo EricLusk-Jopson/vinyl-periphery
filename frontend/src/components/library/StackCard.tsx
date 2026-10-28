@@ -1,11 +1,16 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Layers, Trash2 } from "lucide-react";
+import { Layers, Trash2, Ungroup } from "lucide-react";
 import { useCoverArt } from "@/hooks/useCoverArt";
-import { lineageOf } from "@/lib/lineage";
 import { stackPath } from "@/lib/routes";
 import { searchStartedAt, timeAgo, usableImageUrl } from "@/lib/searches";
-import { LibraryStack, StackRoot, stackLabel, stackRoot } from "@/lib/stacks";
+import {
+  LibraryStack,
+  StackRoot,
+  stackDepth,
+  stackLabel,
+  stackRoot,
+} from "@/lib/stacks";
 import { cn } from "@/lib/utils";
 import { AlbumCover } from "../search/AlbumCover";
 import { SearchCover } from "../search/SearchCover";
@@ -39,16 +44,21 @@ export const StackRootCover: React.FC<{
 interface StackCardProps {
   stack: LibraryStack;
   onDelete: () => void;
+  onDisband: () => void;
 }
 
 /**
  * Saved searches from one trail, as one card: the root's cover and name,
  * "+ n" for the rest. Offset edges behind it mark it as a stack. Opens the
- * stack's page.
+ * stack's page; Disband and Delete act on the whole stack.
  */
-export const StackCard: React.FC<StackCardProps> = ({ stack, onDelete }) => {
+export const StackCard: React.FC<StackCardProps> = ({
+  stack,
+  onDelete,
+  onDisband,
+}) => {
   const root = stackRoot(stack);
-  const deepest = Math.max(...stack.members.map((m) => lineageOf(m).depth));
+  const deepest = stackDepth(stack);
   const latest = Math.max(
     ...stack.members.map((m) => searchStartedAt(m.searchId)),
   );
@@ -97,6 +107,17 @@ export const StackCard: React.FC<StackCardProps> = ({ stack, onDelete }) => {
             </span>
           </span>
         </Link>
+        <button
+          type="button"
+          onClick={onDisband}
+          aria-label={`Disband the ${root.title} stack`}
+          className={cn(
+            iconButton,
+            "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Ungroup className="h-[18px] w-[18px]" aria-hidden="true" />
+        </button>
         <button
           type="button"
           onClick={onDelete}

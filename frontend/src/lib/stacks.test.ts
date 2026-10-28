@@ -8,6 +8,7 @@ import {
   stackLabel,
   stackMembersByDepth,
   stackRoot,
+  stacksThisFits,
   LibraryStack,
 } from "./stacks";
 
@@ -185,5 +186,103 @@ describe("searchLibrary", () => {
     ).toEqual(["Bon Iver"]);
     expect(searchLibrary(saved, "LONER artist")).toEqual([single]);
     expect(searchLibrary(saved, " ")).toEqual(saved);
+  });
+});
+
+describe("stacksThisFits", () => {
+  // `make` ids: album N is master:N. A member "finds" an album when its
+  // results hold that key.
+  const withResults = (
+    search: SearchCache,
+    results: Record<number, number[]>,
+  ): SearchCache => ({
+    ...search,
+    contributors: {
+      1: { id: 1, name: "Jim Keltner" },
+      2: { id: 2, name: "Steve Albini" },
+      3: { id: 3, name: "Phil Ek" },
+    } as unknown as SearchCache["contributors"],
+    releases: Object.fromEntries(
+      Object.entries(results).map(([id, contributorIds]) => [
+        `master:${id}`,
+        { key: `master:${id}`, contributorIds },
+      ]),
+    ) as unknown as SearchCache["releases"],
+  });
+  const stackRootSearch = withResults(root, { 9: [1] });
+  const stackChild = withResults(child, { 9: [1, 2] });
+  const otherRoot = withResults(make(5, "Other"), { 9: [3] });
+  const otherChild = make(6, "Other Child", otherRoot);
+  const manual = make(9, "Manual");
+  const all = (...list: SearchCache[]) =>
+    Object.fromEntries(list.map((s) => [s.searchId, s]));
+
+  it("offers each saved stack whose members found this album, best first", () => {
+    const searches = all(
+      stackRootSearch,
+      stackChild,
+      otherRoot,
+      otherChild,
+      manual,
+    );
+    const saved = new Set([
+      stackRootSearch.searchId,
+      stackChild.searchId,
+      otherRoot.searchId,
+      otherChild.searchId,
+    ]);
+    const fits = stacksThisFits(manual, searches, saved);
+    expect(fits.map((f) => f.stack.stackId)).toEqual([
+      root.searchId,
+      otherRoot.searchId,
+    ]);
+    // The member sharing the most people is the parent.
+    expect(fits[0].parent.searchId).toBe(child.searchId);
+    expect(fits[0].via).toEqual([1, 2]);
+    expect(fits[0].lineage).toMatchObject({
+      stackId: root.searchId,
+      depth: 2,
+      via: [1, 2],
+    });
+    expect(fits[0].lineage.path.map((p) => p.searchId)).toEqual([
+      root.searchId,
+      child.searchId,
+    ]);
+  });
+
+  it("needs two saved members, and skips the search's own stack", () => {
+    const searches = all(stackRootSearch, stackChild, manual);
+    expect(
+      stacksThisFits(manual, searches, new Set([stackRootSearch.searchId])),
+    ).toEqual([]);
+    const ownChild = { ...manual, lineage: childLineage(root, [1], "") };
+    expect(
+      stacksThisFits(
+        ownChild,
+        all(stackRootSearch, stackChild, ownChild),
+        new Set([stackRootSearch.searchId, stackChild.searchId]),
+      ),
+    ).toEqual([]);
+  });
+
+  it("skips stacks already holding this album, and albums with no target", () => {
+    const repeat = {
+      ...make(9, "Manual again"),
+      lineage: childLineage(child, [1], ""),
+    };
+    const searches = all(stackRootSearch, stackChild, repeat, manual);
+    const saved = new Set([
+      stackRootSearch.searchId,
+      stackChild.searchId,
+      repeat.searchId,
+    ]);
+    expect(stacksThisFits(manual, searches, saved)).toEqual([]);
+    expect(
+      stacksThisFits(
+        { ...manual, target: undefined },
+        all(stackRootSearch, stackChild),
+        new Set([stackRootSearch.searchId, stackChild.searchId]),
+      ),
+    ).toEqual([]);
   });
 });

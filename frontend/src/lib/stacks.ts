@@ -3,7 +3,7 @@ import {
   SearchCache,
   SearchLineage,
 } from "@/contexts/cache/types";
-import { lineageOf } from "./lineage";
+import { childLineage, lineageOf } from "./lineage";
 import { matchesName } from "./filters";
 import { searchStartedAt } from "./searches";
 
@@ -192,6 +192,62 @@ export const ancestorsAvailableToSave = (
     if (!found || found.searchId === search.searchId) return [];
     return [{ step, search: found, saved: savedIds.has(found.searchId) }];
   });
+};
+
+export interface StackFit {
+  stack: LibraryStack;
+  /** The saved member whose results include this album. */
+  parent: SearchCache;
+  /** Who links them: that result's contributors. */
+  via: number[];
+  /** The lineage this search takes on joining, as if searched from there. */
+  lineage: SearchLineage;
+}
+
+/**
+ * Existing stacks (two or more saved searches) that this album fits: one of
+ * their members has it among its results, so it could have been searched
+ * from there. Per stack, the member sharing the most people (then the
+ * deepest) is the parent. Leaves out the search's own stack and stacks
+ * that already hold this album. Best fit first.
+ */
+export const stacksThisFits = (
+  search: SearchCache,
+  searches: Record<string, SearchCache>,
+  savedIds: Set<string>,
+): StackFit[] => {
+  const key = search.target?.key;
+  if (!key) return [];
+  const own = stackIdOf(search);
+  const saved = Object.values(searches).filter(
+    (s) => savedIds.has(s.searchId) && s.searchId !== search.searchId,
+  );
+  const fits: StackFit[] = [];
+  for (const entry of groupStacks(saved)) {
+    if (entry.kind !== "stack" || entry.stackId === own) continue;
+    if (entry.members.some((m) => m.target?.key === key)) continue;
+    let best: { parent: SearchCache; via: number[] } | null = null;
+    for (const member of entry.members) {
+      const via = member.releases?.[key]?.contributorIds ?? [];
+      if (via.length === 0) continue;
+      if (
+        !best ||
+        via.length > best.via.length ||
+        (via.length === best.via.length &&
+          lineageOf(member).depth > lineageOf(best.parent).depth)
+      ) {
+        best = { parent: member, via };
+      }
+    }
+    if (best) {
+      fits.push({
+        stack: entry,
+        ...best,
+        lineage: childLineage(best.parent, best.via, best.parent.thumb),
+      });
+    }
+  }
+  return fits.sort((a, b) => b.via.length - a.via.length);
 };
 
 /** Saved searches whose album or artist matches, across stacks and singles. */

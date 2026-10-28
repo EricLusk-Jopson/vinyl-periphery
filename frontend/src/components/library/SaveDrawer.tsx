@@ -14,6 +14,7 @@ import { lineageOf } from "@/lib/lineage";
 import { stackPath } from "@/lib/routes";
 import {
   ancestorsAvailableToSave,
+  fitViaText,
   LibraryStack,
   savedInStack,
   StackFit,
@@ -41,15 +42,6 @@ interface SaveDrawerProps {
   /** Where it was opened, for analytics. */
   from?: "results" | "library";
 }
-
-/** "via Jim Keltner, Steve Albini +2": who links a fit to its parent. */
-const viaNames = (fit: StackFit) => {
-  const names = fit.via
-    .map((id) => fit.parent.contributors[id]?.name)
-    .filter(Boolean);
-  const shown = names.slice(0, 2).join(", ");
-  return names.length > 2 ? `${shown} +${names.length - 2}` : shown;
-};
 
 /**
  * Saving a search that has ancestors here, or that fits an existing stack.
@@ -244,7 +236,7 @@ export const SaveDrawer: React.FC<SaveDrawerProps> = ({
                     </span>
                     {fit.via.length > 0 && (
                       <span className="truncate font-mono text-xs text-faint">
-                        via {viaNames(fit)}
+                        {fitViaText(fit)}
                       </span>
                     )}
                   </span>

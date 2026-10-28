@@ -15,6 +15,7 @@ const card = encodePayload({
 test("renders a PNG for a valid payload, caching it for good", async () => {
   const calls = [];
   const handler = createOgHandler({
+    settled: () => true,
     load: async (ids) => {
       calls.push(ids);
       return new Map();
@@ -31,6 +32,18 @@ test("renders a PNG for a valid payload, caching it for good", async () => {
   assert.match(res.headers["cache-control"], /immutable/);
   assert.deepEqual(calls, [[`g:${MBID}`], ["card", "square"]]);
   assert.equal(String(res.body), "png");
+});
+
+test("caches briefly when a cover didn't load in time", async () => {
+  const handler = createOgHandler({
+    load: async () => new Map(),
+    render: async () => Buffer.from("png"),
+    settled: () => false,
+  });
+  const res = mockResponse();
+  await handler(mockRequest({ query: { p: card } }), res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.headers["cache-control"], "public, max-age=60, s-maxage=60");
 });
 
 test("rejects a bad payload with 400 and other methods with 405", async () => {

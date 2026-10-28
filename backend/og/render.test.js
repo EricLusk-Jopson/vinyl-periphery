@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { artIds, initials, mapReach, renderPng } from "./render.js";
-import { fetchArt, loadArt } from "./art.js";
+import { artIds, initials, mapReach, renderPng, shorten } from "./render.js";
+import { artSettled, fetchArt, loadArt } from "./art.js";
 import { imageSize } from "./payload.js";
 
 const MBID = "1b022e01-4da6-387b-8658-8678046e4cef";
@@ -70,12 +70,27 @@ test("art: data URLs for images, null for anything else, cached", async () => {
   const other = `g:${MBID.replace("1b", "2b")}`;
   assert.equal(await fetchArt(other, respond("text/html")), null);
   const failing = `g:${MBID.replace("1b", "3b")}`;
+  let tries = 0;
   assert.equal(
     await fetchArt(failing, async () => {
+      tries++;
       throw new Error("offline");
     }),
     null,
   );
+  // Retried once, and not remembered: the next render tries again.
+  assert.equal(tries, 2);
+  assert.equal(artSettled(failing), false);
+  assert.equal(await fetchArt(failing, respond("image/png")), "data:image/png;base64,AQID");
+  assert.equal(artSettled(failing), true);
+  // No retry once the time is up.
+  const late = `g:${MBID.replace("1b", "4b")}`;
+  tries = 0;
+  await fetchArt(late, async () => {
+    tries++;
+    throw new Error("offline");
+  }, Date.now());
+  assert.equal(tries, 0);
   const loaded = await loadArt([id, id, other], fetchArt);
   assert.deepEqual([...loaded.keys()], [id]);
 });
@@ -90,4 +105,10 @@ test("map reach: past the circle only where covers sit outside it", () => {
   assert.ok(mapReach(albums) > 1.3);
   assert.ok(mapReach(albums, Math.PI) > 1.3);
   assert.equal(mapReach(albums, 0), 1);
+});
+
+test("shorten: whole words where it can, with an ellipsis", () => {
+  assert.equal(shorten("Hellfire", 20), "Hellfire");
+  assert.equal(shorten("Bright Green Field", 12), "Bright…");
+  assert.equal(shorten("Supercalifragilistic", 8), "Superca…");
 });

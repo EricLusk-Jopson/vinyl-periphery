@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Download, Link as LinkIcon, Share2 } from "lucide-react";
 import { coverResolver } from "@/api/coverArt";
 import {
@@ -15,21 +15,26 @@ import { SearchCache } from "@/contexts/cache/types";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useToast } from "@/hooks/use-toast";
 import { useLikes } from "@/hooks/useLikes";
+import { useCoverArt } from "@/hooks/useCoverArt";
+import { mapAlbums } from "@/lib/shareMap";
 import { track } from "@/lib/analytics";
 import { ScoredRelease } from "@/lib/results";
 import {
   cardPayload,
   MapCentre,
-  mapHasAlbums,
   mapPayload,
   ShareLayout,
   shareImagePath,
   shareLink,
+  SHARE_RESULTS,
   ShareSize,
   SIZES,
 } from "@/lib/share";
 import { cn } from "@/lib/utils";
 import { dialogButton } from "../common/buttons";
+
+/** Longest the sheet waits for covers before drawing without the rest. */
+const COVER_WAIT_MS = 6000;
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
@@ -98,9 +103,11 @@ const Segmented = <T extends string>({
 
 /**
  * Share: a watermarked image, story or square: a map of the stack (or this
- * search) and the liked albums around it, or these results as a list; through the native share sheet where it takes
- * files, as a download otherwise. The image is rendered by /api/og from
- * data in the URL.
+ * search) and the liked albums around it, or these results as a list;
+ * through the native share sheet where it takes files, as a download
+ * otherwise. The image is rendered by /api/og from data in the URL. Covers
+ * for every album it draws are looked up first (up to COVER_WAIT_MS), so
+ * albums that were never on screen still get their art.
  */
 export const ShareButton: React.FC<ShareButtonProps> = ({
   search,
@@ -119,26 +126,58 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState("");
 
+  // What the map would show around its centre.
+  const around = useMemo(
+    () => (open ? mapAlbums(map.centre.key, map.members, likes) : []),
+    [open, map.centre.key, map.members, likes],
+  );
+  // The albums either layout draws, so their covers can be looked up.
+  const wanted = useMemo(
+    () =>
+      open
+        ? [
+            map.centre.key,
+            ...around.map((a) => a.key),
+            search.target?.key ?? "",
+            ...releases.slice(0, SHARE_RESULTS).map((r) => r.key),
+          ].filter(Boolean)
+        : [],
+    [open, map.centre.key, around, search.target?.key, releases],
+  );
+  const cover = useCoverArt(wanted);
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    setWaited(false);
+    const timer = setTimeout(() => setWaited(true), COVER_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, [open]);
+  const ready =
+    open && (waited || wanted.every((key) => cover(key) !== undefined));
+  // Changes as covers arrive, so the image is rebuilt with them.
+  const covers = ready ? wanted.map((key) => cover(key) ?? "").join("|") : "";
+
   const coverFor = (key: string) => coverResolver.get(key);
   const mapImage = useMemo(
     () =>
-      open
+      ready
         ? mapPayload(map.centre, map.members, searches, likes, coverFor)
         : null,
-    // coverFor reads the resolver as it is when the sheet opens; the
-    // centre is named by its key.
+    // coverFor reads the resolver; `covers` says when it has changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [open, map.centre.key, map.members, searches, likes],
+    [ready, covers, map.centre.key, map.members, searches, likes],
   );
   // A map with nothing around its centre isn't worth sharing.
-  const mapReady = mapImage !== null && mapHasAlbums(mapImage);
+  const mapReady = around.length > 0;
   const layout: ShareLayout = mapReady ? chosen : "card";
   const payload = useMemo(() => {
-    if (!open) return null;
+    if (!ready) return null;
     return layout === "map"
       ? mapImage
       : cardPayload(search, releases as ScoredRelease[], coverFor);
-  }, [open, layout, mapImage, search, releases]);
+    // coverFor reads the resolver; `covers` says when it has changed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, covers, layout, mapImage, search, releases]);
 
   const image = payload ? shareImagePath(payload, size) : "";
   const link = payload ? shareLink(window.location.origin, payload, to) : "";
@@ -289,9 +328,9 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
             )}
             style={{ aspectRatio: SIZES.find((s) => s.id === size)?.ratio }}
           >
-            {image && loaded !== image && (
+            {loaded !== image && (
               <span className="absolute inset-0 flex items-center justify-center font-mono text-xs text-faint">
-                Making the image…
+                {image ? "Making the image…" : "Finding covers…"}
               </span>
             )}
             {image && (

@@ -125,47 +125,47 @@ const watermark = (scale) =>
       alignItems: "center",
       justifyContent: "space-between",
       borderTop: `2px solid ${C.border}`,
-      paddingTop: 36 * scale,
+      paddingTop: 24 * scale,
     },
     h(
       "div",
-      { alignItems: "center", gap: 18 * scale },
+      { alignItems: "center", gap: 14 * scale },
       // The disc mark: a ring with a red centre.
       h(
         "div",
         {
-          width: 52 * scale,
-          height: 52 * scale,
+          width: 40 * scale,
+          height: 40 * scale,
           borderRadius: 999,
-          border: `${5 * scale}px solid ${C.foreground}`,
+          border: `${4 * scale}px solid ${C.foreground}`,
           alignItems: "center",
           justifyContent: "center",
         },
         h("div", {
-          width: 16 * scale,
-          height: 16 * scale,
+          width: 12 * scale,
+          height: 12 * scale,
           borderRadius: 999,
           background: C.primary,
         }),
       ),
       line("VINYL PERIPHERY", {
         fontFamily: "Bebas Neue",
-        fontSize: 60 * scale,
+        fontSize: 44 * scale,
         letterSpacing: 2 * scale,
         color: C.foreground,
       }),
     ),
     h(
       "div",
-      { flexDirection: "column", alignItems: "flex-end", gap: 6 * scale },
+      { flexDirection: "column", alignItems: "flex-end", gap: 2 * scale },
       line("vinylperiphery.com", {
         fontFamily: "IBM Plex Mono",
-        fontSize: 28 * scale,
+        fontSize: 24 * scale,
         color: C.foreground,
       }),
       line("Follow the credit-brick road", {
         fontFamily: "IBM Plex Mono",
-        fontSize: 24 * scale,
+        fontSize: 20 * scale,
         color: C.faint,
       }),
     ),
@@ -182,7 +182,7 @@ const frame = (size, ...children) =>
       background: C.background,
       color: C.foreground,
       fontFamily: "IBM Plex Sans",
-      padding: size.name === "story" ? 88 : 64,
+      padding: size.name === "story" ? 88 : 52,
     },
     ...children,
   );
@@ -193,7 +193,7 @@ export function cardElement(payload, size, art) {
   const scale = story ? 1 : 0.8;
   const heroSize = story ? 420 : 250;
   const rowSize = story ? 136 : 92;
-  const rows = payload.results.slice(0, story ? 6 : 4);
+  const rows = payload.results.slice(0, story ? 6 : 5);
   const { album } = payload;
 
   return frame(
@@ -252,57 +252,73 @@ export function cardElement(payload, size, art) {
   );
 }
 
+/**
+ * Text cut to about `chars` characters at a word where it can, with an
+ * ellipsis, so it fits a box without being clipped mid-letter.
+ */
+export const shorten = (text, chars) => {
+  if (text.length <= chars) return text;
+  const cut = text.slice(0, Math.max(1, chars - 1));
+  const space = cut.lastIndexOf(" ");
+  return `${(space >= chars / 2 ? cut.slice(0, space) : cut).trimEnd()}…`;
+};
+
 /** A cover, or a box with its title and artist when there's no art. */
-const tile = (album, dataUrl, side, accent) =>
-  dataUrl
-    ? img(dataUrl, {
-        width: side,
-        height: side,
-        borderRadius: 4,
-        objectFit: "cover",
-        border: accent ? `4px solid ${C.primary}` : "none",
-      })
-    : h(
-        "div",
-        {
+const tile = (album, dataUrl, side, accent) => {
+  const pad = Math.round(side * 0.08);
+  const titleSize = Math.max(12, Math.round(side * 0.13));
+  const artistSize = Math.max(12, Math.round(side * 0.09));
+  // Roughly how many characters fit: a sans letter is about half its size.
+  const perLine = (size) => Math.floor((side - 2 * pad) / (size * 0.55));
+  const titleLines = Math.max(1, Math.floor((side * 0.6) / (titleSize * 1.15)));
+  return (
+    dataUrl
+      ? img(dataUrl, {
           width: side,
           height: side,
           borderRadius: 4,
-          background: C.raised,
-          border: `2px solid ${accent ? C.primary : C.border}`,
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: Math.round(side * 0.08),
-          overflow: "hidden",
-          textAlign: "center",
-        },
-        h(
+          objectFit: "cover",
+          border: accent ? `4px solid ${C.primary}` : "none",
+        })
+      : h(
           "div",
           {
-            fontSize: Math.max(12, Math.round(side * 0.13)),
-            fontWeight: 600,
-            lineHeight: 1.15,
-            color: C.foreground,
-            maxHeight: Math.round(side * 0.62),
-            overflow: "hidden",
+            width: side,
+            height: side,
+            borderRadius: 4,
+            background: C.raised,
+            border: `2px solid ${accent ? C.primary : C.border}`,
+            flexDirection: "column",
+            alignItems: "center",
             justifyContent: "center",
-          },
-          album.t,
-        ),
-        h(
-          "div",
-          {
-            marginTop: 4,
-            fontSize: Math.max(12, Math.round(side * 0.09)),
-            color: C.muted,
-            maxHeight: Math.round(side * 0.24),
+            padding: pad,
             overflow: "hidden",
-            justifyContent: "center",
+            textAlign: "center",
           },
-          album.r,
-        ),
-      );
+          h(
+            "div",
+            {
+              fontSize: titleSize,
+              fontWeight: 600,
+              lineHeight: 1.15,
+              color: C.foreground,
+              justifyContent: "center",
+            },
+            shorten(album.t, perLine(titleSize) * titleLines),
+          ),
+          h(
+            "div",
+            {
+              marginTop: 4,
+              fontSize: artistSize,
+              color: C.muted,
+              justifyContent: "center",
+            },
+            shorten(album.r, perLine(artistSize)),
+          ),
+        )
+  );
+};
 
 // Cover sides as fractions of the circle's radius; same as the client's
 // MAP_SIZES (shareMap.ts), which placed them.
@@ -342,7 +358,7 @@ export function mapElement(payload, size, art) {
   // Stories are narrow: the map takes the full width, and names at the
   // sides fit beside the circle. Squares are short: the names above and
   // below fit, and those at the sides spill into the frame's padding.
-  const box = story ? size.width : 650;
+  const box = story ? size.width : 770;
   // Room for any covers past the circle, then the names.
   const radius =
     (story
@@ -403,15 +419,15 @@ export function mapElement(payload, size, art) {
     size,
     h(
       "div",
-      { flexDirection: "column", gap: 10 },
-      eyebrow("Connections around", scale),
+      { flexDirection: "column", gap: story ? 10 : 6 },
+      eyebrow("Connections around", story ? 1 : 0.75),
       line(centre.t, {
         fontFamily: "Bebas Neue",
-        fontSize: story ? 104 : 72,
+        fontSize: story ? 96 : 60,
         lineHeight: 1,
         color: C.foreground,
       }),
-      line(centre.r, { fontSize: 36 * scale, color: C.muted }),
+      line(centre.r, { fontSize: story ? 34 : 24, color: C.muted }),
     ),
     h(
       "div",

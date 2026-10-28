@@ -24,6 +24,19 @@ export const rootLineage = (searchId: string): SearchLineage => ({
   via: [],
 });
 
+/**
+ * A root on a trail of its own, for a search taken out of its stack (or
+ * saved on its own). A fresh stack id, so it can't regroup even when the
+ * stack it left was named after it (it was that stack's root).
+ */
+export const detachedLineage = (
+  searchId: string,
+  now = Date.now(),
+): SearchLineage => ({
+  ...rootLineage(searchId),
+  stackId: `${searchId}~${now}`,
+});
+
 /** A search's lineage; older searches without one are roots. */
 export const lineageOf = (search: SearchCache): SearchLineage =>
   search.lineage ?? rootLineage(search.searchId);

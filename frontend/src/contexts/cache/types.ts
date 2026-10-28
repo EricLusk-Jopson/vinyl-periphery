@@ -70,7 +70,10 @@ export interface SearchCache {
 }
 
 export interface SaveOptions {
-  /** "Save on its own": without lineage, so it never joins a stack. */
+  /**
+   * "Save on its own", or take a saved search out of its stack: starts a
+   * trail of its own (`detachedLineage`), so it never regroups.
+   */
   withoutLineage?: boolean;
   /**
    * Joins another stack: saved with this lineage instead of its own, as if

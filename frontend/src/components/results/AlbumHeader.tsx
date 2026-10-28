@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Star } from "lucide-react";
+import { Layers, Star } from "lucide-react";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { SearchCache } from "@/contexts/cache/types";
 import { track } from "@/lib/analytics";
@@ -7,19 +7,23 @@ import { cn } from "@/lib/utils";
 import { Grain } from "../layout/Grain";
 import { SearchCover } from "../search/SearchCover";
 import { SaveDrawer } from "../library/SaveDrawer";
-import { savingNeedsChoice } from "@/lib/stacks";
+import { isInStack, savingNeedsChoice } from "@/lib/stacks";
 
 interface AlbumHeaderProps {
   search: SearchCache;
 }
 
-/** The searched album above its results: cover, title, meta and Save. */
+/**
+ * The searched album above its results: cover, title, meta, Save, and once
+ * saved, Stack (put it into a stack, move it, or take it out).
+ */
 export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search }) => {
   const { isSearchSaved, saveSearch, unsaveSearch, searches, savedSearchIds } =
     useCache();
   const [busy, setBusy] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawer, setDrawer] = useState<"save" | "stack" | null>(null);
   const saved = isSearchSaved(search.searchId);
+  const stacked = saved && isInStack(search, searches, savedSearchIds);
   const { artist, album } = search.searchParams;
   const contributorCount = Object.keys(search.contributors).length;
 
@@ -28,7 +32,7 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search }) => {
     // With ancestors in the session or library, or a saved stack it fits,
     // ask how to save it; otherwise it's one tap.
     if (!saved && savingNeedsChoice(search, searches, savedSearchIds)) {
-      setDrawerOpen(true);
+      setDrawer("save");
       return;
     }
     setBusy(true);
@@ -86,11 +90,35 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search }) => {
             {saved ? "Saved" : "Save"}
           </span>
         </button>
+        {saved && (
+          <button
+            type="button"
+            onClick={() => setDrawer("stack")}
+            aria-label={stacked ? "Stack: in a stack" : "Stack: add to a stack"}
+            className={cn(
+              "inline-flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-lg text-[15px] font-medium text-foreground transition-colors",
+              "hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring",
+              "md:w-auto md:border md:border-border-strong md:px-4",
+            )}
+          >
+            <Layers
+              className={cn(
+                "h-5 w-5 md:h-4 md:w-4",
+                stacked ? "text-primary" : "text-muted-foreground",
+              )}
+              aria-hidden="true"
+            />
+            <span className="hidden md:inline" aria-hidden="true">
+              {stacked ? "Stacked" : "Stack"}
+            </span>
+          </button>
+        )}
       </div>
       <SaveDrawer
         search={search}
-        open={drawerOpen}
-        onOpenChange={setDrawerOpen}
+        mode={drawer === "stack" ? "stack" : "save"}
+        open={drawer !== null}
+        onOpenChange={(open) => !open && setDrawer(null)}
       />
     </section>
   );

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { artIds, cardSizes, initials, mapGeometry, mapLayout, renderPng, shorten, stackGeometry } from "./render.js";
+import { artIds, cardSizes, fitTileText, initials, mapGeometry, mapLayout, nameLines, renderPng, shorten, stackGeometry } from "./render.js";
 
 import { artSettled, fetchArt, loadArt } from "./art.js";
 import { IMAGE_SIZE } from "./payload.js";
@@ -119,6 +119,61 @@ test("stack maps fit their box and render", async () => {
   // One album alone doesn't blow up to fill the box.
   const lone = { ...stack, albums: stack.albums.slice(0, 1) };
   assert.equal(stackGeometry(lone, box).step, 420);
+});
+
+test("names wrap to fit, three lines at most", () => {
+  assert.deepEqual(nameLines("Giles Kwakeulati King-Ashong"), ["Giles", "Kwakeulati", "King-Ashong"]);
+  assert.deepEqual(nameLines("Morgan Simpson"), ["Morgan Simpson"]);
+  assert.deepEqual(nameLines("Deji Ijishakin"), ["Deji Ijishakin"]);
+  // A hyphenated name breaks after the hyphen when it must.
+  assert.deepEqual(nameLines("Jean-Baptiste-Alexandre"), ["Jean-Baptiste-", "Alexandre"]);
+  // Too long for three lines: the last one ends in an ellipsis.
+  const long = nameLines("Ana Maria Rosa Teresa Isabel de la Cruz Fernandez");
+  assert.equal(long.length, 3);
+  assert.ok(long[2].endsWith("…"));
+  assert.ok(long.every((l) => l.length <= 15));
+});
+
+test("long names keep the whole label inside the image", () => {
+  const payload = {
+    ...map,
+    people: [
+      { name: "Giles Kwakeulati King-Ashong", angle: 340 },
+      { name: "Morgan Simpson", angle: 90 },
+      { name: "Deschanel Gordon", angle: 0 },
+    ],
+  };
+  const box = { width: 1080, height: 760, gap: 10, edge: 32 };
+  const { labels } = mapGeometry(payload, box);
+  for (const label of labels) {
+    assert.ok(label.x >= 32 && label.x + label.w <= 1080 - 32, label.name);
+    assert.ok(label.y >= 32 && label.y + label.h <= 760 - 32, label.name);
+    assert.ok(label.h >= label.lines.length * 18);
+  }
+  assert.equal(labels[0].lines.length, 3);
+});
+
+test("coverless tiles fit their text: smaller, then without the artist", () => {
+  // Fits every line within the tile, at 12px or more.
+  for (const [title, artist, side] of [
+    ["Schlagenheim", "Black Midi", 70],
+    ["Black Country, New Road", "For The First Time", 90],
+    ["The 5000 Spirits or the Layers of the Onion", "The Incredible String Band", 80],
+    ["Ants From Up There", "BCNR", 150],
+  ]) {
+    const fit = fitTileText(title, artist, side);
+    const inner = side - 2 * fit.pad;
+    assert.ok(fit.titleSize >= 12 && fit.artistSize >= 12);
+    for (const l of fit.titleLines) assert.ok(l.length * fit.titleSize * 0.56 <= inner, `${l} in ${side}`);
+    const height = fit.titleLines.length * fit.titleSize * 1.15 + (fit.artist ? 4 + fit.artistSize * 1.15 : 0);
+    assert.ok(height <= inner + 0.5, `${title} in ${side}: ${height} > ${inner}`);
+  }
+  // Big tiles keep the artist; small ones drop it rather than show a stub.
+  assert.equal(fitTileText("Ants From Up There", "BCNR", 150).artist, "BCNR");
+  assert.equal(fitTileText("Rabbit Hole", "R. Dawson", 56).artist, null);
+  // A word too long for the tile breaks with a hyphen, in even halves.
+  assert.deepEqual(fitTileText("Jockstrap", "", 60).titleLines, ["Jocks-", "trap"]);
+  assert.deepEqual(fitTileText("Schlagenheim", "Black Midi", 70).titleLines, ["Schlag-", "enheim"]);
 });
 
 test("helpers", () => {

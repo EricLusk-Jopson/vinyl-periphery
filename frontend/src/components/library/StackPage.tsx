@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, Search } from "lucide-react";
 import { LayersOff } from "../common/icons";
 import { SearchParams } from "@/api/types";
 import { useCache } from "@/contexts/cache/CacheContext";
@@ -22,7 +22,7 @@ import {
 } from "@/lib/stacks";
 import { cn } from "@/lib/utils";
 import { StackDrawer } from "./StackDrawer";
-import { StackAction, StackConfirm } from "./StackConfirm";
+import { StackConfirm } from "./StackConfirm";
 import { ToastAction } from "../ui/toast";
 import { useToast } from "@/hooks/use-toast";
 import { AlbumCover } from "../search/AlbumCover";
@@ -110,7 +110,7 @@ export const StackPage: React.FC<StackPageProps> = ({
   } = useCache();
   const { toast } = useToast();
   const [order, setOrder] = useState<StackOrder>("depth");
-  const [confirming, setConfirming] = useState<StackAction | null>(null);
+  const [confirming, setConfirming] = useState(false);
   // The member whose Stack drawer is open.
   const [stacking, setStacking] = useState<SearchCache | null>(null);
 
@@ -236,7 +236,7 @@ export const StackPage: React.FC<StackPageProps> = ({
           />
           <button
             type="button"
-            onClick={() => setConfirming("disband")}
+            onClick={() => setConfirming(true)}
             className={cn(
               "inline-flex h-11 items-center gap-2 rounded-lg border border-border-strong px-4 text-sm font-medium text-foreground hover:bg-secondary",
               focusRing,
@@ -244,17 +244,6 @@ export const StackPage: React.FC<StackPageProps> = ({
           >
             <LayersOff className="h-4 w-4" aria-hidden="true" />
             Destack
-          </button>
-          <button
-            type="button"
-            onClick={() => setConfirming("delete")}
-            className={cn(
-              "inline-flex h-11 items-center gap-2 rounded-lg border border-border-strong px-4 text-sm font-medium text-foreground hover:bg-secondary",
-              focusRing,
-            )}
-          >
-            <Trash2 className="h-4 w-4" aria-hidden="true" />
-            Delete stack
           </button>
         </div>
       </header>
@@ -318,8 +307,8 @@ export const StackPage: React.FC<StackPageProps> = ({
       </ol>
 
       <StackConfirm
-        request={confirming && { stack, action: confirming }}
-        onClose={() => setConfirming(null)}
+        stack={confirming ? stack : null}
+        onClose={() => setConfirming(false)}
         onDone={() => navigate(libraryPath())}
       />
 

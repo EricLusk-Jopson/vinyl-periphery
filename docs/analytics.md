@@ -95,7 +95,6 @@ To test locally, put both Vinyl Periphery variables in `.env` and run
 | `cover_lookup` | Every result in a search has art or is known to have none (once per search per page load) | `albums`, `hits` (art found, from storage or MusicBrainz), `misses` (no MusicBrainz link, or the lookup failed) |
 | `stack_saved` | A search is switched to a stack it fits, or to a new stack after a search on its own, with Switch in the Stack drawer | `members` (searches in the stack afterwards), `depth` (along its trail), `from`: results or library, `joined`: true, `new_stack`: true when it starts a stack, `moved`: true when it left another stack |
 | `stack_opened` | A stack's page is opened | `members`, `ghosts` (deleted steps shown) |
-| `stack_deleted` | A whole stack is deleted after confirming (library card or stack page) | `members` |
 | `stack_disbanded` | A stack is destacked (Destack, on its card or page) after confirming: its searches stay, each on its own | `members` |
 | `search_unstacked` | A search is taken out of its stack with Destack in the Stack drawer (results page, library card or stack page); it stays in the library, on its own | `from`: results or library, `members` (searches left in the stack), `depth` (its step in the stack) |
 | `search_jumped` | An existing search is opened instead of running a new one | `from`: result (a result row) or form (the search bar) |

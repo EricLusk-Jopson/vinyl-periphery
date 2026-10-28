@@ -305,34 +305,6 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
     []
   );
 
-  /** Deletes every saved search in a stack. Returns how many. */
-  const deleteStack = useCallback(async (stackId: string) => {
-    const ids = Object.values(stateRef.current.searches)
-      .filter(
-        (s) =>
-          stateRef.current.savedSearchIds.has(s.searchId) &&
-          lineageOf(s).stackId === stackId
-      )
-      .map((s) => s.searchId);
-    for (const id of ids) await db.deleteSavedSearch(id);
-    setState((prev) => {
-      const searches = { ...prev.searches };
-      const savedSearchIds = new Set(prev.savedSearchIds);
-      ids.forEach((id) => {
-        delete searches[id];
-        savedSearchIds.delete(id);
-      });
-      return {
-        searches,
-        activeSearchId: ids.includes(prev.activeSearchId ?? "")
-          ? null
-          : prev.activeSearchId,
-        savedSearchIds,
-      };
-    });
-    return ids.length;
-  }, []);
-
   /**
    * Breaks a stack up: every saved search in it stays saved, each on a trail
    * of its own. Returns how many.
@@ -433,7 +405,6 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
     clearActiveSearch,
     addSearch,
     saveSearch,
-    deleteStack,
     disbandStack,
     restoreSearch,
     updateFilterState,

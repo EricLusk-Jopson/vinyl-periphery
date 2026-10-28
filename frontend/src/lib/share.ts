@@ -36,6 +36,8 @@ export type SharePayload =
       x: Array<ShareAlbum & { n: number }>;
       /** How the albums were chosen (sort and filters), when it says. */
       d?: string;
+      /** No covers: every album as its title and artist. */
+      nc?: 1;
     }
   | {
       v: 1;
@@ -45,10 +47,22 @@ export type SharePayload =
        * x, y: thousandths of the radius, y up; z: size tier; s: cover side
        * in thousandths of the radius, which wins over z when present.
        */
-      n: Array<ShareAlbum & { x: number; y: number; z: 1 | 2; s?: number }>;
+      n: Array<
+        ShareAlbum & {
+          x: number;
+          y: number;
+          z: 1 | 2;
+          s?: number;
+          /** The people (indices into p) linking it, for lines. */
+          l?: number[];
+        }
+      >;
       /** People around the rim: name, and angle in degrees. */
       p: Array<{ n: string; a: number }>;
       d?: string;
+      nc?: 1;
+      /** Lines from each person to their albums (`l`). */
+      ln?: 1;
     };
 
 /** Rows on the results card by default (it takes up to ten). */
@@ -198,6 +212,8 @@ export const albumMapPayload = (
       .slice(0, ALBUM_MAP_PEOPLE)
       .map((p) => p.id),
   );
+  const rim = people.filter((p) => labelled.has(p.id) && names(p.id));
+  const rimIndex = new Map(rim.map((p, i) => [p.id, i]));
   return {
     v: 1,
     l: "map",
@@ -214,14 +230,48 @@ export const albumMapPayload = (
       y: Math.round(album.y * 1000),
       z: album.liked ? 2 : 1,
       s: Math.round(album.side * 1000),
+      // Named people only: the lines run from their dots.
+      l: album.people
+        .map((id) => rimIndex.get(id))
+        .filter((i): i is number => i !== undefined),
     })),
-    p: people
-      .filter((p) => labelled.has(p.id) && names(p.id))
-      .map((p) => ({
-        n: names(p.id),
-        a: (Math.round((p.angle * 180) / Math.PI) + 360) % 360,
-      })),
+    p: rim.map((p) => ({
+      n: names(p.id),
+      a: (Math.round((p.angle * 180) / Math.PI) + 360) % 360,
+    })),
     ...(caption ? { d: caption } : {}),
+  };
+};
+
+/** How an image is drawn, chosen in the share sheet. */
+export interface ShareView {
+  /** Cover art, or titles and artists only. */
+  covers: boolean;
+  /** Lines from each person to their albums (maps that have them). */
+  lines: boolean;
+}
+
+export const DEFAULT_VIEW: ShareView = { covers: true, lines: false };
+
+/** Whether a payload has anything to draw lines from. */
+export const canDrawLines = (payload: SharePayload): boolean =>
+  payload.l === "map" && payload.n.some((n) => (n.l?.length ?? 0) > 0);
+
+/** The payload as `view` draws it: flags set, links kept only for lines. */
+export const withView = (
+  payload: SharePayload,
+  view: ShareView,
+): SharePayload => {
+  const covers = view.covers ? {} : { nc: 1 as const };
+  if (payload.l === "card") return { ...payload, ...covers };
+  const lines = view.lines && canDrawLines(payload);
+  return {
+    ...payload,
+    ...covers,
+    ...(lines ? { ln: 1 as const } : {}),
+    n: payload.n.map(({ l, ...album }) =>
+      lines && l ? { ...album, l } : album,
+    ),
   };
 };
 

@@ -132,6 +132,12 @@ export interface EnrichedRelease {
    * (Producer on one release, Remix on another).
    */
   contributions?: Record<number, Appearance[]>;
+  /**
+   * Discogs community counts from the discography item: how many have it
+   * in their wantlist and in their collection. Missing on searches run
+   * before it was kept, and on items Discogs sends without stats.
+   */
+  community?: { want: number; have: number };
 }
 
 export interface SearchParams {

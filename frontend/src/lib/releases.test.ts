@@ -103,6 +103,30 @@ describe("toEnrichedRelease", () => {
   });
 });
 
+describe("community counts", () => {
+  it("keeps want and have from the item's stats", () => {
+    const item = {
+      ...master,
+      stats: { community: { in_wantlist: 988, in_collection: 6835 } },
+    };
+    expect(toEnrichedRelease(item, 1).community).toEqual({
+      want: 988,
+      have: 6835,
+    });
+    expect(toEnrichedRelease(master, 1).community).toBeUndefined();
+  });
+
+  it("takes the larger counts when the same album comes from two people", () => {
+    const map = new Map<string, EnrichedRelease>();
+    const stats = (want: number, have: number) => ({
+      stats: { community: { in_wantlist: want, in_collection: have } },
+    });
+    addRelease(map, toEnrichedRelease({ ...master, ...stats(10, 50) }, 1));
+    addRelease(map, toEnrichedRelease({ ...master, ...stats(12, 40) }, 2));
+    expect(map.get("master:51539")?.community).toEqual({ want: 12, have: 50 });
+  });
+});
+
 describe("addRelease", () => {
   it("keeps a master and a release with the same numeric id apart", () => {
     const map = new Map<string, EnrichedRelease>();

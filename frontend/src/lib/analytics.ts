@@ -22,7 +22,6 @@ export type AnalyticsEvent =
   | "cover_lookup"
   | "stack_saved"
   | "stack_opened"
-  | "stack_deleted"
   | "search_unstacked"
   | "stack_disbanded"
   | "result_liked"
@@ -31,6 +30,7 @@ export type AnalyticsEvent =
   | "library_searched"
   | "share_created"
   | "share_completed"
+  | "chip_details"
   | "results_searched"
   | "result_picked";
 

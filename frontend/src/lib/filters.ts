@@ -32,6 +32,15 @@ export interface RoleChip {
   available: boolean;
   /** On "must include": locked on, changed only from that list. */
   required: boolean;
+  /** Who had this role on the searched album, by name. */
+  people: RolePerson[];
+}
+
+export interface RolePerson {
+  id: number;
+  name: string;
+  /** Switched on in the contributor filter. */
+  included: boolean;
 }
 
 /** Contributor chips, most albums first, then by name. */
@@ -65,15 +74,28 @@ export const roleChips = (search: SearchCache): RoleChip[] => {
   const required = requiredFilters(filterState);
   return Object.keys(search.roles)
     .sort((a, b) => a.localeCompare(b))
-    .map((role) => ({
-      role,
-      included: filterState.roles[role] ?? true,
-      available: Object.values(search.contributors).some(
-        (c) => c.roles.includes(role) && filterState.contributors[c.id],
-      ),
-      required: required.roles.includes(role),
-    }));
+    .map((role) => {
+      const people = rolePeople(search, role);
+      return {
+        role,
+        included: filterState.roles[role] ?? true,
+        available: people.some((p) => p.included),
+        required: required.roles.includes(role),
+        people,
+      };
+    });
 };
+
+/** Everyone credited with a role on the searched album, by name. */
+export const rolePeople = (search: SearchCache, role: string): RolePerson[] =>
+  Object.values(search.contributors)
+    .filter((c) => c.roles.includes(role))
+    .map((c) => ({
+      id: c.id,
+      name: defaultContributorDisplayPipeline(c.name),
+      included: Boolean(search.filterState.contributors[c.id]),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
 export interface RoleGroup {
   id: RoleCategory;

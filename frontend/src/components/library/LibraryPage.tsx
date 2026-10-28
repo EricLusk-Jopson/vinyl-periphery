@@ -20,7 +20,7 @@ import { ToastAction } from "../ui/toast";
 import { LibraryCard } from "./LibraryCard";
 import { StackDrawer } from "./StackDrawer";
 import { StackCard } from "./StackCard";
-import { StackAction, StackConfirm } from "./StackConfirm";
+import { StackConfirm } from "./StackConfirm";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
@@ -72,7 +72,6 @@ export const LibraryPage: React.FC = () => {
   const [query, setQuery] = useState("");
   const [stackRequest, setStackRequest] = useState<{
     stack: LibraryStack;
-    action: StackAction;
     /** The focused card when asked, to keep focus nearby afterwards. */
     index: number;
   } | null>(null);
@@ -203,19 +202,8 @@ export const LibraryPage: React.FC = () => {
             <StackCard
               key={entry.stackId}
               stack={entry}
-              onDelete={() =>
-                setStackRequest({
-                  stack: entry,
-                  action: "delete",
-                  index: focusedIndex(),
-                })
-              }
               onDisband={() =>
-                setStackRequest({
-                  stack: entry,
-                  action: "disband",
-                  index: focusedIndex(),
-                })
+                setStackRequest({ stack: entry, index: focusedIndex() })
               }
             />
           ) : (
@@ -330,7 +318,7 @@ export const LibraryPage: React.FC = () => {
       )}
 
       <StackConfirm
-        request={stackRequest}
+        stack={stackRequest?.stack ?? null}
         onClose={() => setStackRequest(null)}
         onDone={() => keepFocus(stackRequest?.index ?? 0)}
       />

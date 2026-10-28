@@ -11,6 +11,7 @@ import { resetFilterState } from "@/lib/results";
 import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { Chip } from "./Chip";
+import { ContributorDetails, RoleDetails } from "./ChipDetails";
 import { FilterGroup } from "./FilterGroup";
 import { MustInclude } from "./MustInclude";
 import { Switch } from "./Switch";
@@ -163,6 +164,10 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                 label={c.name}
                 count={c.count}
                 description={c.roles.join(", ")}
+                details={<ContributorDetails name={c.name} roles={c.roles} />}
+                onDetails={(via) =>
+                  track("chip_details", { kind: "contributor", via })
+                }
                 included={c.included}
                 available={c.available}
                 required={c.required}
@@ -238,6 +243,11 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                       included={r.included}
                       available={r.available}
                       required={r.required}
+                      description={r.people.map((p) => p.name).join(", ")}
+                      details={<RoleDetails role={r.role} people={r.people} />}
+                      onDetails={(via) =>
+                        track("chip_details", { kind: "role", via })
+                      }
                       unavailableNote="everyone with this role is switched off"
                       onToggle={() => {
                         changed("role", !r.included);

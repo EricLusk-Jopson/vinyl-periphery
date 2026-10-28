@@ -119,8 +119,6 @@ export interface CacheContextValue extends CacheState {
   deleteSearch: (searchId: string) => Promise<void>;
   /** Writes a search again, e.g. with new lineage (see SaveOptions). */
   saveSearch: (searchId: string, options?: SaveOptions) => Promise<void>;
-  /** Deletes every saved search with this stack id; resolves to how many. */
-  deleteStack: (stackId: string) => Promise<number>;
   /** Every saved search in the stack back on its own. Returns how many. */
   disbandStack: (stackId: string) => Promise<number>;
   /** Puts a deleted search back (undo). */

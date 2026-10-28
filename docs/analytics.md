@@ -87,9 +87,9 @@ To test locally, put both Vinyl Periphery variables in `.env` and run
 | `search_failed` | An error stops the search | `artist`, `album`, `phase`, `seconds`, `error` |
 | `search_cancelled` | The user cancels, or leaves mid-search | `artist`, `album`, `phase`, `seconds` |
 | `example_filled` | An example search fills the form | `artist`, `album` |
-| `result_opened` | A result row is expanded | `rank`, `shared`, `sort` |
-| `discogs_opened` | "View on Discogs" is followed | `rank`, `shared`, `sort` |
-| `result_liked` | A result's heart is tapped: liked or unliked (likes belong to the album, in every search) | `liked`, `rank`, `shared`, `sort` |
+| `result_opened` | A result row is expanded | `rank`, `shared`, `sort`; `then` when a tiebreaker is chosen (desktop) |
+| `discogs_opened` | "View on Discogs" is followed | `rank`, `shared`, `sort`; `then` when a tiebreaker is chosen (desktop) |
+| `result_liked` | A result's heart is tapped: liked or unliked (likes belong to the album, in every search) | `liked`, `rank`, `shared`, `sort`; `then` when a tiebreaker is chosen (desktop) |
 | `filter_changed` | Any filter, switch, select-all or reset | `filter`, `on`; `category` for `role_category`. `filter` is one of `hide_main_artist`, `two_plus_shared`, `hide_various`, `contributor`, `role`, `all_contributors`, `all_roles`, `role_category`, `must_include_contributor`, `must_include_role`, `reset` |
 | `result_credits` | An opened result's credits are fetched from Discogs (not when read from storage), once per row when every version it reads has loaded or failed | `outcome`: loaded (any version) or failed (none), `shared` (people linking it), `versions` (releases read: 1, or up to 3 for an album with several versions); when loaded, `found` (of the people, how many some version's credits name) and `hinted` (of the rest, how many have a discography role to show instead); when any failed, `failed` (how many) and `status` (HTTP status of the first, 0 offline) |
 | `cover_lookup` | Every result in a search has art or is known to have none (once per search per page load) | `albums`, `hits` (art found, from storage or MusicBrainz), `misses` (no MusicBrainz link, or the lookup failed) |

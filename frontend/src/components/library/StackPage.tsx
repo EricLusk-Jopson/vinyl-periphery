@@ -274,7 +274,7 @@ export const StackPage: React.FC<StackPageProps> = ({
       </div>
 
       <ol className="mt-4 flex flex-col gap-2.5 md:gap-3">
-        {entries.map((entry) => (
+        {entries.map((entry, i) => (
           <li
             key={
               entry.kind === "member"
@@ -283,7 +283,17 @@ export const StackPage: React.FC<StackPageProps> = ({
             }
             className="flex flex-col gap-1.5 md:flex-row md:items-center md:gap-4"
           >
-            <span className="w-16 shrink-0 font-mono text-xs text-faint">
+            {/* By step, a step is labelled once, on its first search; the
+                others keep the column so the cards line up. */}
+            <span
+              className={cn(
+                "w-16 shrink-0 font-mono text-xs text-faint",
+                order === "depth" &&
+                  i > 0 &&
+                  entries[i - 1].depth === entry.depth &&
+                  "hidden md:block md:invisible",
+              )}
+            >
               {stepLabel(entry.depth)}
             </span>
             <ul className="min-w-0 flex-1">

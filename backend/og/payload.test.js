@@ -53,13 +53,37 @@ test("decodes a map, clamping places and clipping names", () => {
   );
   assert.equal(payload.layout, "map");
   assert.deepEqual(payload.centre, { t: "The New Sound", r: "Geordie Greep", i: `g:${MBID}` });
-  assert.deepEqual(payload.albums[0], { t: "Schlagenheim", r: "Black Midi", i: "", x: 0.512, y: -1.5, z: 2 });
-  assert.deepEqual(payload.albums[1], { t: "Endlessness", r: "Nala Sinephro", i: "", x: 0, y: 0.01, z: 1 });
+  assert.deepEqual(payload.albums[0], { t: "Schlagenheim", r: "Black Midi", i: "", x: 0.512, y: -1.5, z: 2, side: 0.36 });
+  assert.deepEqual(payload.albums[1], { t: "Endlessness", r: "Nala Sinephro", i: "", x: 0, y: 0.01, z: 1, side: 0.28 });
   assert.ok(payload.albums.length <= MAX_MAP_ALBUMS);
   assert.deepEqual(payload.people[0], { name: "Morgan Simpson", angle: 10 });
   assert.equal(payload.people[1].name.length, 40);
   assert.equal(payload.people[1].angle, 270);
   assert.equal(payload.people.length, 2);
+  assert.equal(payload.caption, "");
+});
+
+test("decodes sizes and the caption, within bounds", () => {
+  const payload = decodePayload(
+    encodePayload({
+      v: 1,
+      l: "map",
+      c: { t: "Unmap", r: "Volcano Choir", i: "" },
+      n: [
+        { t: "A", r: "", x: 0, y: 0, z: 1, s: 240 },
+        { t: "B", r: "", x: 0, y: 0, z: 1, s: 9000 },
+        { t: "C", r: "", x: 0, y: 0, z: 2, s: "big" },
+      ],
+      p: [],
+      d: `Top 12 by Shared · Liked only${" ".repeat(10)}${"x".repeat(300)}`,
+    }),
+  );
+  assert.deepEqual(
+    payload.albums.map((a) => a.side),
+    [0.24, 0.5, 0.36],
+  );
+  assert.ok(payload.caption.startsWith("Top 12 by Shared · Liked only x"));
+  assert.equal(payload.caption.length, 160);
 });
 
 test("rejects missing, oversized, malformed and empty payloads", () => {

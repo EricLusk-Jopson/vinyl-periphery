@@ -8,6 +8,7 @@ import { Grain } from "../layout/Grain";
 import { SearchCover } from "../search/SearchCover";
 import { StackDrawer } from "../library/StackDrawer";
 import { ShareButton } from "../share/ShareButton";
+import { ResultsSort } from "@/hooks/useResultsSort";
 import { isInStack } from "@/lib/stacks";
 import { libraryPath, resultPath } from "@/lib/routes";
 import { useToast } from "@/hooks/use-toast";
@@ -15,6 +16,8 @@ import { ToastAction } from "../ui/toast";
 
 interface AlbumHeaderProps {
   search: SearchCache;
+  /** The results' order: Share draws the top albums in it. */
+  order: ResultsSort;
 }
 
 /**
@@ -22,7 +25,7 @@ interface AlbumHeaderProps {
  * (put it into a stack, move it, or take it out), and Delete. Every search
  * is in the library, so there's nothing to save.
  */
-export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search }) => {
+export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search, order }) => {
   const { deleteSearch, restoreSearch, searches, savedSearchIds } = useCache();
   const navigate = useNavigate();
   // The share map: this album in the middle, its liked results around it.
@@ -36,6 +39,11 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search }) => {
       members: [search],
     }),
     [search],
+  );
+  // What Share draws: the top albums in the list's order.
+  const selection = useMemo(
+    () => ({ sort: order.sort, then: order.then }),
+    [order.sort, order.then],
   );
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
@@ -96,6 +104,7 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search }) => {
           <ShareButton
             search={search}
             map={map}
+            selection={selection}
             to={resultPath(search.searchParams, search.target)}
             compact
           />

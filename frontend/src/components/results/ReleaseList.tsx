@@ -26,7 +26,7 @@ import { setLiked } from "@/services/likes";
 import { cn } from "@/lib/utils";
 import { pinToTop } from "@/lib/resultSearch";
 import { iconButton } from "../common/buttons";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { ResultsSort } from "@/hooks/useResultsSort";
 import {
   Select,
   SelectContent,
@@ -41,6 +41,8 @@ const PAGE_SIZE = 20;
 
 interface ReleaseListProps {
   searchId: string;
+  /** The order, held by the page so Share draws the same top albums. */
+  order: ResultsSort;
   /** Starts a search for exactly the row's album, by its Discogs id. */
   onSearchFrom: (params: SearchParams, known: KnownAlbum) => void;
   isSearching: boolean;
@@ -54,6 +56,7 @@ const quietButton =
 /** Count, find, sort, the result rows, and "Show more". */
 export const ReleaseList: React.FC<ReleaseListProps> = ({
   searchId,
+  order,
   onSearchFrom,
   isSearching,
   toolbarAction,
@@ -64,13 +67,9 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
   const search = searches[searchId];
   const sortId = useId();
 
-  const [sort, setSort] = useState<SortKey>("shared");
+  const { sort, setSort, then, setThen, canBreakTies: desktop } = order;
   // "Then by": a second sort for ties, offered on desktop only.
-  const desktop = useMediaQuery("(min-width: 1024px)");
-  const [thenBy, setThenBy] = useState<SortKey | null>(null);
   const tiebreaks = tiebreakOptions(sort);
-  const then =
-    desktop && tiebreaks.some((o) => o.value === thenBy) ? thenBy : null;
   const [visible, setVisible] = useState(PAGE_SIZE);
   // By release key: masters and releases can share a numeric id.
   const [openKey, setOpenKey] = useState<string | null>(null);
@@ -220,7 +219,7 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
               <Select
                 value={then ?? "ranking"}
                 onValueChange={(value) => {
-                  setThenBy(value === "ranking" ? null : (value as SortKey));
+                  setThen(value === "ranking" ? null : (value as SortKey));
                   setVisible(PAGE_SIZE);
                 }}
               >

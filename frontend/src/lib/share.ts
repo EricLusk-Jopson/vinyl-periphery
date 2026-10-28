@@ -1,6 +1,13 @@
 import { SearchCache } from "@/contexts/cache/types";
 import { Likes } from "@/services/likes";
-import { ScoredRelease } from "./results";
+import { ALBUM_MAP_PEOPLE, layoutAlbumMap } from "./albumMap";
+import { requiredFilters } from "./filters";
+import {
+  resetFilterState,
+  ScoredRelease,
+  SORT_OPTIONS,
+  SortKey,
+} from "./results";
 import { layoutMap, mapAlbums, MAX_MAP_PEOPLE } from "./shareMap";
 import { defaultContributorDisplayPipeline } from "./transformers/contributorProcessor";
 
@@ -22,18 +29,30 @@ interface ShareAlbum {
 }
 
 export type SharePayload =
-  | { v: 1; l: "card"; a: ShareAlbum; x: Array<ShareAlbum & { n: number }> }
+  | {
+      v: 1;
+      l: "card";
+      a: ShareAlbum;
+      x: Array<ShareAlbum & { n: number }>;
+      /** How the albums were chosen (sort and filters), when it says. */
+      d?: string;
+    }
   | {
       v: 1;
       l: "map";
       c: ShareAlbum;
-      /** x, y: thousandths of the radius, y up; z: size tier. */
-      n: Array<ShareAlbum & { x: number; y: number; z: 1 | 2 }>;
+      /**
+       * x, y: thousandths of the radius, y up; z: size tier; s: cover side
+       * in thousandths of the radius, which wins over z when present.
+       */
+      n: Array<ShareAlbum & { x: number; y: number; z: 1 | 2; s?: number }>;
       /** People around the rim: name, and angle in degrees. */
       p: Array<{ n: string; a: number }>;
+      d?: string;
     };
 
-export const SHARE_RESULTS = 6;
+/** Rows on the results card (the renderer draws five). */
+export const SHARE_RESULTS = 5;
 
 /** The art id in a Cover Art Archive URL, or "". */
 export const artIdFromCoverUrl = (url: string | null | undefined): ArtId => {
@@ -56,6 +75,7 @@ export const cardPayload = (
   search: SearchCache,
   ranked: ScoredRelease[],
   coverFor: CoverFor,
+  caption?: string,
 ): SharePayload => ({
   v: 1,
   l: "card",
@@ -70,7 +90,109 @@ export const cardPayload = (
     i: artFor(release.key, coverFor),
     n: release.activeContributors.length,
   })),
+  ...(caption ? { d: caption } : {}),
 });
+
+const sortName = (key: SortKey) =>
+  SORT_OPTIONS.find((o) => o.value === key)?.short ?? key;
+
+/**
+ * How a share's albums were chosen, in a line for the image: "Top 12 by
+ * Shared, then Newest · Liked only · 2 people off". Only filters that differ
+ * from Reset are named.
+ */
+export const selectionCaption = (
+  search: SearchCache,
+  count: number,
+  sort: SortKey,
+  then: SortKey | null,
+): string => {
+  const { filterState } = search;
+  const base = resetFilterState(search);
+  const parts = [
+    `Top ${count} by ${sortName(sort)}${then ? `, then ${sortName(then)}` : ""}`,
+  ];
+  if (filterState.likedOnly) parts.push("Liked only");
+  if (filterState.collaborationsOnly) parts.push("2+ shared");
+  if (filterState.excludeVarious) parts.push("No Various Artists");
+  if (filterState.excludeMainArtist !== base.excludeMainArtist) {
+    parts.push(`With ${search.searchParams.artist}'s own`);
+  }
+  const required = requiredFilters(filterState);
+  const names = [
+    ...required.contributors.map((id) =>
+      defaultContributorDisplayPipeline(search.contributors[id]?.name ?? ""),
+    ),
+    ...required.roles,
+  ].filter(Boolean);
+  if (names.length > 0) {
+    parts.push(
+      `Must include ${names.slice(0, 2).join(", ")}${
+        names.length > 2 ? ` +${names.length - 2}` : ""
+      }`,
+    );
+  }
+  const off = (states: Record<string | number, boolean>) =>
+    Object.values(states).filter((on) => !on).length;
+  const peopleOff = off(filterState.contributors);
+  const rolesOff = off(filterState.roles);
+  if (peopleOff > 0) {
+    parts.push(`${peopleOff} ${peopleOff === 1 ? "person" : "people"} off`);
+  }
+  if (rolesOff > 0) {
+    parts.push(`${rolesOff} ${rolesOff === 1 ? "role" : "roles"} off`);
+  }
+  return parts.join(" · ");
+};
+
+/**
+ * Share map for one search: its album in the middle and `shown` (its top
+ * results, as filtered and sorted) around it. See `albumMap.ts`.
+ */
+export const albumMapPayload = (
+  search: SearchCache,
+  shown: ScoredRelease[],
+  likes: Likes,
+  coverFor: CoverFor,
+  caption?: string,
+): SharePayload => {
+  const { albums, people } = layoutAlbumMap(shown, search.contributors, likes);
+  const names = (id: number) =>
+    defaultContributorDisplayPipeline(search.contributors[id]?.name ?? "");
+  // Names for the people linking the most albums; the rest still placed
+  // the albums, but aren't drawn.
+  const labelled = new Set(
+    [...people]
+      .sort((a, b) => b.albums - a.albums || a.id - b.id)
+      .slice(0, ALBUM_MAP_PEOPLE)
+      .map((p) => p.id),
+  );
+  return {
+    v: 1,
+    l: "map",
+    c: {
+      t: search.searchParams.album,
+      r: search.searchParams.artist,
+      i: artFor(search.target?.key, coverFor),
+    },
+    n: albums.map((album) => ({
+      t: album.title,
+      r: album.artist,
+      i: artFor(album.key, coverFor),
+      x: Math.round(album.x * 1000),
+      y: Math.round(album.y * 1000),
+      z: album.liked ? 2 : 1,
+      s: Math.round(album.side * 1000),
+    })),
+    p: people
+      .filter((p) => labelled.has(p.id) && names(p.id))
+      .map((p) => ({
+        n: names(p.id),
+        a: (Math.round((p.angle * 180) / Math.PI) + 360) % 360,
+      })),
+    ...(caption ? { d: caption } : {}),
+  };
+};
 
 /**
  * Contributor id -> display name, from every search here. Ids are Discogs

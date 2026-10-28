@@ -29,6 +29,9 @@ const GAP = 0.03;
  */
 export const MAP_OUTER_BAND = MAP_SIZES[2] + 2 * GAP;
 
+/** Steps at the end of `relax` that only push covers apart. */
+const SETTLE = 120;
+
 /** Where a cover outside the circle sits: just past it. */
 const outerRadius = (side: number) => 1 + GAP + side / 2;
 
@@ -152,6 +155,8 @@ const sizeTier = (album: MapAlbum): 1 | 2 =>
 /**
  * Pushes overlapping covers apart while each is pulled back toward its
  * place, keeping every cover inside the circle. The centre cover stays put.
+ * The last SETTLE steps only push, so the pull can't leave covers
+ * overlapping.
  * Deterministic: the same albums always land in the same places.
  */
 export const relax = (
@@ -177,6 +182,7 @@ export const relax = (
     }
   };
   for (let step = 0; step < iterations; step++) {
+    const settling = step >= iterations - SETTLE;
     for (let i = 0; i < all.length; i++) {
       for (let j = i + 1; j < all.length; j++) {
         const a = all[i];
@@ -199,7 +205,18 @@ export const relax = (
         const aFixed = "fixed" in a;
         const shareA = aFixed ? 0 : 1;
         const shareB = aFixed ? 2 : 1;
-        if (alongX) {
+        if (settling) {
+          // Settling: apart along the line between them, so covers held
+          // at the circle's edge can slide around it instead of jamming.
+          const length = Math.hypot(dx, dy);
+          const ux = dx / length;
+          const uy = dy / length;
+          const push = move + 0.002;
+          a.x -= ux * push * shareA;
+          a.y -= uy * push * shareA;
+          b.x += ux * push * shareB;
+          b.y += uy * push * shareB;
+        } else if (alongX) {
           a.x -= sign * move * shareA;
           b.x += sign * move * shareB;
         } else {
@@ -208,9 +225,10 @@ export const relax = (
         }
       }
     }
+    const pull = step < iterations - SETTLE ? 0.02 : 0;
     points.forEach((p, i) => {
-      p.x += (ideal[i].x - p.x) * 0.02;
-      p.y += (ideal[i].y - p.y) * 0.02;
+      p.x += (ideal[i].x - p.x) * pull;
+      p.y += (ideal[i].y - p.y) * pull;
       inside(p);
     });
   }

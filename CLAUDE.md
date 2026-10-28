@@ -101,9 +101,11 @@ switch both run from `main`, so keep `backend/server.js` and
   then year, so prolific people lose most of their later work: Jim Keltner
   has 1,445 items, Steve Albini 1,775.
 - In `/artists/{id}/releases`, release-type items carry no `master_id`
-  (none of 32 sampled from Keltner and Albini). They look like releases
-  with no master (compilations, promos, singles); albums with versions come
-  as one master item. A release folds into a master only when the master's
+  (none of 32 sampled from Keltner and Albini): they are releases with no
+  master (compilations, promos, singles; confirmed for 2429544, whose own
+  release record has no `master_id`, unlike releases that belong to one).
+  Albums with versions come as one master item, so duplicate versions are
+  rare. A release folds into a master only when the master's
   `main_release` is that release.
 - An item's `main_release` is the release where that person has that role,
   not the master's main release: the same master can appear several times

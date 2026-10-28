@@ -1,15 +1,14 @@
 import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Layers, Star, Trash2 } from "lucide-react";
+import { Layers, Trash2 } from "lucide-react";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { SearchCache } from "@/contexts/cache/types";
-import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { Grain } from "../layout/Grain";
 import { SearchCover } from "../search/SearchCover";
-import { SaveDrawer } from "../library/SaveDrawer";
+import { StackDrawer } from "../library/StackDrawer";
 import { ShareButton } from "../share/ShareButton";
-import { isInStack, savingNeedsChoice } from "@/lib/stacks";
+import { isInStack } from "@/lib/stacks";
 import { libraryPath, resultPath } from "@/lib/routes";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "../ui/toast";
@@ -19,19 +18,12 @@ interface AlbumHeaderProps {
 }
 
 /**
- * The searched album above its results: cover, title, meta, Share, Save, once
- * saved Stack (put it into a stack, move it, or take it out), and Delete.
+ * The searched album above its results: cover, title, meta, Share, Stack
+ * (put it into a stack, move it, or take it out), and Delete. Every search
+ * is in the library, so there's nothing to save.
  */
 export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search }) => {
-  const {
-    isSearchSaved,
-    saveSearch,
-    unsaveSearch,
-    clearSearch,
-    restoreSearch,
-    searches,
-    savedSearchIds,
-  } = useCache();
+  const { deleteSearch, restoreSearch, searches, savedSearchIds } = useCache();
   const navigate = useNavigate();
   // The share map: this album in the middle, its liked results around it.
   const map = useMemo(
@@ -47,52 +39,31 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search }) => {
   );
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
-  const [drawer, setDrawer] = useState<"save" | "stack" | null>(null);
-  const saved = isSearchSaved(search.searchId);
-  const stacked = saved && isInStack(search, searches, savedSearchIds);
+  const [stacking, setStacking] = useState(false);
+  const stacked = isInStack(search, searches, savedSearchIds);
   const { artist, album } = search.searchParams;
   const contributorCount = Object.keys(search.contributors).length;
-
-  const toggleSave = async () => {
-    if (busy) return;
-    // With ancestors in the session or library, or a saved stack it fits,
-    // ask how to save it; otherwise it's one tap.
-    if (!saved && savingNeedsChoice(search, searches, savedSearchIds)) {
-      setDrawer("save");
-      return;
-    }
-    setBusy(true);
-    try {
-      await (saved ? unsaveSearch : saveSearch)(search.searchId);
-      track("search_saved", { saved: !saved, from: "results" });
-    } catch (error) {
-      console.error("Failed to update saved search:", error);
-    } finally {
-      setBusy(false);
-    }
-  };
 
   // As on the library: no warning, the toast can undo it. Goes to the
   // library, since this page has nothing left to show.
   const remove = async () => {
     if (busy) return;
     setBusy(true);
+    // Off this page first: it has nothing to show once the search is gone.
+    navigate(libraryPath());
     try {
-      if (saved) await unsaveSearch(search.searchId);
+      await deleteSearch(search.searchId);
     } catch (error) {
       console.error("Failed to delete search:", error);
-      setBusy(false);
       return;
     }
-    navigate(libraryPath(saved ? "saved" : "session"));
-    clearSearch(search.searchId);
     toast({
       title: "Search deleted",
       description: `${album} by ${artist}`,
       action: (
         <ToastAction
           altText="Undo delete"
-          onClick={() => void restoreSearch(search, saved)}
+          onClick={() => void restoreSearch(search)}
         >
           Undo
         </ToastAction>
@@ -121,8 +92,7 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search }) => {
             {contributorCount === 1 ? "contributor" : "contributors"}
           </p>
         </div>
-        {/* Phones: a row of their own, so the title keeps its width. */}
-        <div className="-mt-1 flex w-full shrink-0 items-center justify-end gap-1 md:mt-0 md:w-auto md:gap-2">
+        <div className="flex shrink-0 items-center gap-1 md:gap-2">
           <ShareButton
             search={search}
             map={map}
@@ -131,52 +101,25 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search }) => {
           />
           <button
             type="button"
-            onClick={toggleSave}
-            disabled={busy}
-            aria-pressed={saved}
-            aria-label={saved ? "Saved" : "Save"}
+            onClick={() => setStacking(true)}
+            aria-label={stacked ? "Stack: in a stack" : "Stack: add to a stack"}
             className={cn(
               "inline-flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-lg text-[15px] font-medium text-foreground transition-colors",
-              "hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-60",
+              "hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring",
               "md:w-auto md:border md:border-border-strong md:px-4",
             )}
           >
-            <Star
+            <Layers
               className={cn(
                 "h-5 w-5 md:h-4 md:w-4",
-                saved ? "fill-primary text-primary" : "text-muted-foreground",
+                stacked ? "text-primary" : "text-muted-foreground",
               )}
               aria-hidden="true"
             />
             <span className="hidden md:inline" aria-hidden="true">
-              {saved ? "Saved" : "Save"}
+              {stacked ? "Stacked" : "Stack"}
             </span>
           </button>
-          {saved && (
-            <button
-              type="button"
-              onClick={() => setDrawer("stack")}
-              aria-label={
-                stacked ? "Stack: in a stack" : "Stack: add to a stack"
-              }
-              className={cn(
-                "inline-flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-lg text-[15px] font-medium text-foreground transition-colors",
-                "hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring",
-                "md:w-auto md:border md:border-border-strong md:px-4",
-              )}
-            >
-              <Layers
-                className={cn(
-                  "h-5 w-5 md:h-4 md:w-4",
-                  stacked ? "text-primary" : "text-muted-foreground",
-                )}
-                aria-hidden="true"
-              />
-              <span className="hidden md:inline" aria-hidden="true">
-                {stacked ? "Stacked" : "Stack"}
-              </span>
-            </button>
-          )}
           <button
             type="button"
             onClick={() => void remove()}
@@ -198,11 +141,11 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search }) => {
           </button>
         </div>
       </div>
-      <SaveDrawer
+      <StackDrawer
         search={search}
-        mode={drawer === "stack" ? "stack" : "save"}
-        open={drawer !== null}
-        onOpenChange={(open) => !open && setDrawer(null)}
+        open={stacking}
+        onOpenChange={setStacking}
+        from="results"
       />
     </section>
   );

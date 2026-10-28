@@ -3,7 +3,6 @@ import {
   fromLocation,
   libraryPath,
   legacyResultParams,
-  libraryTab,
   resultParams,
   resultPath,
   resultTarget,
@@ -74,23 +73,19 @@ describe("legacyResultParams", () => {
   });
 });
 
-describe("library tabs", () => {
-  it("round-trips the tab through the query", () => {
+describe("libraryPath", () => {
+  it("is one page", () => {
     expect(libraryPath()).toBe("/library");
-    expect(libraryPath("saved")).toBe("/library?tab=saved");
-    expect(libraryTab("?tab=saved")).toBe("saved");
-    expect(libraryTab("")).toBe("session");
-    expect(libraryTab("?tab=nonsense")).toBe("session");
   });
 });
 
 describe("backLink", () => {
-  it("goes back to the library tab the result came from", () => {
-    expect(backLink({ from: "library", tab: "saved" })).toEqual({
-      to: "/library?tab=saved",
+  it("goes back to the library, whatever tab older state names", () => {
+    expect(backLink({ from: "library" })).toEqual({
+      to: "/library",
       label: "Back to library",
     });
-    expect(backLink({ from: "library", tab: "session" }).to).toBe("/library");
+    expect(backLink({ from: "library", tab: "saved" }).to).toBe("/library");
   });
 
   it("goes home otherwise, including with no or odd state", () => {
@@ -103,13 +98,10 @@ describe("backLink", () => {
 });
 
 describe("fromLocation", () => {
-  it("names the library with its tab, and anything else as home", () => {
-    expect(fromLocation("/library", "?tab=saved")).toEqual({
-      from: "library",
-      tab: "saved",
-    });
-    expect(fromLocation("/", "")).toEqual({ from: "home" });
-    expect(fromLocation("/results", "?artist=a&album=b")).toEqual({
+  it("names the library, and anything else as home", () => {
+    expect(fromLocation("/library")).toEqual({ from: "library" });
+    expect(fromLocation("/")).toEqual({ from: "home" });
+    expect(fromLocation("/results")).toEqual({
       from: "home",
     });
   });
@@ -121,7 +113,7 @@ describe("stack routes", () => {
   it("encodes the stack id and round-trips through fromLocation", () => {
     const path = stackPath(stackId);
     expect(path).toBe("/library/stack/Volcano%20Choir-Unmap-1700000000000");
-    expect(fromLocation(path, "")).toEqual({ from: "stack", stackId });
+    expect(fromLocation(path)).toEqual({ from: "stack", stackId });
   });
 
   it("sends results opened from a stack back to it", () => {

@@ -85,11 +85,15 @@ export interface SaveOptions {
 export interface CacheState {
   searches: Record<string, SearchCache>;
   activeSearchId: string | null;
+  /**
+   * Every search in the library. All searches are kept now; the name is
+   * from when only some were.
+   */
   savedSearchIds: Set<string>;
 }
 
 export interface CacheContextValue extends CacheState {
-  /** Saved searches have been read from IndexedDB. Not persisted. */
+  /** The library has been read from IndexedDB. Not persisted. */
   savedSearchesLoaded: boolean;
   /** Old search id -> the repeat run that replaced it (in localStorage). */
   replacedBy: Record<string, string>;
@@ -106,23 +110,19 @@ export interface CacheContextValue extends CacheState {
     /** Rejoins a known trail, e.g. searching a ghosted stack step again. */
     lineage?: SearchLineage
   ) => string;
-  /** Whether another search is expected to fit in sessionStorage. */
-  hasRoomForAnotherSearch: () => boolean;
   updateFilterState: (
     searchId: string,
     updates: Partial<SearchCache["filterState"]>
   ) => void;
   getActiveSearch: () => SearchCache | null;
-  clearSearch: (searchId: string) => void;
-  clearSessionHistory: () => void;
-  clearSavedSearches: () => void;
+  /** Deletes a search from the library. */
+  deleteSearch: (searchId: string) => Promise<void>;
+  /** Writes a search again, e.g. with new lineage (see SaveOptions). */
   saveSearch: (searchId: string, options?: SaveOptions) => Promise<void>;
   /** Deletes every saved search with this stack id; resolves to how many. */
   deleteStack: (stackId: string) => Promise<number>;
   /** Every saved search in the stack back on its own. Returns how many. */
   disbandStack: (stackId: string) => Promise<number>;
-  /** Puts a deleted search back, saved again if `saved`. */
-  restoreSearch: (search: SearchCache, saved: boolean) => Promise<void>;
-  unsaveSearch: (searchId: string) => Promise<void>;
-  isSearchSaved: (searchId: string) => boolean;
+  /** Puts a deleted search back (undo). */
+  restoreSearch: (search: SearchCache) => Promise<void>;
 }

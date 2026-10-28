@@ -20,7 +20,7 @@ const focusRing =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
 
 /**
- * A stack's root cover: the root search's own while it's saved, otherwise
+ * A stack's root cover: the root search's own while it's there, otherwise
  * the art its snapshot kept, or the Cover Art Archive art for its album.
  */
 export const StackRootCover: React.FC<{
@@ -48,7 +48,7 @@ interface StackCardProps {
 }
 
 /**
- * Saved searches from one trail, as one card: the root's cover and name,
+ * The searches in one stack, as one card: the root's cover and name,
  * "+ n" for the rest. Offset edges behind it mark it as a stack. Opens the
  * stack's page; Disband and Delete act on the whole stack.
  */
@@ -102,8 +102,8 @@ export const StackCard: React.FC<StackCardProps> = ({
               {root.artist}
             </span>
             <span className="font-mono text-xs text-faint">
-              {count} saved · {deepest} {deepest === 1 ? "step" : "steps"} deep
-              · {timeAgo(latest)}
+              {count} searches · {deepest} {deepest === 1 ? "step" : "steps"}{" "}
+              deep · {timeAgo(latest)}
             </span>
           </span>
         </Link>

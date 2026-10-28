@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { ChevronRight, Star } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { LIBRARY_PATH, ResultFrom, resultPath } from "@/lib/routes";
 import { recentSearches } from "@/lib/searches";
@@ -10,9 +10,9 @@ const RECENT_LIMIT = 3;
 
 const FROM_HOME: ResultFrom = { from: "home" };
 
-/** The last few searches from this session and the saved library. */
+/** The last few searches in the library. */
 export const RecentSearches: React.FC = () => {
-  const { searches, isSearchSaved } = useCache();
+  const { searches } = useCache();
   const recent = recentSearches(searches, RECENT_LIMIT);
 
   if (recent.length === 0) return null;
@@ -42,10 +42,7 @@ export const RecentSearches: React.FC = () => {
         {recent.map((search) => {
           const { artist, album } = search.searchParams;
           const albumCount = Object.keys(search.releases).length;
-          const saved = isSearchSaved(search.searchId);
-          const meta = `${albumCount} ${albumCount === 1 ? "album" : "albums"}${
-            saved ? " · saved" : ""
-          }`;
+          const meta = `${albumCount} ${albumCount === 1 ? "album" : "albums"}`;
 
           return (
             <li key={search.searchId} className="min-w-0">
@@ -70,12 +67,6 @@ export const RecentSearches: React.FC = () => {
                     {meta}
                   </span>
                 </span>
-                {saved && (
-                  <Star
-                    className="hidden h-[18px] w-[18px] shrink-0 fill-primary text-primary md:block"
-                    aria-hidden="true"
-                  />
-                )}
                 <ChevronRight
                   className="h-[18px] w-[18px] shrink-0 text-faint md:hidden"
                   aria-hidden="true"

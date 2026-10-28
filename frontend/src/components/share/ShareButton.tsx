@@ -31,8 +31,16 @@ import {
   SHARE_COUNTS,
   selectionCaption,
 } from "@/lib/share";
+import {
+  editsCaption,
+  filtersToInclude,
+  NO_EDITS,
+  ShareEdits,
+  shareSelection,
+} from "@/lib/shareSelection";
 import { cn } from "@/lib/utils";
 import { dialogButton } from "../common/buttons";
+import { ShareAlbums } from "./ShareAlbums";
 
 /** Longest the sheet waits for covers before drawing without the rest. */
 const COVER_WAIT_MS = 6000;
@@ -123,7 +131,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   to,
   compact = false,
 }) => {
-  const { searches } = useCache();
+  const { searches, updateFilterState } = useCache();
   const { releases } = useFilteredAndScoredReleases(search.searchId);
   const { toast } = useToast();
   const wide = useMediaQuery("(min-width: 768px)");
@@ -135,6 +143,8 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     map: SHARE_COUNTS.map.start,
     card: SHARE_COUNTS.card.start,
   });
+  // Albums taken out of the image or added to it (one search only).
+  const [edits, setEdits] = useState<ShareEdits>(NO_EDITS);
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState("");
 
@@ -150,11 +160,27 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
         : (releases as ScoredRelease[]),
     [releases, selection],
   );
-  const cardCount = Math.min(counts.card, ranked.length);
+  // What each layout draws: the top of the list, as edited.
   const mapShown = useMemo(
-    () => (selection ? ranked.slice(0, counts.map) : []),
-    [selection, ranked, counts.map],
+    () => (selection ? shareSelection(search, ranked, counts.map, edits) : []),
+    [selection, search, ranked, counts.map, edits],
   );
+  const cardShown = useMemo(
+    () =>
+      selection
+        ? shareSelection(search, ranked, counts.card, edits)
+        : ranked.slice(0, counts.card),
+    [selection, search, ranked, counts.card, edits],
+  );
+  const visibleKeys = useMemo(
+    () => new Set(ranked.map((r) => r.key)),
+    [ranked],
+  );
+  // Albums there are to draw: the list less removed ones, plus added ones.
+  const available = new Set([
+    ...ranked.map((r) => r.key).filter((k) => !edits.removed.includes(k)),
+    ...edits.added,
+  ]).size;
   // What the map would show around its centre.
   const around = useMemo(
     () =>
@@ -167,7 +193,12 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   );
   const caption = (count: number) =>
     selection
-      ? selectionCaption(search, count, selection.sort, selection.then)
+      ? [
+          selectionCaption(search, count, selection.sort, selection.then),
+          editsCaption(edits),
+        ]
+          .filter(Boolean)
+          .join(" · ")
       : undefined;
   // The albums either layout draws, so their covers can be looked up.
   const wanted = useMemo(
@@ -177,10 +208,10 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
             map.centre.key,
             ...around.map((a) => a.key),
             search.target?.key ?? "",
-            ...ranked.slice(0, cardCount).map((r) => r.key),
+            ...cardShown.map((r) => r.key),
           ].filter(Boolean)
         : [],
-    [open, map.centre.key, around, search.target?.key, ranked, cardCount],
+    [open, map.centre.key, around, search.target?.key, cardShown],
   );
   const cover = useCoverArt(wanted);
   const [waited, setWaited] = useState(false);
@@ -229,13 +260,40 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     if (!ready) return null;
     return layout === "map"
       ? mapImage
-      : cardPayload(search, ranked, coverFor, caption(cardCount), cardCount);
+      : cardPayload(
+          search,
+          cardShown,
+          coverFor,
+          caption(cardShown.length),
+          cardShown.length,
+        );
     // coverFor reads the resolver; `covers` says when it has changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, covers, layout, mapImage, search, ranked, selection, cardCount]);
+  }, [ready, covers, layout, mapImage, search, cardShown, selection, edits]);
   // The album counts to offer for this layout (one search only).
-  const shownCount = layout === "map" ? mapShown.length : cardCount;
-  const countChoices = selection ? countOptions(layout, ranked.length) : [];
+  const shown = layout === "map" ? mapShown : cardShown;
+  const shownCount = shown.length;
+  const countChoices = selection ? countOptions(layout, available) : [];
+
+  const removeAlbum = (key: string) =>
+    setEdits((current) =>
+      current.added.includes(key)
+        ? { ...current, added: current.added.filter((k) => k !== key) }
+        : { ...current, removed: [...current.removed, key] },
+    );
+  const addAlbum = (key: string, filtered: boolean) => {
+    // Linked through the usual filters: its people and their roles on.
+    if (filtered) {
+      const update = filtersToInclude(search, key);
+      if (update) updateFilterState(search.searchId, update);
+    }
+    setEdits((current) => ({
+      removed: current.removed.filter((k) => k !== key),
+      added: current.added.includes(key)
+        ? current.added
+        : [...current.added, key],
+    }));
+  };
 
   const image = payload ? shareImagePath(payload) : "";
   const link = payload ? shareLink(window.location.origin, payload, to) : "";
@@ -259,7 +317,13 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     setBusy(true);
     track("share_created", {
       layout,
-      ...(selection ? { albums: shownCount } : {}),
+      ...(selection
+        ? {
+            albums: shownCount,
+            removed: edits.removed.length,
+            added: edits.added.length,
+          }
+        : {}),
     });
     try {
       const response = await fetch(image);
@@ -343,6 +407,8 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
           side={wide ? "right" : "bottom"}
           className={cn(
             "flex flex-col gap-4 overflow-y-auto bg-background p-5 md:w-[440px] md:max-w-[440px] md:p-6",
+            // Room for the album list beside the preview.
+            selection && "lg:w-[920px] lg:max-w-[920px]",
             !wide && "max-h-[92vh] rounded-t-xl",
           )}
         >
@@ -352,7 +418,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
             </SheetTitle>
             <SheetDescription className="text-left text-sm text-muted-foreground">
               {selection
-                ? `The top albums connected to ${search.searchParams.album}, as your filters and sort show them, with a link back here.`
+                ? `The top albums connected to ${search.searchParams.album}, as your filters and sort show them, with a link back here. Take albums out or add others below.`
                 : layout === "map"
                   ? `A map of ${map.centre.title} and the albums around it, with a link back here.`
                   : `An image of what connects to ${search.searchParams.album}, with a link back here.`}
@@ -363,79 +429,117 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
             </SheetDescription>
           </div>
 
-          {mapReady && (
-            <Segmented
-              label="Show"
-              value={layout}
-              options={LAYOUTS}
-              onChange={(value) => setChosen(value)}
-            />
-          )}
-
-          {countChoices.length > 0 && (
-            <Segmented
-              label="Albums"
-              value={String(shownCount)}
-              options={countChoices.map((c) => ({
-                id: String(c.count),
-                label: c.label,
-              }))}
-              onChange={(value) =>
-                setCounts((current) => ({
-                  ...current,
-                  [layout]: Number(value),
-                }))
-              }
-            />
-          )}
-
-          <div className="relative mx-auto aspect-square w-full max-w-[360px] overflow-hidden rounded-lg border bg-surface">
-            {loaded !== image && (
-              <span className="absolute inset-0 flex items-center justify-center font-mono text-xs text-faint">
-                {image ? "Making the image…" : "Finding covers…"}
-              </span>
+          {/* Phones and tablets: choices, preview and buttons, then the
+              album list. Desktop: preview and buttons on the left, the
+              choices and the album list on the right. */}
+          <div
+            className={cn(
+              "flex flex-col gap-4",
+              selection &&
+                "lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:gap-x-8 lg:gap-y-5",
             )}
-            {image && (
-              <img
-                key={image}
-                src={image}
-                alt="Preview of the share image"
-                onLoad={() => setLoaded(image)}
-                className={cn(
-                  "relative h-full w-full object-cover transition-opacity duration-200",
-                  loaded === image ? "opacity-100" : "opacity-0",
+          >
+            {(mapReady || countChoices.length > 0) && (
+              <div className="flex flex-col gap-4 lg:col-start-2 lg:row-start-1">
+                {mapReady && (
+                  <Segmented
+                    label="Show"
+                    value={layout}
+                    options={LAYOUTS}
+                    onChange={(value) => setChosen(value)}
+                  />
                 )}
-              />
+                {countChoices.length > 0 && (
+                  <Segmented
+                    label="Albums"
+                    value={String(shownCount)}
+                    options={countChoices.map((c) => ({
+                      id: String(c.count),
+                      label: c.label,
+                    }))}
+                    onChange={(value) =>
+                      setCounts((current) => ({
+                        ...current,
+                        [layout]: Number(value),
+                      }))
+                    }
+                  />
+                )}
+              </div>
             )}
-          </div>
 
-          <div className="flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={() => void shareImage()}
-              disabled={busy || !payload}
-              className={cn(dialogButton.primary, "gap-2")}
-            >
-              {canShareFiles ? (
-                <Share2 className="h-4 w-4" aria-hidden="true" />
-              ) : (
-                <Download className="h-4 w-4" aria-hidden="true" />
-              )}
-              {busy
-                ? "Making the image…"
-                : canShareFiles
-                  ? "Share image"
-                  : "Download image"}
-            </button>
-            <button
-              type="button"
-              onClick={() => void copyLink()}
-              disabled={!payload}
-              className={cn(dialogButton.secondary, "gap-2")}
-            >
-              <LinkIcon className="h-4 w-4" aria-hidden="true" />
-              Copy link
-            </button>
+            <div className="flex flex-col gap-4 lg:col-start-1 lg:row-span-2 lg:row-start-1">
+              <div
+                className={cn(
+                  "relative mx-auto aspect-square w-full max-w-[360px] overflow-hidden rounded-lg border bg-surface",
+                  selection && "lg:max-w-none",
+                )}
+              >
+                {loaded !== image && (
+                  <span className="absolute inset-0 flex items-center justify-center font-mono text-xs text-faint">
+                    {image ? "Making the image…" : "Finding covers…"}
+                  </span>
+                )}
+                {image && (
+                  <img
+                    key={image}
+                    src={image}
+                    alt="Preview of the share image"
+                    onLoad={() => setLoaded(image)}
+                    className={cn(
+                      "relative h-full w-full object-cover transition-opacity duration-200",
+                      loaded === image ? "opacity-100" : "opacity-0",
+                    )}
+                  />
+                )}
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => void shareImage()}
+                  disabled={busy || !payload}
+                  className={cn(dialogButton.primary, "gap-2")}
+                >
+                  {canShareFiles ? (
+                    <Share2 className="h-4 w-4" aria-hidden="true" />
+                  ) : (
+                    <Download className="h-4 w-4" aria-hidden="true" />
+                  )}
+                  {busy
+                    ? "Making the image…"
+                    : canShareFiles
+                      ? "Share image"
+                      : "Download image"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void copyLink()}
+                  disabled={!payload}
+                  className={cn(dialogButton.secondary, "gap-2")}
+                >
+                  <LinkIcon className="h-4 w-4" aria-hidden="true" />
+                  Copy link
+                </button>
+              </div>
+            </div>
+
+            {selection && (
+              <div className="lg:col-start-2 lg:row-start-2">
+                <ShareAlbums
+                  search={search}
+                  shown={shown}
+                  visibleKeys={visibleKeys}
+                  edits={edits}
+                  cover={cover}
+                  onRemove={removeAlbum}
+                  onAdd={addAlbum}
+                  onRestore={() =>
+                    setEdits((current) => ({ ...current, removed: [] }))
+                  }
+                />
+              </div>
+            )}
           </div>
         </SheetContent>
       </Sheet>

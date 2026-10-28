@@ -585,6 +585,131 @@ export function mapElement(payload, size, art) {
   );
 }
 
+/**
+ * The stack map fitted to a box: every album's box in pixels. Places come
+ * in step lengths (y up) and are scaled, up to `maxStep` pixels a step,
+ * so the whole graph fits `edge` clear of the box's sides.
+ */
+export function stackGeometry(payload, { width, height, edge, maxStep }) {
+  const all = [{ x: 0, y: 0, side: payload.centre.side }, ...payload.albums];
+  const minX = Math.min(...all.map((n) => n.x - n.side / 2));
+  const maxX = Math.max(...all.map((n) => n.x + n.side / 2));
+  const minY = Math.min(...all.map((n) => n.y - n.side / 2));
+  const maxY = Math.max(...all.map((n) => n.y + n.side / 2));
+  const step = Math.min(
+    maxStep,
+    (width - 2 * edge) / Math.max(maxX - minX, 0.01),
+    (height - 2 * edge) / Math.max(maxY - minY, 0.01),
+  );
+  // Centred in the box.
+  const left = (width - (maxX - minX) * step) / 2;
+  const top = (height - (maxY - minY) * step) / 2;
+  const boxes = all.map((n) => ({
+    x: left + (n.x - n.side / 2 - minX) * step,
+    y: top + (maxY - (n.y + n.side / 2)) * step,
+    w: n.side * step,
+    h: n.side * step,
+  }));
+  return { step, boxes };
+}
+
+const STACK_FIT = { edge: 24, maxStep: 420 };
+
+/** Stack map: its albums a step apart, results where they overlap most. */
+export function stackElement(payload, size, art) {
+  const pad = 48;
+  const headerHeight = payload.caption ? 146 : 118;
+  const top = pad + headerHeight;
+  const box = { width: size.width, height: size.height - top - 32 - 28 - 8 };
+  const { boxes } = stackGeometry(payload, { ...box, ...STACK_FIT });
+  const { centre } = payload;
+  const artOf = (item) => (payload.covers === false ? null : art.get(item.i));
+  const middleOf = (b) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
+  // Lines: stack albums to the album they came from, a little stronger;
+  // results to the albums they share people with.
+  const links = payload.lines
+    ? payload.albums.flatMap((node, i) =>
+        node.links
+          .filter((k) => boxes[k])
+          .map((k) => ({
+            from: middleOf(boxes[i + 1]),
+            to: middleOf(boxes[k]),
+            strong: node.member,
+          })),
+      )
+    : [];
+  const placed = (b, child) =>
+    h("div", { position: "absolute", left: Math.round(b.x), top: Math.round(b.y) }, child);
+
+  return h(
+    "div",
+    {
+      position: "relative",
+      width: size.width,
+      height: size.height,
+      background: C.background,
+      color: C.foreground,
+      fontFamily: "IBM Plex Sans",
+    },
+    h(
+      "div",
+      { position: "absolute", left: 0, top, width: box.width, height: box.height },
+      links.length > 0 && {
+        type: "svg",
+        props: {
+          width: box.width,
+          height: box.height,
+          viewBox: `0 0 ${box.width} ${box.height}`,
+          style: { position: "absolute", left: 0, top: 0 },
+          children: links.map((l) => ({
+            type: "line",
+            props: {
+              x1: Math.round(l.from.x),
+              y1: Math.round(l.from.y),
+              x2: Math.round(l.to.x),
+              y2: Math.round(l.to.y),
+              stroke: l.strong ? C.muted : C.faint,
+              strokeOpacity: l.strong ? 0.7 : 0.4,
+              strokeWidth: l.strong ? 2.5 : 1.5,
+            },
+          })),
+        },
+      },
+      // Results first, so the stack's albums sit on top.
+      ...payload.albums
+        .map((node, i) => ({ node, b: boxes[i + 1] }))
+        .sort((a, b) => Number(a.node.member) - Number(b.node.member))
+        .map(({ node, b }) => placed(b, tile(node, artOf(node), Math.round(b.w)))),
+      placed(boxes[0], tile(centre, artOf(centre), Math.round(boxes[0].w))),
+    ),
+    h(
+      "div",
+      {
+        position: "absolute",
+        left: pad,
+        top: pad,
+        width: size.width - 2 * pad,
+        flexDirection: "column",
+        gap: 4,
+      },
+      eyebrow("Stacked from", 0.7),
+      line(centre.t, {
+        fontFamily: "Bebas Neue",
+        fontSize: 56,
+        lineHeight: 1,
+        color: C.foreground,
+      }),
+      line(centre.r, { fontSize: 22, color: C.muted }),
+      payload.caption && h("div", { marginTop: 6 }, caption(payload.caption, 18)),
+    ),
+    h(
+      "div",
+      { position: "absolute", left: pad, bottom: 28, width: size.width - 2 * pad },
+      footer(),
+    ),
+  );
+}
+
 /** The art ids a payload shows. */
 export const artIds = (payload) =>
   payload.covers === false
@@ -601,7 +726,9 @@ export async function renderPng(payload, size, art) {
   const element =
     payload.layout === "card"
       ? cardElement(payload, size, art)
-      : mapElement(payload, size, art);
+      : payload.layout === "stack"
+        ? stackElement(payload, size, art)
+        : mapElement(payload, size, art);
   const response = new ImageResponse(element, {
     width: size.width,
     height: size.height,

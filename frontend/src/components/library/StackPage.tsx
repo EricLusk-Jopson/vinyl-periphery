@@ -231,6 +231,7 @@ export const StackPage: React.FC<StackPageProps> = ({
                 thumb: root.thumb,
               },
               members,
+              levels,
             }}
             to={stackPath(stackId)}
           />

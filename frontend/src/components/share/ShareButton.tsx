@@ -16,20 +16,21 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useToast } from "@/hooks/use-toast";
 import { useLikes } from "@/hooks/useLikes";
 import { useCoverArt } from "@/hooks/useCoverArt";
-import { mapAlbums } from "@/lib/shareMap";
+import { layoutStackMap, stackResultCount } from "@/lib/stackMap";
 import { track } from "@/lib/analytics";
 import { ScoredRelease, SortKey, sortReleases } from "@/lib/results";
 import {
   albumMapPayload,
   cardPayload,
   MapCentre,
-  mapPayload,
+  stackMapPayload,
   ShareLayout,
   shareImagePath,
   shareLink,
   countOptions,
   SHARE_COUNTS,
   canDrawLines,
+  stackCaption,
   DEFAULT_VIEW,
   ShareView,
   withView,
@@ -57,10 +58,15 @@ interface ShareButtonProps {
   /** The search the Results layout lists. */
   search: SearchCache;
   /**
-   * What the map draws: its centre, and the stack's searches around it (or
-   * just this search), with liked albums from their results.
+   * What the stack map draws (without `selection`): its start in the
+   * middle, the stack's searches a step apart by `levels` (their steps),
+   * and results around them.
    */
-  map: { centre: MapCentre; members: SearchCache[] };
+  map: {
+    centre: MapCentre;
+    members: SearchCache[];
+    levels?: Map<string, number>;
+  };
   /**
    * For one search: the results' order. Both layouts then draw its top
    * albums as filtered and sorted on the page (no stack, no picking), and
@@ -136,7 +142,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   to,
   compact = false,
 }) => {
-  const { searches, updateFilterState } = useCache();
+  const { updateFilterState } = useCache();
   const { releases } = useFilteredAndScoredReleases(search.searchId);
   const { toast } = useToast();
   const wide = useMediaQuery("(min-width: 768px)");
@@ -188,15 +194,24 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     ...ranked.map((r) => r.key).filter((k) => !edits.removed.includes(k)),
     ...edits.added,
   ]).size;
+  // A stack: its albums a step apart and results around them.
+  const stackNodes = useMemo(
+    () =>
+      open && !selection
+        ? layoutStackMap(
+            map.centre,
+            map.members,
+            map.levels ?? new Map(),
+            likes,
+            counts.map,
+          )
+        : [],
+    [open, selection, map.centre, map.members, map.levels, likes, counts.map],
+  );
   // What the map would show around its centre.
   const around = useMemo(
-    () =>
-      !open
-        ? []
-        : selection
-          ? mapShown
-          : mapAlbums(map.centre.key, map.members, likes),
-    [open, selection, mapShown, map.centre.key, map.members, likes],
+    () => (!open ? [] : selection ? mapShown : stackNodes.slice(1)),
+    [open, selection, mapShown, stackNodes],
   );
   const caption = (count: number) =>
     selection
@@ -247,19 +262,15 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
               coverFor,
               caption(mapShown.length),
             )
-          : mapPayload(map.centre, map.members, searches, likes, coverFor),
+          : stackMapPayload(
+              map.centre,
+              stackNodes,
+              coverFor,
+              stackCaption(stackNodes),
+            ),
     // coverFor reads the resolver; `covers` says when it has changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      ready,
-      covers,
-      selection,
-      mapShown,
-      map.centre.key,
-      map.members,
-      searches,
-      likes,
-    ],
+    [ready, covers, selection, mapShown, map.centre, stackNodes],
   );
   // A map with nothing around its centre isn't worth sharing.
   const mapReady = around.length > 0;
@@ -281,7 +292,11 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   // The album counts to offer for this layout (one search only).
   const shown = layout === "map" ? mapShown : cardShown;
   const shownCount = shown.length;
-  const countChoices = selection ? countOptions(layout, available) : [];
+  const countChoices = selection
+    ? countOptions(layout, available)
+    : layout === "map"
+      ? countOptions("map", stackResultCount(map.centre, map.members))
+      : countOptions("card", ranked.length);
 
   const removeAlbum = (key: string) =>
     setEdits((current) =>
@@ -434,12 +449,12 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
               {selection
                 ? `The top albums connected to ${search.searchParams.album}, as your filters and sort show them, with a link back here. Take albums out or add others below.`
                 : layout === "map"
-                  ? `A map of ${map.centre.title} and the albums around it, with a link back here.`
+                  ? `A map of the stack from ${map.centre.title}: each step one unit from the album it came from, and the results nearest the albums they share people with. With a link back here.`
                   : `An image of what connects to ${search.searchParams.album}, with a link back here.`}
               {!mapReady &&
                 (selection
                   ? " No albums match these filters."
-                  : " Like albums in the results to share them as a map.")}
+                  : " Stack another album to share a map.")}
             </SheetDescription>
           </div>
 
@@ -489,7 +504,11 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                   />
                   {linesAvailable && (
                     <Switch
-                      label="Lines from people to albums"
+                      label={
+                        selection
+                          ? "Lines from people to albums"
+                          : "Lines between linked albums"
+                      }
                       checked={view.lines}
                       onChange={(lines) =>
                         setView((current) => ({ ...current, lines }))

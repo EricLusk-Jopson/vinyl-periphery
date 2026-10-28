@@ -6,6 +6,10 @@
 // Version 1:
 //   { v: 1, l: "card", a: Album, x: Result[], d? }             periphery card
 //   { v: 1, l: "map",  c: Album, n: Placed[], p: Person[], d? } map
+//   { v: 1, l: "stack", c: Album & { s }, n: Node[], d? }       stack map
+//   Node   = Album & { x, y, s: place and cover side in thousandths of
+//            a step, y up; m?: 1 for the stack's own albums;
+//            e?: linked nodes, 0 the centre and k for n[k - 1] }
 //   Album  = { t: title, r: artist, i: art }
 //   Result = Album & { n: shared count }
 //   Placed = Album & { x, y: thousandths of the radius from the centre,
@@ -119,6 +123,50 @@ export function decodePayload(encoded) {
     const caption = text(raw.d, MAX_CAPTION);
     return albums.length > 0
       ? { layout: "map", centre, albums, people, caption, covers: raw.nc !== 1, lines }
+      : null;
+  }
+
+  if (raw.l === "stack") {
+    const centre = album(raw.c);
+    if (!centre.t) return null;
+    // Steps from the centre: a long stack can reach a few steps out.
+    const place = (value) =>
+      Math.max(-12000, Math.min(12000, Math.round(Number(value) || 0))) / 1000;
+    const side = (value, fallback) => {
+      const n = Number(value);
+      return Number.isFinite(n) && value !== null && value !== ""
+        ? Math.max(0.1, Math.min(0.8, n / 1000))
+        : fallback;
+    };
+    const lines = raw.ln === 1;
+    const raws = list(raw.n, MAX_MAP_ALBUMS);
+    const nodes = raws
+      .map((n, k) => ({
+        ...album(n),
+        x: place(n?.x),
+        y: place(n?.y),
+        side: side(n?.s, 0.25),
+        member: n?.m === 1,
+        index: k + 1,
+        links: lines ? list(n?.e, MAX_MAP_ALBUMS + 1).map(Number) : [],
+      }))
+      .filter((n) => n.t);
+    // Links point at nodes as sent; untitled ones are dropped, so remap.
+    const at = new Map([[0, 0], ...nodes.map((n, i) => [n.index, i + 1])]);
+    for (const node of nodes) {
+      node.links = [...new Set(node.links.map((k) => at.get(k) ?? -1))].filter((k) => k >= 0);
+      delete node.index;
+    }
+    const caption = text(raw.d, MAX_CAPTION);
+    return nodes.length > 0
+      ? {
+          layout: "stack",
+          centre: { ...centre, side: side(raw.c?.s, 0.5) },
+          albums: nodes,
+          caption,
+          covers: raw.nc !== 1,
+          lines,
+        }
       : null;
   }
 

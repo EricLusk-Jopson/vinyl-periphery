@@ -3,10 +3,10 @@ import { ScoredRelease } from "./results";
 import {
   artIdFromCoverUrl,
   cardPayload,
-  contributorNames,
   encodeSharePayload,
   mapHasAlbums,
-  mapPayload,
+  stackMapPayload,
+  stackCaption,
   shareImagePath,
   albumMapPayload,
   countOptions,
@@ -15,7 +15,7 @@ import {
   selectionCaption,
   shareLink,
 } from "./share";
-import { MAP_OUTER_BAND } from "./shareMap";
+import { layoutStackMap } from "./stackMap";
 
 const MBID = "1b022e01-4da6-387b-8658-8678046e4cef";
 const cover = (kind: string) =>
@@ -75,7 +75,7 @@ describe("cardPayload", () => {
   });
 });
 
-describe("mapPayload", () => {
+describe("stackMapPayload", () => {
   const withResults = (
     s: SearchCache,
     results: Record<number, number[]>,
@@ -96,63 +96,43 @@ describe("mapPayload", () => {
   const root = withResults(
     search(1, "Unmap", [
       [1, "Justin Vernon"],
-      [2, "Brian Joseph (2)"],
+      [2, "Brian Joseph"],
     ]),
     { 2: [1, 2], 5: [1], 6: [2] },
   );
   const child = withResults(search(2, "Bon Iver", [[3, "Sean Carey"]]), {
     7: [3],
+    5: [3],
   });
-  const searches = { [root.searchId]: root, [child.searchId]: child };
   const centre = { key: "master:1", title: "Unmap", artist: "Volcano Choir" };
-  const likes = {
-    "master:5": { title: "Album 5", artist: "Someone", likedAt: 1 },
-    "master:2": { title: "Bon Iver", artist: "Bon Iver", likedAt: 2 },
-    "master:99": { title: "Elsewhere", artist: "Nobody", likedAt: 3 },
-  };
+  const levels = new Map([
+    [root.searchId, 0],
+    [child.searchId, 1],
+  ]);
 
-  it("puts the stack's albums and the liked ones in their results around the centre", () => {
-    const payload = mapPayload(centre, [root, child], searches, likes, (key) =>
-      key === "master:1" ? cover("release-group") : null,
+  it("sends the stack a step apart and the results around it", () => {
+    const nodes = layoutStackMap(centre, [root, child], levels, {}, 12);
+    const payload = stackMapPayload(
+      centre,
+      nodes,
+      (key) => (key === "master:1" ? cover("release-group") : null),
+      stackCaption(nodes),
     );
-    if (payload.l !== "map") throw new Error();
-    expect(payload.c).toEqual({
-      t: "Unmap",
-      r: "Volcano Choir",
-      i: `g:${MBID}`,
-    });
-    // Bon Iver (a liked stack album, so bigger), then the liked Album 5;
-    // Album 99 isn't in any result, and Album 6 isn't liked.
-    expect(payload.n.map((n) => [n.t, n.z])).toEqual([
-      ["Bon Iver", 2],
-      ["Album 5", 1],
+    if (payload.l !== "stack") throw new Error();
+    expect(payload.c).toMatchObject({ t: "Unmap", i: `g:${MBID}` });
+    const [step, ...results] = payload.n;
+    // Bon Iver: a stack album, one step (1000) out, linked to the centre.
+    expect(step).toMatchObject({ t: "Bon Iver", m: 1, e: [0] });
+    expect(Math.hypot(step.x, step.y)).toBeCloseTo(1000, -1);
+    // Album 5 shares people with both stack albums: linked to both.
+    expect(results.find((r) => r.t === "Album 5")?.e).toEqual([0, 1]);
+    expect(results.map((r) => r.t).sort()).toEqual([
+      "Album 5",
+      "Album 6",
+      "Album 7",
     ]);
-    for (const n of payload.n) {
-      // Inside the circle, or just past it.
-      expect(Math.hypot(n.x, n.y)).toBeLessThanOrEqual(
-        1000 * (1 + MAP_OUTER_BAND),
-      );
-    }
-    // People around the rim, by name, disambiguation dropped.
-    expect(payload.p.map((p) => p.n).sort()).toEqual([
-      "Brian Joseph",
-      "Justin Vernon",
-    ]);
-    for (const p of payload.p) {
-      expect(p.a).toBeGreaterThanOrEqual(0);
-      expect(p.a).toBeLessThan(360);
-    }
-  });
-
-  it("names people from any search here", () => {
-    const names = contributorNames(searches);
-    expect(names.get(2)).toBe("Brian Joseph");
-    expect(names.get(3)).toBe("Sean Carey");
-  });
-
-  it("knows when there's nothing around the centre", () => {
-    const payload = mapPayload(centre, [root], searches, {}, () => null);
-    expect(mapHasAlbums(payload)).toBe(false);
+    expect(payload.d).toBe("2 albums stacked · 3 around them");
+    expect(mapHasAlbums(payload)).toBe(true);
   });
 });
 

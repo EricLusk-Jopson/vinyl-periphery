@@ -362,6 +362,31 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
     return ids.length;
   }, []);
 
+  /**
+   * Breaks a stack up: every saved search in it stays saved, each on a trail
+   * of its own. Returns how many.
+   */
+  const disbandStack = useCallback(async (stackId: string) => {
+    const members = Object.values(stateRef.current.searches).filter(
+      (s) =>
+        stateRef.current.savedSearchIds.has(s.searchId) &&
+        lineageOf(s).stackId === stackId
+    );
+    const loose = members.map((s) => ({
+      ...s,
+      lineage: detachedLineage(s.searchId),
+    }));
+    for (const search of loose) await db.saveSearch(search);
+    setState((prev) => {
+      const searches = { ...prev.searches };
+      loose.forEach((s) => {
+        searches[s.searchId] = s;
+      });
+      return { ...prev, searches };
+    });
+    return loose.length;
+  }, []);
+
   /** Puts a deleted search back (undo), saved again if it was. */
   const restoreSearch = useCallback(
     async (search: SearchCache, saved: boolean) => {
@@ -515,6 +540,7 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
     saveSearch,
     unsaveSearch,
     deleteStack,
+    disbandStack,
     restoreSearch,
     isSearchSaved,
     updateFilterState,

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Layers, Star } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Layers, Star, Trash2 } from "lucide-react";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { SearchCache } from "@/contexts/cache/types";
 import { track } from "@/lib/analytics";
@@ -8,18 +9,30 @@ import { Grain } from "../layout/Grain";
 import { SearchCover } from "../search/SearchCover";
 import { SaveDrawer } from "../library/SaveDrawer";
 import { isInStack, savingNeedsChoice } from "@/lib/stacks";
+import { libraryPath } from "@/lib/routes";
+import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "../ui/toast";
 
 interface AlbumHeaderProps {
   search: SearchCache;
 }
 
 /**
- * The searched album above its results: cover, title, meta, Save, and once
- * saved, Stack (put it into a stack, move it, or take it out).
+ * The searched album above its results: cover, title, meta, Save, once
+ * saved Stack (put it into a stack, move it, or take it out), and Delete.
  */
 export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search }) => {
-  const { isSearchSaved, saveSearch, unsaveSearch, searches, savedSearchIds } =
-    useCache();
+  const {
+    isSearchSaved,
+    saveSearch,
+    unsaveSearch,
+    clearSearch,
+    restoreSearch,
+    searches,
+    savedSearchIds,
+  } = useCache();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [drawer, setDrawer] = useState<"save" | "stack" | null>(null);
   const saved = isSearchSaved(search.searchId);
@@ -46,10 +59,38 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search }) => {
     }
   };
 
+  // As on the library: no warning, the toast can undo it. Goes to the
+  // library, since this page has nothing left to show.
+  const remove = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (saved) await unsaveSearch(search.searchId);
+    } catch (error) {
+      console.error("Failed to delete search:", error);
+      setBusy(false);
+      return;
+    }
+    navigate(libraryPath(saved ? "saved" : "session"));
+    clearSearch(search.searchId);
+    toast({
+      title: "Search deleted",
+      description: `${album} by ${artist}`,
+      action: (
+        <ToastAction
+          altText="Undo delete"
+          onClick={() => void restoreSearch(search, saved)}
+        >
+          Undo
+        </ToastAction>
+      ),
+    });
+  };
+
   return (
     <section className="relative overflow-hidden border-b">
       <Grain className="opacity-10" />
-      <div className="relative mx-auto flex max-w-[1280px] items-center gap-3 px-4 py-3 md:flex-wrap md:gap-5 md:px-6 md:py-6 lg:gap-6 lg:py-9">
+      <div className="relative mx-auto flex max-w-[1280px] flex-wrap items-center gap-3 px-4 py-3 md:gap-5 md:px-6 md:py-6 lg:gap-6 lg:py-9">
         <SearchCover
           search={search}
           className="h-14 w-14 rounded-[3px] text-[13px] md:h-[88px] md:w-[88px] md:rounded md:text-base lg:h-28 lg:w-28"
@@ -67,52 +108,76 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search }) => {
             {contributorCount === 1 ? "contributor" : "contributors"}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={toggleSave}
-          disabled={busy}
-          aria-pressed={saved}
-          aria-label={saved ? "Saved" : "Save"}
-          className={cn(
-            "inline-flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-lg text-[15px] font-medium text-foreground transition-colors",
-            "hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-60",
-            "md:w-auto md:border md:border-border-strong md:px-4",
-          )}
-        >
-          <Star
-            className={cn(
-              "h-5 w-5 md:h-4 md:w-4",
-              saved ? "fill-primary text-primary" : "text-muted-foreground",
-            )}
-            aria-hidden="true"
-          />
-          <span className="hidden md:inline" aria-hidden="true">
-            {saved ? "Saved" : "Save"}
-          </span>
-        </button>
-        {saved && (
+        {/* Phones: a row of their own, so the title keeps its width. */}
+        <div className="-mt-1 flex w-full shrink-0 items-center justify-end gap-1 md:mt-0 md:w-auto md:gap-2">
           <button
             type="button"
-            onClick={() => setDrawer("stack")}
-            aria-label={stacked ? "Stack: in a stack" : "Stack: add to a stack"}
+            onClick={toggleSave}
+            disabled={busy}
+            aria-pressed={saved}
+            aria-label={saved ? "Saved" : "Save"}
             className={cn(
               "inline-flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-lg text-[15px] font-medium text-foreground transition-colors",
-              "hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring",
+              "hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-60",
               "md:w-auto md:border md:border-border-strong md:px-4",
             )}
           >
-            <Layers
+            <Star
               className={cn(
                 "h-5 w-5 md:h-4 md:w-4",
-                stacked ? "text-primary" : "text-muted-foreground",
+                saved ? "fill-primary text-primary" : "text-muted-foreground",
               )}
               aria-hidden="true"
             />
             <span className="hidden md:inline" aria-hidden="true">
-              {stacked ? "Stacked" : "Stack"}
+              {saved ? "Saved" : "Save"}
             </span>
           </button>
-        )}
+          {saved && (
+            <button
+              type="button"
+              onClick={() => setDrawer("stack")}
+              aria-label={
+                stacked ? "Stack: in a stack" : "Stack: add to a stack"
+              }
+              className={cn(
+                "inline-flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-lg text-[15px] font-medium text-foreground transition-colors",
+                "hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring",
+                "md:w-auto md:border md:border-border-strong md:px-4",
+              )}
+            >
+              <Layers
+                className={cn(
+                  "h-5 w-5 md:h-4 md:w-4",
+                  stacked ? "text-primary" : "text-muted-foreground",
+                )}
+                aria-hidden="true"
+              />
+              <span className="hidden md:inline" aria-hidden="true">
+                {stacked ? "Stacked" : "Stack"}
+              </span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => void remove()}
+            disabled={busy}
+            aria-label={`Delete ${album}`}
+            className={cn(
+              "inline-flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-lg text-[15px] font-medium text-foreground transition-colors",
+              "hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-60",
+              "md:w-auto md:border md:border-border-strong md:px-4",
+            )}
+          >
+            <Trash2
+              className="h-5 w-5 text-muted-foreground md:h-4 md:w-4"
+              aria-hidden="true"
+            />
+            <span className="hidden md:inline" aria-hidden="true">
+              Delete
+            </span>
+          </button>
+        </div>
       </div>
       <SaveDrawer
         search={search}

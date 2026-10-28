@@ -19,6 +19,7 @@ import {
   StackFit,
   stackIdOf,
   stackLabel,
+  stackLayout,
   stackRoot,
   stacksThisFits,
 } from "@/lib/stacks";
@@ -108,6 +109,9 @@ export const SaveDrawer: React.FC<SaveDrawerProps> = ({
   );
   // The main choice: the trail when there is one, otherwise the best fit.
   const bestFit = hasTrail || current ? null : fits[0];
+  const currentStep = current
+    ? (stackLayout(current).levels.get(search.searchId) ?? 0)
+    : 0;
   const savable = rows.filter((r) => !r.saved).map((r) => r.search.searchId);
 
   const [selected, setSelected] = useState<Set<string>>(new Set(savable));
@@ -178,7 +182,7 @@ export const SaveDrawer: React.FC<SaveDrawerProps> = ({
       track("search_unstacked", {
         from,
         members: (current?.members.length ?? 1) - 1,
-        depth: lineageOf(search).depth,
+        depth: currentStep,
       });
     });
 
@@ -393,10 +397,8 @@ export const SaveDrawer: React.FC<SaveDrawerProps> = ({
                   {stackLabel(current)}
                 </Link>
                 <span className="truncate font-mono text-xs text-faint">
-                  {lineageOf(search).depth === 0
-                    ? "Its start"
-                    : `Step ${lineageOf(search).depth}`}{" "}
-                  · {current.members.length} saved
+                  {currentStep === 0 ? "Its start" : `Step ${currentStep}`} ·{" "}
+                  {current.members.length} saved
                 </span>
               </span>
               <button

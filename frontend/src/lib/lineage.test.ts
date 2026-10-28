@@ -1,5 +1,6 @@
 import { SearchCache } from "@/contexts/cache/types";
 import {
+  detachedLineage,
   childLineage,
   lineageForNewSearch,
   lineageOf,
@@ -130,5 +131,17 @@ describe("lineageForNewSearch", () => {
         origin: { parentSearchId: "x", via: [1] },
       }),
     ).toBe(earlier.lineage);
+  });
+});
+
+describe("detachedLineage", () => {
+  it("is a root with a stack id of its own, even for a stack's root", () => {
+    const lineage = detachedLineage("A-Unmap-1700000000001", 42);
+    expect(lineage).toEqual({
+      stackId: "A-Unmap-1700000000001~42",
+      depth: 0,
+      path: [],
+      via: [],
+    });
   });
 });

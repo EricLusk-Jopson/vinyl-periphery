@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Sheet,
   SheetContent,
@@ -10,8 +11,11 @@ import { SearchCache } from "@/contexts/cache/types";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { track } from "@/lib/analytics";
 import { lineageOf } from "@/lib/lineage";
+import { stackPath } from "@/lib/routes";
 import {
   ancestorsAvailableToSave,
+  LibraryStack,
+  savedInStack,
   StackFit,
   stackIdOf,
   stackLabel,
@@ -28,8 +32,9 @@ interface SaveDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /**
-   * "save" (default): saving an unsaved search. "stack": putting a saved
-   * search that's on its own into a stack, or starting one.
+   * "save" (default): saving an unsaved search. "stack": for a saved
+   * search, putting it into a stack or starting one, or, when it's in a
+   * stack, taking it out or moving it.
    */
   mode?: "save" | "stack";
   /** Where it was opened, for analytics. */
@@ -54,8 +59,9 @@ const viaNames = (fit: StackFit) => {
  * Or save it on its own, without lineage. Without a trail, the best fit is
  * the main choice.
  *
- * In "stack" mode, for a saved search on its own: the stacks it fits, and
- * saved searches on their own it could follow to start a stack.
+ * In "stack" mode, for a saved search: the stack it's in, with Remove; the
+ * other stacks it fits; and saved searches on their own it could follow
+ * to start a stack.
  *
  * A bottom sheet on phones, a side panel from md.
  */
@@ -88,13 +94,20 @@ export const SaveDrawer: React.FC<SaveDrawerProps> = ({
     [ancestors, search],
   );
   const hasTrail = !stacking && ancestors.length > 0;
+  // The stack it's in now (two or more saved), in "stack" mode.
+  const current = useMemo((): LibraryStack | null => {
+    if (!stacking) return null;
+    const stackId = stackIdOf(search);
+    const members = savedInStack(searches, savedSearchIds, stackId);
+    return members.length > 1 ? { kind: "stack", stackId, members } : null;
+  }, [stacking, search, searches, savedSearchIds]);
   const fits = useMemo(
     () =>
       stacksThisFits(search, searches, savedSearchIds, { singles: stacking }),
     [search, searches, savedSearchIds, stacking],
   );
   // The main choice: the trail when there is one, otherwise the best fit.
-  const bestFit = hasTrail ? null : fits[0];
+  const bestFit = hasTrail || current ? null : fits[0];
   const savable = rows.filter((r) => !r.saved).map((r) => r.search.searchId);
 
   const [selected, setSelected] = useState<Set<string>>(new Set(savable));
@@ -154,6 +167,18 @@ export const SaveDrawer: React.FC<SaveDrawerProps> = ({
         joined: true,
         from,
         ...(stacking ? { new_stack: fit.kind === "single" } : {}),
+        ...(current ? { moved: true } : {}),
+      });
+    });
+
+  // Out of its stack: a trail of its own, still saved.
+  const removeFromStack = () =>
+    run(async () => {
+      await saveSearch(search.searchId, { withoutLineage: true });
+      track("search_unstacked", {
+        from,
+        members: (current?.members.length ?? 1) - 1,
+        depth: lineageOf(search).depth,
       });
     });
 
@@ -255,18 +280,26 @@ export const SaveDrawer: React.FC<SaveDrawerProps> = ({
       >
         <div className="flex flex-col gap-1.5 pr-8">
           <SheetTitle className="text-left text-lg font-semibold">
-            {stacking ? "Add to a stack" : "Save this search"}
+            {current
+              ? "Stack"
+              : stacking
+                ? "Add to a stack"
+                : "Save this search"}
           </SheetTitle>
           <SheetDescription className="text-left text-sm text-muted-foreground">
-            {stacking
+            {current
               ? fits.length > 0
-                ? `Place ${search.searchParams.album} after a saved album whose results include it.`
-                : `No saved album has ${search.searchParams.album} in its results.`
-              : hasTrail
-                ? "You reached it from other searches. Save them together as a stack, or save this one on its own."
-                : fits.length === 1
-                  ? "This album is in the results of a saved stack. Add it there, or save it on its own."
-                  : "This album is in the results of saved stacks. Add it to one, or save it on its own."}
+                ? `${search.searchParams.album} is in ${stackLabel(current)}. Take it out, or move it after another saved album whose results include it.`
+                : `${search.searchParams.album} is in ${stackLabel(current)}. Take it out to keep it saved on its own.`
+              : stacking
+                ? fits.length > 0
+                  ? `Place ${search.searchParams.album} after a saved album whose results include it.`
+                  : `No saved album has ${search.searchParams.album} in its results.`
+                : hasTrail
+                  ? "You reached it from other searches. Save them together as a stack, or save this one on its own."
+                  : fits.length === 1
+                    ? "This album is in the results of a saved stack. Add it there, or save it on its own."
+                    : "This album is in the results of saved stacks. Add it to one, or save it on its own."}
           </SheetDescription>
         </div>
 
@@ -335,19 +368,71 @@ export const SaveDrawer: React.FC<SaveDrawerProps> = ({
           </fieldset>
         )}
 
+        {current && (
+          <section
+            aria-labelledby={`${id}-current`}
+            className="flex flex-col gap-3"
+          >
+            <h3
+              id={`${id}-current`}
+              className="font-mono text-xs uppercase tracking-[1px] text-muted-foreground"
+            >
+              In this stack
+            </h3>
+            <div className="flex items-center gap-3 rounded-lg border bg-surface px-3 py-2">
+              <StackRootCover
+                root={stackRoot(current)}
+                className="h-10 w-10 rounded-[3px] text-xs"
+              />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <Link
+                  to={stackPath(current.stackId)}
+                  onClick={() => onOpenChange(false)}
+                  className="truncate text-sm font-medium underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                >
+                  {stackLabel(current)}
+                </Link>
+                <span className="truncate font-mono text-xs text-faint">
+                  {lineageOf(search).depth === 0
+                    ? "Its start"
+                    : `Step ${lineageOf(search).depth}`}{" "}
+                  · {current.members.length} saved
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={removeFromStack}
+                disabled={busy}
+                className={cn(dialogButton.secondary, "shrink-0 px-3")}
+              >
+                Remove
+                <span className="sr-only"> from {stackLabel(current)}</span>
+              </button>
+            </div>
+            <p className="text-[13px] text-faint">
+              It stays saved, on its own.{" "}
+              {current.members.length === 2
+                ? "The other search is left on its own too, so the stack goes."
+                : "The rest of the stack stays as it is."}
+            </p>
+          </section>
+        )}
+
         {fitSection(
           "stack",
-          stacking
-            ? "Existing stacks"
-            : hasTrail
-              ? "Or add to a stack it fits"
-              : "Add to a stack",
-          hasTrail,
+          current
+            ? "Move to another stack"
+            : stacking
+              ? "Existing stacks"
+              : hasTrail
+                ? "Or add to a stack it fits"
+                : "Add to a stack",
+          hasTrail || Boolean(current),
         )}
         {fitSection(
           "single",
-          "Start a stack after",
-          fits.some((f) => f.kind === "stack"),
+          current ? "Move to a new stack after" : "Start a stack after",
+          Boolean(current) || fits.some((f) => f.kind === "stack"),
         )}
 
         {!stacking && (

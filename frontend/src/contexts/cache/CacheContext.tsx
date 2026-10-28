@@ -24,7 +24,12 @@ import {
 import { calculateReleaseScore } from "@/api/contributorSet";
 import { matchingSearchIds } from "@/lib/searchTarget";
 import { migrateSearch } from "@/lib/releases";
-import { lineageForNewSearch, lineageOf, SearchOrigin } from "@/lib/lineage";
+import {
+  detachedLineage,
+  lineageForNewSearch,
+  lineageOf,
+  SearchOrigin,
+} from "@/lib/lineage";
 import {
   estimateNextSearch,
   hasRoomForSearch,
@@ -303,13 +308,13 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
       if (!search) return;
 
       try {
-        // "Save on its own" drops the lineage, so it never regroups;
-        // joining another stack replaces it.
-        const { lineage, ...rest } = search;
+        // "Save on its own" (or out of its stack) starts a trail of its own,
+        // so it never regroups; joining another stack replaces it.
         const savedSearch: SearchCache = {
-          ...(options.withoutLineage
-            ? rest
-            : { ...rest, lineage: options.lineage ?? lineage }),
+          ...search,
+          lineage: options.withoutLineage
+            ? detachedLineage(searchId)
+            : (options.lineage ?? search.lineage),
           savedAt: Date.now(),
         };
         await db.saveSearch(savedSearch);

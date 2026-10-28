@@ -26,7 +26,10 @@ ranks albums by how many of those people worked on them.
     chosen; the map groups people around the circle by role category
     (`frontend/src/lib/albumMap.ts`). The share sheet can take albums out
     or add any result; adding a hidden one switches its people on in the
-    filters (`frontend/src/lib/shareSelection.ts`). For a stack, the map is its searches
+    filters (`frontend/src/lib/shareSelection.ts`). Two toggles: album
+    covers (off: titles and artists only) and, on that map, lines from
+    each person to their albums. Names there come first: covers move off
+    them. For a stack, the map is its searches
     and the liked albums around them (`frontend/src/lib/shareMap.ts`).
     Never calls Discogs; only Cover
     Art Archive images, with initials when they don't load. Fonts are

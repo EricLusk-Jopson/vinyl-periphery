@@ -15,6 +15,9 @@
 //   Person = { n: name, a: angle in degrees, counter-clockwise from the right }
 //   art    = "g:<release-group mbid>" | "r:<release mbid>" | ""
 //   d      = how the albums were chosen ("Top 12 by Shared · Liked only")
+//   nc: 1  = no covers: every album drawn as its title and artist
+//   ln: 1  = (map) lines from each person to their albums, listed per
+//            album as `l`: indices into p
 //
 // The map's positions are worked out by the client (shareMap.ts); the
 // renderer only draws them.
@@ -80,7 +83,7 @@ export function decodePayload(encoded) {
       }))
       .filter((r) => r.t);
     const caption = text(raw.d, MAX_CAPTION);
-    return { layout: "card", album: searched, results, caption };
+    return { layout: "card", album: searched, results, caption, covers: raw.nc !== 1 };
   }
 
   if (raw.l === "map") {
@@ -97,16 +100,26 @@ export function decodePayload(encoded) {
         side: Number.isFinite(Number(n?.s)) && n?.s !== null && n?.s !== ""
           ? Math.max(MIN_SIDE, Math.min(MAX_SIDE, Number(n.s) / 1000))
           : MAP_SIZES[n?.z === 2 ? 2 : 1],
+        links: list(n?.l, MAX_MAP_PEOPLE),
       }))
       .filter((n) => n.t);
-    const people = list(raw.p, MAX_MAP_PEOPLE)
-      .map((p) => ({
-        name: text(p?.n, MAX_NAME),
-        angle: ((Math.round(Number(p?.a) || 0) % 360) + 360) % 360,
-      }))
-      .filter((p) => p.name);
+    const named = list(raw.p, MAX_MAP_PEOPLE).map((p) => ({
+      name: text(p?.n, MAX_NAME),
+      angle: ((Math.round(Number(p?.a) || 0) % 360) + 360) % 360,
+    }));
+    const people = named.filter((p) => p.name);
+    // Links point into `p` as sent; nameless people are dropped, so remap.
+    const index = new Map(named.map((p, i) => [i, people.indexOf(p)]));
+    const lines = raw.ln === 1;
+    for (const album of albums) {
+      album.links = lines
+        ? [...new Set(album.links.map((i) => index.get(Number(i)) ?? -1))].filter((i) => i >= 0)
+        : [];
+    }
     const caption = text(raw.d, MAX_CAPTION);
-    return albums.length > 0 ? { layout: "map", centre, albums, people, caption } : null;
+    return albums.length > 0
+      ? { layout: "map", centre, albums, people, caption, covers: raw.nc !== 1, lines }
+      : null;
   }
 
   return null;

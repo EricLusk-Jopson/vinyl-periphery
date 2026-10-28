@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { artIds, cardSizes, initials, mapGeometry, renderPng, shorten } from "./render.js";
+import { artIds, cardSizes, initials, mapGeometry, mapLayout, renderPng, shorten } from "./render.js";
 
 import { artSettled, fetchArt, loadArt } from "./art.js";
 import { IMAGE_SIZE } from "./payload.js";
@@ -62,6 +62,35 @@ test("cards fit up to ten rows, shrinking past five", async () => {
   };
   const png = await renderPng(ten, IMAGE_SIZE, new Map());
   assert.ok(isPng(png));
+});
+
+test("names come first: covers move off them", () => {
+  // A cover just outside the circle, right where the name at 0° sits.
+  const payload = {
+    ...map,
+    albums: [{ t: "Outer", r: "", i: "", x: 1.15, y: 0, z: 1, side: 0.28, links: [] }],
+    people: [{ name: "Right Side", angle: 0 }],
+  };
+  const options = { width: 900, height: 700, labelWidth: 112, labelHeight: 36, gap: 10 };
+  const { labels, covers } = mapLayout(payload, 250, options);
+  const overlap = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  // The name stays by its dot; the cover moved out past it.
+  assert.ok(Math.abs(labels[0].x - (450 + 250 + 10)) < 1);
+  assert.ok(!overlap(labels[0], covers[1]));
+  assert.ok(covers[1].x > labels[0].x);
+});
+
+test("renders lines and the no-cover view", async () => {
+  const art = new Map([[`g:${MBID}`, PIXEL]]);
+  const linked = {
+    ...map,
+    lines: true,
+    covers: false,
+    albums: map.albums.map((a, i) => ({ ...a, links: [i % 2] })),
+  };
+  assert.deepEqual(artIds(linked), []);
+  assert.ok(isPng(await renderPng(linked, IMAGE_SIZE, art)));
+  assert.ok(isPng(await renderPng({ ...card, covers: false }, IMAGE_SIZE, art)));
 });
 
 test("helpers", () => {

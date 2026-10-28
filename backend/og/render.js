@@ -160,6 +160,8 @@ export function cardElement(payload, size, art) {
   const rows = payload.results.slice(0, MAX_RESULTS);
   const { album } = payload;
   const fit = cardSizes(rows.length);
+  // No covers: titles and artists only.
+  const showCovers = payload.covers !== false;
   // Text shrinks with the rows, never below 12px.
   const px = (n) => Math.max(12, Math.round(n * Math.max(fit.scale, 0.55)));
 
@@ -171,7 +173,7 @@ export function cardElement(payload, size, art) {
       h(
         "div",
         { alignItems: "center", gap: 36 },
-        cover(album.t, art.get(album.i), fit.header, 8),
+        showCovers && cover(album.t, art.get(album.i), fit.header, 8),
         h(
           "div",
           { flexDirection: "column", gap: 10, maxWidth: 600 },
@@ -194,7 +196,7 @@ export function cardElement(payload, size, art) {
             h(
               "div",
               { alignItems: "center", gap: 22 },
-              cover(r.t, art.get(r.i), fit.row),
+              showCovers && cover(r.t, art.get(r.i), fit.row),
               h(
                 "div",
                 // Only the titles give way to a long name; covers and counts keep their size.
@@ -233,8 +235,11 @@ export const shorten = (text, chars) => {
   return `${(space >= chars / 2 ? cut.slice(0, space) : cut).trimEnd()}…`;
 };
 
-/** A cover, or a box with its title and artist when there's no art. */
-const tile = (album, dataUrl, side, accent) => {
+/**
+ * A cover, or a box with its title and artist when there's no art. The
+ * centre album gets no accent: being in the middle, and biggest, says it.
+ */
+const tile = (album, dataUrl, side) => {
   const pad = Math.round(side * 0.08);
   const titleSize = Math.max(12, Math.round(side * 0.13));
   const artistSize = Math.max(12, Math.round(side * 0.09));
@@ -248,7 +253,6 @@ const tile = (album, dataUrl, side, accent) => {
           height: side,
           borderRadius: 4,
           objectFit: "cover",
-          border: accent ? `4px solid ${C.primary}` : "none",
         })
       : h(
           "div",
@@ -257,7 +261,7 @@ const tile = (album, dataUrl, side, accent) => {
             height: side,
             borderRadius: 4,
             background: C.raised,
-            border: `2px solid ${accent ? C.primary : C.border}`,
+            border: `2px solid ${C.border}`,
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
@@ -303,9 +307,10 @@ const overlaps = (a, b, margin = 0) =>
  * The map laid out with a circle of `radius`, in a box `width` x `height`
  * (origin at its top-left): every cover's box, and each name's box.
  *
- * A name starts just past its dot and moves outward only while it would
- * sit on a cover. Names that would overlap each other are moved apart
- * around the circle; their dots stay where the person is.
+ * Names come first: each sits just past its dot, and names that would
+ * overlap each other are moved apart around the circle (their dots stay
+ * where the person is). Then any cover on a name moves off it: toward
+ * the middle if it's inside the circle, outward if it's past it.
  */
 export function mapLayout(payload, radius, { width, height, labelWidth, labelHeight, gap }) {
   const middle = { x: width / 2, y: height / 2 };
@@ -335,12 +340,7 @@ export function mapLayout(payload, radius, { width, height, labelWidth, labelHei
       w: labelWidth,
       h: labelHeight,
     });
-    let spot = box();
-    for (let step = 0; step < 120 && covers.some((cover) => overlaps(spot, cover, 6)); step++) {
-      out += 6;
-      spot = box();
-    }
-    return spot;
+    return box();
   };
 
   const angles = payload.people.map((p) => (p.angle * Math.PI) / 180);
@@ -360,6 +360,18 @@ export function mapLayout(payload, radius, { width, height, labelWidth, labelHei
     }
     if (!moved) break;
     labels = labelAngles.map(labelAt);
+  }
+
+  // Covers off the names, the centre one aside.
+  for (const cover of covers.slice(1)) {
+    const cx = cover.x + cover.w / 2 - middle.x;
+    const cy = cover.y + cover.h / 2 - middle.y;
+    const length = Math.hypot(cx, cy) || 1;
+    const sign = length < radius ? -1 : 1;
+    for (let step = 0; step < 120 && labels.some((label) => overlaps(label, cover, 6)); step++) {
+      cover.x += (sign * 6 * cx) / length;
+      cover.y += (sign * 6 * cy) / length;
+    }
   }
 
   return {
@@ -448,6 +460,13 @@ export function mapElement(payload, size, art) {
   };
   const { radius, middle, covers, labels } = mapGeometry(payload, { ...box, ...MAP_LABEL });
   const { centre } = payload;
+  // No covers: every album as its title and artist.
+  const artOf = (item) => (payload.covers === false ? null : art.get(item.i));
+  const links = payload.lines
+    ? payload.albums.flatMap((album, i) =>
+        album.links.map((p) => ({ from: labels[p]?.dot, to: covers[i + 1] })),
+      ).filter((l) => l.from)
+    : [];
   const dot = 9;
   const placed = (b, child) =>
     h(
@@ -479,6 +498,28 @@ export function mapElement(payload, size, art) {
         borderRadius: 999,
         border: `2px solid ${C.border}`,
       }),
+      // Lines from each person to their albums, under everything else.
+      links.length > 0 && {
+        type: "svg",
+        props: {
+          width: box.width,
+          height: box.height,
+          viewBox: `0 0 ${box.width} ${box.height}`,
+          style: { position: "absolute", left: 0, top: 0 },
+          children: links.map((l) => ({
+            type: "line",
+            props: {
+              x1: Math.round(l.from.x),
+              y1: Math.round(l.from.y),
+              x2: Math.round(l.to.x + l.to.w / 2),
+              y2: Math.round(l.to.y + l.to.h / 2),
+              stroke: C.faint,
+              strokeOpacity: 0.45,
+              strokeWidth: 1.5,
+            },
+          })),
+        },
+      },
       ...labels.flatMap((label) => [
         h("div", {
           position: "absolute",
@@ -510,9 +551,9 @@ export function mapElement(payload, size, art) {
         ),
       ]),
       ...payload.albums.map((album, i) =>
-        placed(covers[i + 1], tile(album, art.get(album.i), Math.round(covers[i + 1].w), false)),
+        placed(covers[i + 1], tile(album, artOf(album), Math.round(covers[i + 1].w))),
       ),
-      placed(covers[0], tile(centre, art.get(centre.i), Math.round(covers[0].w), true)),
+      placed(covers[0], tile(centre, artOf(centre), Math.round(covers[0].w))),
     ),
     // Header, top left.
     h(
@@ -546,7 +587,9 @@ export function mapElement(payload, size, art) {
 
 /** The art ids a payload shows. */
 export const artIds = (payload) =>
-  (payload.layout === "card"
+  payload.covers === false
+    ? []
+    : (payload.layout === "card"
     ? [payload.album, ...payload.results]
     : [payload.centre, ...payload.albums]
   )

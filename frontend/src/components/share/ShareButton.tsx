@@ -29,6 +29,10 @@ import {
   shareLink,
   countOptions,
   SHARE_COUNTS,
+  canDrawLines,
+  DEFAULT_VIEW,
+  ShareView,
+  withView,
   selectionCaption,
 } from "@/lib/share";
 import {
@@ -41,6 +45,7 @@ import {
 import { cn } from "@/lib/utils";
 import { dialogButton } from "../common/buttons";
 import { ShareAlbums } from "./ShareAlbums";
+import { Switch } from "../filters/Switch";
 
 /** Longest the sheet waits for covers before drawing without the rest. */
 const COVER_WAIT_MS = 6000;
@@ -145,6 +150,8 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   });
   // Albums taken out of the image or added to it (one search only).
   const [edits, setEdits] = useState<ShareEdits>(NO_EDITS);
+  // Covers or titles only; lines from people to their albums.
+  const [view, setView] = useState<ShareView>(DEFAULT_VIEW);
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState("");
 
@@ -203,7 +210,8 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   // The albums either layout draws, so their covers can be looked up.
   const wanted = useMemo(
     () =>
-      open
+      // Without covers there's no art to wait for.
+      open && view.covers
         ? [
             map.centre.key,
             ...around.map((a) => a.key),
@@ -211,7 +219,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
             ...cardShown.map((r) => r.key),
           ].filter(Boolean)
         : [],
-    [open, map.centre.key, around, search.target?.key, cardShown],
+    [open, view.covers, map.centre.key, around, search.target?.key, cardShown],
   );
   const cover = useCoverArt(wanted);
   const [waited, setWaited] = useState(false);
@@ -256,7 +264,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   // A map with nothing around its centre isn't worth sharing.
   const mapReady = around.length > 0;
   const layout: ShareLayout = mapReady ? chosen : "card";
-  const payload = useMemo(() => {
+  const drawn = useMemo(() => {
     if (!ready) return null;
     return layout === "map"
       ? mapImage
@@ -295,6 +303,12 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     }));
   };
 
+  // Lines need people to run from: maps of one search have them.
+  const linesAvailable = drawn !== null && canDrawLines(drawn);
+  const payload = useMemo(
+    () => (drawn ? withView(drawn, view) : null),
+    [drawn, view],
+  );
   const image = payload ? shareImagePath(payload) : "";
   const link = payload ? shareLink(window.location.origin, payload, to) : "";
   const title =
@@ -439,7 +453,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                 "lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:gap-x-8 lg:gap-y-5",
             )}
           >
-            {(mapReady || countChoices.length > 0) && (
+            {
               <div className="flex flex-col gap-4 lg:col-start-2 lg:row-start-1">
                 {mapReady && (
                   <Segmented
@@ -465,8 +479,26 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                     }
                   />
                 )}
+                <div className="flex flex-col">
+                  <Switch
+                    label="Album covers"
+                    checked={view.covers}
+                    onChange={(covers) =>
+                      setView((current) => ({ ...current, covers }))
+                    }
+                  />
+                  {linesAvailable && (
+                    <Switch
+                      label="Lines from people to albums"
+                      checked={view.lines}
+                      onChange={(lines) =>
+                        setView((current) => ({ ...current, lines }))
+                      }
+                    />
+                  )}
+                </div>
               </div>
-            )}
+            }
 
             <div className="flex flex-col gap-4 lg:col-start-1 lg:row-span-2 lg:row-start-1">
               <div

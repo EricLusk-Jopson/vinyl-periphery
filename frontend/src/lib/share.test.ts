@@ -10,6 +10,8 @@ import {
   shareImagePath,
   albumMapPayload,
   countOptions,
+  canDrawLines,
+  withView,
   selectionCaption,
   shareLink,
 } from "./share";
@@ -297,5 +299,46 @@ describe("countOptions", () => {
     expect(countOptions("card", 3)).toEqual([]);
     expect(countOptions("map", 1)).toEqual([]);
     expect(countOptions("map", 0)).toEqual([]);
+  });
+});
+
+describe("withView", () => {
+  const map = {
+    v: 1 as const,
+    l: "map" as const,
+    c: { t: "C", r: "", i: "" },
+    n: [{ t: "A", r: "", i: "", x: 0, y: 0, z: 1 as const, l: [0] }],
+    p: [{ n: "P", a: 0 }],
+  };
+
+  it("keeps links only when lines are on", () => {
+    expect(canDrawLines(map)).toBe(true);
+    const plain = withView(map, { covers: true, lines: false });
+    expect(plain).not.toHaveProperty("ln");
+    if (plain.l !== "map") throw new Error();
+    expect(plain.n[0]).not.toHaveProperty("l");
+    const lined = withView(map, { covers: true, lines: true });
+    if (lined.l !== "map") throw new Error();
+    expect(lined.ln).toBe(1);
+    expect(lined.n[0].l).toEqual([0]);
+  });
+
+  it("marks no covers on either layout", () => {
+    expect(withView(map, { covers: false, lines: false })).toMatchObject({
+      nc: 1,
+    });
+    const card = { v: 1 as const, l: "card" as const, a: map.c, x: [] };
+    expect(withView(card, { covers: false, lines: true })).toEqual({
+      ...card,
+      nc: 1,
+    });
+  });
+
+  it("draws no lines without people to run from", () => {
+    const noLinks = { ...map, n: [{ ...map.n[0], l: [] }] };
+    expect(canDrawLines(noLinks)).toBe(false);
+    expect(withView(noLinks, { covers: true, lines: true })).not.toHaveProperty(
+      "ln",
+    );
   });
 });

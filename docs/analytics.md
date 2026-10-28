@@ -82,7 +82,7 @@ To test locally, put both Vinyl Periphery variables in `.env` and run
 |---|---|---|
 | `page_view` | Every route change, including the first load | `page`: home, library, results |
 | `search_started` | A search begins | `artist`, `album`, `source`: form, result or link; `by_id`: true when the album was known by Discogs id (a result row, or a link with `&master=` / `&release=`) and the text search was skipped |
-| `search_completed` | Results are stored | `artist`, `album`, `seconds`, `releases_read`, `contributors`, `albums`, `roles` (distinct roles), `roles_uncategorized_count`, `roles_uncategorized` (see below) |
+| `search_completed` | Results are stored | `artist`, `album`, `seconds`, `releases_read`, `contributors`, `albums`, `roles` (distinct roles), `roles_uncategorized_count`, `roles_uncategorized` (see below), `discography_calls` (pages read across contributors), `discographies_capped` (contributors with more than `MAX_DISCOGRAPHY_PAGES` pages) |
 | `search_not_found` | Discogs has no match | `artist`, `album`, `seconds` |
 | `search_failed` | An error stops the search | `artist`, `album`, `phase`, `seconds`, `error` |
 | `search_cancelled` | The user cancels, or leaves mid-search | `artist`, `album`, `phase`, `seconds` |

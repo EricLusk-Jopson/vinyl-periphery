@@ -4,6 +4,7 @@ import {
   addRelease,
   migrateReleases,
   migrateSearch,
+  discographyPagesToRead,
   releaseKey,
   releaseType,
   toEnrichedRelease,
@@ -188,5 +189,20 @@ describe("migrateReleases", () => {
     const migrated = migrateSearch(search);
     expect(Object.keys(migrated.releases)).toHaveLength(2);
     expect(migrateSearch(migrated)).toBe(migrated);
+  });
+});
+
+describe("discographyPagesToRead", () => {
+  it("reads every page up to the cap", () => {
+    // Jim Keltner at 500 per page: 1,445 items, 3 pages.
+    expect(discographyPagesToRead({ pages: 3 })).toBe(3);
+    expect(discographyPagesToRead({ pages: 1 })).toBe(1);
+    expect(discographyPagesToRead({ pages: 9 }, 4)).toBe(4);
+  });
+
+  it("reads the one page it has when pagination is missing or odd", () => {
+    expect(discographyPagesToRead(undefined)).toBe(1);
+    expect(discographyPagesToRead({ pages: 0 })).toBe(1);
+    expect(discographyPagesToRead({})).toBe(1);
   });
 });

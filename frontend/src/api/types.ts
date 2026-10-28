@@ -151,12 +151,24 @@ export interface SearchStage {
   label: string;
   current: number;
   total: number;
+  /**
+   * Calls still to come for the current item beyond the one under way:
+   * further discography pages, once the first page says how many.
+   */
+  extraCalls?: number;
 }
 
 export interface MutationCallbacks {
   onProgress?: (stage: SearchStage) => void;
-  /** Called after each contributor's discography is read. */
-  onContributorChecked?: (name: string, releaseCount: number) => void;
+  /**
+   * Called after each contributor's discography is read: their item count
+   * on Discogs, the pages read, and whether the page cap stopped short.
+   */
+  onContributorChecked?: (
+    name: string,
+    releaseCount: number,
+    read?: { pages: number; capped: boolean }
+  ) => void;
 }
 
 export interface SearchMutationParams {

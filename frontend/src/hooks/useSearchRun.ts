@@ -162,7 +162,16 @@ export const useSearchRun = ({
       const update = (changes: Partial<SearchRun>) =>
         setRun((prev) => (prev ? { ...prev, ...changes } : prev));
       const onProgress = (stage: SearchStage) => update({ stage });
-      const onContributorChecked = (name: string, releases: number) =>
+      // Discography calls made, and people the page cap stopped short.
+      let discographyCalls = 0;
+      let cappedContributors = 0;
+      const onContributorChecked = (
+        name: string,
+        releases: number,
+        read?: { pages: number; capped: boolean },
+      ) => {
+        discographyCalls += read?.pages ?? 1;
+        if (read?.capped) cappedContributors++;
         setRun((prev) =>
           prev
             ? {
@@ -174,6 +183,7 @@ export const useSearchRun = ({
               }
             : prev,
         );
+      };
 
       let phase: SearchRun["phase"] = "finding";
       setRun({
@@ -298,6 +308,8 @@ export const useSearchRun = ({
           seconds: secondsSince(startedAt),
           releases_read: matches,
           contributors: Object.keys(contributorSet.contributors).length,
+          discography_calls: discographyCalls,
+          discographies_capped: cappedContributors,
           albums: releasesMap.size,
           roles: new Set(allRoles).size,
           roles_uncategorized_count: unknownRoles.length,

@@ -1,4 +1,5 @@
 import { discographyAppearance } from "@/api/releaseCredits";
+import { MAX_DISCOGRAPHY_PAGES } from "@/api/limits";
 import { EnrichedRelease, ReleaseType } from "@/api/types";
 import { SearchCache } from "@/contexts/cache/types";
 
@@ -200,4 +201,16 @@ export const migrateReleases = (
 export const migrateSearch = (search: SearchCache): SearchCache => {
   const releases = migrateReleases(search.releases ?? {});
   return releases === search.releases ? search : { ...search, releases };
+};
+
+/**
+ * How many discography pages to read, from the first page's pagination:
+ * all of them, up to `max`. At least one (the page already read).
+ */
+export const discographyPagesToRead = (
+  pagination: { pages?: number } | undefined,
+  max = MAX_DISCOGRAPHY_PAGES,
+): number => {
+  const pages = Math.floor(Number(pagination?.pages) || 1);
+  return Math.max(1, Math.min(pages, max));
 };

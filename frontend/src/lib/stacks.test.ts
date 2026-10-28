@@ -9,6 +9,7 @@ import {
   stackMembersByDepth,
   stackRoot,
   stacksThisFits,
+  fitViaText,
   stackDepth,
   stackLayout,
   isInStack,
@@ -413,5 +414,22 @@ describe("stackLayout", () => {
     expect(stackDepth(stack(newSound, believe, giantPalm, schlagenheim))).toBe(
       2,
     );
+  });
+});
+
+describe("fitViaText", () => {
+  const parent = {
+    contributors: {
+      1: { id: 1, name: "Paul Jones (13)" },
+      2: { id: 2, name: "Morgan Simpson" },
+    },
+  } as unknown as SearchCache;
+
+  it("names one person, counts more", () => {
+    expect(fitViaText({ parent, via: [2] })).toBe("via Morgan Simpson");
+    // Discogs's "(13)" disambiguation is dropped, as elsewhere.
+    expect(fitViaText({ parent, via: [1] })).toBe("via Paul Jones");
+    expect(fitViaText({ parent, via: [1, 2] })).toBe("via 2 contributors");
+    expect(fitViaText({ parent, via: [9] })).toBe("via 1 contributor");
   });
 });

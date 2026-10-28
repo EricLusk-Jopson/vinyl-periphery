@@ -5,6 +5,7 @@ import {
 } from "@/contexts/cache/types";
 import { childLineage, lineageOf } from "./lineage";
 import { matchesName } from "./filters";
+import { defaultContributorDisplayPipeline } from "./transformers/contributorProcessor";
 import { searchStartedAt } from "./searches";
 
 /**
@@ -380,6 +381,18 @@ export const stacksThisFits = (
       Number(a.kind === "single") - Number(b.kind === "single") ||
       b.via.length - a.via.length,
   );
+};
+
+/**
+ * Who links a fit to its parent, in a few words: "via Jim Keltner" for one
+ * person, "via 3 contributors" for more.
+ */
+export const fitViaText = (fit: Pick<StackFit, "parent" | "via">): string => {
+  if (fit.via.length !== 1) return `via ${fit.via.length} contributors`;
+  const name = fit.parent.contributors?.[fit.via[0]]?.name;
+  return name
+    ? `via ${defaultContributorDisplayPipeline(name)}`
+    : "via 1 contributor";
 };
 
 /**

@@ -96,8 +96,9 @@ To test locally, put both Vinyl Periphery variables in `.env` and run
 | `search_blocked` | A search isn't started because the session has no room for it (sessionStorage budget) | `reason`: session_full, `source` |
 | `stack_saved` | Searches are saved together from the save drawer, or a search is added to a saved stack it fits (or starts one after a saved search, from a library card's Stack button) | `members` (saved searches in the stack afterwards), `depth` (of the search saved from), `from`: results or library; `joined`: true when added to a stack it fits; `new_stack`: from the Stack button, true when it starts a stack; `moved`: true when it left another stack to join |
 | `stack_opened` | A stack's page is opened | `members`, `ghosts` (unsaved steps shown) |
-| `stack_deleted` | A whole stack is deleted after confirming | `members` |
-| `search_unstacked` | A saved search is taken out of its stack from the Stack button (it stays saved, on its own) | `from`: results or library, `members` (saved searches left in the stack), `depth` (its step in the stack) |
+| `stack_deleted` | A whole stack is deleted after confirming (library card or stack page) | `members` |
+| `stack_disbanded` | A stack is disbanded after confirming: its searches stay saved, each on its own | `members` |
+| `search_unstacked` | A saved search is taken out of its stack from a Stack button (results page, library card or stack page; it stays saved, on its own) | `from`: results or library, `members` (saved searches left in the stack), `depth` (its step in the stack) |
 | `search_jumped` | An existing search is opened instead of running a new one | `from`: result (a result row) or form (the search bar) |
 | `library_view_toggled` | The Saved tab switches between stacked and flat | `view`: stacked or flat |
 | `library_searched` | The library search is used (once typing pauses) | `results`, `length` (characters typed; the text isn't sent) |

@@ -18,11 +18,10 @@ import {
 import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { ToastAction } from "../ui/toast";
-import { ChoiceDialog } from "../common/ChoiceDialog";
-import { dialogButton } from "../common/buttons";
 import { LibraryCard } from "./LibraryCard";
 import { SaveDrawer } from "./SaveDrawer";
 import { StackCard } from "./StackCard";
+import { StackAction, StackConfirm } from "./StackConfirm";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
@@ -71,7 +70,6 @@ export const LibraryPage: React.FC = () => {
     saveSearch,
     unsaveSearch,
     clearSearch,
-    deleteStack,
     restoreSearch,
   } = useCache();
   const { toast } = useToast();
@@ -85,7 +83,12 @@ export const LibraryPage: React.FC = () => {
   const panelRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<SavedView>(readView);
   const [query, setQuery] = useState("");
-  const [stackToDelete, setStackToDelete] = useState<LibraryStack | null>(null);
+  const [stackRequest, setStackRequest] = useState<{
+    stack: LibraryStack;
+    action: StackAction;
+    /** The focused card when asked, to keep focus nearby afterwards. */
+    index: number;
+  } | null>(null);
 
   const all = recentSearches(searches, Number.POSITIVE_INFINITY);
   const lists: Record<LibraryTab, SearchCache[]> = {
@@ -189,15 +192,6 @@ export const LibraryPage: React.FC = () => {
     });
   };
 
-  const confirmDeleteStack = async () => {
-    if (!stackToDelete) return;
-    const index = focusedIndex();
-    const removed = await deleteStack(stackToDelete.stackId);
-    track("stack_deleted", { members: removed });
-    setStackToDelete(null);
-    keepFocus(index);
-  };
-
   // The search the save drawer is open for, and how.
   const [drawer, setDrawer] = useState<{
     search: SearchCache;
@@ -227,12 +221,13 @@ export const LibraryPage: React.FC = () => {
     track("library_view_toggled", { view: next });
   };
 
-  // Saved searches on their own that fit somewhere get a Stack button.
+  // Saved searches in a stack get a Stack button (to take them out or
+  // move them); those on their own get one when they fit somewhere.
   const canStack = (search: SearchCache) =>
     savedSearchIds.has(search.searchId) &&
-    !isInStack(search, searches, savedSearchIds) &&
-    stacksThisFits(search, searches, savedSearchIds, { singles: true }).length >
-      0;
+    (isInStack(search, searches, savedSearchIds) ||
+      stacksThisFits(search, searches, savedSearchIds, { singles: true })
+        .length > 0);
 
   const card = (search: SearchCache, note?: string) => (
     <LibraryCard
@@ -278,7 +273,20 @@ export const LibraryPage: React.FC = () => {
             <StackCard
               key={entry.stackId}
               stack={entry}
-              onDelete={() => setStackToDelete(entry)}
+              onDelete={() =>
+                setStackRequest({
+                  stack: entry,
+                  action: "delete",
+                  index: focusedIndex(),
+                })
+              }
+              onDisband={() =>
+                setStackRequest({
+                  stack: entry,
+                  action: "disband",
+                  index: focusedIndex(),
+                })
+              }
             />
           ) : (
             card(entry.search)
@@ -433,30 +441,11 @@ export const LibraryPage: React.FC = () => {
         />
       )}
 
-      <ChoiceDialog
-        open={stackToDelete !== null}
-        onOpenChange={(open) => !open && setStackToDelete(null)}
-        title="Delete this stack?"
-        description={
-          stackToDelete &&
-          `This removes ${stackToDelete.members.length} saved searches from the ${stackLabel(stackToDelete)} stack. Searches still open in this session stay there.`
-        }
-      >
-        <button
-          type="button"
-          onClick={() => setStackToDelete(null)}
-          className={dialogButton.secondary}
-        >
-          Keep it
-        </button>
-        <button
-          type="button"
-          onClick={() => void confirmDeleteStack()}
-          className={dialogButton.primary}
-        >
-          Delete {stackToDelete?.members.length} searches
-        </button>
-      </ChoiceDialog>
+      <StackConfirm
+        request={stackRequest}
+        onClose={() => setStackRequest(null)}
+        onDone={() => keepFocus(stackRequest?.index ?? 0)}
+      />
     </div>
   );
 };

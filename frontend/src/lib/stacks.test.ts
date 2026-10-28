@@ -9,6 +9,8 @@ import {
   stackMembersByDepth,
   stackRoot,
   stacksThisFits,
+  stackDepth,
+  stackLayout,
   isInStack,
   savingNeedsChoice,
   LibraryStack,
@@ -238,17 +240,17 @@ describe("stacksThisFits", () => {
       root.searchId,
       otherRoot.searchId,
     ]);
-    // The member sharing the most people is the parent.
-    expect(fits[0].parent.searchId).toBe(child.searchId);
-    expect(fits[0].via).toEqual([1, 2]);
+    // The member nearest the start is the parent, even though the child
+    // shares more people: the album sits at step 1, beside the child.
+    expect(fits[0].parent.searchId).toBe(root.searchId);
+    expect(fits[0].via).toEqual([1]);
     expect(fits[0].lineage).toMatchObject({
       stackId: root.searchId,
-      depth: 2,
-      via: [1, 2],
+      depth: 1,
+      via: [1],
     });
     expect(fits[0].lineage.path.map((p) => p.searchId)).toEqual([
       root.searchId,
-      child.searchId,
     ]);
   });
 
@@ -302,7 +304,7 @@ describe("stacksThisFits", () => {
     const fits = stacksThisFits(manual, searches, saved, { singles: true });
     // Stacks first, even though the lone search shares more people.
     expect(fits.map((f) => [f.kind, f.parent.searchId])).toEqual([
-      ["stack", child.searchId],
+      ["stack", root.searchId],
       ["single", lone.searchId],
     ]);
     expect(fits[1].lineage).toMatchObject({
@@ -346,3 +348,70 @@ describe("savingNeedsChoice and isInStack", () => {
 function all2(...list: SearchCache[]) {
   return Object.fromEntries(list.map((s) => [s.searchId, s]));
 }
+
+describe("stackLayout", () => {
+  // Shaped like the New Sound stack: the start's results include albums
+  // that were reached through other steps.
+  const withKeys = (search: SearchCache, keys: number[]): SearchCache => ({
+    ...search,
+    releases: Object.fromEntries(
+      keys.map((id) => [
+        `master:${id}`,
+        { key: `master:${id}`, contributorIds: [1] },
+      ]),
+    ) as unknown as SearchCache["releases"],
+  });
+  const newSound = withKeys(make(10, "The New Sound"), [11, 12, 14]);
+  const believe = withKeys(make(11, "My New Band Believe", newSound), [13]);
+  const hellfire = make(12, "Hellfire", newSound);
+  const giantPalm = make(13, "Giant Palm", believe);
+  // Reached from Giant Palm, but in The New Sound's results too.
+  const schlagenheim = make(14, "Schlagenheim", giantPalm);
+  const stack = (...members: SearchCache[]): LibraryStack => ({
+    kind: "stack",
+    stackId: newSound.searchId,
+    members,
+  });
+
+  it("puts each member at its fewest links from the start", () => {
+    const { levels, ghosts } = stackLayout(
+      stack(newSound, believe, hellfire, giantPalm, schlagenheim),
+    );
+    expect(Object.fromEntries(levels)).toEqual({
+      [newSound.searchId]: 0,
+      [believe.searchId]: 1,
+      [hellfire.searchId]: 1,
+      [giantPalm.searchId]: 2,
+      [schlagenheim.searchId]: 1,
+    });
+    expect(ghosts).toEqual([]);
+  });
+
+  it("falls back to the trail, ghosting unsaved steps, when nothing links", () => {
+    // Giant Palm is only linked through Believe, which isn't saved.
+    const { levels, ghosts } = stackLayout(stack(newSound, giantPalm));
+    expect(levels.get(giantPalm.searchId)).toBe(2);
+    expect(ghosts.map((g) => [g.step.title, g.depth])).toEqual([
+      ["My New Band Believe", 1],
+    ]);
+  });
+
+  it("ghosts the start when it isn't saved, and links to it by album", () => {
+    const { levels, ghosts } = stackLayout(stack(hellfire, schlagenheim));
+    // Nothing saved links Schlagenheim (only the unsaved start had it in
+    // its results), so its trail's unsaved steps show.
+    expect(ghosts.map((g) => [g.step.title, g.depth])).toEqual([
+      ["The New Sound", 0],
+      ["My New Band Believe", 1],
+      ["Giant Palm", 2],
+    ]);
+    expect(levels.get(hellfire.searchId)).toBe(1);
+    expect(levels.get(schlagenheim.searchId)).toBe(3);
+  });
+
+  it("reports the deepest step", () => {
+    expect(stackDepth(stack(newSound, believe, giantPalm, schlagenheim))).toBe(
+      2,
+    );
+  });
+});

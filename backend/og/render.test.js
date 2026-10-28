@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { artIds, initials, mapReach, renderPng, shorten } from "./render.js";
+import { artIds, initials, mapGeometry, mapReach, renderPng, shorten } from "./render.js";
+
+const MAP_SIZES_FOR_TEST = { 1: 0.28, 2: 0.36 };
 import { artSettled, fetchArt, loadArt } from "./art.js";
 import { imageSize } from "./payload.js";
 
@@ -111,4 +113,40 @@ test("shorten: whole words where it can, with an ellipsis", () => {
   assert.equal(shorten("Hellfire", 20), "Hellfire");
   assert.equal(shorten("Bright Green Field", 12), "Bright…");
   assert.equal(shorten("Supercalifragilistic", 8), "Superca…");
+});
+
+test("map geometry: covers and names inside the box, names apart", () => {
+  const payload = {
+    albums: [
+      { x: 0.5, y: 0.2, z: 2 },
+      { x: -1.17, y: 0, z: 1 },
+      { x: 0, y: -0.7, z: 1 },
+    ],
+    // Two people at nearly the same spot.
+    people: [
+      { name: "Andrew Cheetham", angle: 100 },
+      { name: "Freddy Wordsworth", angle: 104 },
+      { name: "Morgan Simpson", angle: 180 },
+      { name: "Seth Evans", angle: 290 },
+    ],
+  };
+  const box = { width: 1080, height: 800, labelWidth: 112, labelHeight: 36, gap: 10, edge: 10 };
+  const { radius, middle, labels } = mapGeometry(payload, box);
+  assert.ok(radius > 200);
+  for (const album of payload.albums) {
+    const half = (MAP_SIZES_FOR_TEST[album.z] * radius) / 2;
+    const x = middle.x + album.x * radius;
+    const y = middle.y - album.y * radius;
+    assert.ok(x - half >= 0 && x + half <= box.width, "cover inside, across");
+    assert.ok(y - half >= 0 && y + half <= box.height, "cover inside, down");
+  }
+  for (const [i, a] of labels.entries()) {
+    assert.ok(a.x >= box.edge && a.x + box.labelWidth <= box.width - box.edge + 1e-6);
+    assert.ok(a.y >= box.edge && a.y + box.labelHeight <= box.height - box.edge + 1e-6);
+    for (const b of labels.slice(i + 1)) {
+      const apart =
+        Math.abs(a.x - b.x) >= box.labelWidth || Math.abs(a.y - b.y) >= box.labelHeight;
+      assert.ok(apart, `${a.name} and ${b.name} apart`);
+    }
+  }
 });

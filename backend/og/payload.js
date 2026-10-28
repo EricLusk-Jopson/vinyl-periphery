@@ -22,7 +22,8 @@
 // Keep in step with frontend/src/lib/share.ts, which builds it.
 
 export const MAX_PAYLOAD_CHARS = 6000;
-export const MAX_RESULTS = 6;
+/** Rows on the results card: up to five full size, then smaller. */
+export const MAX_RESULTS = 10;
 export const MAX_MAP_ALBUMS = 24;
 export const MAX_MAP_PEOPLE = 16;
 const MAX_TITLE = 80;

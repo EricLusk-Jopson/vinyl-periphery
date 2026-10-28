@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { artIds, initials, mapGeometry, renderPng, shorten } from "./render.js";
+import { artIds, cardSizes, initials, mapGeometry, renderPng, shorten } from "./render.js";
 
 import { artSettled, fetchArt, loadArt } from "./art.js";
 import { IMAGE_SIZE } from "./payload.js";
@@ -42,6 +42,26 @@ test("renders both layouts, square", async () => {
     assert.ok(isPng(png), `${payload.layout} is a PNG`);
     assert.deepEqual(pngSize(png), [1080, 1080]);
   }
+});
+
+test("cards fit up to ten rows, shrinking past five", async () => {
+  assert.deepEqual(
+    [3, 5].map((n) => cardSizes(n).row),
+    [92, 92],
+  );
+  for (const n of [6, 8, 10]) {
+    const { header, row, gap } = cardSizes(n);
+    assert.ok(row >= 48 && row <= 92, `${n} rows: ${row}px`);
+    // Header, caption, rows and footer inside the frame's 976px.
+    assert.ok(header + 28 + 26 + 28 + n * row + (n - 1) * gap + 32 <= 976);
+  }
+  const ten = {
+    ...card,
+    caption: "Top 10 by Shared",
+    results: Array.from({ length: 10 }, (_, i) => ({ t: `Album ${i}`, r: "Someone", i: "", n: 10 - i })),
+  };
+  const png = await renderPng(ten, IMAGE_SIZE, new Map());
+  assert.ok(isPng(png));
 });
 
 test("helpers", () => {

@@ -51,8 +51,38 @@ export type SharePayload =
       d?: string;
     };
 
-/** Rows on the results card (the renderer draws five). */
+/** Rows on the results card by default (it takes up to ten). */
 export const SHARE_RESULTS = 5;
+
+/** How many albums each layout can show, and how many it starts with. */
+export const SHARE_COUNTS: Record<
+  ShareLayout,
+  { options: number[]; start: number }
+> = {
+  map: { options: [6, 12, 18, 24], start: 12 },
+  card: { options: [3, 5, 8, 10], start: 5 },
+};
+
+/**
+ * The counts to offer when `available` albums match: those below it, then
+ * "All" when it's under the largest. Nothing to choose with one album or
+ * none.
+ */
+export const countOptions = (
+  layout: ShareLayout,
+  available: number,
+): Array<{ count: number; label: string }> => {
+  const { options } = SHARE_COUNTS[layout];
+  const max = options[options.length - 1];
+  const below = options.filter((n) => n < available && n < max);
+  const all =
+    available <= max ? [{ count: available, label: `All ${available}` }] : [];
+  const choices = [
+    ...below.map((n) => ({ count: n, label: String(n) })),
+    ...(available > max ? [{ count: max, label: String(max) }] : all),
+  ];
+  return choices.length > 1 ? choices : [];
+};
 
 /** The art id in a Cover Art Archive URL, or "". */
 export const artIdFromCoverUrl = (url: string | null | undefined): ArtId => {
@@ -76,6 +106,7 @@ export const cardPayload = (
   ranked: ScoredRelease[],
   coverFor: CoverFor,
   caption?: string,
+  count = SHARE_RESULTS,
 ): SharePayload => ({
   v: 1,
   l: "card",
@@ -84,7 +115,7 @@ export const cardPayload = (
     r: search.searchParams.artist,
     i: artFor(search.target?.key, coverFor),
   },
-  x: ranked.slice(0, SHARE_RESULTS).map((release) => ({
+  x: ranked.slice(0, count).map((release) => ({
     t: release.title,
     r: release.artist,
     i: artFor(release.key, coverFor),

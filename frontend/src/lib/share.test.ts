@@ -9,6 +9,7 @@ import {
   mapPayload,
   shareImagePath,
   albumMapPayload,
+  countOptions,
   selectionCaption,
   shareLink,
 } from "./share";
@@ -266,5 +267,35 @@ describe("albumMapPayload", () => {
       "Justin Vernon",
     ]);
     expect(payload.d).toBe("Top 2 by Shared");
+  });
+});
+
+describe("countOptions", () => {
+  const labels = (o: { label: string }[]) => o.map((c) => c.label);
+
+  it("offers every count when there are plenty of albums", () => {
+    expect(labels(countOptions("map", 40))).toEqual(["6", "12", "18", "24"]);
+    expect(labels(countOptions("card", 30))).toEqual(["3", "5", "8", "10"]);
+  });
+
+  it("ends with All when fewer albums match than the largest count", () => {
+    expect(countOptions("map", 15)).toEqual([
+      { count: 6, label: "6" },
+      { count: 12, label: "12" },
+      { count: 15, label: "All 15" },
+    ]);
+    expect(labels(countOptions("map", 24))).toEqual([
+      "6",
+      "12",
+      "18",
+      "All 24",
+    ]);
+    expect(labels(countOptions("card", 4))).toEqual(["3", "All 4"]);
+  });
+
+  it("offers nothing when there's nothing to choose", () => {
+    expect(countOptions("card", 3)).toEqual([]);
+    expect(countOptions("map", 1)).toEqual([]);
+    expect(countOptions("map", 0)).toEqual([]);
   });
 });

@@ -214,6 +214,7 @@ describe("resetFilterState", () => {
       excludeMainArtist: true,
       collaborationsOnly: false,
       excludeVarious: false,
+      likedOnly: false,
       required: { contributors: [], roles: [] },
     });
   });

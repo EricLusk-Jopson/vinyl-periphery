@@ -40,6 +40,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     toggleExcludeMainArtist,
     toggleCollaborationsOnly,
     toggleExcludeVarious,
+    toggleLikedOnly,
   } = useSearchFilters(searchId);
   const search = searches[searchId];
   const [query, setQuery] = useState("");
@@ -118,6 +119,14 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           onChange={() => {
             changed("hide_various", !filterState.excludeVarious);
             toggleExcludeVarious();
+          }}
+        />
+        <Switch
+          label="Only liked albums"
+          checked={Boolean(filterState.likedOnly)}
+          onChange={() => {
+            changed("liked_only", !filterState.likedOnly);
+            toggleLikedOnly();
           }}
         />
       </div>

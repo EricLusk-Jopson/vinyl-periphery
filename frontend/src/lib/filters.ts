@@ -322,7 +322,7 @@ export const matchesName = (name: string, query: string): boolean =>
 
 /**
  * How many filters differ from "Reset": each contributor or role switched
- * off or required, plus each of the three switches changed. Shown on the
+ * off or required, plus each of the switches changed. Shown on the
  * mobile Filters bar.
  */
 export const activeFilterCount = (search: SearchCache): number => {
@@ -338,7 +338,8 @@ export const activeFilterCount = (search: SearchCache): number => {
     required.roles.length +
     Number(filterState.excludeMainArtist !== base.excludeMainArtist) +
     Number(filterState.collaborationsOnly !== base.collaborationsOnly) +
-    Number(filterState.excludeVarious !== base.excludeVarious)
+    Number(filterState.excludeVarious !== base.excludeVarious) +
+    Number(Boolean(filterState.likedOnly))
   );
 };
 

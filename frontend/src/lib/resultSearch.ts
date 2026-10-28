@@ -94,6 +94,7 @@ export const filtersToShow = (
     excludeMainArtist: !isMainArtistRelease(search, release),
     collaborationsOnly: false,
     excludeVarious: false,
+    likedOnly: false,
     required: { contributors: [], roles: [] },
   };
 };

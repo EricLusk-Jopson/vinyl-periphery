@@ -59,6 +59,11 @@ export interface SearchCache {
     collaborationsOnly: boolean;
     excludeVarious: boolean;
     /**
+     * Only albums the user has liked (likes live in localStorage, by result
+     * key). Missing on searches from before it existed: off.
+     */
+    likedOnly?: boolean;
+    /**
      * "Must include": every result has each of these contributors, and for
      * each role, a contributor who had it on the searched album. Missing on
      * searches saved before it existed.

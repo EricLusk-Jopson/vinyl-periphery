@@ -81,6 +81,12 @@ describe("secondsLeft", () => {
     expect(secondsLeft(stage("releases", 48, 48), 2500)).toBe(2.5);
   });
 
+  it("adds further pages known for the contributor under way", () => {
+    expect(
+      secondsLeft({ ...stage("releases", 48, 48), extraCalls: 2 }, 2500),
+    ).toBe(7.5);
+  });
+
   it("has no estimate before the discography stage", () => {
     expect(secondsLeft(stage("initial", 0, 1), 2500)).toBeNull();
     expect(secondsLeft(stage("contributors", 2, 5), 2500)).toBeNull();

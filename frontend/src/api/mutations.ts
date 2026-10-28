@@ -17,10 +17,11 @@ import { addContributorToSet } from "./contributorSet";
 import {
   addRelease,
   DiscographyItem,
+  discographyPagesToRead,
   toEnrichedRelease,
 } from "../lib/releases";
 import { sleep, throwIfAborted } from "./abort";
-import { REQUEST_DELAY_MS } from "./limits";
+import { DISCOGRAPHY_PAGE_SIZE, REQUEST_DELAY_MS } from "./limits";
 
 async function discogsSearch(
   { artist, album }: SearchParams,
@@ -174,7 +175,7 @@ async function listReleaseContributors(
   };
 }
 
-async function listContributorReleases(
+export async function listContributorReleases(
   {
     contributorSet,
   }: {
@@ -189,53 +190,71 @@ async function listContributorReleases(
   let currentContributor = 0;
   for (const contributor of contributors) {
     throwIfAborted(signal);
-    callbacks?.onProgress?.({
-      id: "releases",
-      label: "Discographies",
-      current: currentContributor + 1,
-      total: contributors.length,
-    });
+    const progress = (extraCalls: number) =>
+      callbacks?.onProgress?.({
+        id: "releases",
+        label: "Discographies",
+        current: currentContributor + 1,
+        total: contributors.length,
+        extraCalls,
+      });
+    progress(0);
 
+    // Every page, DISCOGRAPHY_PAGE_SIZE at a time, up to the cap. Nearly
+    // everyone fits in the first page; the first page says how many more.
+    let pagesToRead = 1;
+    let pagesRead = 0;
+    let totalItems = 0;
     try {
-      console.log(
-        `Fetching releases for contributor: ${contributor.name} (${contributor.id})`
-      );
-      const response = await fetch(
-        // The same one call per contributor reads twice the default 50
-        // items. (Discogs allows up to 500 per page.)
-        `https://api.discogs.com/artists/${contributor.id}/releases?per_page=100`,
-        { signal }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch releases for artist ${contributor.id}`
+      for (let page = 1; page <= pagesToRead; page++) {
+        throwIfAborted(signal);
+        console.log(
+          `Fetching releases for contributor: ${contributor.name} (${contributor.id}), page ${page}`
         );
+        const response = await fetch(
+          `https://api.discogs.com/artists/${contributor.id}/releases?per_page=${DISCOGRAPHY_PAGE_SIZE}&page=${page}`,
+          { signal }
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Failed to fetch releases for artist ${contributor.id}, page ${page}`
+          );
+        }
+
+        const data: {
+          releases: DiscographyItem[];
+          pagination: { pages: number; items: number };
+        } = await response.json();
+
+        // Keyed by "master:N" / "release:N"; the same album from several
+        // contributors becomes one entry.
+        for (const item of data.releases ?? []) {
+          addRelease(releaseMap, toEnrichedRelease(item, contributor.id));
+        }
+        pagesRead = page;
+
+        if (page === 1) {
+          pagesToRead = discographyPagesToRead(data.pagination);
+          totalItems = data.pagination?.items ?? data.releases?.length ?? 0;
+        }
+        progress(pagesToRead - page);
+        await sleep(REQUEST_DELAY_MS, signal);
       }
-
-      const data: {
-        releases: DiscographyItem[];
-        pagination: { pages: number; items: number };
-      } = await response.json();
-
-      // Keyed by "master:N" / "release:N"; the same album from several
-      // contributors becomes one entry.
-      for (const item of data.releases) {
-        addRelease(releaseMap, toEnrichedRelease(item, contributor.id));
-      }
-
-      callbacks?.onContributorChecked?.(
-        contributor.name,
-        data.pagination?.items ?? data.releases.length
-      );
-
-      await sleep(REQUEST_DELAY_MS, signal);
     } catch (error) {
+      // Cancelling stops the search; other failures keep the pages read.
       throwIfAborted(signal);
       console.error(
         `Error processing releases for ${contributor.name}:`,
         error
       );
+    }
+
+    if (pagesRead > 0) {
+      callbacks?.onContributorChecked?.(contributor.name, totalItems, {
+        pages: pagesRead,
+        capped: pagesToRead < Math.ceil(totalItems / DISCOGRAPHY_PAGE_SIZE),
+      });
     }
     currentContributor++;
   }

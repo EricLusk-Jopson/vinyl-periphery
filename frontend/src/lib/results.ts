@@ -11,7 +11,7 @@ export type ScoredRelease = EnrichedRelease & {
   activeContributors: number[];
 };
 
-export type SortKey = "shared" | "newest" | "oldest" | "artist";
+export type SortKey = "shared" | "popular" | "newest" | "oldest" | "artist";
 
 export const SORT_OPTIONS: { value: SortKey; label: string; short: string }[] =
   [
@@ -19,6 +19,11 @@ export const SORT_OPTIONS: { value: SortKey; label: string; short: string }[] =
       value: "shared",
       label: "Most shared contributors",
       short: "Most shared",
+    },
+    {
+      value: "popular",
+      label: "Most popular (Discogs want + have)",
+      short: "Popular",
     },
     { value: "newest", label: "Year, newest first", short: "Newest" },
     { value: "oldest", label: "Year, oldest first", short: "Oldest" },
@@ -43,6 +48,13 @@ const byYear = (direction: 1 | -1) => (a: ScoredRelease, b: ScoredRelease) => {
 };
 
 /**
+ * How popular a release is on Discogs: want + have, or null when the search
+ * didn't keep the counts.
+ */
+export const popularity = (release: EnrichedRelease): number | null =>
+  release.community ? release.community.want + release.community.have : null;
+
+/**
  * Releases in the chosen order. "shared" keeps the incoming order, which is
  * the existing ranking (shared contributors, weighted by confidence). Ties
  * keep their ranking order, since Array.prototype.sort is stable.
@@ -54,6 +66,15 @@ export const sortReleases = (
   switch (sort) {
     case "shared":
       return releases;
+    case "popular":
+      // Most wanted and owned first; releases without counts go last.
+      return [...releases].sort((a, b) => {
+        const pa = popularity(a);
+        const pb = popularity(b);
+        if (pa === null || pb === null)
+          return pa === null ? (pb === null ? 0 : 1) : -1;
+        return pb - pa;
+      });
     case "newest":
       return [...releases].sort(byYear(-1));
     case "oldest":

@@ -9,6 +9,7 @@ import {
   resetFilterState,
   sharedPeople,
   sortReleases,
+  popularity,
 } from "./results";
 import { SearchCache } from "@/contexts/cache/types";
 
@@ -71,6 +72,28 @@ describe("sortReleases", () => {
   it("does not change the input", () => {
     sortReleases(list, "newest");
     expect(ids(list)).toEqual([1, 2, 3, 4]);
+  });
+});
+
+describe("popular sort", () => {
+  const withCounts = (id: number, want?: number, have?: number) => ({
+    ...release(id, "A", "2000"),
+    ...(want === undefined ? {} : { community: { want, have: have ?? 0 } }),
+  });
+
+  it("puts the most wanted and owned first, albums without counts last", () => {
+    const sorted = sortReleases(
+      [
+        withCounts(1, 5, 5),
+        withCounts(2),
+        withCounts(3, 100, 900),
+        withCounts(4, 0, 40),
+      ],
+      "popular",
+    );
+    expect(sorted.map((r) => r.id)).toEqual([3, 4, 1, 2]);
+    expect(popularity(withCounts(3, 100, 900))).toBe(1000);
+    expect(popularity(withCounts(2))).toBeNull();
   });
 });
 

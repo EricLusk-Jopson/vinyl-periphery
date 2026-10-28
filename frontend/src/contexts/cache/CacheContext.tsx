@@ -25,6 +25,7 @@ import { calculateReleaseScore } from "@/api/contributorSet";
 import { matchingSearchIds } from "@/lib/searchTarget";
 import { migrateSearch } from "@/lib/releases";
 import { isMainArtistRelease } from "@/lib/results";
+import { useLikes } from "@/hooks/useLikes";
 import {
   detachedLineage,
   lineageForNewSearch,
@@ -585,6 +586,13 @@ export const useSearchFilters = (searchId: string) => {
     });
   }, [search, searchId, updateFilterState]);
 
+  const toggleLikedOnly = useCallback(() => {
+    if (!search) return;
+    updateFilterState(searchId, {
+      likedOnly: !search.filterState.likedOnly,
+    });
+  }, [search, searchId, updateFilterState]);
+
   return {
     toggleContributor,
     toggleRole,
@@ -600,6 +608,7 @@ export const useSearchFilters = (searchId: string) => {
     toggleExcludeMainArtist,
     toggleCollaborationsOnly,
     toggleExcludeVarious,
+    toggleLikedOnly,
     filterState: search?.filterState,
   };
 };
@@ -609,6 +618,8 @@ export const useFilteredAndScoredReleases = (searchId: string) => {
   const { searches } = useCache();
   const { isContributorActive } = useSearchFilters(searchId);
   const search = searches[searchId];
+  // Likes are kept outside the cache; "Only liked" reads them.
+  const likes = useLikes();
 
   return useMemo(() => {
     if (!search) return { releases: [], count: 0 };
@@ -651,6 +662,8 @@ export const useFilteredAndScoredReleases = (searchId: string) => {
           return null;
         }
 
+        if (search.filterState.likedOnly && !likes[release.key]) return null;
+
         const { score, confidence } = calculateReleaseScore(
           { ...release, contributorIds: uniqueContributorIds },
           {
@@ -675,5 +688,5 @@ export const useFilteredAndScoredReleases = (searchId: string) => {
       releases: processedReleases,
       count: processedReleases.length,
     };
-  }, [search, isContributorActive]);
+  }, [search, isContributorActive, likes]);
 };

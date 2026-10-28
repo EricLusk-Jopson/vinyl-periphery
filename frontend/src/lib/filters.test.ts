@@ -196,7 +196,8 @@ describe("activeFilterCount", () => {
     search.filterState.roles.Vocals = false;
     search.filterState.collaborationsOnly = true;
     search.filterState.excludeMainArtist = false;
-    expect(activeFilterCount(search)).toBe(4);
+    search.filterState.likedOnly = true;
+    expect(activeFilterCount(search)).toBe(5);
   });
 });
 

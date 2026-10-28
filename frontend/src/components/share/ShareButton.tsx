@@ -27,8 +27,6 @@ import {
   shareImagePath,
   shareLink,
   SHARE_RESULTS,
-  ShareSize,
-  SIZES,
 } from "@/lib/share";
 import { cn } from "@/lib/utils";
 import { dialogButton } from "../common/buttons";
@@ -102,7 +100,7 @@ const Segmented = <T extends string>({
 );
 
 /**
- * Share: a watermarked image, story or square: a map of the stack (or this
+ * Share: a square, watermarked image: a map of the stack (or this
  * search) and the liked albums around it, or these results as a list;
  * through the native share sheet where it takes files, as a download
  * otherwise. The image is rendered by /api/og from data in the URL. Covers
@@ -122,7 +120,6 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   const [open, setOpen] = useState(false);
   const likes = useLikes();
   const [chosen, setChosen] = useState<ShareLayout>("map");
-  const [size, setSize] = useState<ShareSize>("story");
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState("");
 
@@ -179,13 +176,13 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, covers, layout, mapImage, search, releases]);
 
-  const image = payload ? shareImagePath(payload, size) : "";
+  const image = payload ? shareImagePath(payload) : "";
   const link = payload ? shareLink(window.location.origin, payload, to) : "";
   const title =
     layout === "map"
       ? `${map.centre.title} by ${map.centre.artist} on Vinyl Periphery`
       : `${search.searchParams.album} by ${search.searchParams.artist} on Vinyl Periphery`;
-  const fileName = `vinyl-periphery-${layout}-${size}.png`;
+  const fileName = `vinyl-periphery-${layout}.png`;
 
   const download = (blob: Blob) => {
     const url = URL.createObjectURL(blob);
@@ -199,7 +196,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   const shareImage = async () => {
     if (!payload || busy) return;
     setBusy(true);
-    track("share_created", { layout, size });
+    track("share_created", { layout });
     try {
       const response = await fetch(image);
       if (!response.ok) throw new Error(`Image failed: ${response.status}`);
@@ -207,10 +204,10 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
       const file = new File([blob], fileName, { type: "image/png" });
       if (navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], title, url: link });
-        track("share_completed", { layout, size, method: "share" });
+        track("share_completed", { layout, method: "share" });
       } else {
         download(blob);
-        track("share_completed", { layout, size, method: "download" });
+        track("share_completed", { layout, method: "download" });
       }
     } catch (error) {
       // Closing the share sheet rejects with AbortError: not a failure.
@@ -230,7 +227,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   const copyLink = async () => {
     try {
       await navigator.clipboard.writeText(link);
-      track("share_completed", { layout, size, method: "link" });
+      track("share_completed", { layout, method: "link" });
       toast({ title: "Link copied" });
     } catch {
       toast({ title: "Couldn't copy the link", variant: "destructive" });
@@ -298,36 +295,16 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
             </SheetDescription>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row">
-            {mapReady && (
-              <div className="flex-1">
-                <Segmented
-                  label="Show"
-                  value={layout}
-                  options={LAYOUTS}
-                  onChange={(value) => setChosen(value)}
-                />
-              </div>
-            )}
-            <div className="flex-1">
-              <Segmented
-                label="Size"
-                value={size}
-                options={SIZES}
-                onChange={(value) => setSize(value)}
-              />
-            </div>
-          </div>
+          {mapReady && (
+            <Segmented
+              label="Show"
+              value={layout}
+              options={LAYOUTS}
+              onChange={(value) => setChosen(value)}
+            />
+          )}
 
-          <div
-            className={cn(
-              "relative mx-auto w-full overflow-hidden rounded-lg border bg-surface",
-              size === "story"
-                ? "max-w-[220px] md:max-w-[240px]"
-                : "max-w-[300px]",
-            )}
-            style={{ aspectRatio: SIZES.find((s) => s.id === size)?.ratio }}
-          >
+          <div className="relative mx-auto aspect-square w-full max-w-[360px] overflow-hidden rounded-lg border bg-surface">
             {loaded !== image && (
               <span className="absolute inset-0 flex items-center justify-center font-mono text-xs text-faint">
                 {image ? "Making the image…" : "Finding covers…"}
@@ -337,7 +314,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
               <img
                 key={image}
                 src={image}
-                alt={`Preview of the ${size} share image`}
+                alt="Preview of the share image"
                 onLoad={() => setLoaded(image)}
                 className={cn(
                   "relative h-full w-full object-cover transition-opacity duration-200",

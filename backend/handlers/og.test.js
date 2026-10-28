@@ -26,7 +26,7 @@ test("renders a PNG for a valid payload, caching it for good", async () => {
     },
   });
   const res = mockResponse();
-  await handler(mockRequest({ query: { p: card, size: "square" } }), res);
+  await handler(mockRequest({ query: { p: card } }), res);
   assert.equal(res.statusCode, 200);
   assert.equal(res.headers["content-type"], "image/png");
   assert.match(res.headers["cache-control"], /immutable/);

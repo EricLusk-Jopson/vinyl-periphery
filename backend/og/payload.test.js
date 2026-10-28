@@ -4,7 +4,7 @@ import {
   coverArtUrl,
   decodePayload,
   encodePayload,
-  imageSize,
+  IMAGE_SIZE,
   MAX_PAYLOAD_CHARS,
   MAX_MAP_ALBUMS,
   MAX_RESULTS,
@@ -75,8 +75,7 @@ test("rejects missing, oversized, malformed and empty payloads", () => {
 });
 
 test("sizes and art URLs", () => {
-  assert.deepEqual(imageSize("square"), { width: 1080, height: 1080, name: "square" });
-  assert.deepEqual(imageSize("anything"), { width: 1080, height: 1920, name: "story" });
+  assert.deepEqual(IMAGE_SIZE, { width: 1080, height: 1080, name: "square" });
   assert.equal(
     coverArtUrl(`g:${MBID}`),
     `https://coverartarchive.org/release-group/${MBID}/front-500`,

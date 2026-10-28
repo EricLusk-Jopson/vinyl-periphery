@@ -43,7 +43,7 @@ export default function share(req, res) {
   const origin = originOf(req.headers);
   const title = payload ? shareTitle(payload) : "Vinyl Periphery";
   const image = payload
-    ? `${origin}/api/og?${new URLSearchParams({ p: encoded, size: "square" })}`
+    ? `${origin}/api/og?${new URLSearchParams({ p: encoded })}`
     : "";
   const target = `${origin}${to}`;
 

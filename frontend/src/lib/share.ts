@@ -11,7 +11,6 @@ import { defaultContributorDisplayPipeline } from "./transformers/contributorPro
  */
 
 export type ShareLayout = "map" | "card";
-export type ShareSize = "story" | "square";
 
 /** Art id: "g:<release-group mbid>", "r:<release mbid>", or "". */
 type ArtId = string;
@@ -162,12 +161,9 @@ export const encodeSharePayload = (payload: SharePayload): string => {
     .replace(/=+$/, "");
 };
 
-/** The image URL (same origin). */
-export const shareImagePath = (
-  payload: SharePayload,
-  size: ShareSize,
-): string =>
-  `/api/og?${new URLSearchParams({ p: encodeSharePayload(payload), size })}`;
+/** The image URL (same origin). Share images are square. */
+export const shareImagePath = (payload: SharePayload): string =>
+  `/api/og?${new URLSearchParams({ p: encodeSharePayload(payload) })}`;
 
 /** The link a share carries: Open Graph tags for previews, then `to`. */
 export const shareLink = (
@@ -176,8 +172,3 @@ export const shareLink = (
   to: string,
 ): string =>
   `${origin}/s?${new URLSearchParams({ p: encodeSharePayload(payload), to })}`;
-
-export const SIZES: { id: ShareSize; label: string; ratio: string }[] = [
-  { id: "story", label: "Story", ratio: "9 / 16" },
-  { id: "square", label: "Square", ratio: "1 / 1" },
-];

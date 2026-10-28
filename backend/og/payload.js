@@ -102,11 +102,8 @@ export function decodePayload(encoded) {
 export const encodePayload = (payload) =>
   Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
 
-/** "1080x1920" (stories) or "1080x1080" (feed), from ?size=story|square. */
-export const imageSize = (value) =>
-  value === "square"
-    ? { width: 1080, height: 1080, name: "square" }
-    : { width: 1080, height: 1920, name: "story" };
+/** Share images are square, 1080x1080 (feeds, posts and stories alike). */
+export const IMAGE_SIZE = { width: 1080, height: 1080, name: "square" };
 
 /** The Cover Art Archive URL for an art id. */
 export const coverArtUrl = (artId, px = 500) => {

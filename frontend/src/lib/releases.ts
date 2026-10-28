@@ -12,9 +12,12 @@ import { SearchCache } from "@/contexts/cache/types";
 export interface DiscographyItem {
   id: number;
   type?: string;
-  /** Masters: the release Discogs lists as the main version. */
+  /**
+   * Masters: a release of it where this person has this role. Varies by
+   * person and role, so the same master can come with different ones.
+   */
   main_release?: number;
-  /** Releases: their master, if Discogs sends it. Unverified. */
+  /** Releases: their master. Not sent by artist releases; read if present. */
   master_id?: number;
   title?: string;
   year?: string | number;

@@ -18,6 +18,8 @@ const MAX_DOTS = 4;
 
 interface ReleaseRowProps {
   release: ScoredRelease;
+  /** Art from the Cover Art Archive, when found. */
+  cover?: string | null;
   /** Shared contributors, with what they did on the searched album. */
   people: SharedPerson[];
   searchedAlbum: string;
@@ -42,6 +44,7 @@ const focusRing =
  */
 export const ReleaseRow: React.FC<ReleaseRowProps> = ({
   release,
+  cover,
   people,
   searchedAlbum,
   open,
@@ -109,7 +112,7 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
         )}
       >
         <AlbumCover
-          src={release.thumb}
+          src={cover || release.thumb}
           title={release.title}
           className="h-12 w-12 rounded-[3px] text-xs md:h-14 md:w-14"
         />

@@ -31,6 +31,12 @@ ranks albums by how many of those people worked on them.
     and kept in localStorage by `src/services/creditsCache.ts`. When the
     credits don't name someone, the row falls back to how their own
     discography lists the album (`EnrichedRelease.appearances`).
+  - Album art: `src/api/musicbrainz.ts` maps Discogs URLs to MusicBrainz
+    ids in batches (about 1 request a second), `src/api/coverArt.ts` queues
+    them with rows on screen first, `src/services/coverCache.ts` keeps the
+    mappings (misses too) in their own IndexedDB database, and
+    `useCoverArt` gives rows Cover Art Archive URLs as they resolve. No
+    Discogs image calls.
   - `src/contexts/cache/`: search results, filter state, persistence
     (sessionStorage and IndexedDB).
   - `src/lib/transformers/`: role and name cleanup, with Jest tests.

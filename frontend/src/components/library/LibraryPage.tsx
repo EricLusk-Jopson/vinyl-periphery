@@ -13,7 +13,7 @@ import {
 import { recentSearches, searchStartedAt, timeAgo } from "@/lib/searches";
 import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
-import { AlbumCover } from "../search/AlbumCover";
+import { SearchCover } from "../search/SearchCover";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
@@ -68,9 +68,8 @@ const LibraryCard: React.FC<LibraryCardProps> = ({
           focusRing,
         )}
       >
-        <AlbumCover
-          src={search.thumb}
-          title={album}
+        <SearchCover
+          search={search}
           className="h-12 w-12 rounded-[3px] text-xs lg:h-16 lg:w-16 lg:rounded lg:text-sm"
         />
         <span className="flex min-w-0 flex-col gap-0.5 md:gap-1">

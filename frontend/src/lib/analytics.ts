@@ -19,7 +19,8 @@ export type AnalyticsEvent =
   | "discogs_opened"
   | "filter_changed"
   | "search_saved"
-  | "result_credits";
+  | "result_credits"
+  | "cover_lookup";
 
 export type EventProperties = Record<string, string | number | boolean>;
 

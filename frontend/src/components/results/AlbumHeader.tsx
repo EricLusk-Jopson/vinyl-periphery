@@ -5,7 +5,7 @@ import { SearchCache } from "@/contexts/cache/types";
 import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { Grain } from "../layout/Grain";
-import { AlbumCover } from "../search/AlbumCover";
+import { SearchCover } from "../search/SearchCover";
 
 interface AlbumHeaderProps {
   search: SearchCache;
@@ -36,9 +36,8 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search }) => {
     <section className="relative overflow-hidden border-b">
       <Grain className="opacity-10" />
       <div className="relative mx-auto flex max-w-[1280px] items-center gap-3 px-4 py-3 md:flex-wrap md:gap-5 md:px-6 md:py-6 lg:gap-6 lg:py-9">
-        <AlbumCover
-          src={search.thumb}
-          title={album}
+        <SearchCover
+          search={search}
           className="h-14 w-14 rounded-[3px] text-[13px] md:h-[88px] md:w-[88px] md:rounded md:text-base lg:h-28 lg:w-28"
         />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5 md:flex-[1_1_360px] md:gap-1.5">

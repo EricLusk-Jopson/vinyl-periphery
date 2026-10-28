@@ -29,6 +29,7 @@ export const EVENTS = new Set([
   "filter_changed",
   "search_saved",
   "result_credits",
+  "cover_lookup",
 ]);
 
 const MAX_PROPERTIES = 20;

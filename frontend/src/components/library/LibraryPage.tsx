@@ -351,7 +351,7 @@ export const LibraryPage: React.FC = () => {
                     aria-checked={view === v.id}
                     onClick={() => chooseView(v.id)}
                     className={cn(
-                      "h-9 rounded-md px-4 text-sm font-medium transition-colors",
+                      "h-11 rounded-md px-4 text-sm font-medium transition-colors md:h-9",
                       focusRing,
                       view === v.id
                         ? "bg-secondary text-foreground"

@@ -268,7 +268,7 @@ export const StackPage: React.FC<StackPageProps> = ({
             aria-checked={order === o.id}
             onClick={() => setOrder(o.id)}
             className={cn(
-              "h-9 rounded-md px-4 text-sm font-medium transition-colors",
+              "h-11 rounded-md px-4 text-sm font-medium transition-colors md:h-9",
               focusRing,
               order === o.id
                 ? "bg-secondary text-foreground"

@@ -20,7 +20,7 @@ import {
   stackRoot,
 } from "@/lib/stacks";
 import { cn } from "@/lib/utils";
-import { SaveDrawer } from "./SaveDrawer";
+import { StackDrawer } from "./StackDrawer";
 import { StackAction, StackConfirm } from "./StackConfirm";
 import { ToastAction } from "../ui/toast";
 import { useToast } from "@/hooks/use-toast";
@@ -46,7 +46,7 @@ interface StackPageProps {
   isSearching: boolean;
 }
 
-/** An unsaved ancestor: ghosted, with a way to search it again. */
+/** A deleted step: ghosted, with a way to search it again. */
 const GhostCard: React.FC<{
   ghost: GhostStep;
   onSearch: () => void;
@@ -70,7 +70,7 @@ const GhostCard: React.FC<{
         <span className="truncate text-[13px] text-faint md:text-sm">
           {step.artist}
         </span>
-        <span className="font-mono text-xs text-faint">Not saved</span>
+        <span className="font-mono text-xs text-faint">Deleted</span>
       </span>
       <button
         type="button"
@@ -90,8 +90,8 @@ const GhostCard: React.FC<{
 };
 
 /**
- * /library/stack/:stackId — the saved searches from one trail, in trail
- * order or newest first. Ancestors that aren't saved show ghosted, with a
+ * /library/stack/:stackId — the searches in one stack, by step or newest
+ * first. Steps that were deleted show ghosted, with a
  * Search action that rejoins the stack.
  */
 export const StackPage: React.FC<StackPageProps> = ({
@@ -104,9 +104,7 @@ export const StackPage: React.FC<StackPageProps> = ({
     searches,
     savedSearchIds,
     savedSearchesLoaded,
-    saveSearch,
-    unsaveSearch,
-    clearSearch,
+    deleteSearch,
     restoreSearch,
   } = useCache();
   const { toast } = useToast();
@@ -138,13 +136,12 @@ export const StackPage: React.FC<StackPageProps> = ({
   }, [members.length, ghosts.length]);
 
   if (!savedSearchesLoaded) return null;
-  if (members.length === 0)
-    return <Navigate to={libraryPath("saved")} replace />;
+  if (members.length === 0) return <Navigate to={libraryPath()} replace />;
 
   const root = stackRoot(stack);
   const sorted = stackMembersByDepth(stack, order, levels);
 
-  // In step order, ghosts sit at their step among the saved searches.
+  // In step order, ghosts sit at their step among the searches.
   type Entry =
     | { kind: "member"; search: SearchCache; depth: number }
     | { kind: "ghost"; ghost: GhostStep; depth: number };
@@ -173,17 +170,10 @@ export const StackPage: React.FC<StackPageProps> = ({
     );
   };
 
-  const toggleSave = async (searchId: string) => {
-    const wasSaved = savedSearchIds.has(searchId);
-    await (wasSaved ? unsaveSearch : saveSearch)(searchId);
-    track("search_saved", { saved: !wasSaved, from: "library" });
-  };
-
   // No warning for one search: the toast can undo it.
   const remove = async (searchId: string) => {
     const search = searches[searchId];
-    if (savedSearchIds.has(searchId)) await unsaveSearch(searchId);
-    clearSearch(searchId);
+    await deleteSearch(searchId);
     if (!search) return;
     toast({
       title: "Search deleted",
@@ -191,7 +181,7 @@ export const StackPage: React.FC<StackPageProps> = ({
       action: (
         <ToastAction
           altText="Undo delete"
-          onClick={() => void restoreSearch(search, true)}
+          onClick={() => void restoreSearch(search)}
         >
           Undo
         </ToastAction>
@@ -202,7 +192,7 @@ export const StackPage: React.FC<StackPageProps> = ({
   return (
     <div className="mx-auto w-full max-w-[1200px] px-4 pb-24 pt-4 md:px-6 md:pt-8">
       <Link
-        to={libraryPath("saved")}
+        to={libraryPath()}
         className={cn(
           "-ml-2 inline-flex h-11 items-center gap-2 rounded-lg px-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
           focusRing,
@@ -225,8 +215,8 @@ export const StackPage: React.FC<StackPageProps> = ({
             {stackLabel(stack)}
           </h1>
           <p className="text-[13px] text-muted-foreground md:text-base">
-            {root.artist} · {members.length} saved
-            {ghosts.length > 0 && ` · ${ghosts.length} not saved`}
+            {root.artist} · {members.length} searches
+            {ghosts.length > 0 && ` · ${ghosts.length} deleted`}
           </p>
         </div>
         <div className="flex w-full flex-wrap gap-2 md:w-auto">
@@ -310,9 +300,7 @@ export const StackPage: React.FC<StackPageProps> = ({
               {entry.kind === "member" ? (
                 <LibraryCard
                   search={entry.search}
-                  saved
                   from={{ from: "stack", stackId }}
-                  onToggleSave={() => toggleSave(entry.search.searchId)}
                   onDelete={() => remove(entry.search.searchId)}
                   onStack={() => setStacking(entry.search)}
                 />
@@ -331,13 +319,12 @@ export const StackPage: React.FC<StackPageProps> = ({
       <StackConfirm
         request={confirming && { stack, action: confirming }}
         onClose={() => setConfirming(null)}
-        onDone={() => navigate(libraryPath("saved"))}
+        onDone={() => navigate(libraryPath())}
       />
 
       {stacking && (
-        <SaveDrawer
+        <StackDrawer
           search={searches[stacking.searchId] ?? stacking}
-          mode="stack"
           from="library"
           open
           onOpenChange={(open) => !open && setStacking(null)}

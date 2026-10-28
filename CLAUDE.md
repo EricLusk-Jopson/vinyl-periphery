@@ -48,14 +48,16 @@ ranks albums by how many of those people worked on them.
     mappings (misses too) in their own IndexedDB database, and
     `useCoverArt` gives rows Cover Art Archive URLs as they resolve. No
     Discogs image calls.
-  - `src/contexts/cache/`: search results, filter state, persistence
-    (sessionStorage and IndexedDB). sessionStorage holds unsaved searches
-    only, within `SESSION_BUDGET_CHARS` (`src/lib/sessionBudget.ts`): a
-    search that wouldn't fit is blocked with a prompt to make room.
+  - `src/contexts/cache/`: search results, filter state, persistence. Every
+    search goes into the library (IndexedDB, `src/services/db.ts`) as it
+    finishes and stays until deleted; filter changes are written as they
+    settle. There's no session store or Save button. (`savedSearchIds`
+    lists every search; the name is older than this.)
   - `src/lib/lineage.ts`: how each search was reached (`SearchCache.lineage`).
     Searches from a result row continue their parent's trail; everything
-    else is a root. Stored as snapshots, never derived. Its `stackId` says
-    which stack a saved search is in; its steps are only a fallback for
+    else is a root, so searching from a result row adds to that row's stack.
+    Stored as snapshots, never derived. Its `stackId` says which stack a
+    search is in; its steps are only a fallback for
     placing it (see `stackLayout`).
   - `src/lib/transformers/`: role and name cleanup, with Jest tests.
     `roleCategories.ts` puts roles into the buckets the Roles filter groups
@@ -71,14 +73,14 @@ ranks albums by how many of those people worked on them.
   - `src/lib/filters.ts`: chip state, "must include" (`filterState.required`,
     optional because older saved searches lack it), active filter count.
   - `src/components/ui/`: shadcn primitives. Edit sparingly.
-  - `src/lib/stacks.ts`: saved searches grouped by `lineage.stackId` (two or
-    more make a stack), the stack's root, the ancestors the save drawer
-    offers, and the stacks a search fits (`stacksThisFits`: a saved member
-    has it in its results). A stack is a graph (`stackLayout`): albums link
+  - `src/lib/stacks.ts`: searches grouped by `lineage.stackId` (two or more
+    make a stack), the stack's root, and the stacks a search fits
+    (`stacksThisFits`: a member has it in its results; the Stack drawer
+    offers them). A stack is a graph (`stackLayout`): albums link
     when one is in the other's results, and each member's step is its
-    fewest links from the root; members nothing saved links fall back to
-    their trail, with its unsaved steps ghosted. No stack entity is stored.
-  - Routes (React Router): `/` home, `/library` (`?tab=saved`),
+    fewest links from the root; members nothing links fall back to their
+    trail, with its deleted steps ghosted. No stack entity is stored.
+  - Routes (React Router): `/` home, `/library`,
     `/library/stack/:stackId`, and
     `/results?artist=…&album=…`, plus `&master=N` or `&release=N` when the
     Discogs album is known. A results URL names the album, not a cached

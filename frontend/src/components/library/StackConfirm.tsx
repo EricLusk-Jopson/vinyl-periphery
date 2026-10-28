@@ -17,7 +17,7 @@ interface StackConfirmProps {
 
 /**
  * Confirms a whole-stack action. Delete removes every search in it.
- * Disband keeps them all, each on its own.
+ * Destack (`disband`) keeps them all, each on its own.
  */
 export const StackConfirm: React.FC<StackConfirmProps> = ({
   request,
@@ -52,7 +52,7 @@ export const StackConfirm: React.FC<StackConfirmProps> = ({
     <ChoiceDialog
       open={request !== null}
       onOpenChange={(open) => !open && onClose()}
-      title={deleting ? "Delete this stack?" : "Disband this stack?"}
+      title={deleting ? "Delete this stack?" : "Destack this stack?"}
       description={
         deleting
           ? `This deletes the ${count} searches in ${label}.`
@@ -72,7 +72,7 @@ export const StackConfirm: React.FC<StackConfirmProps> = ({
         disabled={busy}
         className={dialogButton.primary}
       >
-        {deleting ? `Delete ${count} searches` : "Disband"}
+        {deleting ? `Delete ${count} searches` : "Destack"}
       </button>
     </ChoiceDialog>
   );

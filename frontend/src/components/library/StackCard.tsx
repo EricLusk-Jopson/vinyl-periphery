@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Layers, Trash2, Ungroup } from "lucide-react";
+import { Layers, Trash2 } from "lucide-react";
+import { LayersOff } from "../common/icons";
 import { useCoverArt } from "@/hooks/useCoverArt";
 import { stackPath } from "@/lib/routes";
 import { searchStartedAt, timeAgo, usableImageUrl } from "@/lib/searches";
@@ -50,7 +51,7 @@ interface StackCardProps {
 /**
  * The searches in one stack, as one card: the root's cover and name,
  * "+ n" for the rest. Offset edges behind it mark it as a stack. Opens the
- * stack's page; Disband and Delete act on the whole stack.
+ * stack's page; Destack and Delete act on the whole stack.
  */
 export const StackCard: React.FC<StackCardProps> = ({
   stack,
@@ -110,13 +111,13 @@ export const StackCard: React.FC<StackCardProps> = ({
         <button
           type="button"
           onClick={onDisband}
-          aria-label={`Disband the ${root.title} stack`}
+          aria-label={`Destack the ${root.title} stack`}
           className={cn(
             iconButton,
             "text-muted-foreground hover:text-foreground",
           )}
         >
-          <Ungroup className="h-[18px] w-[18px]" aria-hidden="true" />
+          <LayersOff className="h-[18px] w-[18px]" aria-hidden="true" />
         </button>
         <button
           type="button"

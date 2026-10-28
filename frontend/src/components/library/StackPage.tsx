@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Search, Trash2, Ungroup } from "lucide-react";
+import { ArrowLeft, Search, Trash2 } from "lucide-react";
+import { LayersOff } from "../common/icons";
 import { SearchParams } from "@/api/types";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { SearchCache } from "@/contexts/cache/types";
@@ -241,8 +242,8 @@ export const StackPage: React.FC<StackPageProps> = ({
               focusRing,
             )}
           >
-            <Ungroup className="h-4 w-4" aria-hidden="true" />
-            Disband
+            <LayersOff className="h-4 w-4" aria-hidden="true" />
+            Destack
           </button>
           <button
             type="button"

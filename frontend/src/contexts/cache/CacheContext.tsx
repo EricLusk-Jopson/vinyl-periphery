@@ -24,6 +24,7 @@ import {
 import { calculateReleaseScore } from "@/api/contributorSet";
 import { matchingSearchIds } from "@/lib/searchTarget";
 import { migrateSearch } from "@/lib/releases";
+import { isMainArtistRelease } from "@/lib/results";
 import {
   detachedLineage,
   lineageForNewSearch,
@@ -639,14 +640,11 @@ export const useFilteredAndScoredReleases = (searchId: string) => {
         }
 
         // Apply exclude main artist filter
-        if (search.filterState.excludeMainArtist) {
-          // Assuming the first word in the search params is the main artist
-          const searchArtist = search.searchParams.artist
-            .split(" ")[0]
-            .toLowerCase();
-          if (release.artist.toLowerCase().includes(searchArtist)) {
-            return null;
-          }
+        if (
+          search.filterState.excludeMainArtist &&
+          isMainArtistRelease(search, release)
+        ) {
+          return null;
         }
 
         if (search.filterState.excludeVarious && release.artist === "Various") {

@@ -103,6 +103,8 @@ To test locally, put both Vinyl Periphery variables in `.env` and run
 | `share_created` | Share or Download is pressed and the image is made | `layout`: map or card |
 | `share_completed` | The share sheet finished, the image downloaded, or the link was copied | `layout`, `method`: share, download or link |
 | `chip_details` | A contributor or role chip's details open (who did what) | `kind`: contributor or role, `via`: hover (a mouse resting a second), hold (a press held a second) or key (context menu key, Shift+F10 or right click) |
+| `results_searched` | The results search (Find an album) is used, once typing pauses | `results` (albums listed), `hidden` (of those, how many the filters hide), `length` (characters typed; the text isn't sent) |
+| `result_picked` | An album is picked in the results search and put on top | `filtered`: true when the filters hid it and were reset to show it (after confirming) |
 
 ## Uncategorized roles
 

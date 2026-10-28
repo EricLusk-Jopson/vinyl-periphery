@@ -40,6 +40,8 @@ export const EVENTS = new Set([
   "share_created",
   "share_completed",
   "chip_details",
+  "results_searched",
+  "result_picked",
 ]);
 
 const MAX_PROPERTIES = 20;

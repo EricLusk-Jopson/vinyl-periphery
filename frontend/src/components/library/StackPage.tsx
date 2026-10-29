@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Search, Trash2, Ungroup } from "lucide-react";
+import { ArrowLeft, Search } from "lucide-react";
+import { LayersOff } from "../common/icons";
 import { SearchParams } from "@/api/types";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { SearchCache } from "@/contexts/cache/types";
 import { KnownAlbum } from "@/hooks/useSearchRun";
 import { track } from "@/lib/analytics";
-import { libraryPath } from "@/lib/routes";
+import { libraryPath, stackPath } from "@/lib/routes";
+import { ShareButton } from "../share/ShareButton";
 import { targetFromKey } from "@/lib/searchTarget";
 import {
   GhostStep,
@@ -19,8 +21,8 @@ import {
   stackRoot,
 } from "@/lib/stacks";
 import { cn } from "@/lib/utils";
-import { SaveDrawer } from "./SaveDrawer";
-import { StackAction, StackConfirm } from "./StackConfirm";
+import { StackDrawer } from "./StackDrawer";
+import { StackConfirm } from "./StackConfirm";
 import { ToastAction } from "../ui/toast";
 import { useToast } from "@/hooks/use-toast";
 import { AlbumCover } from "../search/AlbumCover";
@@ -45,7 +47,7 @@ interface StackPageProps {
   isSearching: boolean;
 }
 
-/** An unsaved ancestor: ghosted, with a way to search it again. */
+/** A deleted step: ghosted, with a way to search it again. */
 const GhostCard: React.FC<{
   ghost: GhostStep;
   onSearch: () => void;
@@ -69,7 +71,7 @@ const GhostCard: React.FC<{
         <span className="truncate text-[13px] text-faint md:text-sm">
           {step.artist}
         </span>
-        <span className="font-mono text-xs text-faint">Not saved</span>
+        <span className="font-mono text-xs text-faint">Deleted</span>
       </span>
       <button
         type="button"
@@ -89,8 +91,8 @@ const GhostCard: React.FC<{
 };
 
 /**
- * /library/stack/:stackId — the saved searches from one trail, in trail
- * order or newest first. Ancestors that aren't saved show ghosted, with a
+ * /library/stack/:stackId — the searches in one stack, by step or newest
+ * first. Steps that were deleted show ghosted, with a
  * Search action that rejoins the stack.
  */
 export const StackPage: React.FC<StackPageProps> = ({
@@ -103,14 +105,12 @@ export const StackPage: React.FC<StackPageProps> = ({
     searches,
     savedSearchIds,
     savedSearchesLoaded,
-    saveSearch,
-    unsaveSearch,
-    clearSearch,
+    deleteSearch,
     restoreSearch,
   } = useCache();
   const { toast } = useToast();
   const [order, setOrder] = useState<StackOrder>("depth");
-  const [confirming, setConfirming] = useState<StackAction | null>(null);
+  const [confirming, setConfirming] = useState(false);
   // The member whose Stack drawer is open.
   const [stacking, setStacking] = useState<SearchCache | null>(null);
 
@@ -137,13 +137,12 @@ export const StackPage: React.FC<StackPageProps> = ({
   }, [members.length, ghosts.length]);
 
   if (!savedSearchesLoaded) return null;
-  if (members.length === 0)
-    return <Navigate to={libraryPath("saved")} replace />;
+  if (members.length === 0) return <Navigate to={libraryPath()} replace />;
 
   const root = stackRoot(stack);
   const sorted = stackMembersByDepth(stack, order, levels);
 
-  // In step order, ghosts sit at their step among the saved searches.
+  // In step order, ghosts sit at their step among the searches.
   type Entry =
     | { kind: "member"; search: SearchCache; depth: number }
     | { kind: "ghost"; ghost: GhostStep; depth: number };
@@ -172,17 +171,10 @@ export const StackPage: React.FC<StackPageProps> = ({
     );
   };
 
-  const toggleSave = async (searchId: string) => {
-    const wasSaved = savedSearchIds.has(searchId);
-    await (wasSaved ? unsaveSearch : saveSearch)(searchId);
-    track("search_saved", { saved: !wasSaved, from: "library" });
-  };
-
   // No warning for one search: the toast can undo it.
   const remove = async (searchId: string) => {
     const search = searches[searchId];
-    if (savedSearchIds.has(searchId)) await unsaveSearch(searchId);
-    clearSearch(searchId);
+    await deleteSearch(searchId);
     if (!search) return;
     toast({
       title: "Search deleted",
@@ -190,7 +182,7 @@ export const StackPage: React.FC<StackPageProps> = ({
       action: (
         <ToastAction
           altText="Undo delete"
-          onClick={() => void restoreSearch(search, true)}
+          onClick={() => void restoreSearch(search)}
         >
           Undo
         </ToastAction>
@@ -201,7 +193,7 @@ export const StackPage: React.FC<StackPageProps> = ({
   return (
     <div className="mx-auto w-full max-w-[1200px] px-4 pb-24 pt-4 md:px-6 md:pt-8">
       <Link
-        to={libraryPath("saved")}
+        to={libraryPath()}
         className={cn(
           "-ml-2 inline-flex h-11 items-center gap-2 rounded-lg px-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
           focusRing,
@@ -224,32 +216,35 @@ export const StackPage: React.FC<StackPageProps> = ({
             {stackLabel(stack)}
           </h1>
           <p className="text-[13px] text-muted-foreground md:text-base">
-            {root.artist} · {members.length} saved
-            {ghosts.length > 0 && ` · ${ghosts.length} not saved`}
+            {root.artist} · {members.length} searches
+            {ghosts.length > 0 && ` · ${ghosts.length} deleted`}
           </p>
         </div>
         <div className="flex w-full flex-wrap gap-2 md:w-auto">
+          <ShareButton
+            search={root.search ?? sorted[0]}
+            map={{
+              centre: {
+                key: root.targetKey,
+                title: root.title,
+                artist: root.artist,
+                thumb: root.thumb,
+              },
+              members,
+              levels,
+            }}
+            to={stackPath(stackId)}
+          />
           <button
             type="button"
-            onClick={() => setConfirming("disband")}
+            onClick={() => setConfirming(true)}
             className={cn(
               "inline-flex h-11 items-center gap-2 rounded-lg border border-border-strong px-4 text-sm font-medium text-foreground hover:bg-secondary",
               focusRing,
             )}
           >
-            <Ungroup className="h-4 w-4" aria-hidden="true" />
-            Disband
-          </button>
-          <button
-            type="button"
-            onClick={() => setConfirming("delete")}
-            className={cn(
-              "inline-flex h-11 items-center gap-2 rounded-lg border border-border-strong px-4 text-sm font-medium text-foreground hover:bg-secondary",
-              focusRing,
-            )}
-          >
-            <Trash2 className="h-4 w-4" aria-hidden="true" />
-            Delete stack
+            <LayersOff className="h-4 w-4" aria-hidden="true" />
+            Destack
           </button>
         </div>
       </header>
@@ -280,7 +275,7 @@ export const StackPage: React.FC<StackPageProps> = ({
       </div>
 
       <ol className="mt-4 flex flex-col gap-2.5 md:gap-3">
-        {entries.map((entry) => (
+        {entries.map((entry, i) => (
           <li
             key={
               entry.kind === "member"
@@ -289,16 +284,24 @@ export const StackPage: React.FC<StackPageProps> = ({
             }
             className="flex flex-col gap-1.5 md:flex-row md:items-center md:gap-4"
           >
-            <span className="w-16 shrink-0 font-mono text-xs text-faint">
+            {/* By step, a step is labelled once, on its first search; the
+                others keep the column so the cards line up. */}
+            <span
+              className={cn(
+                "w-16 shrink-0 font-mono text-xs text-faint",
+                order === "depth" &&
+                  i > 0 &&
+                  entries[i - 1].depth === entry.depth &&
+                  "hidden md:block md:invisible",
+              )}
+            >
               {stepLabel(entry.depth)}
             </span>
             <ul className="min-w-0 flex-1">
               {entry.kind === "member" ? (
                 <LibraryCard
                   search={entry.search}
-                  saved
                   from={{ from: "stack", stackId }}
-                  onToggleSave={() => toggleSave(entry.search.searchId)}
                   onDelete={() => remove(entry.search.searchId)}
                   onStack={() => setStacking(entry.search)}
                 />
@@ -315,15 +318,14 @@ export const StackPage: React.FC<StackPageProps> = ({
       </ol>
 
       <StackConfirm
-        request={confirming && { stack, action: confirming }}
-        onClose={() => setConfirming(null)}
-        onDone={() => navigate(libraryPath("saved"))}
+        stack={confirming ? stack : null}
+        onClose={() => setConfirming(false)}
+        onDone={() => navigate(libraryPath())}
       />
 
       {stacking && (
-        <SaveDrawer
+        <StackDrawer
           search={searches[stacking.searchId] ?? stacking}
-          mode="stack"
           from="library"
           open
           onOpenChange={(open) => !open && setStacking(null)}

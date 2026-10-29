@@ -1,17 +1,16 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Search } from "lucide-react";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { SearchCache } from "@/contexts/cache/types";
 import { useToast } from "@/hooks/use-toast";
-import { HOME_PATH, LibraryTab, libraryTab } from "@/lib/routes";
+import { HOME_PATH } from "@/lib/routes";
 import { recentSearches } from "@/lib/searches";
 import {
   groupStacks,
   LibraryStack,
   searchLibrary,
   isInStack,
-  savingNeedsChoice,
   stackLabel,
   stacksThisFits,
 } from "@/lib/stacks";
@@ -19,17 +18,12 @@ import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { ToastAction } from "../ui/toast";
 import { LibraryCard } from "./LibraryCard";
-import { SaveDrawer } from "./SaveDrawer";
+import { StackDrawer } from "./StackDrawer";
 import { StackCard } from "./StackCard";
-import { StackAction, StackConfirm } from "./StackConfirm";
+import { StackConfirm } from "./StackConfirm";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
-
-const TABS: { id: LibraryTab; label: string }[] = [
-  { id: "session", label: "This session" },
-  { id: "saved", label: "Saved" },
-];
 
 type SavedView = "stacked" | "flat";
 const VIEW_STORAGE_KEY = "vinyl-periphery-library-view";
@@ -59,47 +53,37 @@ const VIEWS: { id: SavedView; label: string }[] = [
 ];
 
 /**
- * Every search from this session, and the saved ones, as tabs. The chosen tab
- * is in the URL (?tab=saved) so "Back to library" returns to it. Saved
- * searches group into stacks by lineage (or show flat), and can be searched.
+ * Every search: each one is kept as it finishes, until it's deleted. They
+ * group into stacks by lineage (or show flat), and can be searched.
  */
 export const LibraryPage: React.FC = () => {
   const {
     searches,
     savedSearchIds,
-    saveSearch,
-    unsaveSearch,
-    clearSearch,
+    savedSearchesLoaded,
+    deleteSearch,
     restoreSearch,
   } = useCache();
   const { toast } = useToast();
-  const [params, setParams] = useSearchParams();
-  const tab = libraryTab(`?${params.toString()}`);
   const id = useId();
-  const tabRefs = useRef<Record<LibraryTab, HTMLButtonElement | null>>({
-    session: null,
-    saved: null,
-  });
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<SavedView>(readView);
   const [query, setQuery] = useState("");
   const [stackRequest, setStackRequest] = useState<{
     stack: LibraryStack;
-    action: StackAction;
     /** The focused card when asked, to keep focus nearby afterwards. */
     index: number;
   } | null>(null);
 
-  const all = recentSearches(searches, Number.POSITIVE_INFINITY);
-  const lists: Record<LibraryTab, SearchCache[]> = {
-    session: all.filter((s) => !savedSearchIds.has(s.searchId)),
-    saved: all.filter((s) => savedSearchIds.has(s.searchId)),
-  };
-  const saved = lists.saved;
-  const searching = tab === "saved" && query.trim() !== "";
+  const saved = useMemo(
+    () => recentSearches(searches, Number.POSITIVE_INFINITY),
+    [searches],
+  );
+  const searching = query.trim() !== "";
   const found = useMemo(() => searchLibrary(saved, query), [saved, query]);
   const entries = useMemo(() => groupStacks(saved), [saved]);
-  // Which stack (two or more saved) each saved search is in, for search results.
+  // Which stack (two or more searches) each search is in, for search results.
   const stackNotes = useMemo(() => {
     const notes = new Map<string, string>();
     for (const entry of entries) {
@@ -124,37 +108,14 @@ export const LibraryPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, [searching, query, found.length]);
 
-  const selectTab = (next: LibraryTab, focus = false) => {
-    setParams(next === "saved" ? { tab: "saved" } : {}, { replace: true });
-    if (focus) tabRefs.current[next]?.focus();
-  };
-
-  const onTabKeyDown = (e: React.KeyboardEvent) => {
-    const index = TABS.findIndex((t) => t.id === tab);
-    const last = TABS.length - 1;
-    const next =
-      e.key === "ArrowRight"
-        ? (index + 1) % TABS.length
-        : e.key === "ArrowLeft"
-          ? (index + last) % TABS.length
-          : e.key === "Home"
-            ? 0
-            : e.key === "End"
-              ? last
-              : null;
-    if (next === null) return;
-    e.preventDefault();
-    selectTab(TABS[next].id, true);
-  };
-
-  /** After a card goes, focus the next one, or the tab. */
+  /** After a card goes, focus the next one, or the heading. */
   const keepFocus = (index: number) =>
     requestAnimationFrame(() => {
       const left = panelRef.current?.querySelectorAll<HTMLAnchorElement>(
         "[data-library-open]",
       );
       const next = left?.[Math.min(Math.max(index, 0), left.length - 1)];
-      (next ?? tabRefs.current[tab])?.focus();
+      (next ?? headingRef.current)?.focus();
     });
 
   const focusedIndex = () =>
@@ -168,10 +129,8 @@ export const LibraryPage: React.FC = () => {
   const remove = async (searchId: string) => {
     const index = focusedIndex();
     const search = searches[searchId];
-    const wasSaved = savedSearchIds.has(searchId);
     try {
-      if (wasSaved) await unsaveSearch(searchId);
-      clearSearch(searchId);
+      await deleteSearch(searchId);
     } catch (error) {
       console.error("Failed to delete search:", error);
       return;
@@ -184,7 +143,7 @@ export const LibraryPage: React.FC = () => {
       action: (
         <ToastAction
           altText="Undo delete"
-          onClick={() => void restoreSearch(search, wasSaved)}
+          onClick={() => void restoreSearch(search)}
         >
           Undo
         </ToastAction>
@@ -192,27 +151,8 @@ export const LibraryPage: React.FC = () => {
     });
   };
 
-  // The search the save drawer is open for, and how.
-  const [drawer, setDrawer] = useState<{
-    search: SearchCache;
-    mode: "save" | "stack";
-  } | null>(null);
-
-  const toggleSave = async (searchId: string) => {
-    const wasSaved = savedSearchIds.has(searchId);
-    // As on the results page: with a trail or a stack it fits, ask how.
-    const search = searches[searchId];
-    if (
-      !wasSaved &&
-      search &&
-      savingNeedsChoice(search, searches, savedSearchIds)
-    ) {
-      setDrawer({ search, mode: "save" });
-      return;
-    }
-    await (wasSaved ? unsaveSearch : saveSearch)(searchId);
-    track("search_saved", { saved: !wasSaved, from: "library" });
-  };
+  // The search whose Stack drawer is open.
+  const [stacking, setStacking] = useState<SearchCache | null>(null);
 
   const chooseView = (next: SavedView) => {
     if (next === view) return;
@@ -221,28 +161,21 @@ export const LibraryPage: React.FC = () => {
     track("library_view_toggled", { view: next });
   };
 
-  // Saved searches in a stack get a Stack button (to take them out or
-  // move them); those on their own get one when they fit somewhere.
+  // Searches in a stack get a Stack button (to take them out or move
+  // them); those on their own get one when they fit somewhere.
   const canStack = (search: SearchCache) =>
-    savedSearchIds.has(search.searchId) &&
-    (isInStack(search, searches, savedSearchIds) ||
-      stacksThisFits(search, searches, savedSearchIds, { singles: true })
-        .length > 0);
+    isInStack(search, searches, savedSearchIds) ||
+    stacksThisFits(search, searches, savedSearchIds, { singles: true }).length >
+      0;
 
   const card = (search: SearchCache, note?: string) => (
     <LibraryCard
       key={search.searchId}
       search={search}
-      saved={savedSearchIds.has(search.searchId)}
-      from={{ from: "library", tab }}
+      from={{ from: "library" }}
       note={note}
-      onToggleSave={() => toggleSave(search.searchId)}
       onDelete={() => remove(search.searchId)}
-      onStack={
-        canStack(search)
-          ? () => setDrawer({ search, mode: "stack" })
-          : undefined
-      }
+      onStack={canStack(search) ? () => setStacking(search) : undefined}
     />
   );
 
@@ -250,11 +183,7 @@ export const LibraryPage: React.FC = () => {
     "grid gap-2.5 md:grid-cols-2 md:gap-4 lg:grid-cols-[repeat(auto-fill,minmax(360px,1fr))]";
 
   let body: React.ReactNode;
-  if (tab === "session") {
-    body = lists.session.length > 0 && (
-      <ul className={grid}>{lists.session.map((s) => card(s))}</ul>
-    );
-  } else if (searching) {
+  if (searching) {
     body =
       found.length > 0 ? (
         <ul className={grid}>
@@ -262,7 +191,7 @@ export const LibraryPage: React.FC = () => {
         </ul>
       ) : (
         <p className="py-8 text-center text-sm text-muted-foreground">
-          No saved searches match "{query.trim()}".
+          No searches match "{query.trim()}".
         </p>
       );
   } else if (view === "stacked") {
@@ -273,19 +202,8 @@ export const LibraryPage: React.FC = () => {
             <StackCard
               key={entry.stackId}
               stack={entry}
-              onDelete={() =>
-                setStackRequest({
-                  stack: entry,
-                  action: "delete",
-                  index: focusedIndex(),
-                })
-              }
               onDisband={() =>
-                setStackRequest({
-                  stack: entry,
-                  action: "disband",
-                  index: focusedIndex(),
-                })
+                setStackRequest({ stack: entry, index: focusedIndex() })
               }
             />
           ) : (
@@ -302,59 +220,22 @@ export const LibraryPage: React.FC = () => {
     );
   }
 
-  const empty = lists[tab].length === 0;
+  const empty = saved.length === 0;
+  // Not "no searches yet" while the library is still loading.
+  if (!savedSearchesLoaded) return null;
 
   return (
     <div className="mx-auto w-full max-w-[1200px] px-4 pb-24 pt-8 md:px-6 md:pt-14">
-      <h1 className="font-display text-[30px] font-normal leading-none tracking-[0.3px] md:text-[56px] md:tracking-[0.5px]">
+      <h1
+        ref={headingRef}
+        tabIndex={-1}
+        className="font-display text-[30px] font-normal leading-none tracking-[0.3px] focus:outline-none md:text-[56px] md:tracking-[0.5px]"
+      >
         Library
       </h1>
 
-      <div
-        role="tablist"
-        aria-label="Library"
-        className="mt-5 flex gap-6 border-b md:mt-8"
-      >
-        {TABS.map((t) => {
-          const selected = t.id === tab;
-          return (
-            <button
-              key={t.id}
-              ref={(el) => (tabRefs.current[t.id] = el)}
-              type="button"
-              role="tab"
-              id={`${id}-tab-${t.id}`}
-              aria-selected={selected}
-              aria-controls={`${id}-panel`}
-              tabIndex={selected ? 0 : -1}
-              onClick={() => selectTab(t.id)}
-              onKeyDown={onTabKeyDown}
-              className={cn(
-                // The underline, not just the colour, marks the open tab.
-                "-mb-px flex h-11 items-center gap-2 border-b-2 text-[15px] font-medium transition-colors",
-                focusRing,
-                selected
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {t.label}
-              <span className="font-mono text-xs text-faint">
-                {lists[t.id].length}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      <div
-        ref={panelRef}
-        role="tabpanel"
-        id={`${id}-panel`}
-        aria-labelledby={`${id}-tab-${tab}`}
-        className="pt-5 md:pt-6"
-      >
-        {tab === "saved" && !empty && (
+      <div ref={panelRef} className="pt-5 md:pt-8">
+        {!empty && (
           <div className="mb-4 flex flex-col gap-3 md:mb-5 md:flex-row md:items-center md:justify-between">
             <div className="relative md:w-[320px]">
               <Search
@@ -362,14 +243,14 @@ export const LibraryPage: React.FC = () => {
                 aria-hidden="true"
               />
               <label htmlFor={`${id}-search`} className="sr-only">
-                Search saved searches
+                Search your library
               </label>
               <input
                 id={`${id}-search`}
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search saved albums and artists"
+                placeholder="Search albums and artists"
                 autoComplete="off"
                 className={cn(
                   "h-11 w-full rounded-lg border bg-surface pl-9 pr-3 text-[15px] text-foreground placeholder:text-faint md:text-sm",
@@ -380,7 +261,7 @@ export const LibraryPage: React.FC = () => {
             {!searching && (
               <div
                 role="radiogroup"
-                aria-label="Show saved searches as"
+                aria-label="Show searches as"
                 className="flex self-start rounded-lg border p-1"
               >
                 {VIEWS.map((v) => (
@@ -408,13 +289,9 @@ export const LibraryPage: React.FC = () => {
 
         {empty ? (
           <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed px-6 py-12 text-center">
-            <p className="text-base font-semibold">
-              {tab === "saved" ? "No saved searches" : "No searches yet"}
-            </p>
+            <p className="text-base font-semibold">No searches yet</p>
             <p className="max-w-md text-sm text-muted-foreground">
-              {tab === "saved"
-                ? "Star a search to keep it after you close the tab."
-                : "Searches you run show up here until you close the tab."}
+              Every search you run is kept here until you delete it.
             </p>
             <Link
               to={HOME_PATH}
@@ -431,18 +308,17 @@ export const LibraryPage: React.FC = () => {
         )}
       </div>
 
-      {drawer && (
-        <SaveDrawer
-          search={searches[drawer.search.searchId] ?? drawer.search}
-          mode={drawer.mode}
+      {stacking && (
+        <StackDrawer
+          search={searches[stacking.searchId] ?? stacking}
           from="library"
           open
-          onOpenChange={(open) => !open && setDrawer(null)}
+          onOpenChange={(open) => !open && setStacking(null)}
         />
       )}
 
       <StackConfirm
-        request={stackRequest}
+        stack={stackRequest?.stack ?? null}
         onClose={() => setStackRequest(null)}
         onDone={() => keepFocus(stackRequest?.index ?? 0)}
       />

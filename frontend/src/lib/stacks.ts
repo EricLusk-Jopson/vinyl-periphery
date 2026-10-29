@@ -5,6 +5,7 @@ import {
 } from "@/contexts/cache/types";
 import { childLineage, lineageOf } from "./lineage";
 import { matchesName } from "./filters";
+import { linkSummary } from "./linkSummary";
 import { searchStartedAt } from "./searches";
 
 /**
@@ -265,35 +266,6 @@ export const stackGhosts = (stack: LibraryStack): GhostStep[] =>
 export const stackDepth = (stack: LibraryStack): number =>
   Math.max(0, ...stackLayout(stack).levels.values());
 
-export interface AncestorToSave {
-  step: LineageStep;
-  /** The search in this session or library for that step. */
-  search: SearchCache;
-  saved: boolean;
-}
-
-/**
- * A search's ancestors that still exist here, root first, for the save
- * drawer. Found by id, or by album for ancestors re-run since (a repeat run
- * gets a new id). Saved ones are listed too, as already saved.
- */
-export const ancestorsAvailableToSave = (
-  search: SearchCache,
-  searches: Record<string, SearchCache>,
-  savedIds: Set<string>,
-): AncestorToSave[] => {
-  const all = Object.values(searches);
-  return lineageOf(search).path.flatMap((step) => {
-    const found =
-      searches[step.searchId] ??
-      (step.targetKey
-        ? all.find((s) => s.target?.key === step.targetKey)
-        : undefined);
-    if (!found || found.searchId === search.searchId) return [];
-    return [{ step, search: found, saved: savedIds.has(found.searchId) }];
-  });
-};
-
 export interface StackFit {
   /** "stack": joins an existing stack. "single": starts one with a saved search. */
   kind: "stack" | "single";
@@ -383,16 +355,14 @@ export const stacksThisFits = (
 };
 
 /**
- * Whether saving this search should ask how: it has ancestors here, or fits
- * a saved stack. Otherwise saving is one tap.
+ * What links a fit to its parent, by role: their roles on the parent album,
+ * as `linkSummary` puts them ("via Musicians (2) · Audio (1)", "via Lacquer
+ * Cut By").
  */
-export const savingNeedsChoice = (
-  search: SearchCache,
-  searches: Record<string, SearchCache>,
-  savedIds: Set<string>,
-): boolean =>
-  ancestorsAvailableToSave(search, searches, savedIds).length > 0 ||
-  stacksThisFits(search, searches, savedIds).length > 0;
+export const fitLinkText = (fit: Pick<StackFit, "parent" | "via">): string =>
+  linkSummary(
+    fit.via.map((id) => fit.parent.contributors?.[id] ?? { id, roles: [] }),
+  );
 
 /** Whether a saved search is grouped with others (a stack of two or more). */
 export const isInStack = (

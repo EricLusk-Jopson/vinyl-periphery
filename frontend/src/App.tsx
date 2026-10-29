@@ -32,7 +32,6 @@ import {
   HOME_PATH,
   LIBRARY_PATH,
   STACK_ROUTE,
-  libraryPath,
   RESULTS_PATH,
   fromLocation,
   resultPath,
@@ -87,7 +86,7 @@ const App: React.FC = () => {
         navigate(to, { replace: true, state });
         return;
       }
-      navigate(to, { state: fromLocation(pathname, search) });
+      navigate(to, { state: fromLocation(pathname) });
     },
     [navigate],
   );
@@ -123,22 +122,6 @@ const App: React.FC = () => {
     },
     onAlreadySearched: (searchId, params, target) => {
       setAlreadySearched({ searchId, params, target });
-    },
-    onSessionFull: () => {
-      toast({
-        title: "This session is full",
-        description:
-          "Save a search you want to keep, or clear older session searches, to make room for another.",
-        variant: "destructive",
-        action: (
-          <ToastAction
-            altText="Open your library"
-            onClick={() => navigate(libraryPath("session"))}
-          >
-            Open library
-          </ToastAction>
-        ),
-      });
     },
     onError: (_error, phase) => {
       if (phase === "finding") setFailedAttempt((n) => n + 1);

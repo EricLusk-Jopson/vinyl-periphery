@@ -1,7 +1,6 @@
 import { SearchCache } from "@/contexts/cache/types";
 import { childLineage, rootLineage } from "./lineage";
 import {
-  ancestorsAvailableToSave,
   groupStacks,
   searchLibrary,
   stackGhosts,
@@ -9,10 +8,10 @@ import {
   stackMembersByDepth,
   stackRoot,
   stacksThisFits,
+  fitLinkText,
   stackDepth,
   stackLayout,
   isInStack,
-  savingNeedsChoice,
   LibraryStack,
 } from "./stacks";
 
@@ -142,43 +141,6 @@ describe("stackGhosts", () => {
       members: [root, rerun, grandchild],
     };
     expect(stackGhosts(stack)).toEqual([]);
-  });
-});
-
-describe("ancestorsAvailableToSave", () => {
-  it("lists ancestors still here, root first, marking saved ones", () => {
-    const searches = {
-      [root.searchId]: root,
-      [child.searchId]: child,
-      [grandchild.searchId]: grandchild,
-    };
-    expect(
-      ancestorsAvailableToSave(
-        grandchild,
-        searches,
-        new Set([root.searchId]),
-      ).map((a) => [a.search.searchId, a.saved]),
-    ).toEqual([
-      [root.searchId, true],
-      [child.searchId, false],
-    ]);
-  });
-
-  it("finds a re-run ancestor by album, and skips deleted ones", () => {
-    const rerun = { ...child, searchId: "A-Bon Iver-99" };
-    expect(
-      ancestorsAvailableToSave(
-        grandchild,
-        { [rerun.searchId]: rerun, [grandchild.searchId]: grandchild },
-        new Set(),
-      ).map((a) => a.search.searchId),
-    ).toEqual(["A-Bon Iver-99"]);
-  });
-
-  it("is empty for a root", () => {
-    expect(
-      ancestorsAvailableToSave(root, { [root.searchId]: root }, new Set()),
-    ).toEqual([]);
   });
 });
 
@@ -328,15 +290,7 @@ describe("stacksThisFits", () => {
   });
 });
 
-describe("savingNeedsChoice and isInStack", () => {
-  it("asks how to save with a trail here or a stack it fits", () => {
-    const lone = make(4, "Lone");
-    const bare = { ...lone, releases: {} } as SearchCache;
-    expect(savingNeedsChoice(bare, all2(bare), new Set())).toBe(false);
-    // A child with its parent in the session has a trail to save.
-    expect(savingNeedsChoice(child, all2(root, child), new Set())).toBe(true);
-  });
-
+describe("isInStack", () => {
   it("knows whether a saved search is grouped with others", () => {
     const searches = all2(root, child, single);
     const saved = new Set([root.searchId, child.searchId, single.searchId]);
@@ -413,5 +367,23 @@ describe("stackLayout", () => {
     expect(stackDepth(stack(newSound, believe, giantPalm, schlagenheim))).toBe(
       2,
     );
+  });
+});
+
+describe("fitLinkText", () => {
+  const parent = {
+    contributors: {
+      1: { id: 1, name: "Paul Jones (13)", roles: ["Lacquer Cut By"] },
+      2: { id: 2, name: "Morgan Simpson", roles: ["Drums"] },
+      3: { id: 3, name: "Seth Evans", roles: ["Keyboards", "Producer"] },
+    },
+  } as unknown as SearchCache;
+
+  it("says what links them by role, not by name", () => {
+    expect(fitLinkText({ parent, via: [1] })).toBe("via Lacquer Cut By");
+    expect(fitLinkText({ parent, via: [2, 3] })).toBe(
+      "via Musicians (2) · Audio (1)",
+    );
+    expect(fitLinkText({ parent, via: [9] })).toBe("via 1 contributor");
   });
 });

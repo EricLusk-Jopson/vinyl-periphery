@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Layers, Trash2, Ungroup } from "lucide-react";
+import { Layers } from "lucide-react";
+import { LayersOff } from "../common/icons";
 import { useCoverArt } from "@/hooks/useCoverArt";
 import { stackPath } from "@/lib/routes";
 import { searchStartedAt, timeAgo, usableImageUrl } from "@/lib/searches";
@@ -20,7 +21,7 @@ const focusRing =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
 
 /**
- * A stack's root cover: the root search's own while it's saved, otherwise
+ * A stack's root cover: the root search's own while it's there, otherwise
  * the art its snapshot kept, or the Cover Art Archive art for its album.
  */
 export const StackRootCover: React.FC<{
@@ -43,18 +44,16 @@ export const StackRootCover: React.FC<{
 
 interface StackCardProps {
   stack: LibraryStack;
-  onDelete: () => void;
   onDisband: () => void;
 }
 
 /**
- * Saved searches from one trail, as one card: the root's cover and name,
+ * The searches in one stack, as one card: the root's cover and name,
  * "+ n" for the rest. Offset edges behind it mark it as a stack. Opens the
- * stack's page; Disband and Delete act on the whole stack.
+ * stack's page; Destack keeps its searches, each on its own.
  */
 export const StackCard: React.FC<StackCardProps> = ({
   stack,
-  onDelete,
   onDisband,
 }) => {
   const root = stackRoot(stack);
@@ -102,32 +101,21 @@ export const StackCard: React.FC<StackCardProps> = ({
               {root.artist}
             </span>
             <span className="font-mono text-xs text-faint">
-              {count} saved · {deepest} {deepest === 1 ? "step" : "steps"} deep
-              · {timeAgo(latest)}
+              {count} searches · {deepest} {deepest === 1 ? "step" : "steps"}{" "}
+              deep · {timeAgo(latest)}
             </span>
           </span>
         </Link>
         <button
           type="button"
           onClick={onDisband}
-          aria-label={`Disband the ${root.title} stack`}
+          aria-label={`Destack the ${root.title} stack`}
           className={cn(
             iconButton,
             "text-muted-foreground hover:text-foreground",
           )}
         >
-          <Ungroup className="h-[18px] w-[18px]" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          onClick={onDelete}
-          aria-label={`Delete the ${root.title} stack`}
-          className={cn(
-            iconButton,
-            "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <Trash2 className="h-[18px] w-[18px]" aria-hidden="true" />
+          <LayersOff className="h-[18px] w-[18px]" aria-hidden="true" />
         </button>
       </div>
     </li>

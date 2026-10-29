@@ -1,5 +1,10 @@
-import { discographyAppearance } from "@/api/releaseCredits";
-import { EnrichedRelease, ReleaseType } from "@/api/types";
+import {
+  creditsTarget,
+  CreditsTarget,
+  discographyAppearance,
+} from "@/api/releaseCredits";
+import { MAX_CREDIT_VERSIONS, MAX_DISCOGRAPHY_PAGES } from "@/api/limits";
+import { Appearance, EnrichedRelease, ReleaseType } from "@/api/types";
 import { SearchCache } from "@/contexts/cache/types";
 
 /**
@@ -26,6 +31,7 @@ export interface DiscographyItem {
   resource_url?: string;
   role?: string;
   trackinfo?: string;
+  stats?: { community?: { in_wantlist?: number; in_collection?: number } };
 }
 
 export const releaseKey = (type: ReleaseType, id: number): string =>
@@ -55,6 +61,9 @@ export const toEnrichedRelease = (
   const mainRelease =
     type === "master" ? positive(item.main_release) : undefined;
   const masterId = type === "release" ? positive(item.master_id) : undefined;
+  const version = type === "release" ? item.id : mainRelease;
+  const contribution =
+    appearance && version ? { ...appearance, release: version } : appearance;
   return {
     id: item.id,
     type,
@@ -68,11 +77,49 @@ export const toEnrichedRelease = (
     thumb: item.thumb ?? "",
     resource_url: item.resource_url ?? "",
     contributorIds: [contributorId],
-    ...(appearance ? { appearances: { [contributorId]: appearance } } : {}),
+    ...communityOf(item),
+    ...(contribution
+      ? { contributions: { [contributorId]: [contribution] } }
+      : {}),
   };
 };
 
-/** `into` with `from`'s contributors and appearances added. */
+const count = (n: unknown): number | undefined =>
+  Number.isFinite(Number(n)) && Number(n) >= 0 && n !== null && n !== ""
+    ? Math.floor(Number(n))
+    : undefined;
+
+/** Want and have counts from an item's `stats.community`, when it has them. */
+const communityOf = (
+  item: Pick<DiscographyItem, "stats">,
+): Pick<EnrichedRelease, "community"> => {
+  const want = count(item.stats?.community?.in_wantlist);
+  const have = count(item.stats?.community?.in_collection);
+  return want === undefined && have === undefined
+    ? {}
+    : { community: { want: want ?? 0, have: have ?? 0 } };
+};
+
+const sameEntry = (a: Appearance, b: Appearance) =>
+  a.role === b.role && a.trackinfo === b.trackinfo && a.release === b.release;
+
+/** Each person's entries from both, without repeats. */
+const mergedContributions = (
+  into: Record<number, Appearance[]> = {},
+  from: Record<number, Appearance[]> = {},
+): Record<number, Appearance[]> => {
+  const result = { ...into };
+  for (const [id, entries] of Object.entries(from)) {
+    const kept = result[Number(id)] ?? [];
+    result[Number(id)] = [
+      ...kept,
+      ...entries.filter((e) => !kept.some((k) => sameEntry(k, e))),
+    ];
+  }
+  return result;
+};
+
+/** `into` with `from`'s contributors and their entries added. */
 const merged = (
   into: EnrichedRelease,
   from: EnrichedRelease,
@@ -84,7 +131,39 @@ const merged = (
   ...(into.appearances || from.appearances
     ? { appearances: { ...from.appearances, ...into.appearances } }
     : {}),
+  // The same album from another person: the larger counts (they can
+  // differ when Discogs reports a different version for each).
+  ...(into.community || from.community
+    ? {
+        community: {
+          want: Math.max(into.community?.want ?? 0, from.community?.want ?? 0),
+          have: Math.max(into.community?.have ?? 0, from.community?.have ?? 0),
+        },
+      }
+    : {}),
+  ...(into.contributions || from.contributions
+    ? {
+        contributions: mergedContributions(
+          into.contributions,
+          from.contributions,
+        ),
+      }
+    : {}),
 });
+
+/**
+ * Every discography entry linking a person to a result, in the order they
+ * were read. Searches stored before `contributions` have one at most.
+ */
+export const contributionsOf = (
+  release: Pick<EnrichedRelease, "contributions" | "appearances">,
+  personId: number,
+): Appearance[] => {
+  const entries = release.contributions?.[personId];
+  if (entries) return entries;
+  const appearance = release.appearances?.[personId];
+  return appearance ? [appearance] : [];
+};
 
 /** Whether `release` is a version of `master`, as far as the data shows. */
 const isVersionOf = (release: EnrichedRelease, master: EnrichedRelease) =>
@@ -153,6 +232,37 @@ export const addRelease = (
 };
 
 /**
+ * The Discogs releases to read a result's credits from. A release is read
+ * itself. A master is read from the versions its people are listed on
+ * (each person's first, then their others), then the version its result
+ * entry names, up to `max`; with none known, from the master's own main
+ * release. Empty when the result has no Discogs object to read.
+ */
+export const versionTargets = (
+  release: Parameters<typeof creditsTarget>[0] &
+    Pick<EnrichedRelease, "contributions" | "appearances">,
+  peopleIds: number[],
+  max = MAX_CREDIT_VERSIONS,
+): CreditsTarget[] => {
+  const target = creditsTarget(release);
+  if (!target || target.kind === "release") return target ? [target] : [];
+  const versions = peopleIds.map((id) =>
+    contributionsOf(release, id)
+      .map((c) => c.release)
+      .filter((v): v is number => Boolean(v)),
+  );
+  const ids = new Set<number>([
+    ...versions.flatMap((v) => v.slice(0, 1)),
+    ...(target.mainRelease ? [target.mainRelease] : []),
+    ...versions.flatMap((v) => v.slice(1)),
+  ]);
+  const targets = Array.from(ids)
+    .slice(0, max)
+    .map((id): CreditsTarget => ({ kind: "release", id }));
+  return targets.length > 0 ? targets : [target];
+};
+
+/**
  * Releases from a search saved before results had a type and key: keyed by
  * Discogs id, with the raw discography item spread in. The type comes from
  * the resource URL (masters/ or releases/), `main_release` becomes
@@ -163,7 +273,11 @@ export const migrateReleases = (
   releases: Record<string, unknown>,
 ): Record<string, EnrichedRelease> => {
   const values = Object.values(releases) as Array<
-    Partial<EnrichedRelease> & { main_release?: number; master_id?: number }
+    Partial<EnrichedRelease> & {
+      main_release?: number;
+      master_id?: number;
+      stats?: DiscographyItem["stats"];
+    }
   >;
   if (values.every((r) => r.key && r.type)) {
     return releases as Record<string, EnrichedRelease>;
@@ -191,6 +305,8 @@ export const migrateReleases = (
       resource_url: raw.resource_url ?? "",
       contributorIds: Array.from(new Set(raw.contributorIds ?? [])),
       ...(raw.appearances ? { appearances: raw.appearances } : {}),
+      ...(raw.contributions ? { contributions: raw.contributions } : {}),
+      ...(raw.community ? { community: raw.community } : communityOf(raw)),
     });
   }
   return Object.fromEntries(map);
@@ -200,4 +316,16 @@ export const migrateReleases = (
 export const migrateSearch = (search: SearchCache): SearchCache => {
   const releases = migrateReleases(search.releases ?? {});
   return releases === search.releases ? search : { ...search, releases };
+};
+
+/**
+ * How many discography pages to read, from the first page's pagination:
+ * all of them, up to `max`. At least one (the page already read).
+ */
+export const discographyPagesToRead = (
+  pagination: { pages?: number } | undefined,
+  max = MAX_DISCOGRAPHY_PAGES,
+): number => {
+  const pages = Math.floor(Number(pagination?.pages) || 1);
+  return Math.max(1, Math.min(pages, max));
 };

@@ -1,4 +1,5 @@
-import React, { useEffect, useId, useMemo, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Search } from "lucide-react";
 import { SearchParams } from "@/api/types";
 import { KnownAlbum } from "@/hooks/useSearchRun";
 import { useCoverArt } from "@/hooks/useCoverArt";
@@ -13,13 +14,19 @@ import {
   SORT_OPTIONS,
   ScoredRelease,
   SortKey,
+  hasPopularity,
   resetFilterState,
   sharedPeople,
   sortReleases,
+  tiebreakOptions,
 } from "@/lib/results";
 import { track } from "@/lib/analytics";
+import { useLikes } from "@/hooks/useLikes";
+import { setLiked } from "@/services/likes";
 import { cn } from "@/lib/utils";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { pinToTop } from "@/lib/resultSearch";
+import { iconButton } from "../common/buttons";
+import { ResultsSort } from "@/hooks/useResultsSort";
 import {
   Select,
   SelectContent,
@@ -28,11 +35,14 @@ import {
   SelectValue,
 } from "../ui/select";
 import { ReleaseRow } from "./ReleaseRow";
+import { ResultSearch } from "./ResultSearch";
 
 const PAGE_SIZE = 20;
 
 interface ReleaseListProps {
   searchId: string;
+  /** The order, held by the page so Share draws the same top albums. */
+  order: ResultsSort;
   /** Starts a search for exactly the row's album, by its Discogs id. */
   onSearchFrom: (params: SearchParams, known: KnownAlbum) => void;
   isSearching: boolean;
@@ -43,34 +53,64 @@ interface ReleaseListProps {
 const quietButton =
   "h-11 rounded-lg border bg-surface px-6 text-[15px] font-medium text-foreground transition-colors hover:border-border-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
 
-/** Count, sort, the result rows, and "Show more". */
+/** Count, find, sort, the result rows, and "Show more". */
 export const ReleaseList: React.FC<ReleaseListProps> = ({
   searchId,
+  order,
   onSearchFrom,
   isSearching,
   toolbarAction,
 }) => {
   const { searches, updateFilterState } = useCache();
+  const likes = useLikes();
   const { releases } = useFilteredAndScoredReleases(searchId);
   const search = searches[searchId];
   const sortId = useId();
-  // Short sort labels on phones, where the toolbar shares one row.
-  const wide = useMediaQuery("(min-width: 768px)");
 
-  const [sort, setSort] = useState<SortKey>("shared");
+  const { sort, setSort, then, setThen, canBreakTies: desktop } = order;
+  // "Then by": a second sort for ties, offered on desktop only.
+  const tiebreaks = tiebreakOptions(sort);
   const [visible, setVisible] = useState(PAGE_SIZE);
   // By release key: masters and releases can share a numeric id.
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
+  // Picked in the results search: shown first, whatever the sort.
+  const [pinnedKey, setPinnedKey] = useState<string | null>(null);
+  // Below md the results search opens from a button.
+  const [findOpen, setFindOpen] = useState(false);
+  const listRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
     if (!isSearching) setPendingKey(null);
   }, [isSearching]);
 
   const sorted = useMemo(
-    () => sortReleases(releases as ScoredRelease[], sort),
-    [releases, sort],
+    () =>
+      pinToTop(
+        sortReleases(releases as ScoredRelease[], sort, then),
+        pinnedKey,
+      ),
+    [releases, sort, then, pinnedKey],
   );
+  const visibleKeys = useMemo(
+    () => new Set(releases.map((r) => r.key)),
+    [releases],
+  );
+
+  const pin = (key: string | null) => {
+    setPinnedKey(key);
+    if (!key) return;
+    setOpenKey(key);
+    setVisible(PAGE_SIZE);
+    // After the list re-renders with it on top: if the list's top has
+    // scrolled away (or under the sticky toolbar), bring it back.
+    requestAnimationFrame(() => {
+      const list = listRef.current;
+      if (list && list.getBoundingClientRect().top < 80) {
+        list.scrollIntoView({ block: "start", behavior: "smooth" });
+      }
+    });
+  };
 
   // Albums already searched (this session or saved), by target key, so
   // their rows open that search instead of running another.
@@ -118,14 +158,31 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
     >
       {/* Below lg the toolbar sticks to the top of the screen while the list
           scrolls, so sorting and filters stay in reach. */}
-      <div className="sticky top-0 z-20 -mx-4 flex items-center justify-between gap-2 border-b bg-background px-4 py-2 md:-mx-6 md:gap-3 md:px-6 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0">
+      <div className="sticky top-0 z-20 -mx-4 flex flex-wrap items-center gap-2 border-b bg-background px-4 py-2 md:-mx-6 md:gap-3 md:px-6 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0">
         <h2
           id={`${sortId}-count`}
-          className="shrink-0 text-[15px] font-semibold md:text-lg"
+          className="mr-auto shrink-0 text-[15px] font-semibold md:text-lg"
         >
           {total.toLocaleString("en-US")} {total === 1 ? "album" : "albums"}
         </h2>
+        <ResultSearch
+          searchId={searchId}
+          visibleKeys={visibleKeys}
+          onPin={pin}
+          expanded={findOpen}
+          onCollapse={() => setFindOpen(false)}
+        />
         <div className="flex min-w-0 items-center gap-2 md:gap-2.5">
+          {!findOpen && (
+            <button
+              type="button"
+              onClick={() => setFindOpen(true)}
+              aria-label="Find an album in these results"
+              className={cn(iconButton, "border bg-surface md:hidden")}
+            >
+              <Search className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
           <label
             htmlFor={sortId}
             className="sr-only text-sm text-muted-foreground md:not-sr-only"
@@ -140,8 +197,8 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
             }}
           >
             <SelectTrigger id={sortId} className="lg:h-10">
-              {/* Short label on phones; the menu always shows the full one. */}
-              <SelectValue>{wide ? current.label : current.short}</SelectValue>
+              {/* Short when closed; the menu shows the full labels. */}
+              <SelectValue>{current.short}</SelectValue>
             </SelectTrigger>
             <SelectContent align="end">
               {SORT_OPTIONS.map((option) => (
@@ -151,15 +208,64 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
               ))}
             </SelectContent>
           </Select>
+          {desktop && (
+            <>
+              <label
+                htmlFor={`${sortId}-then`}
+                className="shrink-0 text-sm text-muted-foreground"
+              >
+                then
+              </label>
+              <Select
+                value={then ?? "ranking"}
+                onValueChange={(value) => {
+                  setThen(value === "ranking" ? null : (value as SortKey));
+                  setVisible(PAGE_SIZE);
+                }}
+              >
+                <SelectTrigger id={`${sortId}-then`} className="lg:h-10">
+                  <SelectValue>
+                    {tiebreaks.find((o) => o.value === then)?.short ??
+                      "Ranking"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent align="end">
+                  <SelectItem value="ranking">
+                    Ranking (no tiebreaker)
+                  </SelectItem>
+                  {tiebreaks.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          )}
           {toolbarAction}
         </div>
       </div>
 
+      {sort === "popular" &&
+        total > 0 &&
+        !hasPopularity(Object.values(search.releases)) && (
+          <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
+            This search was run before Discogs want and have counts were kept,
+            so it can't be sorted by popularity. Delete it and search for the
+            album again to get them.
+          </p>
+        )}
+
       {total > 0 ? (
-        <ul className="lg:border-t">
+        <ul ref={listRef} className="scroll-mt-20 lg:scroll-mt-6 lg:border-t">
           {shown.map((release, i) => {
             const people = sharedPeople(release, search.contributors);
-            const position = { rank: i + 1, shared: people.length, sort };
+            const position = {
+              rank: i + 1,
+              shared: people.length,
+              sort,
+              ...(then ? { then } : {}),
+            };
             return (
               <ReleaseRow
                 key={release.key}
@@ -189,6 +295,14 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
                 onOpenDiscogs={() => track("discogs_opened", position)}
                 searching={isSearching}
                 searchingFromHere={isSearching && pendingKey === release.key}
+                liked={Boolean(likes[release.key])}
+                onToggleLike={() => {
+                  const liked = setLiked(release.key, !likes[release.key], {
+                    title: release.title,
+                    artist: release.artist,
+                  });
+                  track("result_liked", { liked, ...position });
+                }}
               />
             );
           })}

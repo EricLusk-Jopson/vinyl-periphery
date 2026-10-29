@@ -85,6 +85,12 @@ export interface ContributorSetInternal {
 export interface Appearance {
   role: string;
   trackinfo?: string;
+  /**
+   * The Discogs release this entry is about: a release item's own id, or a
+   * master item's `main_release` (the version where this person has this
+   * role). Missing on searches run before it was kept.
+   */
+  release?: number;
 }
 
 export type ReleaseType = "master" | "release";
@@ -116,10 +122,22 @@ export interface EnrichedRelease {
   contributorIds: number[];
   /**
    * Contributor id -> how their discography lists this release. A fallback
-   * when the release's own credits don't name them. Missing on searches run
-   * before it was kept.
+   * when the release's own credits don't name them. Only the first entry
+   * per person; kept for searches stored before `contributions`.
    */
   appearances?: Record<number, Appearance>;
+  /**
+   * Contributor id -> every discography entry that led here: each role, and
+   * the version it's on. A person can be listed several times on one master
+   * (Producer on one release, Remix on another).
+   */
+  contributions?: Record<number, Appearance[]>;
+  /**
+   * Discogs community counts from the discography item: how many have it
+   * in their wantlist and in their collection. Missing on searches run
+   * before it was kept, and on items Discogs sends without stats.
+   */
+  community?: { want: number; have: number };
 }
 
 export interface SearchParams {
@@ -151,12 +169,24 @@ export interface SearchStage {
   label: string;
   current: number;
   total: number;
+  /**
+   * Calls still to come for the current item beyond the one under way:
+   * further discography pages, once the first page says how many.
+   */
+  extraCalls?: number;
 }
 
 export interface MutationCallbacks {
   onProgress?: (stage: SearchStage) => void;
-  /** Called after each contributor's discography is read. */
-  onContributorChecked?: (name: string, releaseCount: number) => void;
+  /**
+   * Called after each contributor's discography is read: their item count
+   * on Discogs, the pages read, and whether the page cap stopped short.
+   */
+  onContributorChecked?: (
+    name: string,
+    releaseCount: number,
+    read?: { pages: number; capped: boolean },
+  ) => void;
 }
 
 export interface SearchMutationParams {

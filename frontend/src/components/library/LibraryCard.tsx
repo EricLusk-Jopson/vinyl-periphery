@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { Layers, Star, Trash2 } from "lucide-react";
+import { Layers, Trash2 } from "lucide-react";
 import { SearchCache } from "@/contexts/cache/types";
 import { ResultFrom, resultPath } from "@/lib/routes";
 import { searchStartedAt, timeAgo } from "@/lib/searches";
@@ -13,27 +13,23 @@ const focusRing =
 
 interface LibraryCardProps {
   search: SearchCache;
-  saved: boolean;
   /** Where its results page's back link returns to. */
   from: ResultFrom;
   /** A short line under the meta, e.g. the stack it belongs to. */
   note?: string;
-  onToggleSave: () => Promise<void>;
   onDelete: () => Promise<void>;
   /**
-   * Put this saved search into a stack. Given only when it's on its own and
+   * Put this search into a stack, move it, or take it out. Given only when it's on its own and
    * fits somewhere.
    */
   onStack?: () => void;
 }
 
-/** One search: cover, album, artist, counts, with Save, Stack and Delete. */
+/** One search: cover, album, artist, counts, with Stack and Delete. */
 export const LibraryCard: React.FC<LibraryCardProps> = ({
   search,
-  saved,
   from,
   note,
-  onToggleSave,
   onDelete,
   onStack,
 }) => {
@@ -86,22 +82,6 @@ export const LibraryCard: React.FC<LibraryCardProps> = ({
       </Link>
       {/* Always visible, not only on hover, so touch and keyboard users
           can reach them. */}
-      <button
-        type="button"
-        onClick={run(onToggleSave)}
-        disabled={busy}
-        aria-pressed={saved}
-        aria-label={`Save ${album}`}
-        className={iconButton}
-      >
-        <Star
-          className={cn(
-            "h-[18px] w-[18px]",
-            saved ? "fill-primary text-primary" : "text-muted-foreground",
-          )}
-          aria-hidden="true"
-        />
-      </button>
       {onStack && (
         <button
           type="button"

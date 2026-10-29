@@ -1,15 +1,24 @@
 import React, { useId } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, ArrowUpRight, Loader2, RotateCw } from "lucide-react";
-import { creditsTarget } from "@/api/releaseCredits";
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Heart,
+  Loader2,
+  RotateCw,
+  Users,
+} from "lucide-react";
 import { useReleaseCredits } from "@/api/useReleaseCredits";
+import { contributionsOf } from "@/lib/releases";
 import {
   ScoredRelease,
   SharedPerson,
-  appearanceText,
-  creditOnResult,
+  compactCount,
+  contributionsText,
+  creditAcrossVersions,
   creditsErrorMessage,
   discogsWebUrl,
+  popularity,
   releaseYear,
 } from "@/lib/results";
 import { cn } from "@/lib/utils";
@@ -37,6 +46,9 @@ interface ReleaseRowProps {
   /** A search is under way; true for this row if it started it. */
   searching: boolean;
   searchingFromHere: boolean;
+  /** Liked albums show in every search they turn up in. */
+  liked: boolean;
+  onToggleLike: () => void;
 }
 
 const focusRing =
@@ -60,104 +72,148 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
   onOpenDiscogs,
   searching,
   searchingFromHere,
+  liked,
+  onToggleLike,
 }) => {
   const panelId = useId();
   const shared = people.length;
   const year = releaseYear(release.year);
   const discogsUrl = discogsWebUrl(release.resource_url);
   const strong = shared > 1;
+  // Discogs want + have; null for searches stored before it was kept.
+  const popular = popularity(release);
   const credits = useReleaseCredits(
     release,
     open,
     people.map((p) => p.id),
   );
   // No Discogs release to read (an unexpected resource URL).
-  const noCredits = open && creditsTarget(release) === null;
+  const noCredits = open && credits.targets.length === 0;
+  const master = release.type === "master";
+  const failed = credits.settled && credits.error !== null;
 
   /** What a person did on this album, or why it isn't known. */
   const onThisAlbum = (personId: number): React.ReactNode => {
-    if (credits.data) {
-      const credit = creditOnResult(credits.data, personId);
-      if (credit.status === "found") return credit.roles;
-      return withAppearance(
-        personId,
-        credit.status === "no-role"
-          ? "Credited, no role given"
-          : credits.data.fromMainRelease
-            ? "Not in the main release's credits"
-            : "Not in this release's credits",
-      );
-    }
-    if (credits.isError || noCredits) {
-      return withAppearance(personId, "Unavailable");
-    }
-    return (
-      <span className="inline-flex items-center gap-1.5">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-        Checking
-      </span>
+    if (noCredits) return withContributions(personId, "Unavailable");
+    const credit = creditAcrossVersions(
+      credits.loaded,
+      credits.settled,
+      personId,
     );
+    switch (credit.status) {
+      case "found":
+        return credit.roles;
+      case "no-role":
+        return withContributions(personId, "Credited, no role given");
+      case "not-found":
+        return withContributions(
+          personId,
+          master
+            ? "Not in the credits checked"
+            : "Not in this release's credits",
+        );
+      case "unavailable":
+        return withContributions(personId, "Unavailable");
+      default:
+        return (
+          <span className="inline-flex items-center gap-1.5">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+            Checking
+          </span>
+        );
+    }
   };
 
   /**
-   * How the person's own discography lists this album, when the search kept
-   * that ("Appears on this album"); otherwise the fallback note.
+   * How the person's own discography lists this album, every role it
+   * names ("Producer, Remix"); otherwise the fallback note.
    */
-  const withAppearance = (personId: number, note: string) =>
-    appearanceText(release.appearances?.[personId]) ?? note;
+  const withContributions = (personId: number, note: string) =>
+    contributionsText(contributionsOf(release, personId)) ?? note;
 
   return (
     <li className="border-b">
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={panelId}
-        onClick={onToggle}
-        className={cn(
-          "flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors hover:bg-surface md:gap-4 md:px-4 md:py-3.5",
-          focusRing,
-        )}
-      >
-        <AlbumCover
-          src={cover || release.thumb}
-          title={release.title}
-          className="h-12 w-12 rounded-[3px] text-xs md:h-14 md:w-14"
-        />
-        <span className="flex min-w-0 flex-1 flex-col gap-0.5 md:gap-[3px]">
-          <span className="truncate text-[15px] font-semibold leading-snug md:whitespace-normal md:text-base">
-            {release.title}
+      {/* The whole card highlights on hover, like button included. */}
+      <div className="flex items-center rounded-lg transition-colors hover:bg-surface">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={panelId}
+          onClick={onToggle}
+          className={cn(
+            "flex min-w-0 flex-1 items-center gap-3 rounded-lg py-3 pl-3 pr-1 text-left md:gap-4 md:py-3.5 md:pl-4",
+            focusRing,
+          )}
+        >
+          <AlbumCover
+            src={cover || release.thumb}
+            title={release.title}
+            className="h-12 w-12 rounded-[3px] text-xs md:h-14 md:w-14"
+          />
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5 md:gap-[3px]">
+            <span className="truncate text-[15px] font-semibold leading-snug md:whitespace-normal md:text-base">
+              {release.title}
+            </span>
+            <span className="truncate text-[13px] text-muted-foreground md:text-sm">
+              {release.artist}
+              {year && ` · ${year}`}
+            </span>
+            <span className="truncate font-mono text-xs text-faint md:whitespace-normal">
+              via {people.map((p) => p.name).join(", ")}
+            </span>
           </span>
-          <span className="truncate text-[13px] text-muted-foreground md:text-sm">
-            {release.artist}
-            {year && ` · ${year}`}
-          </span>
-          <span className="truncate font-mono text-xs text-faint md:whitespace-normal">
-            via {people.map((p) => p.name).join(", ")}
-          </span>
-        </span>
-        <span className="flex shrink-0 flex-col items-end gap-1.5">
-          <span
-            className={cn(
-              "font-mono text-[13px]",
-              strong ? "text-primary-text" : "text-muted-foreground",
+          <span className="flex shrink-0 flex-col items-end gap-1.5">
+            <span
+              className={cn(
+                "font-mono text-[13px]",
+                strong ? "text-primary-text" : "text-muted-foreground",
+              )}
+            >
+              {shared}
+              <span className="sr-only md:not-sr-only"> shared</span>
+            </span>
+            <span aria-hidden="true" className="hidden gap-[3px] md:flex">
+              {Array.from({ length: MAX_DOTS }, (_, i) => (
+                <span
+                  key={i}
+                  className={cn(
+                    "h-2 w-2 rounded-full",
+                    i < shared ? "bg-primary" : "bg-border",
+                  )}
+                />
+              ))}
+            </span>
+            {popular !== null && (
+              <span className="inline-flex items-center gap-1 font-mono text-xs text-faint">
+                <Users className="h-3.5 w-3.5" aria-hidden="true" />
+                {compactCount(popular)}
+                <span className="sr-only"> want or have it on Discogs</span>
+              </span>
             )}
-          >
-            {shared}
-            <span className="sr-only md:not-sr-only"> shared</span>
           </span>
-          <span aria-hidden="true" className="hidden gap-[3px] md:flex">
-            {Array.from({ length: MAX_DOTS }, (_, i) => (
-              <span
-                key={i}
-                className={cn(
-                  "h-2 w-2 rounded-full",
-                  i < shared ? "bg-primary" : "bg-border",
-                )}
-              />
-            ))}
-          </span>
-        </span>
-      </button>
+        </button>
+        <button
+          type="button"
+          onClick={onToggleLike}
+          aria-pressed={liked}
+          aria-label={`Like ${release.title}`}
+          className={cn(
+            // No fill of its own: hover and press change the heart only.
+            "group/like flex h-11 w-11 shrink-0 items-center justify-center rounded-lg md:mr-1",
+            focusRing,
+          )}
+        >
+          <Heart
+            className={cn(
+              "h-5 w-5 transition-[color,transform] duration-150 group-active/like:scale-90",
+              liked
+                ? "fill-primary text-primary"
+                : "text-muted-foreground group-hover/like:text-foreground",
+            )}
+            aria-hidden="true"
+          />
+        </button>
+      </div>
 
       <div
         id={panelId}
@@ -202,12 +258,14 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
           ))}
         </ul>
         <div aria-live="polite" className="contents">
-          {credits.isError && (
+          {failed && (
             <p className="flex flex-wrap items-center gap-x-3 text-[13px] text-muted-foreground">
-              {creditsErrorMessage(credits.error.status)}
+              {credits.loaded.length > 0
+                ? "Some versions' credits didn't load."
+                : creditsErrorMessage(credits.error?.status)}
               <button
                 type="button"
-                onClick={() => void credits.refetch()}
+                onClick={credits.retry}
                 className={cn(
                   "inline-flex min-h-11 items-center gap-1.5 rounded-sm font-medium text-foreground transition-colors hover:text-primary-text lg:min-h-8",
                   focusRing,
@@ -223,13 +281,27 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
               Discogs doesn't list credits for this album.
             </p>
           )}
-          {credits.data?.fromMainRelease && (
+          {master && credits.loaded.length > 0 && (
             <p className="text-[13px] text-faint">
-              This album has several versions; its credits come from the one
-              Discogs lists as main.
+              {credits.targets.length > 1
+                ? "This album has several versions; credits come from the ones these people are listed on."
+                : "This album has several versions; credits come from one of them."}
             </p>
           )}
         </div>
+        {release.community && (
+          <p className="text-[13px] text-faint">
+            On Discogs,{" "}
+            <span className="font-mono text-muted-foreground">
+              {release.community.want.toLocaleString("en-US")}
+            </span>{" "}
+            want it and{" "}
+            <span className="font-mono text-muted-foreground">
+              {release.community.have.toLocaleString("en-US")}
+            </span>{" "}
+            have it. Popularity is the two added up.
+          </p>
+        )}
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
           {discogsUrl && (
             <a

@@ -79,11 +79,8 @@ interface SearchRunOptions {
   ) => void;
   /** The album search found nothing. */
   onNotFound: (params: SearchParams) => void;
-  /** Not started: the session has no room for another search. */
-  onSessionFull: () => void;
   /**
-   * A typed search found an album already searched (in this session or
-   * saved). Stopped before reading credits, so the user can open it or
+   * A typed search found an album already in the library. Stopped before reading credits, so the user can open it or
    * search again.
    */
   onAlreadySearched: (
@@ -103,11 +100,10 @@ interface SearchRunOptions {
 export const useSearchRun = ({
   onComplete,
   onNotFound,
-  onSessionFull,
   onAlreadySearched,
   onError,
 }: SearchRunOptions) => {
-  const { addSearch, hasRoomForAnotherSearch, searches } = useCache();
+  const { addSearch, searches } = useCache();
   const searchesRef = useRef(searches);
   searchesRef.current = searches;
   const searchMutation = useDiscogsSearch();
@@ -121,14 +117,12 @@ export const useSearchRun = ({
   const callbacksRef = useRef({
     onComplete,
     onNotFound,
-    onSessionFull,
     onAlreadySearched,
     onError,
   });
   callbacksRef.current = {
     onComplete,
     onNotFound,
-    onSessionFull,
     onAlreadySearched,
     onError,
   };
@@ -142,11 +136,6 @@ export const useSearchRun = ({
       known?: KnownAlbum,
     ) => {
       if (controllerRef.current) return;
-      if (!hasRoomForAnotherSearch()) {
-        track("search_blocked", { reason: "session_full", source });
-        callbacksRef.current.onSessionFull();
-        return;
-      }
       const controller = new AbortController();
       const { signal } = controller;
       controllerRef.current = controller;
@@ -162,7 +151,16 @@ export const useSearchRun = ({
       const update = (changes: Partial<SearchRun>) =>
         setRun((prev) => (prev ? { ...prev, ...changes } : prev));
       const onProgress = (stage: SearchStage) => update({ stage });
-      const onContributorChecked = (name: string, releases: number) =>
+      // Discography calls made, and people the page cap stopped short.
+      let discographyCalls = 0;
+      let cappedContributors = 0;
+      const onContributorChecked = (
+        name: string,
+        releases: number,
+        read?: { pages: number; capped: boolean },
+      ) => {
+        discographyCalls += read?.pages ?? 1;
+        if (read?.capped) cappedContributors++;
         setRun((prev) =>
           prev
             ? {
@@ -174,6 +172,7 @@ export const useSearchRun = ({
               }
             : prev,
         );
+      };
 
       let phase: SearchRun["phase"] = "finding";
       setRun({
@@ -298,6 +297,8 @@ export const useSearchRun = ({
           seconds: secondsSince(startedAt),
           releases_read: matches,
           contributors: Object.keys(contributorSet.contributors).length,
+          discography_calls: discographyCalls,
+          discographies_capped: cappedContributors,
           albums: releasesMap.size,
           roles: new Set(allRoles).size,
           roles_uncategorized_count: unknownRoles.length,
@@ -323,7 +324,6 @@ export const useSearchRun = ({
     },
     [
       addSearch,
-      hasRoomForAnotherSearch,
       searchMutation,
       contributorsMutation,
       releasesMutation,

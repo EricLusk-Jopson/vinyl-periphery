@@ -32,6 +32,15 @@ export interface RoleChip {
   available: boolean;
   /** On "must include": locked on, changed only from that list. */
   required: boolean;
+  /** Who had this role on the searched album, by name. */
+  people: RolePerson[];
+}
+
+export interface RolePerson {
+  id: number;
+  name: string;
+  /** Switched on in the contributor filter. */
+  included: boolean;
 }
 
 /** Contributor chips, most albums first, then by name. */
@@ -65,15 +74,28 @@ export const roleChips = (search: SearchCache): RoleChip[] => {
   const required = requiredFilters(filterState);
   return Object.keys(search.roles)
     .sort((a, b) => a.localeCompare(b))
-    .map((role) => ({
-      role,
-      included: filterState.roles[role] ?? true,
-      available: Object.values(search.contributors).some(
-        (c) => c.roles.includes(role) && filterState.contributors[c.id],
-      ),
-      required: required.roles.includes(role),
-    }));
+    .map((role) => {
+      const people = rolePeople(search, role);
+      return {
+        role,
+        included: filterState.roles[role] ?? true,
+        available: people.some((p) => p.included),
+        required: required.roles.includes(role),
+        people,
+      };
+    });
 };
+
+/** Everyone credited with a role on the searched album, by name. */
+export const rolePeople = (search: SearchCache, role: string): RolePerson[] =>
+  Object.values(search.contributors)
+    .filter((c) => c.roles.includes(role))
+    .map((c) => ({
+      id: c.id,
+      name: defaultContributorDisplayPipeline(c.name),
+      included: Boolean(search.filterState.contributors[c.id]),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
 export interface RoleGroup {
   id: RoleCategory;
@@ -300,7 +322,7 @@ export const matchesName = (name: string, query: string): boolean =>
 
 /**
  * How many filters differ from "Reset": each contributor or role switched
- * off or required, plus each of the three switches changed. Shown on the
+ * off or required, plus each of the switches changed. Shown on the
  * mobile Filters bar.
  */
 export const activeFilterCount = (search: SearchCache): number => {
@@ -316,7 +338,8 @@ export const activeFilterCount = (search: SearchCache): number => {
     required.roles.length +
     Number(filterState.excludeMainArtist !== base.excludeMainArtist) +
     Number(filterState.collaborationsOnly !== base.collaborationsOnly) +
-    Number(filterState.excludeVarious !== base.excludeVarious)
+    Number(filterState.excludeVarious !== base.excludeVarious) +
+    Number(Boolean(filterState.likedOnly))
   );
 };
 

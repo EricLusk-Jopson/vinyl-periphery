@@ -66,10 +66,7 @@ describe("track", () => {
   const original = nav.sendBeacon;
 
   afterEach(() => {
-    Object.defineProperty(nav, "sendBeacon", {
-      value: original,
-      configurable: true,
-    });
+    Object.defineProperty(nav, "sendBeacon", { value: original, configurable: true });
   });
 
   it("sends a JSON beacon to /api/event", async () => {

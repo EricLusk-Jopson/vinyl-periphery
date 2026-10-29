@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useMemo, useState } from "react";
-import { Download, Link as LinkIcon, Share2 } from "lucide-react";
+import { Download, Share2 } from "lucide-react";
 import { coverResolver } from "@/api/coverArt";
 import {
   Sheet,
@@ -546,16 +546,6 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     }
   };
 
-  const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(link);
-      track("share_completed", { layout, method: "link" });
-      toast({ title: "Link copied" });
-    } catch {
-      toast({ title: "Couldn't copy the link", variant: "destructive" });
-    }
-  };
-
   // Whether this browser's share sheet takes image files; otherwise the
   // image downloads.
   const canShareFiles = useMemo(() => {
@@ -612,10 +602,10 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
             </SheetTitle>
             <SheetDescription className="text-left text-sm text-muted-foreground">
               {selection
-                ? `The top albums connected to ${search.searchParams.album}, as your filters and sort show them, with a link back here. Take albums out or add others below.`
+                ? `The top albums connected to ${search.searchParams.album}, as your filters and sort show them. Take albums out or add others below.`
                 : layout === "map"
-                  ? `A map of the stack from ${map.centre.title}: each step one unit from the album it came from, and its results nearest the albums they share people with. Choose their order, take albums out or add others below. With a link back here.`
-                  : `An image of what connects to ${search.searchParams.album}, with a link back here.`}
+                  ? `A map of the stack from ${map.centre.title}: each step one unit from the album it came from, and its results nearest the albums they share people with. Choose their order, take albums out or add others below.`
+                  : `An image of what connects to ${search.searchParams.album}.`}
               {!mapReady &&
                 (selection
                   ? " No albums match these filters."
@@ -724,34 +714,25 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                 )}
               </div>
 
-              <div className="flex flex-col gap-2">
-                <button
-                  type="button"
-                  onClick={() => void shareImage()}
-                  disabled={busy || !payload}
-                  className={cn(dialogButton.primary, "gap-2")}
-                >
-                  {canShareFiles ? (
-                    <Share2 className="h-4 w-4" aria-hidden="true" />
-                  ) : (
-                    <Download className="h-4 w-4" aria-hidden="true" />
-                  )}
-                  {busy
-                    ? "Making the image…"
-                    : canShareFiles
-                      ? "Share image"
-                      : "Download image"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void copyLink()}
-                  disabled={!payload}
-                  className={cn(dialogButton.secondary, "gap-2")}
-                >
-                  <LinkIcon className="h-4 w-4" aria-hidden="true" />
-                  Copy link
-                </button>
-              </div>
+              {/* One action: the image, through the share sheet where it
+                  takes files (with the link back here), or downloaded. */}
+              <button
+                type="button"
+                onClick={() => void shareImage()}
+                disabled={busy || !payload}
+                className={cn(dialogButton.primary, "gap-2")}
+              >
+                {canShareFiles ? (
+                  <Share2 className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <Download className="h-4 w-4" aria-hidden="true" />
+                )}
+                {busy
+                  ? "Making the image…"
+                  : canShareFiles
+                    ? "Share image"
+                    : "Download image"}
+              </button>
             </div>
 
             {(selection || mapReady) && (

@@ -261,6 +261,8 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   const { releases } = useFilteredAndScoredReleases(search.searchId);
   const { toast } = useToast();
   const wide = useMediaQuery("(min-width: 768px)");
+  // A finger for a pointer: a phone or tablet.
+  const coarse = useMediaQuery("(pointer: coarse)");
   const [open, setOpen] = useState(false);
   const likes = useLikes();
   const [chosen, setChosen] = useState<ShareLayout>("map");
@@ -508,6 +510,27 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
+  // The image as a file, fetched as soon as its URL is known (the preview
+  // has usually loaded it already, so this comes from the cache). Sharing
+  // then needs no wait: the share sheet only opens straight off a tap.
+  const [prepared, setPrepared] = useState<{ url: string; blob: Blob } | null>(
+    null,
+  );
+  useEffect(() => {
+    if (!open || !image) return;
+    const controller = new AbortController();
+    fetch(image, { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Image failed: ${response.status}`);
+        return response.blob();
+      })
+      .then((blob) => setPrepared({ url: image, blob }))
+      .catch(() => {
+        // Fetched again on the tap.
+      });
+    return () => controller.abort();
+  }, [open, image]);
+
   const shareImage = async () => {
     if (!payload || busy) return;
     setBusy(true);
@@ -519,35 +542,49 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
       added: edits.added.length,
       ...(view.boilerplate ? {} : { bare: true }),
     });
+    let blob: Blob | null = prepared?.url === image ? prepared.blob : null;
     try {
-      const response = await fetch(image);
-      if (!response.ok) throw new Error(`Image failed: ${response.status}`);
-      const blob = await response.blob();
-      const file = new File([blob], fileName, { type: "image/png" });
-      if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title, url: link });
-        track("share_completed", { layout, method: "share" });
-      } else {
-        download(blob);
-        track("share_completed", { layout, method: "download" });
+      if (!blob) {
+        const response = await fetch(image);
+        if (!response.ok) throw new Error(`Image failed: ${response.status}`);
+        blob = await response.blob();
       }
     } catch (error) {
-      // Closing the share sheet rejects with AbortError: not a failure.
-      if (!(error instanceof DOMException && error.name === "AbortError")) {
-        console.error("Share failed:", error);
-        toast({
-          title: "Couldn't make the image",
-          description: "Try again in a moment.",
-          variant: "destructive",
-        });
-      }
-    } finally {
+      console.error("Image failed:", error);
+      toast({
+        title: "Couldn't make the image",
+        description: "Try again in a moment.",
+        variant: "destructive",
+      });
       setBusy(false);
+      return;
     }
+    const file = new File([blob], fileName, { type: "image/png" });
+    if (useShareSheet && navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title, url: link });
+        track("share_completed", { layout, method: "share" });
+        setBusy(false);
+        return;
+      } catch (error) {
+        // Closing the share sheet rejects with AbortError: not a failure.
+        if (error instanceof DOMException && error.name === "AbortError") {
+          setBusy(false);
+          return;
+        }
+        // Anything else (no tap to go with it, a refusal): download.
+        console.error("Share failed, downloading instead:", error);
+      }
+    }
+    download(blob);
+    track("share_completed", { layout, method: "download" });
+    setBusy(false);
   };
 
   // Whether this browser's share sheet takes image files; otherwise the
-  // image downloads.
+  // image downloads. Only touch devices use it: desktop share panels (on
+  // Windows and macOS) are slow or hang with an image, and a download is
+  // what a laptop wants anyway.
   const canShareFiles = useMemo(() => {
     try {
       return Boolean(
@@ -559,6 +596,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
       return false;
     }
   }, []);
+  const useShareSheet = canShareFiles && coarse;
 
   return (
     <>
@@ -722,14 +760,14 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                 disabled={busy || !payload}
                 className={cn(dialogButton.primary, "gap-2")}
               >
-                {canShareFiles ? (
+                {useShareSheet ? (
                   <Share2 className="h-4 w-4" aria-hidden="true" />
                 ) : (
                   <Download className="h-4 w-4" aria-hidden="true" />
                 )}
                 {busy
                   ? "Making the image…"
-                  : canShareFiles
+                  : useShareSheet
                     ? "Share image"
                     : "Download image"}
               </button>

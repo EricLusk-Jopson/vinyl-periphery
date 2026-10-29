@@ -15,7 +15,7 @@ import {
   selectionCaption,
   shareLink,
 } from "./share";
-import { layoutStackMap } from "./stackMap";
+import { layoutStackMap, stackResults } from "./stackMap";
 
 const MBID = "1b022e01-4da6-387b-8658-8678046e4cef";
 const cover = (kind: string) =>
@@ -111,7 +111,8 @@ describe("stackMapPayload", () => {
   ]);
 
   it("sends the stack a step apart and the results around it", () => {
-    const nodes = layoutStackMap(centre, [root, child], levels, {}, 12);
+    const keys = stackResults(centre, [root, child]).map((r) => r.key);
+    const nodes = layoutStackMap(centre, [root, child], levels, {}, keys);
     const payload = stackMapPayload(
       centre,
       nodes,
@@ -132,6 +133,15 @@ describe("stackMapPayload", () => {
       "Album 7",
     ]);
     expect(payload.d).toBe("2 albums stacked · 3 around them");
+    expect(
+      stackCaption(
+        nodes,
+        { sort: "popular", then: "newest", likesFirst: true },
+        "1 removed",
+      ),
+    ).toBe(
+      "2 albums stacked · 3 around them, by Popular, then Newest · Likes first · 1 removed",
+    );
     expect(mapHasAlbums(payload)).toBe(true);
   });
 });
@@ -293,32 +303,51 @@ describe("withView", () => {
 
   it("keeps links only when lines are on", () => {
     expect(canDrawLines(map)).toBe(true);
-    const plain = withView(map, { covers: true, lines: false });
+    const plain = withView(map, {
+      covers: true,
+      lines: false,
+      boilerplate: true,
+    });
     expect(plain).not.toHaveProperty("ln");
     if (plain.l !== "map") throw new Error();
     expect(plain.n[0]).not.toHaveProperty("l");
-    const lined = withView(map, { covers: true, lines: true });
+    const lined = withView(map, {
+      covers: true,
+      lines: true,
+      boilerplate: true,
+    });
     if (lined.l !== "map") throw new Error();
     expect(lined.ln).toBe(1);
     expect(lined.n[0].l).toEqual([0]);
   });
 
   it("marks no covers on either layout", () => {
-    expect(withView(map, { covers: false, lines: false })).toMatchObject({
+    expect(
+      withView(map, { covers: false, lines: false, boilerplate: true }),
+    ).toMatchObject({
       nc: 1,
     });
     const card = { v: 1 as const, l: "card" as const, a: map.c, x: [] };
-    expect(withView(card, { covers: false, lines: true })).toEqual({
+    expect(
+      withView(card, { covers: false, lines: true, boilerplate: true }),
+    ).toEqual({
       ...card,
       nc: 1,
     });
   });
 
+  it("drops the boilerplate from maps only", () => {
+    const bare = { covers: true, lines: false, boilerplate: false };
+    expect(withView(map, bare)).toMatchObject({ nb: 1 });
+    const card = { v: 1 as const, l: "card" as const, a: map.c, x: [] };
+    expect(withView(card, bare)).not.toHaveProperty("nb");
+  });
+
   it("draws no lines without people to run from", () => {
     const noLinks = { ...map, n: [{ ...map.n[0], l: [] }] };
     expect(canDrawLines(noLinks)).toBe(false);
-    expect(withView(noLinks, { covers: true, lines: true })).not.toHaveProperty(
-      "ln",
-    );
+    expect(
+      withView(noLinks, { covers: true, lines: true, boilerplate: true }),
+    ).not.toHaveProperty("ln");
   });
 });

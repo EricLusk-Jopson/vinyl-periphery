@@ -1,7 +1,7 @@
 import { EnrichedRelease } from "@/api/types";
 import { SearchCache } from "@/contexts/cache/types";
 import { Likes } from "@/services/likes";
-import { popularity } from "./results";
+import { popularity, ScoredRelease, SortKey, sortReleases } from "./results";
 
 /**
  * The share map for a stack: a graph of album overlap, not of people.
@@ -18,8 +18,6 @@ import { popularity } from "./results";
  *   bigger. Overlapping covers are pushed apart; the stack's albums stay
  *   put. Pure, so it can be tested and sent to the renderer as positions.
  */
-
-export const STACK_MAP_RESULTS = 12;
 
 /** Cover sides, in step lengths. */
 export const STACK_SIZES = {
@@ -211,37 +209,112 @@ export const relaxGraph = (
   return points.map(({ x, y }) => ({ x, y }));
 };
 
-/** How many results the stack's searches have between them. */
-export const stackResultCount = (
+/**
+ * Every result of the stack's searches, the stack's own albums aside, once
+ * each: linked by everyone in the stack who worked on it, scored by how
+ * many people it shares with each stack album added up. Most connected
+ * first (then linked to the most stack albums, then most popular).
+ */
+export const stackResults = (
   centre: StackCentre,
   members: SearchCache[],
-): number => {
+): ScoredRelease[] => {
   const stack = new Set([
     centre.key,
     ...members.map((m) => m.target?.key ?? ""),
   ]);
-  const keys = new Set<string>();
+  const byKey = new Map<
+    string,
+    {
+      release: EnrichedRelease;
+      people: Set<number>;
+      total: number;
+      linked: number;
+    }
+  >();
   for (const m of members) {
-    for (const key of Object.keys(m.releases ?? {})) {
-      if (!stack.has(key)) keys.add(key);
+    for (const release of Object.values(m.releases ?? {})) {
+      if (stack.has(release.key)) continue;
+      const entry = byKey.get(release.key) ?? {
+        release,
+        people: new Set<number>(),
+        total: 0,
+        linked: 0,
+      };
+      const people = new Set(release.contributorIds);
+      people.forEach((id) => entry.people.add(id));
+      entry.total += people.size;
+      entry.linked += 1;
+      // The best counts any search kept.
+      if (!entry.release.community && release.community) {
+        entry.release = { ...entry.release, community: release.community };
+      }
+      byKey.set(release.key, entry);
     }
   }
-  return keys.size;
+  return Array.from(byKey.values())
+    .sort(
+      (a, b) =>
+        b.total - a.total ||
+        b.linked - a.linked ||
+        (popularity(b.release) ?? -1) - (popularity(a.release) ?? -1) ||
+        a.release.key.localeCompare(b.release.key),
+    )
+    .map((e) => ({
+      ...e.release,
+      contributorIds: Array.from(e.people),
+      activeContributors: Array.from(e.people),
+      score: e.total,
+      confidence: 1,
+    }));
 };
+
+/**
+ * The stack's results in the chosen order; with `likesFirst`, liked
+ * albums come before the rest (each part keeping that order).
+ */
+export const orderStackResults = (
+  results: ScoredRelease[],
+  sort: SortKey,
+  then: SortKey | null,
+  likes: Likes,
+  likesFirst: boolean,
+): ScoredRelease[] => {
+  const sorted = sortReleases(results, sort, then);
+  if (!likesFirst) return sorted;
+  return [
+    ...sorted.filter((r) => likes[r.key]),
+    ...sorted.filter((r) => !likes[r.key]),
+  ];
+};
+
+/**
+ * The stack's results as one search, for finding albums to add: every
+ * result, and everyone credited on any stack album.
+ */
+export const stackAsSearch = (
+  base: SearchCache,
+  members: SearchCache[],
+  results: ScoredRelease[],
+): SearchCache => ({
+  ...base,
+  contributors: Object.assign({}, ...members.map((m) => m.contributors ?? {})),
+  releases: Object.fromEntries(results.map((r) => [r.key, r])),
+});
 
 const sharedCount = (release: EnrichedRelease | undefined) =>
   release ? new Set(release.contributorIds).size : 0;
 
 /**
- * The stack's albums and up to `count` results around them: liked ones
- * first, then those sharing the most people with the stack.
+ * The stack's albums, and the results in `shown` around them.
  */
 export const layoutStackMap = (
   centre: StackCentre,
   members: SearchCache[],
   levels: Map<string, number>,
   likes: Likes,
-  count = STACK_MAP_RESULTS,
+  /** The results to draw, by key (see `stackResults`). */
+  shown: string[],
 ): StackNode[] => {
   const placed = placeMembers(centre, members, levels);
   const stackKeys = new Set(placed.map((p) => p.key));
@@ -262,19 +335,9 @@ export const layoutStackMap = (
       results.set(release.key, entry);
     }
   });
-  const total = (e: { weights: Map<number, number> }) =>
-    Array.from(e.weights.values()).reduce((s, w) => s + w, 0);
-  const chosen = Array.from(results.values())
-    .sort(
-      (a, b) =>
-        Number(Boolean(likes[b.release.key])) -
-          Number(Boolean(likes[a.release.key])) ||
-        total(b) - total(a) ||
-        b.weights.size - a.weights.size ||
-        (popularity(b.release) ?? -1) - (popularity(a.release) ?? -1) ||
-        a.release.key.localeCompare(b.release.key),
-    )
-    .slice(0, Math.max(0, count));
+  const chosen = shown
+    .map((key) => results.get(key))
+    .filter((c): c is NonNullable<typeof c> => c !== undefined);
 
   // Popularity on a log scale across the results shown.
   const logs = chosen.map((c) => {

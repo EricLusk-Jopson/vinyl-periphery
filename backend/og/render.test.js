@@ -176,6 +176,26 @@ test("coverless tiles fit their text: smaller, then without the artist", () => {
   assert.deepEqual(fitTileText("Schlagenheim", "Black Midi", 70).titleLines, ["Schlag-", "enheim"]);
 });
 
+test("no boilerplate: the graph takes the whole image", async () => {
+  const art = new Map();
+  assert.ok(isPng(await renderPng({ ...map, bare: true }, IMAGE_SIZE, art)));
+  const stack = {
+    layout: "stack",
+    centre: { t: "Unmap", r: "Volcano Choir", i: "", side: 0.5 },
+    albums: [{ t: "Bon Iver", r: "Bon Iver", i: "", x: 0, y: 1, side: 0.4, member: true, links: [0] }],
+    caption: "",
+    covers: false,
+    lines: false,
+    bare: true,
+  };
+  assert.ok(isPng(await renderPng(stack, IMAGE_SIZE, art)));
+  // Bigger than with a header: the fit has more room.
+  const box = { edge: 32, maxStep: 2000 };
+  const full = stackGeometry(stack, { ...box, width: 1080, height: 1064 });
+  const framed = stackGeometry(stack, { ...box, width: 1080, height: 760 });
+  assert.ok(full.step > framed.step);
+});
+
 test("helpers", () => {
   assert.deepEqual(artIds(card), [`g:${MBID}`]);
   assert.deepEqual(artIds(map), [`g:${MBID}`, `g:${MBID}`]);

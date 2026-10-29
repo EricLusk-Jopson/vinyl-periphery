@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useId, useMemo, useState } from "react";
 import { Download, Link as LinkIcon, Share2 } from "lucide-react";
 import { coverResolver } from "@/api/coverArt";
 import {
@@ -16,9 +16,20 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useToast } from "@/hooks/use-toast";
 import { useLikes } from "@/hooks/useLikes";
 import { useCoverArt } from "@/hooks/useCoverArt";
-import { layoutStackMap, stackResultCount } from "@/lib/stackMap";
+import {
+  layoutStackMap,
+  orderStackResults,
+  stackAsSearch,
+  stackResults,
+} from "@/lib/stackMap";
 import { track } from "@/lib/analytics";
-import { ScoredRelease, SortKey, sortReleases } from "@/lib/results";
+import {
+  ScoredRelease,
+  SORT_OPTIONS,
+  SortKey,
+  sortReleases,
+  tiebreakOptions,
+} from "@/lib/results";
 import {
   albumMapPayload,
   cardPayload,
@@ -32,6 +43,7 @@ import {
   canDrawLines,
   stackCaption,
   DEFAULT_VIEW,
+  NO_BOILERPLATE,
   ShareView,
   withView,
   selectionCaption,
@@ -45,8 +57,24 @@ import {
 } from "@/lib/shareSelection";
 import { cn } from "@/lib/utils";
 import { dialogButton } from "../common/buttons";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
 import { ShareAlbums } from "./ShareAlbums";
 import { Switch } from "../filters/Switch";
+
+const BARE_KEY = "vinyl-periphery-no-boilerplate";
+const readBareUnlocked = () => {
+  try {
+    return localStorage.getItem(BARE_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
 
 /** Longest the sheet waits for covers before drawing without the rest. */
 const COVER_WAIT_MS = 6000;
@@ -127,6 +155,93 @@ const Segmented = <T extends string>({
   </div>
 );
 
+interface StackOrder {
+  sort: SortKey;
+  then: SortKey | null;
+  likesFirst: boolean;
+}
+
+/**
+ * The order of a stack's results: a sort, a tiebreaker, and whether
+ * liked albums come first (then: stack albums, likes, the rest).
+ */
+const StackOrderControls: React.FC<{
+  order: StackOrder;
+  onChange: (order: StackOrder) => void;
+}> = ({ order, onChange }) => {
+  const id = useId();
+  const tiebreaks = tiebreakOptions(order.sort);
+  const then = tiebreaks.some((o) => o.value === order.then)
+    ? order.then
+    : null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="font-mono text-xs uppercase tracking-[1px] text-muted-foreground">
+        Order
+      </span>
+      <div className="grid grid-cols-2 gap-2">
+        <label htmlFor={`${id}-sort`} className="sr-only">
+          Sort by
+        </label>
+        <Select
+          value={order.sort}
+          onValueChange={(value) =>
+            onChange({ ...order, sort: value as SortKey })
+          }
+        >
+          <SelectTrigger id={`${id}-sort`}>
+            <SelectValue>
+              {SORT_OPTIONS.find((o) => o.value === order.sort)?.short}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {SORT_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.value === "shared"
+                  ? "Most people shared with the stack"
+                  : o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <label htmlFor={`${id}-then`} className="sr-only">
+          then
+        </label>
+        <Select
+          value={then ?? "none"}
+          onValueChange={(value) =>
+            onChange({
+              ...order,
+              then: value === "none" ? null : (value as SortKey),
+            })
+          }
+        >
+          <SelectTrigger id={`${id}-then`} aria-label="then">
+            <SelectValue>
+              {then
+                ? `then ${tiebreaks.find((o) => o.value === then)?.short}`
+                : "No tiebreaker"}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent align="end">
+            <SelectItem value="none">No tiebreaker</SelectItem>
+            {tiebreaks.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <Switch
+        label="Likes first"
+        checked={order.likesFirst}
+        onChange={(likesFirst) => onChange({ ...order, likesFirst })}
+      />
+    </div>
+  );
+};
+
 /**
  * Share: a square, watermarked image: a map of the stack (or this
  * search) and the liked albums around it, or these results as a list;
@@ -158,6 +273,14 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   const [edits, setEdits] = useState<ShareEdits>(NO_EDITS);
   // Covers or titles only; lines from people to their albums.
   const [view, setView] = useState<ShareView>(DEFAULT_VIEW);
+  // A stack's results: their order, and whether liked ones come first.
+  const [stackOrder, setStackOrder] = useState<StackOrder>({
+    sort: "shared",
+    then: null,
+    likesFirst: true,
+  });
+  // The "no boilerplate" switch, once its phrase has been typed here.
+  const [bareUnlocked, setBareUnlocked] = useState(readBareUnlocked);
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState("");
 
@@ -189,12 +312,43 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     () => new Set(ranked.map((r) => r.key)),
     [ranked],
   );
+  // A stack: every result of its searches, in the chosen order (no
+  // filters here: the stack has none), edited, then laid out around the
+  // stack's albums.
+  const stackList = useMemo(
+    () => (open && !selection ? stackResults(map.centre, map.members) : []),
+    [open, selection, map.centre, map.members],
+  );
+  const stackOrdered = useMemo(
+    () =>
+      orderStackResults(
+        stackList,
+        stackOrder.sort,
+        stackOrder.then,
+        likes,
+        stackOrder.likesFirst,
+      ),
+    [stackList, stackOrder, likes],
+  );
+  const stackSearch = useMemo(
+    () => stackAsSearch(search, map.members, stackList),
+    [search, map.members, stackList],
+  );
+  // A stack has no filters: every result can be shown.
+  const allStackKeys = useMemo(
+    () => new Set(stackList.map((r) => r.key)),
+    [stackList],
+  );
+  const stackShown = useMemo(
+    () => shareSelection(stackSearch, stackOrdered, counts.map, edits),
+    [stackSearch, stackOrdered, counts.map, edits],
+  );
   // Albums there are to draw: the list less removed ones, plus added ones.
+  const pool = selection ? ranked : stackList;
   const available = new Set([
-    ...ranked.map((r) => r.key).filter((k) => !edits.removed.includes(k)),
+    ...pool.map((r) => r.key).filter((k) => !edits.removed.includes(k)),
     ...edits.added,
   ]).size;
-  // A stack: its albums a step apart and results around them.
   const stackNodes = useMemo(
     () =>
       open && !selection
@@ -203,10 +357,10 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
             map.members,
             map.levels ?? new Map(),
             likes,
-            counts.map,
+            stackShown.map((r) => r.key),
           )
         : [],
-    [open, selection, map.centre, map.members, map.levels, likes, counts.map],
+    [open, selection, map.centre, map.members, map.levels, likes, stackShown],
   );
   // What the map would show around its centre.
   const around = useMemo(
@@ -266,15 +420,16 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
               map.centre,
               stackNodes,
               coverFor,
-              stackCaption(stackNodes),
+              stackCaption(stackNodes, stackOrder, editsCaption(edits)),
             ),
     // coverFor reads the resolver; `covers` says when it has changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [ready, covers, selection, mapShown, map.centre, stackNodes],
+    [ready, covers, selection, mapShown, map.centre, stackNodes, stackOrder],
   );
   // A map with nothing around its centre isn't worth sharing.
   const mapReady = around.length > 0;
-  const layout: ShareLayout = mapReady ? chosen : "card";
+  // A stack is shared as its map only.
+  const layout: ShareLayout = !selection ? "map" : mapReady ? chosen : "card";
   const drawn = useMemo(() => {
     if (!ready) return null;
     return layout === "map"
@@ -290,13 +445,13 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, covers, layout, mapImage, search, cardShown, selection, edits]);
   // The album counts to offer for this layout (one search only).
-  const shown = layout === "map" ? mapShown : cardShown;
-  const shownCount = shown.length;
-  const countChoices = selection
-    ? countOptions(layout, available)
+  const shown = !selection
+    ? stackShown
     : layout === "map"
-      ? countOptions("map", stackResultCount(map.centre, map.members))
-      : countOptions("card", ranked.length);
+      ? mapShown
+      : cardShown;
+  const shownCount = shown.length;
+  const countChoices = countOptions(layout, available);
 
   const removeAlbum = (key: string) =>
     setEdits((current) =>
@@ -306,7 +461,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     );
   const addAlbum = (key: string, filtered: boolean) => {
     // Linked through the usual filters: its people and their roles on.
-    if (filtered) {
+    if (filtered && selection) {
       const update = filtersToInclude(search, key);
       if (update) updateFilterState(search.searchId, update);
     }
@@ -324,6 +479,18 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     () => (drawn ? withView(drawn, view) : null),
     [drawn, view],
   );
+  // Typing the phrase in the album search unlocks the boilerplate switch.
+  const takeQuery = (query: string) => {
+    if (query !== NO_BOILERPLATE) return false;
+    setBareUnlocked(true);
+    try {
+      localStorage.setItem(BARE_KEY, "1");
+    } catch {
+      // Blocked storage: unlocked until the page reloads.
+    }
+    toast({ title: "Boilerplate switch unlocked" });
+    return true;
+  };
   const image = payload ? shareImagePath(payload) : "";
   const link = payload ? shareLink(window.location.origin, payload, to) : "";
   const title =
@@ -346,13 +513,11 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     setBusy(true);
     track("share_created", {
       layout,
-      ...(selection
-        ? {
-            albums: shownCount,
-            removed: edits.removed.length,
-            added: edits.added.length,
-          }
-        : {}),
+      stack: !selection,
+      albums: shownCount,
+      removed: edits.removed.length,
+      added: edits.added.length,
+      ...(view.boilerplate ? {} : { bare: true }),
     });
     try {
       const response = await fetch(image);
@@ -437,7 +602,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
           className={cn(
             "flex flex-col gap-4 overflow-y-auto bg-background p-5 md:w-[440px] md:max-w-[440px] md:p-6",
             // Room for the album list beside the preview.
-            selection && "lg:w-[920px] lg:max-w-[920px]",
+            "lg:w-[920px] lg:max-w-[920px]",
             !wide && "max-h-[92vh] rounded-t-xl",
           )}
         >
@@ -449,7 +614,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
               {selection
                 ? `The top albums connected to ${search.searchParams.album}, as your filters and sort show them, with a link back here. Take albums out or add others below.`
                 : layout === "map"
-                  ? `A map of the stack from ${map.centre.title}: each step one unit from the album it came from, and the results nearest the albums they share people with. With a link back here.`
+                  ? `A map of the stack from ${map.centre.title}: each step one unit from the album it came from, and its results nearest the albums they share people with. Choose their order, take albums out or add others below. With a link back here.`
                   : `An image of what connects to ${search.searchParams.album}, with a link back here.`}
               {!mapReady &&
                 (selection
@@ -464,13 +629,12 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
           <div
             className={cn(
               "flex flex-col gap-4",
-              selection &&
-                "lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:gap-x-8 lg:gap-y-5",
+              "lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:gap-x-8 lg:gap-y-5",
             )}
           >
             {
               <div className="flex flex-col gap-4 lg:col-start-2 lg:row-start-1">
-                {mapReady && (
+                {selection && mapReady && (
                   <Segmented
                     label="Show"
                     value={layout}
@@ -494,6 +658,12 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                     }
                   />
                 )}
+                {!selection && (
+                  <StackOrderControls
+                    order={stackOrder}
+                    onChange={(order) => setStackOrder(order)}
+                  />
+                )}
                 <div className="flex flex-col">
                   <Switch
                     label="Album covers"
@@ -515,6 +685,15 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                       }
                     />
                   )}
+                  {bareUnlocked && layout === "map" && (
+                    <Switch
+                      label="Title and watermark"
+                      checked={view.boilerplate}
+                      onChange={(boilerplate) =>
+                        setView((current) => ({ ...current, boilerplate }))
+                      }
+                    />
+                  )}
                 </div>
               </div>
             }
@@ -523,7 +702,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
               <div
                 className={cn(
                   "relative mx-auto aspect-square w-full max-w-[360px] overflow-hidden rounded-lg border bg-surface",
-                  selection && "lg:max-w-none",
+                  "lg:max-w-none",
                 )}
               >
                 {loaded !== image && (
@@ -575,12 +754,13 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
               </div>
             </div>
 
-            {selection && (
+            {(selection || mapReady) && (
               <div className="lg:col-start-2 lg:row-start-2">
                 <ShareAlbums
-                  search={search}
+                  search={selection ? search : stackSearch}
                   shown={shown}
-                  visibleKeys={visibleKeys}
+                  visibleKeys={selection ? visibleKeys : allStackKeys}
+                  onQuery={takeQuery}
                   edits={edits}
                   cover={cover}
                   onRemove={removeAlbum}

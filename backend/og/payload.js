@@ -20,6 +20,8 @@
 //   art    = "g:<release-group mbid>" | "r:<release mbid>" | ""
 //   d      = how the albums were chosen ("Top 12 by Shared · Liked only")
 //   nc: 1  = no covers: every album drawn as its title and artist
+//   nb: 1  = (maps) no boilerplate: no header, caption or site; the graph
+//            fills the image
 //   ln: 1  = (map) lines from each person to their albums, listed per
 //            album as `l`: indices into p
 //
@@ -122,7 +124,16 @@ export function decodePayload(encoded) {
     }
     const caption = text(raw.d, MAX_CAPTION);
     return albums.length > 0
-      ? { layout: "map", centre, albums, people, caption, covers: raw.nc !== 1, lines }
+      ? {
+          layout: "map",
+          centre,
+          albums,
+          people,
+          caption,
+          covers: raw.nc !== 1,
+          lines,
+          bare: raw.nb === 1,
+        }
       : null;
   }
 
@@ -166,6 +177,7 @@ export function decodePayload(encoded) {
           caption,
           covers: raw.nc !== 1,
           lines,
+          bare: raw.nb === 1,
         }
       : null;
   }

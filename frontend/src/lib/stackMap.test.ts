@@ -1,9 +1,11 @@
 import { SearchCache } from "@/contexts/cache/types";
 import {
   layoutStackMap,
+  orderStackResults,
   relaxGraph,
   STACK_SIZES,
-  stackResultCount,
+  stackAsSearch,
+  stackResults,
 } from "./stackMap";
 
 const member = (
@@ -62,7 +64,8 @@ const levels = new Map([
 const all = [root, two, three, four];
 
 describe("layoutStackMap", () => {
-  const nodes = layoutStackMap(centre, all, levels, {}, 12);
+  const keys = stackResults(centre, all).map((r) => r.key);
+  const nodes = layoutStackMap(centre, all, levels, {}, keys);
   const byKey = (key: string) => nodes.find((n) => n.key === key)!;
 
   it("puts each step a unit further out, near the album it came from", () => {
@@ -111,18 +114,60 @@ describe("layoutStackMap", () => {
     }
   });
 
-  it("takes liked results first, then the most connected, up to the count", () => {
+  it("draws the results it's given, in that order", () => {
     const liked = { "master:51": { title: "", artist: "", likedAt: 0 } };
-    const two = layoutStackMap(centre, all, levels, liked, 2);
+    const two = layoutStackMap(centre, all, levels, liked, [
+      "master:51",
+      "master:50",
+    ]);
     const results = two.filter((n) => !n.member);
     expect(results.map((n) => n.key)).toEqual(["master:51", "master:50"]);
     expect(results[0].side).toBeCloseTo(
       STACK_SIZES.smallest + STACK_SIZES.liked,
     );
   });
+});
 
-  it("counts every result the stack's searches have", () => {
-    expect(stackResultCount(centre, all)).toBe(4);
+describe("stackResults", () => {
+  it("lists each result once, most connected first, stack albums left out", () => {
+    const results = stackResults(centre, all);
+    // 50: two people from album 1 and one from 2; 52: two from 2 and one
+    // from 4. Both 3; both linked to two albums.
+    expect(results.map((r) => [r.key, r.score])).toEqual([
+      ["master:50", 3],
+      ["master:52", 3],
+      ["master:51", 1],
+      ["master:53", 1],
+    ]);
+    // Linked by everyone in the stack on it.
+    expect(results[0].activeContributors.sort()).toEqual([1, 2, 5]);
+  });
+
+  it("orders by the chosen sort, liked albums first when asked", () => {
+    const results = stackResults(centre, all);
+    const likes = { "master:53": { title: "", artist: "", likedAt: 0 } };
+    const keys = (r: { key: string }[]) => r.map((x) => x.key);
+    expect(
+      keys(orderStackResults(results, "shared", null, likes, true)),
+    ).toEqual(["master:53", "master:50", "master:52", "master:51"]);
+    expect(
+      keys(orderStackResults(results, "shared", null, likes, false)),
+    ).toEqual(["master:50", "master:52", "master:51", "master:53"]);
+    // A tiebreaker sorts by people shared first; every artist is the
+    // same here, so ties keep their order.
+    expect(
+      keys(orderStackResults(results, "shared", "artistDesc", {}, false)),
+    ).toEqual(["master:50", "master:52", "master:51", "master:53"]);
+  });
+
+  it("searches the stack's results as one search", () => {
+    const as = stackAsSearch(root, all, stackResults(centre, all));
+    expect(Object.keys(as.releases).sort()).toEqual([
+      "master:50",
+      "master:51",
+      "master:52",
+      "master:53",
+    ]);
   });
 });
 

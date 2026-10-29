@@ -23,13 +23,19 @@ interface ShareAlbumsProps {
   onAdd: (key: string, filtered: boolean) => void;
   /** Puts the removed albums back. */
   onRestore: () => void;
+  /**
+   * Sees each query first; returning true takes it (the field clears).
+   * For the "no boilerplate" switch.
+   */
+  onQuery?: (query: string) => boolean;
 }
 
 /**
  * The share image's albums: each can be taken out (the next in the list
  * takes its place), and any album in the results can be found and added,
  * filters or not. Adding one the filters hide switches its people and
- * their roles on, so it's linked like any other.
+ * their roles on, so it's linked like any other. For a stack, `search`
+ * holds every result of its searches, all visible.
  */
 export const ShareAlbums: React.FC<ShareAlbumsProps> = ({
   search,
@@ -40,6 +46,7 @@ export const ShareAlbums: React.FC<ShareAlbumsProps> = ({
   onRemove,
   onAdd,
   onRestore,
+  onQuery,
 }) => {
   const id = useId();
   const [query, setQuery] = useState("");
@@ -93,7 +100,10 @@ export const ShareAlbums: React.FC<ShareAlbumsProps> = ({
           id={`${id}-input`}
           type="search"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            if (onQuery?.(e.target.value.trim())) setQuery("");
+            else setQuery(e.target.value);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && matches.length > 0) {
               e.preventDefault();

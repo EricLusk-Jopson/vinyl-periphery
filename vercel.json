@@ -4,7 +4,16 @@
   "installCommand": "npm ci && npm ci --prefix frontend",
   "buildCommand": "npm run build --prefix frontend",
   "outputDirectory": "frontend/dist",
-  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }],
+  "rewrites": [
+    {
+      "source": "/s",
+      "destination": "/api/share"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ],
   "headers": [
     {
       "source": "/assets/(.*)",
@@ -15,5 +24,12 @@
         }
       ]
     }
-  ]
+  ],
+  "functions": {
+    "api/og.js": {
+      "includeFiles": "backend/og/fonts/**",
+      "memory": 1024,
+      "maxDuration": 15
+    }
+  }
 }

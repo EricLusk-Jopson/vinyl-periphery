@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo } from "react";
 import { Link, Navigate, useLocation, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
-import { SearchParams } from "@/api/types";
+import { SearchParams, SearchTarget } from "@/api/types";
+import { KnownAlbum } from "@/hooks/useSearchRun";
 import { useCache } from "@/contexts/cache/CacheContext";
 import {
   HOME_PATH,
@@ -9,18 +10,20 @@ import {
   legacyResultParams,
   resultParams,
   resultPath,
+  resultTarget,
 } from "@/lib/routes";
-import { sameSearchIds } from "@/lib/searches";
+import { matchingSearchIds } from "@/lib/searchTarget";
 import { cn } from "@/lib/utils";
 import { FilterPanel } from "../filters/FilterPanel";
 import { FilterFrame } from "../filters/FilterFrame";
 import { AlbumHeader } from "./AlbumHeader";
 import { ReleaseList } from "./ReleaseList";
+import { useResultsSort } from "@/hooks/useResultsSort";
 
 interface ResultsPageProps {
-  onSearchFrom: (params: SearchParams) => void;
+  onSearchFrom: (params: SearchParams, known: KnownAlbum) => void;
   /** Runs the search named in the URL, when it isn't cached here. */
-  onRunSearch: (params: SearchParams) => void;
+  onRunSearch: (params: SearchParams, target: SearchTarget | null) => void;
   isSearching: boolean;
 }
 
@@ -52,11 +55,19 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
     () => resultParams(location.search),
     [location.search],
   );
+  // `&master=` / `&release=` when the link names the exact album.
+  const target = useMemo(
+    () => resultTarget(location.search),
+    [location.search],
+  );
   const { searches, setActiveSearch, savedSearchesLoaded } = useCache();
   // One cached search per album: a repeat run replaces the earlier one.
-  const searchId = params ? sameSearchIds(searches, params)[0] ?? "" : "";
+  const searchId = params
+    ? (matchingSearchIds(searches, params, target)[0] ?? "")
+    : "";
   const search = searches[searchId];
   const back = backLink(location.state);
+  const order = useResultsSort();
 
   // Keep the cache's active search in step with the URL.
   useEffect(() => {
@@ -82,7 +93,7 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
         <div className="mt-2 flex flex-wrap justify-center gap-3">
           <button
             type="button"
-            onClick={() => onRunSearch(params)}
+            onClick={() => onRunSearch(params, target)}
             disabled={isSearching}
             className={primaryButton}
           >
@@ -111,7 +122,7 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
           {back.label}
         </Link>
       </div>
-      <AlbumHeader search={search} />
+      <AlbumHeader search={search} order={order} />
       <div className="mx-auto max-w-[1280px] px-4 pb-12 md:px-6 lg:flex lg:pt-8 lg:items-start lg:gap-8 lg:pb-24">
         <aside
           aria-label="Filters"
@@ -122,6 +133,7 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
         <div className="min-w-0 flex-1">
           <ReleaseList
             searchId={searchId}
+            order={order}
             onSearchFrom={onSearchFrom}
             isSearching={isSearching}
             toolbarAction={
@@ -150,6 +162,10 @@ export const LegacyResultsRedirect: React.FC = () => {
 
   if (!params && !savedSearchesLoaded) return null;
   return (
-    <Navigate to={params ? resultPath(params) : HOME_PATH} state={state} replace />
+    <Navigate
+      to={params ? resultPath(params, cached?.target) : HOME_PATH}
+      state={state}
+      replace
+    />
   );
 };

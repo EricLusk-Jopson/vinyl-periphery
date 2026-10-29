@@ -1,275 +1,297 @@
-import React, { useId, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { Star, Trash2 } from "lucide-react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { Search } from "lucide-react";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { SearchCache } from "@/contexts/cache/types";
+import { useToast } from "@/hooks/use-toast";
+import { HOME_PATH } from "@/lib/routes";
+import { recentSearches } from "@/lib/searches";
 import {
-  HOME_PATH,
-  LibraryTab,
-  ResultFrom,
-  libraryTab,
-  resultPath,
-} from "@/lib/routes";
-import { recentSearches, searchStartedAt, timeAgo } from "@/lib/searches";
+  groupStacks,
+  LibraryStack,
+  searchLibrary,
+  isInStack,
+  stackLabel,
+  stacksThisFits,
+} from "@/lib/stacks";
 import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
-import { AlbumCover } from "../search/AlbumCover";
+import { ToastAction } from "../ui/toast";
+import { LibraryCard } from "./LibraryCard";
+import { StackDrawer } from "./StackDrawer";
+import { StackCard } from "./StackCard";
+import { StackConfirm } from "./StackConfirm";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
-const iconButton = cn(
-  "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-secondary disabled:opacity-60",
-  focusRing,
-);
 
-const TABS: { id: LibraryTab; label: string }[] = [
-  { id: "session", label: "This session" },
-  { id: "saved", label: "Saved" },
-];
+type SavedView = "stacked" | "flat";
+const VIEW_STORAGE_KEY = "vinyl-periphery-library-view";
 
-interface LibraryCardProps {
-  search: SearchCache;
-  saved: boolean;
-  tab: LibraryTab;
-  onToggleSave: () => Promise<void>;
-  onDelete: () => Promise<void>;
-}
-
-const LibraryCard: React.FC<LibraryCardProps> = ({
-  search,
-  saved,
-  tab,
-  onToggleSave,
-  onDelete,
-}) => {
-  const [busy, setBusy] = useState(false);
-  const { artist, album } = search.searchParams;
-  const albums = Object.keys(search.releases).length;
-  const from: ResultFrom = { from: "library", tab };
-
-  const run = (action: () => Promise<void>) => async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      await action();
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <li className="flex min-w-0 items-center gap-1 rounded-[10px] border bg-surface pr-2 transition-colors hover:border-border-strong">
-      <Link
-        to={resultPath(search.searchParams)}
-        state={from}
-        data-library-open
-        className={cn(
-          "flex min-w-0 flex-1 items-center gap-3 rounded-[10px] p-2.5 lg:gap-4 lg:p-3.5",
-          focusRing,
-        )}
-      >
-        <AlbumCover
-          src={search.thumb}
-          title={album}
-          className="h-12 w-12 rounded-[3px] text-xs lg:h-16 lg:w-16 lg:rounded lg:text-sm"
-        />
-        <span className="flex min-w-0 flex-col gap-0.5 md:gap-1">
-          <span className="truncate text-[15px] font-semibold md:text-base">
-            {album}
-          </span>
-          <span className="truncate text-[13px] text-muted-foreground md:text-sm">
-            {artist}
-          </span>
-          <span className="font-mono text-xs text-faint">
-            {albums.toLocaleString("en-US")} {albums === 1 ? "album" : "albums"}{" "}
-            · {timeAgo(searchStartedAt(search.searchId))}
-          </span>
-        </span>
-      </Link>
-      {/* Always visible, not only on hover, so touch and keyboard users
-          can reach them. */}
-      <button
-        type="button"
-        onClick={run(onToggleSave)}
-        disabled={busy}
-        aria-pressed={saved}
-        aria-label={`Save ${album}`}
-        className={iconButton}
-      >
-        <Star
-          className={cn(
-            "h-[18px] w-[18px]",
-            saved ? "fill-primary text-primary" : "text-muted-foreground",
-          )}
-          aria-hidden="true"
-        />
-      </button>
-      <button
-        type="button"
-        onClick={run(onDelete)}
-        disabled={busy}
-        aria-label={`Delete ${album}`}
-        className={cn(
-          iconButton,
-          "text-muted-foreground hover:text-foreground",
-        )}
-      >
-        <Trash2 className="h-[18px] w-[18px]" aria-hidden="true" />
-      </button>
-    </li>
-  );
+/** The viewer's stacked/flat choice; stacked when unknown or unreadable. */
+const readView = (): SavedView => {
+  try {
+    return localStorage.getItem(VIEW_STORAGE_KEY) === "flat"
+      ? "flat"
+      : "stacked";
+  } catch {
+    return "stacked";
+  }
 };
 
+const writeView = (view: SavedView) => {
+  try {
+    localStorage.setItem(VIEW_STORAGE_KEY, view);
+  } catch {
+    // Blocked storage: the choice lasts until reload.
+  }
+};
+
+const VIEWS: { id: SavedView; label: string }[] = [
+  { id: "stacked", label: "Stacks" },
+  { id: "flat", label: "All" },
+];
+
 /**
- * Every search from this session, and the saved ones, as tabs. The chosen tab
- * is in the URL (?tab=saved) so "Back to library" returns to it.
+ * Every search: each one is kept as it finishes, until it's deleted. They
+ * group into stacks by lineage (or show flat), and can be searched.
  */
 export const LibraryPage: React.FC = () => {
-  const { searches, savedSearchIds, saveSearch, unsaveSearch, clearSearch } =
-    useCache();
-  const [params, setParams] = useSearchParams();
-  const tab = libraryTab(`?${params.toString()}`);
+  const {
+    searches,
+    savedSearchIds,
+    savedSearchesLoaded,
+    deleteSearch,
+    restoreSearch,
+  } = useCache();
+  const { toast } = useToast();
   const id = useId();
-  const tabRefs = useRef<Record<LibraryTab, HTMLButtonElement | null>>({
-    session: null,
-    saved: null,
-  });
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const [view, setView] = useState<SavedView>(readView);
+  const [query, setQuery] = useState("");
+  const [stackRequest, setStackRequest] = useState<{
+    stack: LibraryStack;
+    /** The focused card when asked, to keep focus nearby afterwards. */
+    index: number;
+  } | null>(null);
 
-  const all = recentSearches(searches, Number.POSITIVE_INFINITY);
-  const lists: Record<LibraryTab, SearchCache[]> = {
-    session: all.filter((s) => !savedSearchIds.has(s.searchId)),
-    saved: all.filter((s) => savedSearchIds.has(s.searchId)),
-  };
-  const items = lists[tab];
-
-  const selectTab = (next: LibraryTab, focus = false) => {
-    setParams(next === "saved" ? { tab: "saved" } : {}, { replace: true });
-    if (focus) tabRefs.current[next]?.focus();
-  };
-
-  const onTabKeyDown = (e: React.KeyboardEvent) => {
-    const index = TABS.findIndex((t) => t.id === tab);
-    const last = TABS.length - 1;
-    const next =
-      e.key === "ArrowRight"
-        ? (index + 1) % TABS.length
-        : e.key === "ArrowLeft"
-          ? (index + last) % TABS.length
-          : e.key === "Home"
-            ? 0
-            : e.key === "End"
-              ? last
-              : null;
-    if (next === null) return;
-    e.preventDefault();
-    selectTab(TABS[next].id, true);
-  };
-
-  const remove = async (searchId: string) => {
-    const links = [
-      ...(panelRef.current?.querySelectorAll<HTMLAnchorElement>(
-        "[data-library-open]",
-      ) ?? []),
-    ];
-    const index = links.findIndex((a) =>
-      a.closest("li")?.contains(document.activeElement),
-    );
-    try {
-      if (savedSearchIds.has(searchId)) await unsaveSearch(searchId);
-      clearSearch(searchId);
-    } catch (error) {
-      console.error("Failed to delete search:", error);
-      return;
+  const saved = useMemo(
+    () => recentSearches(searches, Number.POSITIVE_INFINITY),
+    [searches],
+  );
+  const searching = query.trim() !== "";
+  const found = useMemo(() => searchLibrary(saved, query), [saved, query]);
+  const entries = useMemo(() => groupStacks(saved), [saved]);
+  // Which stack (two or more searches) each search is in, for search results.
+  const stackNotes = useMemo(() => {
+    const notes = new Map<string, string>();
+    for (const entry of entries) {
+      if (entry.kind !== "stack") continue;
+      const label = `In ${stackLabel(entry)}`;
+      entry.members.forEach((m) => notes.set(m.searchId, label));
     }
-    // The deleted card is gone; move focus to the next one, or the tab.
+    return notes;
+  }, [entries]);
+
+  // Report a library search once typing pauses; the text isn't sent.
+  useEffect(() => {
+    if (!searching) return;
+    const timer = setTimeout(
+      () =>
+        track("library_searched", {
+          results: found.length,
+          length: query.trim().length,
+        }),
+      1000,
+    );
+    return () => clearTimeout(timer);
+  }, [searching, query, found.length]);
+
+  /** After a card goes, focus the next one, or the heading. */
+  const keepFocus = (index: number) =>
     requestAnimationFrame(() => {
       const left = panelRef.current?.querySelectorAll<HTMLAnchorElement>(
         "[data-library-open]",
       );
       const next = left?.[Math.min(Math.max(index, 0), left.length - 1)];
-      (next ?? tabRefs.current[tab])?.focus();
+      (next ?? headingRef.current)?.focus();
+    });
+
+  const focusedIndex = () =>
+    [
+      ...(panelRef.current?.querySelectorAll<HTMLAnchorElement>(
+        "[data-library-open]",
+      ) ?? []),
+    ].findIndex((a) => a.closest("li")?.contains(document.activeElement));
+
+  // Deleting one search needs no warning: the toast can undo it.
+  const remove = async (searchId: string) => {
+    const index = focusedIndex();
+    const search = searches[searchId];
+    try {
+      await deleteSearch(searchId);
+    } catch (error) {
+      console.error("Failed to delete search:", error);
+      return;
+    }
+    keepFocus(index);
+    if (!search) return;
+    toast({
+      title: "Search deleted",
+      description: `${search.searchParams.album} by ${search.searchParams.artist}`,
+      action: (
+        <ToastAction
+          altText="Undo delete"
+          onClick={() => void restoreSearch(search)}
+        >
+          Undo
+        </ToastAction>
+      ),
     });
   };
 
-  const toggleSave = async (searchId: string) => {
-    const saved = savedSearchIds.has(searchId);
-    await (saved ? unsaveSearch : saveSearch)(searchId);
-    track("search_saved", { saved: !saved, from: "library" });
+  // The search whose Stack drawer is open.
+  const [stacking, setStacking] = useState<SearchCache | null>(null);
+
+  const chooseView = (next: SavedView) => {
+    if (next === view) return;
+    setView(next);
+    writeView(next);
+    track("library_view_toggled", { view: next });
   };
+
+  // Searches in a stack get a Stack button (to take them out or move
+  // them); those on their own get one when they fit somewhere.
+  const canStack = (search: SearchCache) =>
+    isInStack(search, searches, savedSearchIds) ||
+    stacksThisFits(search, searches, savedSearchIds, { singles: true }).length >
+      0;
+
+  const card = (search: SearchCache, note?: string) => (
+    <LibraryCard
+      key={search.searchId}
+      search={search}
+      from={{ from: "library" }}
+      note={note}
+      onDelete={() => remove(search.searchId)}
+      onStack={canStack(search) ? () => setStacking(search) : undefined}
+    />
+  );
+
+  const grid =
+    "grid gap-2.5 md:grid-cols-2 md:gap-4 lg:grid-cols-[repeat(auto-fill,minmax(360px,1fr))]";
+
+  let body: React.ReactNode;
+  if (searching) {
+    body =
+      found.length > 0 ? (
+        <ul className={grid}>
+          {found.map((s) => card(s, stackNotes.get(s.searchId)))}
+        </ul>
+      ) : (
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          No searches match "{query.trim()}".
+        </p>
+      );
+  } else if (view === "stacked") {
+    body = saved.length > 0 && (
+      <ul className={grid}>
+        {entries.map((entry) =>
+          entry.kind === "stack" ? (
+            <StackCard
+              key={entry.stackId}
+              stack={entry}
+              onDisband={() =>
+                setStackRequest({ stack: entry, index: focusedIndex() })
+              }
+            />
+          ) : (
+            card(entry.search)
+          ),
+        )}
+      </ul>
+    );
+  } else {
+    body = saved.length > 0 && (
+      <ul className={grid}>
+        {saved.map((s) => card(s, stackNotes.get(s.searchId)))}
+      </ul>
+    );
+  }
+
+  const empty = saved.length === 0;
+  // Not "no searches yet" while the library is still loading.
+  if (!savedSearchesLoaded) return null;
 
   return (
     <div className="mx-auto w-full max-w-[1200px] px-4 pb-24 pt-8 md:px-6 md:pt-14">
-      <h1 className="font-display text-[30px] font-normal leading-none tracking-[0.3px] md:text-[56px] md:tracking-[0.5px]">
+      <h1
+        ref={headingRef}
+        tabIndex={-1}
+        className="font-display text-[30px] font-normal leading-none tracking-[0.3px] focus:outline-none md:text-[56px] md:tracking-[0.5px]"
+      >
         Library
       </h1>
 
-      <div
-        role="tablist"
-        aria-label="Library"
-        className="mt-5 flex gap-6 border-b md:mt-8"
-      >
-        {TABS.map((t) => {
-          const selected = t.id === tab;
-          return (
-            <button
-              key={t.id}
-              ref={(el) => (tabRefs.current[t.id] = el)}
-              type="button"
-              role="tab"
-              id={`${id}-tab-${t.id}`}
-              aria-selected={selected}
-              aria-controls={`${id}-panel`}
-              tabIndex={selected ? 0 : -1}
-              onClick={() => selectTab(t.id)}
-              onKeyDown={onTabKeyDown}
-              className={cn(
-                // The underline, not just the colour, marks the open tab.
-                "-mb-px flex h-11 items-center gap-2 border-b-2 text-[15px] font-medium transition-colors",
-                focusRing,
-                selected
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {t.label}
-              <span className="font-mono text-xs text-faint">
-                {lists[t.id].length}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      <div
-        ref={panelRef}
-        role="tabpanel"
-        id={`${id}-panel`}
-        aria-labelledby={`${id}-tab-${tab}`}
-        className="pt-5 md:pt-6"
-      >
-        {items.length > 0 ? (
-          <ul className="grid gap-2.5 md:grid-cols-2 md:gap-4 lg:grid-cols-[repeat(auto-fill,minmax(360px,1fr))]">
-            {items.map((search) => (
-              <LibraryCard
-                key={search.searchId}
-                search={search}
-                saved={savedSearchIds.has(search.searchId)}
-                tab={tab}
-                onToggleSave={() => toggleSave(search.searchId)}
-                onDelete={() => remove(search.searchId)}
+      <div ref={panelRef} className="pt-5 md:pt-8">
+        {!empty && (
+          <div className="mb-4 flex flex-col gap-3 md:mb-5 md:flex-row md:items-center md:justify-between">
+            <div className="relative md:w-[320px]">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint"
+                aria-hidden="true"
               />
-            ))}
-          </ul>
-        ) : (
+              <label htmlFor={`${id}-search`} className="sr-only">
+                Search your library
+              </label>
+              <input
+                id={`${id}-search`}
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search albums and artists"
+                autoComplete="off"
+                className={cn(
+                  "h-11 w-full rounded-lg border bg-surface pl-9 pr-3 text-[15px] text-foreground placeholder:text-faint md:text-sm",
+                  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring",
+                )}
+              />
+            </div>
+            {!searching && (
+              <div
+                role="radiogroup"
+                aria-label="Show searches as"
+                className="flex self-start rounded-lg border p-1"
+              >
+                {VIEWS.map((v) => (
+                  <button
+                    key={v.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={view === v.id}
+                    onClick={() => chooseView(v.id)}
+                    className={cn(
+                      "h-11 rounded-md px-4 text-sm font-medium transition-colors md:h-9",
+                      focusRing,
+                      view === v.id
+                        ? "bg-secondary text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {v.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {empty ? (
           <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed px-6 py-12 text-center">
-            <p className="text-base font-semibold">
-              {tab === "saved" ? "No saved searches" : "No searches yet"}
-            </p>
+            <p className="text-base font-semibold">No searches yet</p>
             <p className="max-w-md text-sm text-muted-foreground">
-              {tab === "saved"
-                ? "Star a search to keep it after you close the tab."
-                : "Searches you run show up here until you close the tab."}
+              Every search you run is kept here until you delete it.
             </p>
             <Link
               to={HOME_PATH}
@@ -281,8 +303,25 @@ export const LibraryPage: React.FC = () => {
               Start a search
             </Link>
           </div>
+        ) : (
+          body
         )}
       </div>
+
+      {stacking && (
+        <StackDrawer
+          search={searches[stacking.searchId] ?? stacking}
+          from="library"
+          open
+          onOpenChange={(open) => !open && setStacking(null)}
+        />
+      )}
+
+      <StackConfirm
+        stack={stackRequest?.stack ?? null}
+        onClose={() => setStackRequest(null)}
+        onDone={() => keepFocus(stackRequest?.index ?? 0)}
+      />
     </div>
   );
 };

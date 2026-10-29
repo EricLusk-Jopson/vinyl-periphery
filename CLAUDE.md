@@ -18,6 +18,31 @@ ranks albums by how many of those people worked on them.
   - `health.js`: `GET /api/health`.
   - `event.js`: `POST /api/event` validates analytics events and forwards
     them to the Google Sheet. See `docs/analytics.md`.
+  - `og.js`: `GET /api/og?p=…` renders a square share image (1080x1080)
+    (`@vercel/og`) from a payload in the URL (`backend/og/payload.js`;
+    built by `frontend/src/lib/share.ts`): a map, laid out by the client,
+    or a list of top results. For one search, both draw its top results
+    as filtered and sorted on the page, with a line saying how they were
+    chosen; the map groups people around the circle by role category
+    (`frontend/src/lib/albumMap.ts`). The share sheet can take albums out
+    or add any result; adding a hidden one switches its people on in the
+    filters (`frontend/src/lib/shareSelection.ts`). Two toggles: album
+    covers (off: titles and artists only) and, on that map, lines from
+    each person to their albums. Names there come first: covers move off
+    them. For a stack, the map is of album
+    overlap, not people (`frontend/src/lib/stackMap.ts`): the stack's
+    albums on a ring (a regular polygon with sides one step long, the
+    start at the top), and results at the average of the stack albums'
+    places, weighted by the people they share with each. A stack shares only as a map; its sheet
+    orders the results (sort, tiebreaker, likes first) and takes albums
+    out or adds them, with no filters to draw from. Typing "no
+    boilerplate" in the sheet's album search unlocks a switch that drops
+    the header and site so the graph fills the image (`nb`).
+    Never calls Discogs; only Cover
+    Art Archive images, with initials when they don't load. Fonts are
+    vendored in `backend/og/fonts` (SIL OFL).
+  - `share.js`: `/s?p=…&to=…` (rewritten to `/api/share`) serves Open Graph
+    tags for a shared link, then redirects to the app.
 - `backend/server.js`: Express server that mounts the same handlers, for
   local development (and Heroku until the move to Vercel is finished). In
   production mode it also serves `frontend/dist`.
@@ -26,21 +51,66 @@ ranks albums by how many of those people worked on them.
 - `frontend/`: React 18, TypeScript, Vite, Tailwind 3, shadcn/ui (Radix),
   TanStack Query.
   - `src/api/`: Discogs calls and the search pipeline (as mutations).
-  - `src/contexts/cache/`: search results, filter state, persistence
-    (sessionStorage and IndexedDB).
+    `releaseCredits.ts` reads what each person did on a result album, fetched
+    when its row is first opened (`useReleaseCredits`), queued 2.5s apart,
+    and kept in localStorage by `src/services/creditsCache.ts`. When the
+    credits don't name someone, the row falls back to how their own
+    discography lists the album (`EnrichedRelease.contributions`; older
+    searches have `appearances`, the first entry only). A master row reads
+    the versions its people are listed on (`versionTargets`).
+  - Album art: `src/api/musicbrainz.ts` maps Discogs URLs to MusicBrainz
+    ids in batches (about 1 request a second), `src/api/coverArt.ts` queues
+    them with rows on screen first, `src/services/coverCache.ts` keeps the
+    mappings (misses too) in their own IndexedDB database, and
+    `useCoverArt` gives rows Cover Art Archive URLs as they resolve. No
+    Discogs image calls.
+  - `src/contexts/cache/`: search results, filter state, persistence. Every
+    search goes into the library (IndexedDB, `src/services/db.ts`) as it
+    finishes and stays until deleted; filter changes are written as they
+    settle. There's no session store or Save button. (`savedSearchIds`
+    lists every search; the name is older than this.)
+  - `src/lib/lineage.ts`: how each search was reached (`SearchCache.lineage`).
+    Searches from a result row continue their parent's trail; everything
+    else is a root, so searching from a result row adds to that row's stack.
+    Stored as snapshots, never derived. Its `stackId` says which stack a
+    search is in; its steps are only a fallback for
+    placing it (see `stackLayout`).
   - `src/lib/transformers/`: role and name cleanup, with Jest tests.
     `roleCategories.ts` puts roles into the buckets the Roles filter groups
     by (Musicians, Writing, Audio, Physical media, Management, Other).
+  - `src/lib/releases.ts`: discography items to results. Each result has a
+    `type` and a `key` (`"master:N"` / `"release:N"`); `SearchCache.releases`
+    is keyed by `key`. Searches stored before keys existed are migrated as
+    they load (`migrateSearch`).
+  - Likes: a heart on each result row. A like belongs to the album (its
+    result key), so it shows in every search; kept in localStorage by
+    `src/services/likes.ts` (`useLikes`). Liked albums fill in the share
+    map.
   - `src/lib/filters.ts`: chip state, "must include" (`filterState.required`,
     optional because older saved searches lack it), active filter count.
+    "Only liked albums" is `filterState.likedOnly` (also optional).
   - `src/components/ui/`: shadcn primitives. Edit sparingly.
-  - Routes (React Router): `/` home, `/library` (`?tab=saved`), and
-    `/results?artist=…&album=…`. A results URL names the album, not a cached
+  - `src/lib/stacks.ts`: searches grouped by `lineage.stackId` (two or more
+    make a stack), the stack's root, and the stacks a search fits
+    (`stacksThisFits`: a member has it in its results; the Stack drawer
+    offers them, each with what links it by role category:
+    `src/lib/linkSummary.ts`). A stack is a graph (`stackLayout`): albums link
+    when one is in the other's results, and each member's step is its
+    fewest links from the root; members nothing links fall back to their
+    trail, with its deleted steps ghosted. No stack entity is stored.
+  - Routes (React Router): `/` home, `/library`,
+    `/library/stack/:stackId`, and
+    `/results?artist=…&album=…`, plus `&master=N` or `&release=N` when the
+    Discogs album is known. A results URL names the album, not a cached
     search, so it works on any device: without the search cached, the page
-    offers to run it. Old `/results/:searchId` links redirect. Route helpers
+    offers to run it. Each search has a `target` (`src/lib/searchTarget.ts`):
+    the first search result's master, or the clicked row's master or
+    release. Searches started from a row skip `/api/search`
+    (`src/api/searchTarget.ts`). Old `/results/:searchId` links redirect. Route helpers
     live in `src/lib/routes.ts`.
 - `docs/redesign/`: the current UI redesign. Read `DESIGN.md` before any UI
   work.
+- `features/`: proposals for features not built yet, one Markdown file each.
 
 ## Commands
 
@@ -82,7 +152,24 @@ switch both run from `main`, so keep `backend/server.js` and
 
 ## Known issues (not fixed yet)
 
-- Contributor discographies only read the first page of results.
-- Master and release IDs share one map key and can collide.
+- Contributor discographies are read 500 items a page, up to
+  `MAX_DISCOGRAPHY_PAGES` (4, so 2,000 items) per person. Discogs sorts them
+  by role group (Main, production credits, Appearance), then year, so the
+  few people past the cap lose their latest Appearance credits first
+  (`discographies_capped` on `search_completed` counts them).
+- In `/artists/{id}/releases`, release-type items carry no `master_id`
+  (none of 32 sampled from Keltner and Albini): they are releases with no
+  master (compilations, promos, singles; confirmed for 2429544, whose own
+  release record has no `master_id`, unlike releases that belong to one).
+  Albums with versions come as one master item, so duplicate versions are
+  rare. A release folds into a master only when the master's
+  `main_release` is that release.
+- An item's `main_release` is the release where that person has that role,
+  not the master's main release: the same master can appear several times
+  with different ones (In Utero: Producer 465796, Remix 4943830). Results
+  keep every entry per person (`EnrichedRelease.contributions`, each with
+  its version), and an opened master row reads credits from those versions,
+  up to `MAX_CREDIT_VERSIONS` (3). The result's own `mainRelease` is still
+  the first contributor's.
 - "Exclude main artist" matches the first word of the typed artist name.
 - Most Discogs calls go from the browser unauthenticated.

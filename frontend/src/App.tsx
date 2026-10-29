@@ -7,11 +7,14 @@ import {
   useNavigate,
 } from "react-router-dom";
 import "./styles/globals.css";
-import { SearchParams } from "./api/types";
+import { SearchParams, SearchTarget } from "./api/types";
 import { useCache } from "./contexts/cache/CacheContext";
 import { Header } from "./components/layout/Header";
 import { Footer } from "./components/layout/Footer";
 import { Home } from "./components/home/Home";
+import { StackPage } from "./components/library/StackPage";
+import { ChoiceDialog } from "./components/common/ChoiceDialog";
+import { dialogButton } from "./components/common/buttons";
 import { LibraryPage } from "./components/library/LibraryPage";
 import {
   LegacyResultsRedirect,
@@ -22,12 +25,13 @@ import { SearchProgress } from "./components/search/SearchProgress";
 import { SearchBanner } from "./components/search/SearchBanner";
 import { ToastAction } from "./components/ui/toast";
 import { useToast } from "./hooks/use-toast";
-import { SearchSource, useSearchRun } from "./hooks/useSearchRun";
+import { KnownAlbum, SearchSource, useSearchRun } from "./hooks/useSearchRun";
 import { useLingering } from "./hooks/useLingering";
 import { pageName, track } from "./lib/analytics";
 import {
   HOME_PATH,
   LIBRARY_PATH,
+  STACK_ROUTE,
   RESULTS_PATH,
   fromLocation,
   resultPath,
@@ -36,7 +40,7 @@ import {
 const EMPTY_SEARCH: SearchParams = { artist: "", album: "" };
 
 const App: React.FC = () => {
-  const { getActiveSearch, clearActiveSearch } = useCache();
+  const { getActiveSearch, clearActiveSearch, searches } = useCache();
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -50,6 +54,13 @@ const App: React.FC = () => {
     () => activeSearch?.searchParams ?? EMPTY_SEARCH,
   );
   const [focusHeroSearch, setFocusHeroSearch] = useState(false);
+  // A typed search that found an album already searched: open it, or run
+  // it again by id.
+  const [alreadySearched, setAlreadySearched] = useState<{
+    searchId: string;
+    params: SearchParams;
+    target: SearchTarget;
+  } | null>(null);
   // Counts searches that failed before the album was found; each one
   // jiggles the search button.
   const [failedAttempt, setFailedAttempt] = useState(0);
@@ -66,26 +77,26 @@ const App: React.FC = () => {
   watchingRef.current = progressExpanded;
 
   const openResult = useCallback(
-    (params: SearchParams) => {
+    (params: SearchParams, target: SearchTarget | null = null) => {
       const { pathname, search, state } = locationRef.current;
-      const to = resultPath(params);
+      const to = resultPath(params, target);
       // Already on this results page (run from a link): stay, keeping its
       // back link, rather than stacking a second history entry.
       if (pathname + search === to) {
         navigate(to, { replace: true, state });
         return;
       }
-      navigate(to, { state: fromLocation(pathname, search) });
+      navigate(to, { state: fromLocation(pathname) });
     },
     [navigate],
   );
 
   const { run, isSearching, start, cancel } = useSearchRun({
-    onComplete: (_searchId, params) => {
+    onComplete: (_searchId, params, target) => {
       // Open the results if the user is watching the search; otherwise say
       // they are ready and let them choose.
       if (watchingRef.current) {
-        openResult(params);
+        openResult(params, target);
         return;
       }
       toast({
@@ -94,7 +105,7 @@ const App: React.FC = () => {
         action: (
           <ToastAction
             altText="View results"
-            onClick={() => openResult(params)}
+            onClick={() => openResult(params, target)}
           >
             View results
           </ToastAction>
@@ -108,6 +119,9 @@ const App: React.FC = () => {
         description: `Discogs has nothing for ${params.album} by ${params.artist}. Check the spelling and try again.`,
         variant: "destructive",
       });
+    },
+    onAlreadySearched: (searchId, params, target) => {
+      setAlreadySearched({ searchId, params, target });
     },
     onError: (_error, phase) => {
       if (phase === "finding") setFailedAttempt((n) => n + 1);
@@ -158,14 +172,16 @@ const App: React.FC = () => {
   const handleSearch = (
     params: SearchParams,
     source: SearchSource = "form",
+    known?: KnownAlbum,
   ) => {
     setProgressExpanded(true);
-    void start(params, source);
+    void start(params, source, known);
   };
 
-  const searchFrom = (params: SearchParams) => {
+  // From a result row: exactly that album, by its Discogs id.
+  const searchFrom = (params: SearchParams, known: KnownAlbum) => {
     setFormValues(params);
-    handleSearch(params, "result");
+    handleSearch(params, "result", known);
   };
 
   // Progress appears once the album is found; until then the form shows the
@@ -228,13 +244,26 @@ const App: React.FC = () => {
           />
           <Route path={LIBRARY_PATH} element={<LibraryPage />} />
           <Route
+            path={STACK_ROUTE}
+            element={
+              <StackPage
+                onSearchStep={(params, known) => {
+                  setFormValues(params);
+                  handleSearch(params, "result", known);
+                }}
+                isSearching={isSearching}
+              />
+            }
+          />
+          <Route
             path={RESULTS_PATH}
             element={
               <ResultsPage
                 onSearchFrom={searchFrom}
-                onRunSearch={(params) => {
+                onRunSearch={(params, target) => {
                   setFormValues(params);
-                  handleSearch(params, "link");
+                  // A link naming the album by id runs exactly that album.
+                  handleSearch(params, "link", target ? { target } : undefined);
                 }}
                 isSearching={isSearching}
               />
@@ -249,6 +278,44 @@ const App: React.FC = () => {
         </Routes>
       </main>
       <Footer />
+      <ChoiceDialog
+        open={alreadySearched !== null}
+        onOpenChange={(open) => !open && setAlreadySearched(null)}
+        title="You've searched this album"
+        description={
+          alreadySearched &&
+          `${alreadySearched.params.album} by ${alreadySearched.params.artist} is already in your ${
+            searches[alreadySearched.searchId]?.savedAt ? "library" : "session"
+          }. Open it, or search again for fresh results.`
+        }
+      >
+        <button
+          type="button"
+          className={dialogButton.secondary}
+          onClick={() => {
+            if (!alreadySearched) return;
+            const { params, target } = alreadySearched;
+            setAlreadySearched(null);
+            // By id: no second text search.
+            handleSearch(params, "form", { target });
+          }}
+        >
+          Search again
+        </button>
+        <button
+          type="button"
+          className={dialogButton.primary}
+          onClick={() => {
+            if (!alreadySearched) return;
+            const existing = searches[alreadySearched.searchId];
+            setAlreadySearched(null);
+            track("search_jumped", { from: "form" });
+            if (existing) openResult(existing.searchParams, existing.target);
+          }}
+        >
+          Open your search
+        </button>
+      </ChoiceDialog>
     </div>
   );
 };

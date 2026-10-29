@@ -18,7 +18,21 @@ export type AnalyticsEvent =
   | "result_opened"
   | "discogs_opened"
   | "filter_changed"
-  | "search_saved";
+  | "result_credits"
+  | "cover_lookup"
+  | "stack_saved"
+  | "stack_opened"
+  | "search_unstacked"
+  | "stack_disbanded"
+  | "result_liked"
+  | "search_jumped"
+  | "library_view_toggled"
+  | "library_searched"
+  | "share_created"
+  | "share_completed"
+  | "chip_details"
+  | "results_searched"
+  | "result_picked";
 
 export type EventProperties = Record<string, string | number | boolean>;
 

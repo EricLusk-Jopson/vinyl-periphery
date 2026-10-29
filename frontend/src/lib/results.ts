@@ -1,4 +1,5 @@
-import { Contributor, EnrichedRelease } from "@/api/types";
+import { ReleaseCredits } from "@/api/releaseCredits";
+import { Appearance, Contributor, EnrichedRelease } from "@/api/types";
 import { SearchCache } from "@/contexts/cache/types";
 import { defaultContributorDisplayPipeline } from "./transformers/contributorProcessor";
 import { defaultRolePipeline } from "./transformers/roleProcessor";
@@ -10,18 +11,27 @@ export type ScoredRelease = EnrichedRelease & {
   activeContributors: number[];
 };
 
-export type SortKey = "shared" | "newest" | "oldest" | "artist";
+export type SortKey =
+  | "shared"
+  | "popular"
+  | "newest"
+  | "oldest"
+  | "artist"
+  | "artistDesc";
 
+/** `label` in the menu; `short` on the closed menus. */
 export const SORT_OPTIONS: { value: SortKey; label: string; short: string }[] =
   [
+    { value: "shared", label: "Most shared contributors", short: "Shared" },
     {
-      value: "shared",
-      label: "Most shared contributors",
-      short: "Most shared",
+      value: "popular",
+      label: "Most popular (Discogs want + have)",
+      short: "Popular",
     },
     { value: "newest", label: "Year, newest first", short: "Newest" },
     { value: "oldest", label: "Year, oldest first", short: "Oldest" },
-    { value: "artist", label: "Artist A to Z", short: "Artist A–Z" },
+    { value: "artist", label: "Artist A to Z", short: "A–Z" },
+    { value: "artistDesc", label: "Artist Z to A", short: "Z–A" },
   ];
 
 /** The release year as a number, or null when Discogs has none (0 or ""). */
@@ -32,38 +42,92 @@ export const releaseYear = (
   return Number.isFinite(n) && n > 0 ? n : null;
 };
 
-const byYear = (direction: 1 | -1) => (a: ScoredRelease, b: ScoredRelease) => {
-  const ya = releaseYear(a.year);
-  const yb = releaseYear(b.year);
-  // Releases without a year go last either way.
-  if (ya === null || yb === null)
-    return ya === null ? (yb === null ? 0 : 1) : -1;
-  return direction * (ya - yb);
+/**
+ * How popular a release is on Discogs: want + have, or null when the search
+ * didn't keep the counts.
+ */
+export const popularity = (release: EnrichedRelease): number | null =>
+  release.community ? release.community.want + release.community.have : null;
+
+/** A count in a few characters: 950, 1.2k, 12k, 3.4M. */
+export const compactCount = (n: number): string => {
+  const round = (x: number, unit: string) =>
+    `${x < 10 ? Math.floor(x * 10) / 10 : Math.floor(x)}${unit}`;
+  if (n >= 1_000_000) return round(n / 1_000_000, "M");
+  if (n >= 1_000) return round(n / 1_000, "k");
+  return String(n);
 };
 
+/** Whether any result in a search has Discogs counts to sort by. */
+export const hasPopularity = (releases: EnrichedRelease[]): boolean =>
+  releases.some((r) => r.community !== undefined);
+
+type Compare = (a: ScoredRelease, b: ScoredRelease) => number;
+
+/** Releases without a value go last either way. */
+const nullsLast =
+  (value: (r: ScoredRelease) => number | null, direction: 1 | -1): Compare =>
+  (a, b) => {
+    const va = value(a);
+    const vb = value(b);
+    if (va === null || vb === null)
+      return va === null ? (vb === null ? 0 : 1) : -1;
+    return direction * (va - vb);
+  };
+
+const byArtist: Compare = (a, b) =>
+  (a.artist ?? "").localeCompare(b.artist ?? "", undefined, {
+    sensitivity: "base",
+  });
+
+/** Each sort as a comparison; 0 is a tie. */
+const COMPARE: Record<SortKey, Compare> = {
+  // The shown count. (As the main sort, the ranking is used instead.)
+  shared: (a, b) =>
+    new Set(b.activeContributors).size - new Set(a.activeContributors).size,
+  // Most wanted and owned first.
+  popular: nullsLast(popularity, -1),
+  newest: nullsLast((r) => releaseYear(r.year), -1),
+  oldest: nullsLast((r) => releaseYear(r.year), 1),
+  artist: (a, b) => byArtist(a, b),
+  artistDesc: (a, b) => byArtist(b, a),
+};
+
+/** Two directions of the same thing can't break each other's ties. */
+const PAIRS: SortKey[][] = [
+  ["newest", "oldest"],
+  ["artist", "artistDesc"],
+];
+
 /**
- * Releases in the chosen order. "shared" keeps the incoming order, which is
- * the existing ranking (shared contributors, weighted by confidence). Ties
- * keep their ranking order, since Array.prototype.sort is stable.
+ * The sorts that can break ties in `sort`: the others, leaving out the
+ * other direction of the same thing (year, artist).
+ */
+export const tiebreakOptions = (sort: SortKey) =>
+  SORT_OPTIONS.filter(
+    (o) =>
+      o.value !== sort &&
+      !PAIRS.some((pair) => pair.includes(sort) && pair.includes(o.value)),
+  );
+
+/**
+ * Releases in the chosen order, ties broken by `then`. "shared" alone
+ * keeps the incoming order, which is the existing ranking (shared
+ * contributors, weighted by confidence); with a tiebreaker it sorts by the
+ * shared count, so albums sharing as many people are ordered by `then`.
+ * Remaining ties keep their ranking order, since Array.prototype.sort is
+ * stable.
  */
 export const sortReleases = (
   releases: ScoredRelease[],
   sort: SortKey,
+  then: SortKey | null = null,
 ): ScoredRelease[] => {
-  switch (sort) {
-    case "shared":
-      return releases;
-    case "newest":
-      return [...releases].sort(byYear(-1));
-    case "oldest":
-      return [...releases].sort(byYear(1));
-    case "artist":
-      return [...releases].sort((a, b) =>
-        (a.artist ?? "").localeCompare(b.artist ?? "", undefined, {
-          sensitivity: "base",
-        }),
-      );
-  }
+  const tiebreak = then && then !== sort ? COMPARE[then] : null;
+  if (sort === "shared" && !tiebreak) return releases;
+  return [...releases].sort(
+    (a, b) => COMPARE[sort](a, b) || (tiebreak ? tiebreak(a, b) : 0),
+  );
 };
 
 /**
@@ -112,6 +176,18 @@ export const sharedPeople = (
 };
 
 /**
+ * Whether "Hide <artist> releases" hides a release: its artist contains the
+ * first word of the searched artist (see Known issues in CLAUDE.md).
+ */
+export const isMainArtistRelease = (
+  search: Pick<SearchCache, "searchParams">,
+  release: Pick<EnrichedRelease, "artist">,
+): boolean =>
+  release.artist
+    .toLowerCase()
+    .includes(search.searchParams.artist.split(" ")[0].toLowerCase());
+
+/**
  * Filter state for "Reset filters": every contributor and role back on,
  * nothing required, the 2+ and Various Artists filters off. Hiding the searched artist's own
  * releases stays on, since those are rarely what anyone is after.
@@ -126,5 +202,91 @@ export const resetFilterState = (
   excludeMainArtist: true,
   collaborationsOnly: false,
   excludeVarious: false,
+  likedOnly: false,
   required: { contributors: [], roles: [] },
 });
+
+/**
+ * What a person did on a result album, once its credits are loaded. Roles
+ * only: which tracks they cover isn't shown.
+ */
+export type CreditOnResult =
+  | { status: "found"; roles: string }
+  /** Credited, but with no role given. */
+  | { status: "no-role" }
+  /** Not in the credits Discogs has for this release. */
+  | { status: "not-found" };
+
+/**
+ * What a person did on a result album read from one or more of its versions
+ * (`loaded`, the person's own versions first). Roles from every version
+ * that names them, as they load; anything less waits for all of them
+ * (`settled`).
+ */
+export type CreditAcrossVersions =
+  | CreditOnResult
+  /** Still loading, and nothing found yet. */
+  | { status: "pending" }
+  /** No version's credits could be loaded. */
+  | { status: "unavailable" };
+
+export const creditAcrossVersions = (
+  loaded: ReleaseCredits[],
+  settled: boolean,
+  personId: number,
+): CreditAcrossVersions => {
+  const roles = Array.from(
+    new Set(
+      loaded.flatMap((c) => (c.credits[personId] ?? []).map((r) => r.role)),
+    ),
+  );
+  if (roles.length > 0) return { status: "found", roles: roles.join(", ") };
+  if (!settled) return { status: "pending" };
+  if (loaded.some((c) => c.credits[personId])) return { status: "no-role" };
+  return loaded.length > 0
+    ? { status: "not-found" }
+    : { status: "unavailable" };
+};
+
+/** Why a result's credits couldn't be loaded, from the HTTP status. */
+export const creditsErrorMessage = (status: number | undefined): string => {
+  if (status === 429) return "Discogs is busy. Try again in a minute.";
+  if (status === 404) return "Discogs has no release to read credits from.";
+  if (status === 0) return "Couldn't reach Discogs. Check your connection.";
+  return "Couldn't load this album's credits.";
+};
+
+/** Discogs's coarse discography roles, in words. */
+const APPEARANCE_ROLES: Record<string, string> = {
+  Main: "Main artist",
+  UnofficialRelease: "Main artist (unofficial release)",
+  Appearance: "Appears on this album",
+  TrackAppearance: "Appears on some tracks",
+};
+
+/**
+ * How a contributor's discography lists a result, as a short line: "Appears
+ * on some tracks". Track details (`trackinfo`) aren't shown. A credit role
+ * ("Producer") goes through the same cleanup as other roles. Null when
+ * there's nothing to say.
+ */
+export const appearanceText = (
+  appearance: Appearance | undefined,
+): string | null => {
+  if (!appearance) return null;
+  const role =
+    APPEARANCE_ROLES[appearance.role] ??
+    defaultRolePipeline([appearance.role]).join(", ");
+  return role || null;
+};
+
+/**
+ * Every way a contributor's discography lists a result, in one line:
+ * "Producer, Remix". Null when there's nothing to say.
+ */
+export const contributionsText = (entries: Appearance[]): string | null => {
+  const texts = Array.from(
+    new Set(entries.map(appearanceText).filter((t): t is string => Boolean(t))),
+  );
+  return texts.length > 0 ? texts.join(", ") : null;
+};

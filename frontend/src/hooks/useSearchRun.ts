@@ -4,11 +4,21 @@ import {
   useListContributorReleases,
   useListReleaseContributors,
 } from "@/api/mutations";
-import { EnrichedRelease, SearchParams, SearchStage } from "@/api/types";
+import {
+  EnrichedRelease,
+  ReleaseToRead,
+  SearchParams,
+  SearchStage,
+  SearchTarget,
+} from "@/api/types";
+import { targetReleases } from "@/api/searchTarget";
 import { isAbortError, throwIfAborted } from "@/api/abort";
 import { MAX_RELEASES } from "@/api/limits";
 import { useCache } from "@/contexts/cache/CacheContext";
-import { coverUrl } from "@/lib/searches";
+import { coverUrl, usableImageUrl } from "@/lib/searches";
+import { targetFromSearchResult } from "@/lib/searchTarget";
+import { SearchOrigin } from "@/lib/lineage";
+import { SearchLineage } from "@/contexts/cache/types";
 import { preloadImage } from "@/lib/preloadImage";
 import { joinWithin, secondsSince, track } from "@/lib/analytics";
 import { uncategorizedRoles } from "@/lib/transformers/roleCategories";
@@ -47,10 +57,37 @@ export interface SearchRun {
 /** Where a search was started: the form, a result row, or a results link. */
 export type SearchSource = "form" | "result" | "link";
 
+/**
+ * A search for a known album, started from a result row: skips the text
+ * search and reads that album's own releases.
+ */
+export interface KnownAlbum {
+  target: SearchTarget;
+  /** The row's cover, if it had one. */
+  thumb?: string;
+  /** The search and row it was started from, for lineage. */
+  from?: SearchOrigin;
+  /** A known place in a trail, e.g. a ghosted stack step searched again. */
+  lineage?: SearchLineage;
+}
+
 interface SearchRunOptions {
-  onComplete: (searchId: string, params: SearchParams) => void;
+  onComplete: (
+    searchId: string,
+    params: SearchParams,
+    target: SearchTarget | null,
+  ) => void;
   /** The album search found nothing. */
   onNotFound: (params: SearchParams) => void;
+  /**
+   * A typed search found an album already in the library. Stopped before reading credits, so the user can open it or
+   * search again.
+   */
+  onAlreadySearched: (
+    searchId: string,
+    params: SearchParams,
+    target: SearchTarget,
+  ) => void;
   /** `phase` says whether it failed before or after the album was found. */
   onError: (error: unknown, phase: SearchRun["phase"]) => void;
 }
@@ -63,9 +100,12 @@ interface SearchRunOptions {
 export const useSearchRun = ({
   onComplete,
   onNotFound,
+  onAlreadySearched,
   onError,
 }: SearchRunOptions) => {
-  const { addSearch } = useCache();
+  const { addSearch, searches } = useCache();
+  const searchesRef = useRef(searches);
+  searchesRef.current = searches;
   const searchMutation = useDiscogsSearch();
   const contributorsMutation = useListReleaseContributors();
   const releasesMutation = useListContributorReleases();
@@ -74,13 +114,27 @@ export const useSearchRun = ({
   const controllerRef = useRef<AbortController | null>(null);
 
   // Keep the latest callbacks without restarting anything.
-  const callbacksRef = useRef({ onComplete, onNotFound, onError });
-  callbacksRef.current = { onComplete, onNotFound, onError };
+  const callbacksRef = useRef({
+    onComplete,
+    onNotFound,
+    onAlreadySearched,
+    onError,
+  });
+  callbacksRef.current = {
+    onComplete,
+    onNotFound,
+    onAlreadySearched,
+    onError,
+  };
 
   useEffect(() => () => controllerRef.current?.abort(), []);
 
   const start = useCallback(
-    async (params: SearchParams, source: SearchSource = "form") => {
+    async (
+      params: SearchParams,
+      source: SearchSource = "form",
+      known?: KnownAlbum,
+    ) => {
       if (controllerRef.current) return;
       const controller = new AbortController();
       const { signal } = controller;
@@ -88,12 +142,25 @@ export const useSearchRun = ({
 
       const startedAt = Date.now();
       const searched = { artist: params.artist, album: params.album };
-      track("search_started", { ...searched, source });
+      track("search_started", {
+        ...searched,
+        source,
+        by_id: Boolean(known),
+      });
 
       const update = (changes: Partial<SearchRun>) =>
         setRun((prev) => (prev ? { ...prev, ...changes } : prev));
       const onProgress = (stage: SearchStage) => update({ stage });
-      const onContributorChecked = (name: string, releases: number) =>
+      // Discography calls made, and people the page cap stopped short.
+      let discographyCalls = 0;
+      let cappedContributors = 0;
+      const onContributorChecked = (
+        name: string,
+        releases: number,
+        read?: { pages: number; capped: boolean },
+      ) => {
+        discographyCalls += read?.pages ?? 1;
+        if (read?.capped) cappedContributors++;
         setRun((prev) =>
           prev
             ? {
@@ -105,6 +172,7 @@ export const useSearchRun = ({
               }
             : prev,
         );
+      };
 
       let phase: SearchRun["phase"] = "finding";
       setRun({
@@ -119,26 +187,56 @@ export const useSearchRun = ({
       });
 
       try {
-        const searchResults = await searchMutation.mutateAsync({
-          params,
-          callbacks: { onProgress },
-          signal,
-        });
-        if (!searchResults || searchResults.length === 0) {
-          track("search_not_found", {
-            ...searched,
-            seconds: secondsSince(startedAt),
+        let releasesToRead: ReleaseToRead[];
+        let thumb: string;
+        let target: SearchTarget | null;
+        if (known) {
+          // The album is known: read its own releases, no text search.
+          target = known.target;
+          releasesToRead = await targetReleases(
+            known.target,
+            { onProgress },
+            signal,
+          );
+          thumb = usableImageUrl(known.thumb);
+        } else {
+          const searchResults = await searchMutation.mutateAsync({
+            params,
+            callbacks: { onProgress },
+            signal,
           });
-          callbacksRef.current.onNotFound(params);
-          return;
+          if (!searchResults || searchResults.length === 0) {
+            track("search_not_found", {
+              ...searched,
+              seconds: secondsSince(startedAt),
+            });
+            callbacksRef.current.onNotFound(params);
+            return;
+          }
+          target = targetFromSearchResult(searchResults[0]);
+          // Already searched this album: offer it instead of a new root.
+          const existing =
+            target &&
+            Object.values(searchesRef.current).find(
+              (s) => s.target?.key === target!.key,
+            );
+          if (existing && target) {
+            callbacksRef.current.onAlreadySearched(
+              existing.searchId,
+              params,
+              target,
+            );
+            return;
+          }
+          releasesToRead = searchResults;
+          thumb = coverUrl(searchResults[0]);
         }
 
         // Load the cover before progress appears, so it doesn't pop in.
-        const thumb = coverUrl(searchResults[0]);
         await preloadImage(thumb, COVER_WAIT_MS, signal);
         throwIfAborted(signal);
 
-        const matches = Math.min(MAX_RELEASES, searchResults.length);
+        const matches = Math.min(MAX_RELEASES, releasesToRead.length);
         phase = "running";
         update({
           phase,
@@ -154,7 +252,7 @@ export const useSearchRun = ({
         });
 
         const contributorSet = await contributorsMutation.mutateAsync({
-          releases: searchResults,
+          releases: releasesToRead,
           maxReleases: MAX_RELEASES,
           callbacks: { onProgress },
           signal,
@@ -171,20 +269,23 @@ export const useSearchRun = ({
 
         // Convert Map to Record before adding to cache
         const releasesRecord = Object.fromEntries(
-          Array.from(releasesMap.entries()).map(([id, release]) => [
-            id,
+          Array.from(releasesMap.entries()).map(([key, release]) => [
+            key,
             {
               ...release,
               contributorIds: Array.from(release.contributorIds),
             },
           ]),
-        ) as Record<number, EnrichedRelease>;
+        ) as Record<string, EnrichedRelease>;
 
         const searchId = addSearch(
           params,
           contributorSet,
           releasesRecord,
           thumb,
+          target,
+          known?.from,
+          known?.lineage,
         );
         // Roles the category table doesn't know yet, so it can grow.
         const allRoles = Object.values(contributorSet.contributors).flatMap(
@@ -196,12 +297,14 @@ export const useSearchRun = ({
           seconds: secondsSince(startedAt),
           releases_read: matches,
           contributors: Object.keys(contributorSet.contributors).length,
+          discography_calls: discographyCalls,
+          discographies_capped: cappedContributors,
           albums: releasesMap.size,
           roles: new Set(allRoles).size,
           roles_uncategorized_count: unknownRoles.length,
           roles_uncategorized: joinWithin(unknownRoles),
         });
-        callbacksRef.current.onComplete(searchId, params);
+        callbacksRef.current.onComplete(searchId, params, target);
       } catch (error) {
         const timing = { ...searched, phase, seconds: secondsSince(startedAt) };
         if (isAbortError(error)) {
@@ -219,7 +322,12 @@ export const useSearchRun = ({
         setRun(null);
       }
     },
-    [addSearch, searchMutation, contributorsMutation, releasesMutation],
+    [
+      addSearch,
+      searchMutation,
+      contributorsMutation,
+      releasesMutation,
+    ],
   );
 
   const cancel = useCallback(() => controllerRef.current?.abort(), []);

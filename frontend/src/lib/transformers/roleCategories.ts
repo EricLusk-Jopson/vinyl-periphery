@@ -4,7 +4,8 @@
  *
  * Loosely follows the groups on Discogs's credits list
  * (https://www.discogs.com/help/creditslist): Instruments, Vocals and
- * Conducting are "musicians"; Production, Technical and Remix are "audio";
+ * Conducting are "musicians"; Production, Technical and Remix are "audio",
+ * except lacquer cutting, which makes the record and so is "physical";
  * Visual is "physical"; Management, Companies and Crew are "management".
  * Roles nothing here matches fall into "other", and those are reported with
  * `search_completed` (`roles_uncategorized`) so the patterns can grow.
@@ -121,10 +122,6 @@ const PATTERNS: [RoleCategory, RegExp][] = [
       "mastering",
       "remastered",
       "remastering",
-      "lacquer",
-      "cut",
-      "cutting",
-      "dmm",
       "recorded",
       "recording",
       "remix",
@@ -151,6 +148,11 @@ const PATTERNS: [RoleCategory, RegExp][] = [
   [
     "physical",
     words([
+      // Cutting the lacquer (or DMM copper) makes the physical record.
+      "lacquer",
+      "cut",
+      "cutting",
+      "dmm",
       "photography",
       "photographer",
       "photo",

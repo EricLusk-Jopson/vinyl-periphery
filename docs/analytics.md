@@ -81,16 +81,30 @@ To test locally, put both Vinyl Periphery variables in `.env` and run
 | Event | When | Properties |
 |---|---|---|
 | `page_view` | Every route change, including the first load | `page`: home, library, results |
-| `search_started` | A search begins | `artist`, `album`, `source`: form or result |
-| `search_completed` | Results are stored | `artist`, `album`, `seconds`, `releases_read`, `contributors`, `albums`, `roles` (distinct roles), `roles_uncategorized_count`, `roles_uncategorized` (see below) |
+| `search_started` | A search begins | `artist`, `album`, `source`: form, result or link; `by_id`: true when the album was known by Discogs id (a result row, or a link with `&master=` / `&release=`) and the text search was skipped |
+| `search_completed` | Results are stored | `artist`, `album`, `seconds`, `releases_read`, `contributors`, `albums`, `roles` (distinct roles), `roles_uncategorized_count`, `roles_uncategorized` (see below), `discography_calls` (pages read across contributors), `discographies_capped` (contributors with more than `MAX_DISCOGRAPHY_PAGES` pages) |
 | `search_not_found` | Discogs has no match | `artist`, `album`, `seconds` |
 | `search_failed` | An error stops the search | `artist`, `album`, `phase`, `seconds`, `error` |
 | `search_cancelled` | The user cancels, or leaves mid-search | `artist`, `album`, `phase`, `seconds` |
 | `example_filled` | An example search fills the form | `artist`, `album` |
-| `result_opened` | A result row is expanded | `rank`, `shared`, `sort` |
-| `discogs_opened` | "View on Discogs" is followed | `rank`, `shared`, `sort` |
-| `filter_changed` | Any filter, switch, select-all or reset | `filter`, `on`; `category` for `role_category`. `filter` is one of `hide_main_artist`, `two_plus_shared`, `hide_various`, `contributor`, `role`, `all_contributors`, `all_roles`, `role_category`, `must_include_contributor`, `must_include_role`, `reset` |
-| `search_saved` | A search is saved or unsaved | `saved`, `from`: results or library |
+| `result_opened` | A result row is expanded | `rank`, `shared`, `sort`; `then` when a tiebreaker is chosen (desktop) |
+| `discogs_opened` | "View on Discogs" is followed | `rank`, `shared`, `sort`; `then` when a tiebreaker is chosen (desktop) |
+| `result_liked` | A result's heart is tapped: liked or unliked (likes belong to the album, in every search) | `liked`, `rank`, `shared`, `sort`; `then` when a tiebreaker is chosen (desktop) |
+| `filter_changed` | Any filter, switch, select-all or reset | `filter`, `on`; `category` for `role_category`. `filter` is one of `hide_main_artist`, `two_plus_shared`, `hide_various`, `contributor`, `role`, `all_contributors`, `all_roles`, `role_category`, `must_include_contributor`, `must_include_role`, `liked_only`, `reset` |
+| `result_credits` | An opened result's credits are fetched from Discogs (not when read from storage), once per row when every version it reads has loaded or failed | `outcome`: loaded (any version) or failed (none), `shared` (people linking it), `versions` (releases read: 1, or up to 3 for an album with several versions); when loaded, `found` (of the people, how many some version's credits name) and `hinted` (of the rest, how many have a discography role to show instead); when any failed, `failed` (how many) and `status` (HTTP status of the first, 0 offline) |
+| `cover_lookup` | Every result in a search has art or is known to have none (once per search per page load) | `albums`, `hits` (art found, from storage or MusicBrainz), `misses` (no MusicBrainz link, or the lookup failed) |
+| `stack_saved` | A search is switched to a stack it fits, or to a new stack after a search on its own, with Switch in the Stack drawer | `members` (searches in the stack afterwards), `depth` (along its trail), `from`: results or library, `joined`: true, `new_stack`: true when it starts a stack, `moved`: true when it left another stack |
+| `stack_opened` | A stack's page is opened | `members`, `ghosts` (deleted steps shown) |
+| `stack_disbanded` | A stack is destacked (Destack, on its card or page) after confirming: its searches stay, each on its own | `members` |
+| `search_unstacked` | A search is taken out of its stack with Destack in the Stack drawer (results page, library card or stack page); it stays in the library, on its own | `from`: results or library, `members` (searches left in the stack), `depth` (its step in the stack) |
+| `search_jumped` | An existing search is opened instead of running a new one | `from`: result (a result row) or form (the search bar) |
+| `library_view_toggled` | The library switches between stacked and flat | `view`: stacked or flat |
+| `library_searched` | The library search is used (once typing pauses) | `results`, `length` (characters typed; the text isn't sent) |
+| `share_created` | Share or Download is pressed and the image is made | `layout`: map or card; `stack` (shared from a stack page); `albums` (how many results it draws), `removed` and `added` (albums taken out of or added to the image in the share sheet); `bare`: true when the title and watermark were switched off |
+| `share_completed` | The share sheet finished or the image downloaded | `layout`, `method`: share or download (link: from before Copy link was removed) |
+| `chip_details` | A contributor or role chip's details open (who did what) | `kind`: contributor or role, `via`: hover (a mouse resting a second), hold (a press held a second) or key (context menu key, Shift+F10 or right click) |
+| `results_searched` | The results search (Find an album) is used, once typing pauses | `results` (albums listed), `hidden` (of those, how many the filters hide), `length` (characters typed; the text isn't sent) |
+| `result_picked` | An album is picked in the results search and put on top | `filtered`: true when the filters hid it and were reset to show it (after confirming) |
 
 ## Uncategorized roles
 

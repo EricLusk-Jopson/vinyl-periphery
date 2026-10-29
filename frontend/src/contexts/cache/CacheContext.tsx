@@ -10,17 +10,60 @@ import {
   Contributor,
   ContributorSet,
   SearchParams,
+  SearchTarget,
   EnrichedRelease,
 } from "../../api/types";
 import { db } from "@/services/db";
-import { CacheContextValue, CacheState, SearchCache } from "./types";
+import {
+  CacheContextValue,
+  CacheState,
+  SaveOptions,
+  SearchCache,
+  SearchLineage,
+} from "./types";
 import { calculateReleaseScore } from "@/api/contributorSet";
-import { sameSearchIds } from "@/lib/searches";
-import { meetsRequired, reconcileRequired } from "@/lib/filters";
+import { matchingSearchIds } from "@/lib/searchTarget";
+import { migrateSearch } from "@/lib/releases";
+import { isMainArtistRelease } from "@/lib/results";
+import { useLikes } from "@/hooks/useLikes";
+import {
+  detachedLineage,
+  lineageForNewSearch,
+  lineageOf,
+  SearchOrigin,
+} from "@/lib/lineage";
+import { coverResolver } from "@/api/coverArt";
+import {
+  enforceRequired,
+  isContributorCounted,
+  meetsRequired,
+} from "@/lib/filters";
 
 const CacheContext = createContext<CacheContextValue | null>(null);
 
-const SESSION_STORAGE_KEY = "vinyl-periphery-cache";
+/**
+ * Where earlier versions kept searches that weren't saved. Read once, moved
+ * into the library (IndexedDB), and removed: every search is kept now.
+ */
+const OLD_SESSION_KEY = "vinyl-periphery-cache";
+
+/** Searches an earlier version left in sessionStorage, then forgets them. */
+const takeOldSessionSearches = (): SearchCache[] => {
+  try {
+    const raw = sessionStorage.getItem(OLD_SESSION_KEY);
+    if (!raw) return [];
+    sessionStorage.removeItem(OLD_SESSION_KEY);
+    const parsed = JSON.parse(raw);
+    return Object.values(
+      (parsed?.searches ?? {}) as Record<string, SearchCache>,
+    ).map(migrateSearch);
+  } catch {
+    return [];
+  }
+};
+
+/** How long filter changes wait before they're written to the library. */
+const FILTER_SAVE_DELAY_MS = 400;
 // Kept apart from the cache so its shape doesn't change. localStorage, so a
 // bookmarked link to a replaced saved search still finds the newer one.
 const REPLACED_STORAGE_KEY = "vinyl-periphery-replaced";
@@ -36,28 +79,13 @@ const readReplaced = (): Record<string, string> => {
 export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  // Initialize state from session storage or with defaults
-  const [state, setState] = React.useState<CacheState>(() => {
-    // Try to load from session storage first
-    const sessionData = sessionStorage.getItem(SESSION_STORAGE_KEY);
-    if (sessionData) {
-      try {
-        const parsed = JSON.parse(sessionData);
-        return {
-          ...parsed,
-          savedSearchIds: new Set(parsed.savedSearchIds || []),
-        };
-      } catch (e) {
-        console.error("Failed to parse stored cache:", e);
-      }
-    }
-
-    return {
-      searches: {},
-      activeSearchId: null,
-      savedSearchIds: new Set(),
-    };
-  });
+  // Every search lives in the library (IndexedDB) and loads from there.
+  // `savedSearchIds` lists them all: there are no unsaved searches.
+  const [state, setState] = React.useState<CacheState>(() => ({
+    searches: {},
+    activeSearchId: null,
+    savedSearchIds: new Set(),
+  }));
 
   // True once saved searches have been read from IndexedDB, so a saved
   // result opened by URL isn't shown as missing while it loads.
@@ -76,16 +104,26 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  // Load saved searches from IndexedDB on mount
+  // Load the library from IndexedDB on mount, after moving in any searches
+  // an earlier version left in sessionStorage.
   useEffect(() => {
     const loadSavedSearches = async () => {
       try {
-        const saved = await db.getAllSavedSearches();
+        const old = takeOldSessionSearches();
+        const stored = await db.getAllSavedSearches();
+        const known = new Set(stored.map((s) => s.searchId));
+        const moved = old
+          .filter((s) => !known.has(s.searchId))
+          .map((s) => ({ ...s, savedAt: s.savedAt ?? Date.now() }));
+        for (const search of moved) await db.saveSearch(search);
+        const saved = [...stored, ...moved];
         setState((prev) => ({
           ...prev,
           searches: {
             ...prev.searches,
-            ...Object.fromEntries(saved.map((s) => [s.searchId, s])),
+            ...Object.fromEntries(
+              saved.map((s) => [s.searchId, migrateSearch(s)]),
+            ),
           },
           savedSearchIds: new Set([
             ...prev.savedSearchIds,
@@ -116,21 +154,15 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
     }));
   }, []);
 
-  // Sync to session storage whenever state changes
-  useEffect(() => {
-    const toStore = {
-      ...state,
-      savedSearchIds: Array.from(state.savedSearchIds),
-    };
-    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(toStore));
-  }, [state]);
-
   const addSearch = useCallback(
     (
       params: SearchParams,
       contributorSet: ContributorSet,
-      releases: Record<number, EnrichedRelease>,
-      thumb: string
+      releases: Record<string, EnrichedRelease>,
+      thumb: string,
+      target?: SearchTarget | null,
+      origin?: SearchOrigin,
+      lineageOverride?: SearchLineage
     ): string => {
       const searchId = `${params.artist}-${params.album}-${Date.now()}`;
 
@@ -163,21 +195,40 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
         required: { contributors: [], roles: [] },
       };
 
-      // A repeat run of the same album replaces the earlier result rather
-      // than sitting beside it, and stays saved if the earlier one was.
-      const replaced = sameSearchIds(stateRef.current.searches, params);
-      const wasSaved = replaced.some((id) =>
-        stateRef.current.savedSearchIds.has(id)
+      // A repeat run of the same album (same target, or same typed text for
+      // searches from before targets) replaces the earlier result rather
+      // than sitting beside it.
+      const replaced = matchingSearchIds(
+        stateRef.current.searches,
+        params,
+        target
       );
+      // A repeat run keeps the trail it was on; a search from a result row
+      // continues its parent's; anything else starts one.
+      const parent = origin
+        ? stateRef.current.searches[origin.parentSearchId]
+        : undefined;
+      const lineage = lineageOverride ?? lineageForNewSearch({
+        searchId,
+        replaced: replaced.map((id) => stateRef.current.searches[id]),
+        parent,
+        origin,
+        parentThumb:
+          parent?.thumb ||
+          (parent?.target && coverResolver.get(parent.target.key)) ||
+          "",
+      });
       const newSearch: SearchCache = {
         searchId,
         searchParams: params,
+        ...(target ? { target } : {}),
         contributors,
         roles,
         releases,
         filterState,
         thumb,
-        ...(wasSaved ? { savedAt: Date.now() } : {}),
+        lineage,
+        savedAt: Date.now(),
       };
 
       setState((prev) => {
@@ -188,7 +239,7 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
           savedSearchIds.delete(id);
         });
         searches[searchId] = newSearch;
-        if (wasSaved) savedSearchIds.add(searchId);
+        savedSearchIds.add(searchId);
         return {
           searches,
           activeSearchId: replaced.includes(prev.activeSearchId ?? "")
@@ -208,20 +259,16 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
           replaced.forEach((id) => (next[id] = searchId));
           return next;
         });
-        // Keep IndexedDB in step: drop the old saved copies, save the new.
-        void (async () => {
-          try {
-            for (const id of replaced) {
-              if (stateRef.current.savedSearchIds.has(id)) {
-                await db.deleteSavedSearch(id);
-              }
-            }
-            if (wasSaved) await db.saveSearch(newSearch);
-          } catch (error) {
-            console.error("Failed to update saved searches:", error);
-          }
-        })();
       }
+      // Into the library: every search is kept, replacing any earlier run.
+      void (async () => {
+        try {
+          for (const id of replaced) await db.deleteSavedSearch(id);
+          await db.saveSearch(newSearch);
+        } catch (error) {
+          console.error("Failed to keep the search:", error);
+        }
+      })();
 
       return searchId;
     },
@@ -229,12 +276,20 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const saveSearch = useCallback(
-    async (searchId: string) => {
-      const search = state.searches[searchId];
+    async (searchId: string, options: SaveOptions = {}) => {
+      const search = stateRef.current.searches[searchId];
       if (!search) return;
 
       try {
-        const savedSearch = { ...search, savedAt: Date.now() };
+        // "Save on its own" (or out of its stack) starts a trail of its own,
+        // so it never regroups; joining another stack replaces it.
+        const savedSearch: SearchCache = {
+          ...search,
+          lineage: options.withoutLineage
+            ? detachedLineage(searchId)
+            : (options.lineage ?? search.lineage),
+          savedAt: Date.now(),
+        };
         await db.saveSearch(savedSearch);
         setState((prev) => ({
           ...prev,
@@ -249,41 +304,46 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
         throw error;
       }
     },
-    [state.searches]
+    []
   );
 
-  const unsaveSearch = useCallback(async (searchId: string) => {
-    try {
-      await db.deleteSavedSearch(searchId);
-      setState((prev) => {
-        const newSavedIds = new Set(prev.savedSearchIds);
-        newSavedIds.delete(searchId);
-
-        // Keep the search in memory but remove savedAt
-        const { ...searchWithoutSaved } = prev.searches[searchId];
-
-        return {
-          ...prev,
-          searches: {
-            ...prev.searches,
-            [searchId]: searchWithoutSaved,
-          },
-          savedSearchIds: newSavedIds,
-        };
+  /**
+   * Breaks a stack up: every saved search in it stays saved, each on a trail
+   * of its own. Returns how many.
+   */
+  const disbandStack = useCallback(async (stackId: string) => {
+    const members = Object.values(stateRef.current.searches).filter(
+      (s) =>
+        stateRef.current.savedSearchIds.has(s.searchId) &&
+        lineageOf(s).stackId === stackId
+    );
+    const loose = members.map((s) => ({
+      ...s,
+      lineage: detachedLineage(s.searchId),
+    }));
+    for (const search of loose) await db.saveSearch(search);
+    setState((prev) => {
+      const searches = { ...prev.searches };
+      loose.forEach((s) => {
+        searches[s.searchId] = s;
       });
-    } catch (error) {
-      console.error("Failed to unsave search:", error);
-      throw error;
-    }
+      return { ...prev, searches };
+    });
+    return loose.length;
   }, []);
 
-  const isSearchSaved = useCallback(
-    (searchId: string) => {
-      return state.savedSearchIds.has(searchId);
-    },
-    [state.savedSearchIds]
-  );
+  /** Puts a deleted search back (undo). */
+  const restoreSearch = useCallback(async (search: SearchCache) => {
+    await db.saveSearch(search);
+    setState((prev) => ({
+      ...prev,
+      searches: { ...prev.searches, [search.searchId]: search },
+      savedSearchIds: new Set([...prev.savedSearchIds, search.searchId]),
+    }));
+  }, []);
 
+  // Filter changes are written to the library once they settle.
+  const filterSaves = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const updateFilterState = useCallback(
     (searchId: string, updates: Partial<SearchCache["filterState"]>) => {
       setState((prev) => ({
@@ -292,13 +352,25 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
           ...prev.searches,
           [searchId]: {
             ...prev.searches[searchId],
-            filterState: reconcileRequired({
+            filterState: enforceRequired(prev.searches[searchId], {
               ...prev.searches[searchId].filterState,
               ...updates,
             }),
           },
         },
       }));
+      clearTimeout(filterSaves.current.get(searchId));
+      filterSaves.current.set(
+        searchId,
+        setTimeout(() => {
+          filterSaves.current.delete(searchId);
+          const search = stateRef.current.searches[searchId];
+          if (!search) return;
+          db.saveSearch(search).catch((error) =>
+            console.error("Failed to keep the filters:", error)
+          );
+        }, FILTER_SAVE_DELAY_MS)
+      );
     },
     []
   );
@@ -308,75 +380,23 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
     return state.searches[state.activeSearchId] || null;
   }, [state.activeSearchId, state.searches]);
 
-  const clearSearch = useCallback((searchId: string) => {
+  /** Deletes a search from the library. */
+  const deleteSearch = useCallback(async (searchId: string) => {
+    clearTimeout(filterSaves.current.get(searchId));
+    filterSaves.current.delete(searchId);
+    await db.deleteSavedSearch(searchId);
     setState((prev) => {
-      const { ...remaining } = prev.searches;
-      delete remaining[searchId];
-
-      // Create new savedSearchIds set without the cleared search
-      const newSavedSearchIds = new Set(prev.savedSearchIds);
-      newSavedSearchIds.delete(searchId);
-
+      const searches = { ...prev.searches };
+      delete searches[searchId];
+      const savedSearchIds = new Set(prev.savedSearchIds);
+      savedSearchIds.delete(searchId);
       return {
-        searches: remaining,
+        searches,
         activeSearchId:
           prev.activeSearchId === searchId ? null : prev.activeSearchId,
-        savedSearchIds: newSavedSearchIds,
+        savedSearchIds,
       };
     });
-  }, []);
-
-  const clearSessionHistory = useCallback(() => {
-    setState((prev) => {
-      // Keep only saved searches
-      const savedSearches = Object.entries(prev.searches)
-        .filter(([id]) => prev.savedSearchIds.has(id))
-        .reduce(
-          (acc, [id, search]) => ({
-            ...acc,
-            [id]: search,
-          }),
-          {}
-        );
-
-      return {
-        searches: savedSearches,
-        activeSearchId: prev.savedSearchIds.has(prev.activeSearchId || "")
-          ? prev.activeSearchId
-          : null,
-        savedSearchIds: prev.savedSearchIds,
-      };
-    });
-  }, []);
-
-  const clearSavedSearches = useCallback(async () => {
-    try {
-      await db.clearAll();
-
-      setState((prev) => {
-        // Keep only non-saved searches
-        const sessionSearches = Object.entries(prev.searches)
-          .filter(([id]) => !prev.savedSearchIds.has(id))
-          .reduce(
-            (acc, [id, search]) => ({
-              ...acc,
-              [id]: search,
-            }),
-            {}
-          );
-
-        return {
-          searches: sessionSearches,
-          activeSearchId: prev.savedSearchIds.has(prev.activeSearchId || "")
-            ? null
-            : prev.activeSearchId,
-          savedSearchIds: new Set(),
-        };
-      });
-    } catch (error) {
-      console.error("Failed to clear saved searches:", error);
-      throw error;
-    }
   }, []);
 
   const value: CacheContextValue = {
@@ -387,13 +407,11 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
     clearActiveSearch,
     addSearch,
     saveSearch,
-    unsaveSearch,
-    isSearchSaved,
+    disbandStack,
+    restoreSearch,
     updateFilterState,
     getActiveSearch,
-    clearSearch,
-    clearSessionHistory,
-    clearSavedSearches,
+    deleteSearch,
   };
 
   return (
@@ -488,16 +506,8 @@ export const useSearchFilters = (searchId: string) => {
   const isContributorActive = useCallback(
     (contributorId: number): boolean => {
       if (!search) return false;
-
-      const isContributorIncluded =
-        search.filterState.contributors[contributorId];
-      if (!isContributorIncluded) return false;
-
-      const contributor = search.contributors[contributorId];
-      if (!contributor) return false;
-
-      // Check if any of the contributor's roles are active
-      return contributor.roles.some((role) => search.filterState.roles[role]);
+      // Switched on, and required or with a role on.
+      return isContributorCounted(search, contributorId);
     },
     [search]
   );
@@ -516,7 +526,10 @@ export const useSearchFilters = (searchId: string) => {
       const contributor = search.contributors[contributorId];
       if (!contributor) return true;
 
-      // A contributor is disabled only if all their roles are inactive
+      // A contributor is disabled only if all their roles are inactive,
+      // unless they're required
+      if (search.filterState.required?.contributors.includes(contributorId))
+        return false;
       return !contributor.roles.some((role) => search.filterState.roles[role]);
     },
     [search]
@@ -573,6 +586,13 @@ export const useSearchFilters = (searchId: string) => {
     });
   }, [search, searchId, updateFilterState]);
 
+  const toggleLikedOnly = useCallback(() => {
+    if (!search) return;
+    updateFilterState(searchId, {
+      likedOnly: !search.filterState.likedOnly,
+    });
+  }, [search, searchId, updateFilterState]);
+
   return {
     toggleContributor,
     toggleRole,
@@ -588,6 +608,7 @@ export const useSearchFilters = (searchId: string) => {
     toggleExcludeMainArtist,
     toggleCollaborationsOnly,
     toggleExcludeVarious,
+    toggleLikedOnly,
     filterState: search?.filterState,
   };
 };
@@ -597,6 +618,8 @@ export const useFilteredAndScoredReleases = (searchId: string) => {
   const { searches } = useCache();
   const { isContributorActive } = useSearchFilters(searchId);
   const search = searches[searchId];
+  // Likes are kept outside the cache; "Only liked" reads them.
+  const likes = useLikes();
 
   return useMemo(() => {
     if (!search) return { releases: [], count: 0 };
@@ -628,19 +651,18 @@ export const useFilteredAndScoredReleases = (searchId: string) => {
         }
 
         // Apply exclude main artist filter
-        if (search.filterState.excludeMainArtist) {
-          // Assuming the first word in the search params is the main artist
-          const searchArtist = search.searchParams.artist
-            .split(" ")[0]
-            .toLowerCase();
-          if (release.artist.toLowerCase().includes(searchArtist)) {
-            return null;
-          }
+        if (
+          search.filterState.excludeMainArtist &&
+          isMainArtistRelease(search, release)
+        ) {
+          return null;
         }
 
         if (search.filterState.excludeVarious && release.artist === "Various") {
           return null;
         }
+
+        if (search.filterState.likedOnly && !likes[release.key]) return null;
 
         const { score, confidence } = calculateReleaseScore(
           { ...release, contributorIds: uniqueContributorIds },
@@ -666,5 +688,5 @@ export const useFilteredAndScoredReleases = (searchId: string) => {
       releases: processedReleases,
       count: processedReleases.length,
     };
-  }, [search, isContributorActive]);
+  }, [search, isContributorActive, likes]);
 };

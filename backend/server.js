@@ -7,6 +7,8 @@ import { fileURLToPath } from "url";
 import searchHandler from "./handlers/search.js";
 import healthHandler from "./handlers/health.js";
 import eventHandler from "./handlers/event.js";
+import ogHandler from "./handlers/og.js";
+import shareHandler from "./handlers/share.js";
 
 dotenv.config();
 
@@ -25,6 +27,9 @@ const route = (handler) => (req, res, next) =>
 app.all(["/health", "/api/health"], route(healthHandler));
 app.all("/api/search", route(searchHandler));
 app.all("/api/event", route(eventHandler));
+app.all("/api/og", route(ogHandler));
+// Shared links: Open Graph tags for crawlers, then on to the app.
+app.all(["/s", "/api/share"], route(shareHandler));
 
 // Anything else under /api is a JSON 404, not the app's HTML.
 app.all("/api/*", (req, res) => res.status(404).json({ error: "Not found" }));

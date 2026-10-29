@@ -1,18 +1,18 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { ChevronRight, Star } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { LIBRARY_PATH, ResultFrom, resultPath } from "@/lib/routes";
 import { recentSearches } from "@/lib/searches";
-import { AlbumCover } from "../search/AlbumCover";
+import { SearchCover } from "../search/SearchCover";
 
 const RECENT_LIMIT = 3;
 
 const FROM_HOME: ResultFrom = { from: "home" };
 
-/** The last few searches from this session and the saved library. */
+/** The last few searches in the library. */
 export const RecentSearches: React.FC = () => {
-  const { searches, isSearchSaved } = useCache();
+  const { searches } = useCache();
   const recent = recentSearches(searches, RECENT_LIMIT);
 
   if (recent.length === 0) return null;
@@ -42,21 +42,17 @@ export const RecentSearches: React.FC = () => {
         {recent.map((search) => {
           const { artist, album } = search.searchParams;
           const albumCount = Object.keys(search.releases).length;
-          const saved = isSearchSaved(search.searchId);
-          const meta = `${albumCount} ${albumCount === 1 ? "album" : "albums"}${
-            saved ? " · saved" : ""
-          }`;
+          const meta = `${albumCount} ${albumCount === 1 ? "album" : "albums"}`;
 
           return (
             <li key={search.searchId} className="min-w-0">
               <Link
-                to={resultPath(search.searchParams)}
+                to={resultPath(search.searchParams, search.target)}
                 state={FROM_HOME}
                 className="flex w-full items-center gap-3 rounded-[10px] border bg-surface p-2.5 text-left transition-colors hover:border-border-strong hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring md:gap-4 md:p-3.5"
               >
-                <AlbumCover
-                  src={search.thumb}
-                  title={album}
+                <SearchCover
+                  search={search}
                   className="h-12 w-12 rounded-[3px] text-xs md:h-16 md:w-16 md:rounded md:text-sm"
                 />
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5 md:gap-1">
@@ -71,12 +67,6 @@ export const RecentSearches: React.FC = () => {
                     {meta}
                   </span>
                 </span>
-                {saved && (
-                  <Star
-                    className="hidden h-[18px] w-[18px] shrink-0 fill-primary text-primary md:block"
-                    aria-hidden="true"
-                  />
-                )}
                 <ChevronRight
                   className="h-[18px] w-[18px] shrink-0 text-faint md:hidden"
                   aria-hidden="true"

@@ -30,10 +30,10 @@ ranks albums by how many of those people worked on them.
     covers (off: titles and artists only) and, on that map, lines from
     each person to their albums. Names there come first: covers move off
     them. For a stack, the map is of album
-    overlap, not people (`frontend/src/lib/stackMap.ts`): its start in
-    the middle, each step one unit from the album it came from, and
-    results at the average of the stack albums' places, weighted by the
-    people they share with each. A stack shares only as a map; its sheet
+    overlap, not people (`frontend/src/lib/stackMap.ts`): the stack's
+    albums on a ring (a regular polygon with sides one step long, the
+    start at the top), and results at the average of the stack albums'
+    places, weighted by the people they share with each. A stack shares only as a map; its sheet
     orders the results (sort, tiebreaker, likes first) and takes albums
     out or adds them, with no filters to draw from. Typing "no
     boilerplate" in the sheet's album search unlocks a switch that drops

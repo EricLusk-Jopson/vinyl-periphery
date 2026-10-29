@@ -68,18 +68,30 @@ describe("layoutStackMap", () => {
   const nodes = layoutStackMap(centre, all, levels, {}, keys);
   const byKey = (key: string) => nodes.find((n) => n.key === key)!;
 
-  it("puts each step a unit further out, near the album it came from", () => {
-    expect(nodes[0]).toMatchObject({ key: "master:1", x: 0, y: 0 });
-    expect(distance(byKey("master:2"))).toBeCloseTo(1);
-    expect(distance(byKey("master:3"))).toBeCloseTo(1);
-    // One unit from the album it came from, and further out than it.
-    expect(distance(byKey("master:4"), byKey("master:2"))).toBeCloseTo(1);
-    expect(distance(byKey("master:4"))).toBeGreaterThan(1);
-    // Step 2 hangs off album 2, not album 3.
-    expect(distance(byKey("master:4"), byKey("master:2"))).toBeLessThan(
-      distance(byKey("master:4"), byKey("master:3")),
-    );
+  it("puts the stack's albums on a ring, sides one step long", () => {
+    // Four albums: a square, the start at the top, then clockwise in the
+    // order walked (1, 2, 4 from 2, then 3).
+    const ring = ["master:1", "master:2", "master:4", "master:3"].map(byKey);
+    const middle = {
+      x: ring.reduce((s, n) => s + n.x, 0) / 4,
+      y: ring.reduce((s, n) => s + n.y, 0) / 4,
+    };
+    for (let k = 0; k < 4; k++) {
+      expect(distance(ring[k], ring[(k + 1) % 4])).toBeCloseTo(1);
+      expect(distance(ring[k], middle)).toBeCloseTo(Math.SQRT1_2);
+    }
+    expect(byKey("master:1").y).toBeGreaterThan(middle.y);
+    // Album 4 still links to the album it came from.
     expect(byKey("master:4").links).toEqual([nodes.indexOf(byKey("master:2"))]);
+  });
+
+  it("makes a line of two and a triangle of three", () => {
+    const pair = layoutStackMap(centre, [root, two], levels, {}, []);
+    expect(distance(pair[0], pair[1])).toBeCloseTo(1);
+    const trio = layoutStackMap(centre, [root, two, three], levels, {}, []);
+    expect(distance(trio[0], trio[1])).toBeCloseTo(1);
+    expect(distance(trio[1], trio[2])).toBeCloseTo(1);
+    expect(distance(trio[2], trio[0])).toBeCloseTo(1);
   });
 
   it("places results by the stack albums they share people with", () => {

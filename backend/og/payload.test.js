@@ -140,6 +140,9 @@ test("decodes a stack map, remapping links past untitled nodes", () => {
   assert.deepEqual(payload.albums[1].links, [0, 1]);
   assert.equal(payload.covers, false);
   assert.equal(payload.lines, true);
+  assert.equal(payload.bare, false);
+  const bare = decodePayload(encodePayload({ v: 1, l: "stack", c: { t: "x" }, n: [{ t: "A" }], nb: 1 }));
+  assert.equal(bare.bare, true);
 });
 
 test("rejects missing, oversized, malformed and empty payloads", () => {

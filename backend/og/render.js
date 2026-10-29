@@ -528,8 +528,10 @@ const CAPTION_CHARS = 86;
 /** How many lines a map's caption takes: one or two. */
 const captionLines = (text) => (!text ? 0 : text.length > CAPTION_CHARS ? 2 : 1);
 
-/** The box the graph is drawn in, under a map's header. */
+/** The box the graph is drawn in, under a map's header (or all of it). */
 const mapBox = (payload, size) => {
+  // No boilerplate: the graph has the whole image (its edge still applies).
+  if (payload.bare) return { top: 8, width: size.width, height: size.height - 16 };
   const header = 118 + (captionLines(payload.caption) ? 6 + 24 * captionLines(payload.caption) : 0);
   const top = MAP_FRAME.pad + header + MAP_FRAME.gap;
   return {
@@ -689,8 +691,8 @@ export function mapElement(payload, size, art) {
       ),
       placed(covers[0], tile(centre, artOf(centre), Math.round(covers[0].w))),
     ),
-    mapHeader("Connections around", payload, size),
-    mapFooter(size),
+    !payload.bare && mapHeader("Connections around", payload, size),
+    !payload.bare && mapFooter(size),
   );
 }
 
@@ -788,8 +790,8 @@ export function stackElement(payload, size, art) {
         .map(({ node, b }) => placed(b, tile(node, artOf(node), Math.round(b.w)))),
       placed(boxes[0], tile(centre, artOf(centre), Math.round(boxes[0].w))),
     ),
-    mapHeader("Stacked from", payload, size),
-    mapFooter(size),
+    !payload.bare && mapHeader("Stacked from", payload, size),
+    !payload.bare && mapFooter(size),
   );
 }
 

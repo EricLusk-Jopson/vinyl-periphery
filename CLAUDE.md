@@ -33,7 +33,11 @@ ranks albums by how many of those people worked on them.
     overlap, not people (`frontend/src/lib/stackMap.ts`): its start in
     the middle, each step one unit from the album it came from, and
     results at the average of the stack albums' places, weighted by the
-    people they share with each.
+    people they share with each. A stack shares only as a map; its sheet
+    orders the results (sort, tiebreaker, likes first) and takes albums
+    out or adds them, with no filters to draw from. Typing "no
+    boilerplate" in the sheet's album search unlocks a switch that drops
+    the header and site so the graph fills the image (`nb`).
     Never calls Discogs; only Cover
     Art Archive images, with initials when they don't load. Fonts are
     vendored in `backend/og/fonts` (SIL OFL).

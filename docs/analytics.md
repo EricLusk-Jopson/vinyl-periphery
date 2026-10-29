@@ -100,7 +100,7 @@ To test locally, put both Vinyl Periphery variables in `.env` and run
 | `search_jumped` | An existing search is opened instead of running a new one | `from`: result (a result row) or form (the search bar) |
 | `library_view_toggled` | The library switches between stacked and flat | `view`: stacked or flat |
 | `library_searched` | The library search is used (once typing pauses) | `results`, `length` (characters typed; the text isn't sent) |
-| `share_created` | Share or Download is pressed and the image is made | `layout`: map or card; `albums` (how many it draws), `removed` and `added` (albums taken out of or added to the image in the share sheet) when shared from one search |
+| `share_created` | Share or Download is pressed and the image is made | `layout`: map or card; `stack` (shared from a stack page); `albums` (how many results it draws), `removed` and `added` (albums taken out of or added to the image in the share sheet); `bare`: true when the title and watermark were switched off |
 | `share_completed` | The share sheet finished, the image downloaded, or the link was copied | `layout`, `method`: share, download or link |
 | `chip_details` | A contributor or role chip's details open (who did what) | `kind`: contributor or role, `via`: hover (a mouse resting a second), hold (a press held a second) or key (context menu key, Shift+F10 or right click) |
 | `results_searched` | The results search (Find an album) is used, once typing pauses | `results` (albums listed), `hidden` (of those, how many the filters hide), `length` (characters typed; the text isn't sent) |

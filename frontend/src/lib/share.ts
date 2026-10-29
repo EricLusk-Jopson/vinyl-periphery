@@ -76,6 +76,8 @@ export type SharePayload =
       p: Array<{ n: string; a: number }>;
       d?: string;
       nc?: 1;
+      /** No boilerplate: no header, caption or site; a bigger graph. */
+      nb?: 1;
       /** Lines from each person to their albums (`l`). */
       ln?: 1;
     }
@@ -88,6 +90,7 @@ export type SharePayload =
       n: ShareStackNode[];
       d?: string;
       nc?: 1;
+      nb?: 1;
       /** Lines between linked albums (`e`). */
       ln?: 1;
     };
@@ -276,9 +279,21 @@ export interface ShareView {
   covers: boolean;
   /** Lines from each person to their albums (maps that have them). */
   lines: boolean;
+  /**
+   * The header, caption and site on the maps; off, the graph fills the
+   * image. Offered once unlocked (see `NO_BOILERPLATE`).
+   */
+  boilerplate: boolean;
 }
 
-export const DEFAULT_VIEW: ShareView = { covers: true, lines: false };
+export const DEFAULT_VIEW: ShareView = {
+  covers: true,
+  lines: false,
+  boilerplate: true,
+};
+
+/** Typed into the share sheet's album search, it unlocks `boilerplate`. */
+export const NO_BOILERPLATE = "no boilerplate";
 
 /** Whether a payload has anything to draw lines from. */
 export const canDrawLines = (payload: SharePayload): boolean =>
@@ -294,10 +309,12 @@ export const withView = (
   const covers = view.covers ? {} : { nc: 1 as const };
   if (payload.l === "card") return { ...payload, ...covers };
   const lines = view.lines && canDrawLines(payload);
+  const bare = view.boilerplate ? {} : { nb: 1 as const };
   if (payload.l === "stack") {
     return {
       ...payload,
       ...covers,
+      ...bare,
       ...(lines ? { ln: 1 as const } : {}),
       n: payload.n.map(({ e, ...node }) =>
         lines && e ? { ...node, e } : node,
@@ -307,6 +324,7 @@ export const withView = (
   return {
     ...payload,
     ...covers,
+    ...bare,
     ...(lines ? { ln: 1 as const } : {}),
     n: payload.n.map(({ l, ...album }) =>
       lines && l ? { ...album, l } : album,
@@ -360,12 +378,22 @@ export const stackMapPayload = (
 };
 
 /** What a stack map shows, in a line: "4 albums stacked · 12 around them". */
-export const stackCaption = (nodes: StackNode[]): string => {
+export const stackCaption = (
+  nodes: StackNode[],
+  order?: { sort: SortKey; then: SortKey | null; likesFirst: boolean },
+  edits?: string,
+): string => {
   const stacked = nodes.filter((n) => n.member).length;
   const around = nodes.length - stacked;
+  const by =
+    order && around > 0
+      ? `, by ${sortName(order.sort)}${order.then ? `, then ${sortName(order.then)}` : ""}`
+      : "";
   return [
     `${stacked} ${stacked === 1 ? "album" : "albums"} stacked`,
-    around > 0 ? `${around} around them` : "",
+    around > 0 ? `${around} around them${by}` : "",
+    order?.likesFirst && around > 0 ? "Likes first" : "",
+    edits ?? "",
   ]
     .filter(Boolean)
     .join(" · ");

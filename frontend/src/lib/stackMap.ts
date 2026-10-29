@@ -6,10 +6,11 @@ import { popularity, ScoredRelease, SortKey, sortReleases } from "./results";
 /**
  * The share map for a stack: a graph of album overlap, not of people.
  *
- * - The stack's start is in the middle. Each step out is one unit: a
- *   member sits one unit from the album it came from, members of the same
- *   parent fanning out from it (each branch gets a wedge of the circle as
- *   wide as its number of leaves, and points into its wedge).
+ * - The stack's albums form a ring: the corners of a regular polygon
+ *   with sides one step long (two albums make a line, three a triangle,
+ *   four a square...). The start is at the top; the rest follow
+ *   clockwise in the order the stack was walked, so each album sits
+ *   beside the one it came from where it can.
  * - Then results from the members' searches fill in. A result sits at the
  *   average of the stack albums' places, each weighted by how many people
  *   the result shares with that album, so it lands nearest the albums it
@@ -113,32 +114,24 @@ const placeMembers = (
     all.push(node);
   }
 
-  // Wedges as wide as each branch's leaves; the start's begins at the top.
-  const leaves = (t: TreeNode): number =>
-    t.children.length === 0 ? 1 : t.children.reduce((s, c) => s + leaves(c), 0);
-  const angle = new Map<TreeNode, number>();
-  const spread = (t: TreeNode, from: number, to: number) => {
-    let at = from;
-    const total = leaves(t);
-    for (const child of t.children) {
-      const width = ((to - from) * leaves(child)) / total;
-      angle.set(child, at + width / 2);
-      spread(child, at, at + width);
-      at += width;
-    }
+  // A ring: the stack's albums at the corners of a regular polygon with
+  // sides one step long (two make a line, three a triangle...), the start
+  // at the top and the rest clockwise in the order the stack was walked,
+  // so an album sits beside the one it came from where it can.
+  const ring: TreeNode[] = [];
+  const walk = (t: TreeNode) => {
+    ring.push(t);
+    t.children.forEach(walk);
   };
-  spread(root, Math.PI / 2, Math.PI / 2 + 2 * Math.PI);
-
-  // One unit from the album it came from, in its wedge's direction
-  // (parents come first in `all`, so they're placed before children).
-  const at = new Map<TreeNode, { x: number; y: number }>([
-    [root, { x: 0, y: 0 }],
-  ]);
-  for (const t of all.slice(1)) {
-    const from = at.get(t.parent!)!;
-    const a = angle.get(t) ?? 0;
-    at.set(t, { x: from.x + Math.cos(a), y: from.y + Math.sin(a) });
-  }
+  walk(root);
+  const n = ring.length;
+  const radius = n > 1 ? 1 / (2 * Math.sin(Math.PI / n)) : 0;
+  const at = new Map<TreeNode, { x: number; y: number }>(
+    ring.map((t, k) => {
+      const a = Math.PI / 2 - (2 * Math.PI * k) / n;
+      return [t, { x: radius * Math.cos(a), y: radius * Math.sin(a) }];
+    }),
+  );
   return all.map((t) => ({
     key: t.key,
     search: t.search,
@@ -392,7 +385,11 @@ export const layoutStackMap = (
       const k = fanned.get(index) ?? 0;
       fanned.set(index, k + 1);
       const node = placed[index];
-      const outward = index === 0 ? -Math.PI / 2 : Math.atan2(node.y, node.x);
+      // Away from the ring's middle (down, for a stack of one).
+      const outward =
+        Math.hypot(node.x, node.y) < 1e-9
+          ? -Math.PI / 2
+          : Math.atan2(node.y, node.x);
       // 0, +1, -1, +2, -2... steps of 50° around the outward direction.
       const turn = (k % 2 === 0 ? -1 : 1) * Math.ceil(k / 2) * (Math.PI / 3.6);
       const reach =

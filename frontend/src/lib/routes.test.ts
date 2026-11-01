@@ -89,12 +89,23 @@ describe("backLink", () => {
     expect(backLink({ from: "library", tab: "saved" }).to).toBe("/library");
   });
 
-  it("goes home otherwise, including with no or odd state", () => {
-    const home = { to: "/", label: "Back to home" };
-    expect(backLink({ from: "home" })).toEqual(home);
-    expect(backLink(null)).toEqual(home);
-    expect(backLink(undefined)).toEqual(home);
-    expect(backLink("junk")).toEqual(home);
+  it("goes to the library otherwise, including with no or odd state", () => {
+    const library = { to: "/library", label: "Back to library" };
+    expect(backLink({ from: "home" })).toEqual(library);
+    expect(backLink(null)).toEqual(library);
+    expect(backLink(undefined)).toEqual(library);
+    expect(backLink("junk")).toEqual(library);
+  });
+
+  it("goes to the search's stack when it wasn't opened from one", () => {
+    const stack = { to: "/library/stack/s%201", label: "Back to stack" };
+    expect(backLink({ from: "home" }, "s 1")).toEqual(stack);
+    expect(backLink(null, "s 1")).toEqual(stack);
+    // Opened from the library or another stack: back there.
+    expect(backLink({ from: "library" }, "s 1").to).toBe("/library");
+    expect(backLink({ from: "stack", stackId: "s 2" }, "s 1").to).toBe(
+      "/library/stack/s%202",
+    );
   });
 });
 
@@ -124,18 +135,18 @@ describe("stack routes", () => {
     });
   });
 
-  it("puts the Albums tab in the query and leaves Results bare", () => {
-    expect(stackPath(stackId, "results")).toBe(stackPath(stackId));
-    const albums = stackPath(stackId, "albums");
-    expect(albums).toBe(
-      "/library/stack/Volcano%20Choir-Unmap-1700000000000?view=albums",
+  it("puts the Results tab in the query and leaves Albums bare", () => {
+    expect(stackPath(stackId, "albums")).toBe(stackPath(stackId));
+    const results = stackPath(stackId, "results");
+    expect(results).toBe(
+      "/library/stack/Volcano%20Choir-Unmap-1700000000000?view=results",
     );
-    expect(fromLocation(albums)).toEqual({ from: "stack", stackId });
+    expect(fromLocation(results)).toEqual({ from: "stack", stackId });
   });
 
-  it("reads the tab from the query, defaulting to Results", () => {
-    expect(stackView("?view=albums")).toBe("albums");
-    expect(stackView("")).toBe("results");
-    expect(stackView("?view=other")).toBe("results");
+  it("reads the tab from the query, defaulting to Albums", () => {
+    expect(stackView("?view=results")).toBe("results");
+    expect(stackView("")).toBe("albums");
+    expect(stackView("?view=other")).toBe("albums");
   });
 });

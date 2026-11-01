@@ -7,6 +7,7 @@ import {
   creditAcrossVersions,
   creditsErrorMessage,
   resetFilterState,
+  defaultRoleStates,
   sharedPeople,
   sortReleases,
   isMainArtistRelease,
@@ -204,6 +205,32 @@ describe("sharedPeople", () => {
   });
 });
 
+describe("defaultRoleStates", () => {
+  it("switches on musicians and uncategorized roles only", () => {
+    expect(
+      defaultRoleStates([
+        "Drums",
+        "Lead Vocals",
+        "Written-By",
+        "Producer",
+        "Mastered By",
+        "Photography By [Cover]",
+        "Management",
+        "Compiled By",
+      ]),
+    ).toEqual({
+      Drums: true,
+      "Lead Vocals": true,
+      "Written-By": false,
+      Producer: false,
+      "Mastered By": false,
+      "Photography By [Cover]": false,
+      Management: false,
+      "Compiled By": true,
+    });
+  });
+});
+
 describe("isMainArtistRelease", () => {
   // Black Midi (id 10, the searched album's artist) and a session player.
   const search = {
@@ -290,14 +317,25 @@ describe("isMainArtistRelease", () => {
 });
 
 describe("resetFilterState", () => {
-  it("turns everything back on except hiding the searched artist", () => {
+  it("turns every contributor on and the roles back to their defaults", () => {
     const search = {
       contributors: { 1: {}, 2: {} },
-      roles: { Engineer: false, Vocals: true },
+      roles: {
+        Engineer: true,
+        Vocals: false,
+        "Liner Notes": true,
+        Compiled: true,
+      },
     } as unknown as SearchCache;
     expect(resetFilterState(search)).toEqual({
       contributors: { 1: true, 2: true },
-      roles: { Engineer: true, Vocals: true },
+      // Musicians and Other on; audio, physical media and the rest off.
+      roles: {
+        Engineer: false,
+        Vocals: true,
+        "Liner Notes": false,
+        Compiled: true,
+      },
       excludeMainArtist: true,
       collaborationsOnly: false,
       excludeVarious: false,

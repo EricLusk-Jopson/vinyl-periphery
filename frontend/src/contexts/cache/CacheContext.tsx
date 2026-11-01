@@ -24,7 +24,7 @@ import {
 import { calculateReleaseScore } from "@/api/contributorSet";
 import { matchingSearchIds } from "@/lib/searchTarget";
 import { migrateSearch } from "@/lib/releases";
-import { isMainArtistRelease } from "@/lib/results";
+import { defaultRoleStates, isMainArtistRelease } from "@/lib/results";
 import { useLikes } from "@/hooks/useLikes";
 import {
   detachedLineage,
@@ -179,16 +179,13 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       );
 
-      // Initialize filter state with all contributors and roles included
+      // Every contributor on; only the default roles (musicians, other).
       const filterState = {
         contributors: Object.keys(contributors).reduce((acc, id) => {
           acc[Number(id)] = true;
           return acc;
         }, {} as Record<number, boolean>),
-        roles: Object.keys(roles).reduce((acc, role) => {
-          acc[role] = true;
-          return acc;
-        }, {} as Record<string, boolean>),
+        roles: defaultRoleStates(Object.keys(roles)),
         excludeMainArtist: true,
         collaborationsOnly: true,
         excludeVarious: false,

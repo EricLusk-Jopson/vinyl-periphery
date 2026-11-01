@@ -341,6 +341,7 @@ describe("resetFilterState", () => {
       collaborationsOnly: false,
       excludeVarious: false,
       likedOnly: false,
+      showHidden: false,
       required: { contributors: [], roles: [] },
     });
   });

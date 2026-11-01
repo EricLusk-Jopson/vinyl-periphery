@@ -64,6 +64,11 @@ export interface SearchCache {
      */
     likedOnly?: boolean;
     /**
+     * Show albums the user has hidden (dimmed, to show them again).
+     * Missing on older searches: off.
+     */
+    showHidden?: boolean;
+    /**
      * "Must include": every result has each of these contributors, and for
      * each role, a contributor who had it on the searched album. Missing on
      * searches saved before it existed.

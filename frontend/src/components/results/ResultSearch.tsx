@@ -5,6 +5,7 @@ import { track } from "@/lib/analytics";
 import { filtersToShow, ResultMatch, searchResults } from "@/lib/resultSearch";
 import { resetFilterState } from "@/lib/results";
 import { cn } from "@/lib/utils";
+import { useHidden } from "@/hooks/useHidden";
 import { ChoiceDialog } from "../common/ChoiceDialog";
 import { dialogButton } from "../common/buttons";
 
@@ -44,9 +45,17 @@ export const ResultSearch: React.FC<ResultSearchProps> = ({
   const [pinnedFilters, setPinnedFilters] = useState(false);
   const [confirming, setConfirming] = useState<ResultMatch | null>(null);
 
+  // Hidden albums stay hidden here too, unless the filters show them.
+  const hiddenAlbums = useHidden();
+  const showHidden = Boolean(search?.filterState.showHidden);
   const matches = useMemo(
-    () => (search ? searchResults(search, query, visibleKeys) : []),
-    [search, query, visibleKeys],
+    () =>
+      search
+        ? searchResults(search, query, visibleKeys, 20)
+            .filter((m) => showHidden || !hiddenAlbums[m.key])
+            .slice(0, 8)
+        : [],
+    [search, query, visibleKeys, hiddenAlbums, showHidden],
   );
   const searching = query.trim() !== "";
 

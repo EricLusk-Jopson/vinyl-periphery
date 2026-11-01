@@ -21,6 +21,8 @@ interface ShareAlbumsProps {
   onRemove: (key: string) => void;
   /** Adds an album; one the filters hide gets its people switched on. */
   onAdd: (key: string, filtered: boolean) => void;
+  /** Albums the user hid: not offered (an image never draws them). */
+  hidden: Record<string, unknown>;
   /** Puts the removed albums back. */
   onRestore: () => void;
   /**
@@ -47,6 +49,7 @@ export const ShareAlbums: React.FC<ShareAlbumsProps> = ({
   onAdd,
   onRestore,
   onQuery,
+  hidden,
 }) => {
   const id = useId();
   const [query, setQuery] = useState("");
@@ -54,9 +57,9 @@ export const ShareAlbums: React.FC<ShareAlbumsProps> = ({
   const matches = useMemo(
     () =>
       searchResults(search, query, visibleKeys, 20)
-        .filter((m) => !shownKeys.has(m.key))
+        .filter((m) => !shownKeys.has(m.key) && !hidden[m.key])
         .slice(0, 6),
-    [search, query, visibleKeys, shownKeys],
+    [search, query, visibleKeys, shownKeys, hidden],
   );
   const searching = query.trim() !== "";
 

@@ -90,7 +90,10 @@ ranks albums by how many of those people worked on them.
   - Likes: a heart on each result row. A like belongs to the album (its
     result key), so it shows in every search; kept in localStorage by
     `src/services/likes.ts` (`useLikes`). Liked albums fill in the share
-    map.
+    map. Hiding works the same way (the eye on each row; per album, in
+    `src/services/hidden.ts`, `useHidden`): hidden albums leave the
+    results unless "Show hidden albums" (`filterState.showHidden`) is on,
+    and never go into a share image.
   - `src/lib/filters.ts`: chip state, "must include" (`filterState.required`,
     optional because older saved searches lack it), active filter count.
     "Only liked albums" is `filterState.likedOnly` (also optional). A new

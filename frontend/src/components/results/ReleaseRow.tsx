@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import {
   ArrowRight,
   ArrowUpRight,
+  Eye,
+  EyeOff,
   Heart,
   Loader2,
   RotateCw,
@@ -49,6 +51,12 @@ interface ReleaseRowProps {
   /** Liked albums show in every search they turn up in. */
   liked: boolean;
   onToggleLike: () => void;
+  /**
+   * Hidden by the user: only listed with "Show hidden albums" on, dimmed.
+   * Hidden albums are never drawn in a share image.
+   */
+  hidden: boolean;
+  onToggleHidden: () => void;
 }
 
 const focusRing =
@@ -74,6 +82,8 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
   searchingFromHere,
   liked,
   onToggleLike,
+  hidden,
+  onToggleHidden,
 }) => {
   const panelId = useId();
   const shared = people.length;
@@ -143,6 +153,7 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
           className={cn(
             "flex min-w-0 flex-1 items-center gap-3 rounded-lg py-3 pl-3 pr-1 text-left md:gap-4 md:py-3.5 md:pl-4",
             focusRing,
+            hidden && "opacity-50",
           )}
         >
           <AlbumCover
@@ -191,6 +202,30 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
               </span>
             )}
           </span>
+        </button>
+        <button
+          type="button"
+          onClick={onToggleHidden}
+          aria-pressed={hidden}
+          aria-label={`${hidden ? "Show" : "Hide"} ${release.title}`}
+          title={hidden ? "Hidden: show it again" : "Hide this album"}
+          className={cn(
+            // Like the heart: no fill of its own, the eye changes.
+            "group/hide flex h-11 w-11 shrink-0 items-center justify-center rounded-lg",
+            focusRing,
+          )}
+        >
+          {hidden ? (
+            <EyeOff
+              className="h-5 w-5 text-foreground transition-transform duration-150 group-active/hide:scale-90"
+              aria-hidden="true"
+            />
+          ) : (
+            <Eye
+              className="h-5 w-5 text-faint transition-[color,transform] duration-150 group-hover/hide:text-foreground group-active/hide:scale-90"
+              aria-hidden="true"
+            />
+          )}
         </button>
         <button
           type="button"

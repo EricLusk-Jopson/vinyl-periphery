@@ -23,6 +23,10 @@ import {
 import { track } from "@/lib/analytics";
 import { useLikes } from "@/hooks/useLikes";
 import { setLiked } from "@/services/likes";
+import { setHidden } from "@/services/hidden";
+import { useHidden } from "@/hooks/useHidden";
+import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "../ui/toast";
 import { cn } from "@/lib/utils";
 import { pinToTop } from "@/lib/resultSearch";
 import { iconButton } from "../common/buttons";
@@ -63,6 +67,8 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
 }) => {
   const { searches, updateFilterState } = useCache();
   const likes = useLikes();
+  const hidden = useHidden();
+  const { toast } = useToast();
   const { releases } = useFilteredAndScoredReleases(searchId);
   const search = searches[searchId];
   const sortId = useId();
@@ -302,6 +308,34 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
                     artist: release.artist,
                   });
                   track("result_liked", { liked, ...position });
+                }}
+                hidden={Boolean(hidden[release.key])}
+                onToggleHidden={() => {
+                  const album = {
+                    title: release.title,
+                    artist: release.artist,
+                  };
+                  const isHidden = setHidden(
+                    release.key,
+                    !hidden[release.key],
+                    album,
+                  );
+                  track("result_hidden", { hidden: isHidden, ...position });
+                  // Gone from the list: say so, with a way back.
+                  if (isHidden && !search.filterState.showHidden) {
+                    toast({
+                      title: "Album hidden",
+                      description: `${release.title} by ${release.artist}. "Show hidden albums" in the filters lists it again.`,
+                      action: (
+                        <ToastAction
+                          altText="Undo hide"
+                          onClick={() => setHidden(release.key, false, album)}
+                        >
+                          Undo
+                        </ToastAction>
+                      ),
+                    });
+                  }
                 }}
               />
             );

@@ -6,6 +6,7 @@ import {
   migrateReleases,
   migrateSearch,
   discographyPagesToRead,
+  discographyUrl,
   releaseKey,
   releaseType,
   toEnrichedRelease,
@@ -343,6 +344,19 @@ describe("migrateReleases", () => {
     const migrated = migrateSearch(search);
     expect(Object.keys(migrated.releases)).toHaveLength(2);
     expect(migrateSearch(migrated)).toBe(migrated);
+  });
+});
+
+describe("discographyUrl", () => {
+  it("asks for the newest credits first, a full page at a time", () => {
+    const url = new URL(discographyUrl(255935, 3));
+    expect(url.pathname).toBe("/artists/255935/releases");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      sort: "year",
+      sort_order: "desc",
+      per_page: "500",
+      page: "3",
+    });
   });
 });
 

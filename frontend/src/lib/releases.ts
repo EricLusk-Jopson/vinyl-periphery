@@ -3,7 +3,11 @@ import {
   CreditsTarget,
   discographyAppearance,
 } from "@/api/releaseCredits";
-import { MAX_CREDIT_VERSIONS, MAX_DISCOGRAPHY_PAGES } from "@/api/limits";
+import {
+  DISCOGRAPHY_PAGE_SIZE,
+  MAX_CREDIT_VERSIONS,
+  MAX_DISCOGRAPHY_PAGES,
+} from "@/api/limits";
 import { Appearance, EnrichedRelease, ReleaseType } from "@/api/types";
 import { SearchCache } from "@/contexts/cache/types";
 
@@ -317,6 +321,21 @@ export const migrateSearch = (search: SearchCache): SearchCache => {
   const releases = migrateReleases(search.releases ?? {});
   return releases === search.releases ? search : { ...search, releases };
 };
+
+/**
+ * One page of a person's discography, newest first. Discogs's default
+ * order groups items by role (Main, production credits, Appearance) and
+ * then by year, so a capped read (see MAX_DISCOGRAPHY_PAGES) lost the
+ * latest Appearance credits, the session work this app is about. Sorted
+ * by year, the cap drops the oldest credits instead.
+ */
+export const discographyUrl = (artistId: number, page: number): string =>
+  `https://api.discogs.com/artists/${artistId}/releases?${new URLSearchParams({
+    sort: "year",
+    sort_order: "desc",
+    per_page: String(DISCOGRAPHY_PAGE_SIZE),
+    page: String(page),
+  })}`;
 
 /**
  * How many discography pages to read, from the first page's pagination:

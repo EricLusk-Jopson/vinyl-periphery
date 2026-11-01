@@ -10,7 +10,8 @@ export const DISCOGRAPHY_PAGE_SIZE = 500;
 /**
  * Most discography pages read per contributor (2,000 items). Almost everyone
  * fits in one page; the cap keeps a search of several very prolific people
- * within the session storage budget and a reasonable time.
+ * within a reasonable time at Discogs's rate limit. Pages come newest
+ * first, so the cap drops a person's oldest credits.
  */
 export const MAX_DISCOGRAPHY_PAGES = 4;
 

@@ -61,7 +61,7 @@ describe("listContributorReleases", () => {
     return result;
   };
 
-  it("reads every page, 500 at a time", async () => {
+  it("reads every page, newest first, 500 at a time", async () => {
     const fetchMock = serve({ 1: 3, 2: 1 });
     global.fetch = fetchMock;
     const checked = jest.fn();
@@ -69,10 +69,10 @@ describe("listContributorReleases", () => {
     expect(
       fetchMock.mock.calls.map((c) => new URL(String(c[0])).search),
     ).toEqual([
-      "?per_page=500&page=1",
-      "?per_page=500&page=2",
-      "?per_page=500&page=3",
-      "?per_page=500&page=1",
+      "?sort=year&sort_order=desc&per_page=500&page=1",
+      "?sort=year&sort_order=desc&per_page=500&page=2",
+      "?sort=year&sort_order=desc&per_page=500&page=3",
+      "?sort=year&sort_order=desc&per_page=500&page=1",
     ]);
     expect([...releases.keys()]).toEqual([
       "master:101",

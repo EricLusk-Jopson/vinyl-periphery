@@ -4,8 +4,15 @@ import { SearchCache } from "@/contexts/cache/types";
 const DB_NAME = "vinyl-periphery";
 // v2: index on lineage.stackId, for library stacks. Records from v1 have no
 // lineage and stay out of the index (roots).
-const DB_VERSION = 2;
+// v3: a store of each stack's Results tab filters, by stack id.
+const DB_VERSION = 3;
 const STORE_NAME = "saved-searches";
+const STACK_FILTERS = "stack-filters";
+
+interface StackFiltersRecord<T> {
+  stackId: string;
+  filters: T;
+}
 
 interface SavedSearchCache extends SearchCache {
   savedAt: number;
@@ -46,6 +53,9 @@ class DatabaseService {
           if (!store.indexNames.contains(name)) {
             store.createIndex(name, keyPath, { unique: false });
           }
+        }
+        if (!db.objectStoreNames.contains(STACK_FILTERS)) {
+          db.createObjectStore(STACK_FILTERS, { keyPath: "stackId" });
         }
       };
     });
@@ -127,6 +137,54 @@ class DatabaseService {
 
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve();
+    });
+  }
+
+  /** A stack's Results tab filters, if it has any stored. */
+  async getStackFilters<T>(stackId: string): Promise<T | undefined> {
+    await this.init();
+    if (!this.db) throw new Error("Database not initialized");
+    return new Promise((resolve, reject) => {
+      const request = this.db!.transaction(STACK_FILTERS, "readonly")
+        .objectStore(STACK_FILTERS)
+        .get(stackId);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () =>
+        resolve((request.result as StackFiltersRecord<T> | undefined)?.filters);
+    });
+  }
+
+  async saveStackFilters<T>(stackId: string, filters: T): Promise<void> {
+    await this.init();
+    if (!this.db) throw new Error("Database not initialized");
+    return new Promise((resolve, reject) => {
+      const record: StackFiltersRecord<T> = { stackId, filters };
+      const request = this.db!.transaction(STACK_FILTERS, "readwrite")
+        .objectStore(STACK_FILTERS)
+        .put(record);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve();
+    });
+  }
+
+  /** Deletes the stored filters of every stack not in `keep`. */
+  async pruneStackFilters(keep: Set<string>): Promise<string[]> {
+    await this.init();
+    if (!this.db) throw new Error("Database not initialized");
+    return new Promise((resolve, reject) => {
+      const store = this.db!.transaction(
+        STACK_FILTERS,
+        "readwrite",
+      ).objectStore(STACK_FILTERS);
+      const request = store.getAllKeys();
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const gone = (request.result as string[]).filter((id) => !keep.has(id));
+        gone.forEach((id) => store.delete(id));
+        store.transaction.oncomplete = () => resolve(gone);
+        store.transaction.onerror = () => reject(store.transaction.error);
+        if (gone.length === 0) resolve(gone);
+      };
     });
   }
 

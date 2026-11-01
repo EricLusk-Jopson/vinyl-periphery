@@ -1,6 +1,7 @@
 import { EnrichedRelease } from "@/api/types";
 import { SearchCache } from "@/contexts/cache/types";
 import { Likes } from "@/services/likes";
+import { mergedRelease, metaAlbum } from "./metaAlbum";
 import { popularity, ScoredRelease, SortKey, sortReleases } from "./results";
 
 /**
@@ -206,60 +207,37 @@ export const relaxGraph = (
  * Every result of the stack's searches, the stack's own albums aside, once
  * each: linked by everyone in the stack who worked on it, scored by how
  * many people it shares with each stack album added up. Most connected
- * first (then linked to the most stack albums, then most popular).
+ * first (then linked to the most stack albums, then most popular). No
+ * filters: the Results tab's are `filteredStackResults`.
  */
 export const stackResults = (
   centre: StackCentre,
   members: SearchCache[],
 ): ScoredRelease[] => {
-  const stack = new Set([
-    centre.key,
-    ...members.map((m) => m.target?.key ?? ""),
-  ]);
-  const byKey = new Map<
-    string,
-    {
-      release: EnrichedRelease;
-      people: Set<number>;
-      total: number;
-      linked: number;
-    }
-  >();
-  for (const m of members) {
-    for (const release of Object.values(m.releases ?? {})) {
-      if (stack.has(release.key)) continue;
-      const entry = byKey.get(release.key) ?? {
-        release,
-        people: new Set<number>(),
-        total: 0,
-        linked: 0,
-      };
-      const people = new Set(release.contributorIds);
-      people.forEach((id) => entry.people.add(id));
-      entry.total += people.size;
-      entry.linked += 1;
-      // The best counts any search kept.
-      if (!entry.release.community && release.community) {
-        entry.release = { ...entry.release, community: release.community };
-      }
-      byKey.set(release.key, entry);
-    }
-  }
-  return Array.from(byKey.values())
+  const meta = metaAlbum(members);
+  return Array.from(meta.results.values())
+    .filter((r) => r.release.key !== centre.key)
+    .map((r) => ({
+      result: r,
+      total: r.links.reduce((sum, l) => sum + l.people.length, 0),
+    }))
     .sort(
       (a, b) =>
         b.total - a.total ||
-        b.linked - a.linked ||
-        (popularity(b.release) ?? -1) - (popularity(a.release) ?? -1) ||
-        a.release.key.localeCompare(b.release.key),
+        b.result.links.length - a.result.links.length ||
+        (popularity(b.result.release) ?? -1) -
+          (popularity(a.result.release) ?? -1) ||
+        a.result.release.key.localeCompare(b.result.release.key),
     )
-    .map((e) => ({
-      ...e.release,
-      contributorIds: Array.from(e.people),
-      activeContributors: Array.from(e.people),
-      score: e.total,
-      confidence: 1,
-    }));
+    .map(({ result, total }) => {
+      const release = mergedRelease(result);
+      return {
+        ...release,
+        activeContributors: release.contributorIds,
+        score: total,
+        confidence: 1,
+      };
+    });
 };
 
 /**

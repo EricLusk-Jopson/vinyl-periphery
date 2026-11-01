@@ -32,6 +32,7 @@ export const EVENTS = new Set([
   "stack_saved",
   "stack_opened",
   "stack_view_changed",
+  "stack_filters_applied",
   "search_unstacked",
   "stack_disbanded",
   "result_liked",

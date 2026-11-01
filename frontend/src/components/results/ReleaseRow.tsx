@@ -55,6 +55,18 @@ interface ReleaseRowProps {
   hidden: boolean;
   onLike: (liked: boolean) => void;
   onHide: (hidden: boolean) => void;
+  /**
+   * A stack's result: linked by albums, not one album's people. The via
+   * line names the albums, the count is links, and the panel is given
+   * (which member links it, with whom). No credits are fetched.
+   */
+  stack?: {
+    via: string;
+    links: number;
+    /** Member albums switched on. */
+    of: number;
+    panel: React.ReactNode;
+  };
 }
 
 const focusRing =
@@ -82,21 +94,23 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
   hidden,
   onLike,
   onHide,
+  stack,
 }) => {
   const panelId = useId();
   const shared = people.length;
   const year = releaseYear(release.year);
   const discogsUrl = discogsWebUrl(release.resource_url);
-  const strong = shared > 1;
+  const count = stack ? stack.links : shared;
+  const strong = count > 1;
   // Discogs want + have; null for searches stored before it was kept.
   const popular = popularity(release);
   const credits = useReleaseCredits(
     release,
-    open,
+    open && !stack,
     people.map((p) => p.id),
   );
   // No Discogs release to read (an unexpected resource URL).
-  const noCredits = open && credits.targets.length === 0;
+  const noCredits = open && !stack && credits.targets.length === 0;
   const master = release.type === "master";
   const failed = credits.settled && credits.error !== null;
 
@@ -168,7 +182,9 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
               {year && ` · ${year}`}
             </span>
             <span className="truncate font-mono text-xs text-faint md:whitespace-normal">
-              via {people.map((p) => p.name).join(", ")}
+              {stack
+                ? stack.via
+                : `via ${people.map((p) => p.name).join(", ")}`}
             </span>
           </span>
           <span className="flex shrink-0 flex-col items-end gap-1.5">
@@ -178,8 +194,21 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
                 strong ? "text-primary-text" : "text-muted-foreground",
               )}
             >
-              {shared}
-              <span className="sr-only md:not-sr-only"> shared</span>
+              {stack ? (
+                <>
+                  <span className="sr-only md:not-sr-only">links </span>
+                  {stack.links}
+                  <span className="sr-only">
+                    {" "}
+                    of {stack.of} albums in the stack, {shared} shared
+                  </span>
+                </>
+              ) : (
+                <>
+                  {shared}
+                  <span className="sr-only md:not-sr-only"> shared</span>
+                </>
+              )}
             </span>
             <span aria-hidden="true" className="hidden gap-[3px] md:flex">
               {Array.from({ length: MAX_DOTS }, (_, i) => (
@@ -187,7 +216,7 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
                   key={i}
                   className={cn(
                     "h-2 w-2 rounded-full",
-                    i < shared ? "bg-primary" : "bg-border",
+                    i < count ? "bg-primary" : "bg-border",
                   )}
                 />
               ))}
@@ -218,69 +247,75 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
           open ? "flex" : "hidden",
         )}
       >
-        {/* Phones: one line per person. From md: a card each. */}
-        <ul className="flex flex-col divide-y rounded-lg border bg-surface md:grid md:grid-cols-[repeat(auto-fill,minmax(220px,1fr))] md:gap-2.5 md:divide-y-0 md:border-0 md:bg-transparent">
-          {people.map((person) => (
-            <li
-              key={person.id}
-              className="flex flex-col gap-1 px-3 py-2.5 md:rounded-lg md:border md:bg-surface"
-            >
-              <span className="text-sm font-medium md:text-[15px]">
-                {person.name}
-              </span>
-              <dl className="grid grid-cols-[fit-content(45%)_1fr] gap-x-2 gap-y-2 text-xs md:flex md:flex-col md:gap-3">
-                <div className="contents md:flex md:min-w-0 md:flex-col">
-                  <dt className="min-w-0 truncate text-faint">
-                    {searchedAlbum}
-                  </dt>
-                  <dd className="min-w-0 font-mono text-muted-foreground">
-                    {person.roles || "Credited"}
-                  </dd>
-                </div>
-                <div className="contents md:flex md:min-w-0 md:flex-col">
-                  <dt className="min-w-0 truncate text-faint">
-                    {release.title}
-                  </dt>
-                  <dd className="min-w-0 font-mono text-muted-foreground">
-                    {onThisAlbum(person.id)}
-                  </dd>
-                </div>
-              </dl>
-            </li>
-          ))}
-        </ul>
-        <div aria-live="polite" className="contents">
-          {failed && (
-            <p className="flex flex-wrap items-center gap-x-3 text-[13px] text-muted-foreground">
-              {credits.loaded.length > 0
-                ? "Some versions' credits didn't load."
-                : creditsErrorMessage(credits.error?.status)}
-              <button
-                type="button"
-                onClick={credits.retry}
-                className={cn(
-                  "inline-flex min-h-11 items-center gap-1.5 rounded-sm font-medium text-foreground transition-colors hover:text-primary-text lg:min-h-8",
-                  focusRing,
-                )}
-              >
-                <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
-                Try again
-              </button>
-            </p>
-          )}
-          {noCredits && (
-            <p className="text-[13px] text-faint">
-              Discogs doesn't list credits for this album.
-            </p>
-          )}
-          {master && credits.loaded.length > 0 && (
-            <p className="text-[13px] text-faint">
-              {credits.targets.length > 1
-                ? "This album has several versions; credits come from the ones these people are listed on."
-                : "This album has several versions; credits come from one of them."}
-            </p>
-          )}
-        </div>
+        {stack ? (
+          stack.panel
+        ) : (
+          <>
+            {/* Phones: one line per person. From md: a card each. */}
+            <ul className="flex flex-col divide-y rounded-lg border bg-surface md:grid md:grid-cols-[repeat(auto-fill,minmax(220px,1fr))] md:gap-2.5 md:divide-y-0 md:border-0 md:bg-transparent">
+              {people.map((person) => (
+                <li
+                  key={person.id}
+                  className="flex flex-col gap-1 px-3 py-2.5 md:rounded-lg md:border md:bg-surface"
+                >
+                  <span className="text-sm font-medium md:text-[15px]">
+                    {person.name}
+                  </span>
+                  <dl className="grid grid-cols-[fit-content(45%)_1fr] gap-x-2 gap-y-2 text-xs md:flex md:flex-col md:gap-3">
+                    <div className="contents md:flex md:min-w-0 md:flex-col">
+                      <dt className="min-w-0 truncate text-faint">
+                        {searchedAlbum}
+                      </dt>
+                      <dd className="min-w-0 font-mono text-muted-foreground">
+                        {person.roles || "Credited"}
+                      </dd>
+                    </div>
+                    <div className="contents md:flex md:min-w-0 md:flex-col">
+                      <dt className="min-w-0 truncate text-faint">
+                        {release.title}
+                      </dt>
+                      <dd className="min-w-0 font-mono text-muted-foreground">
+                        {onThisAlbum(person.id)}
+                      </dd>
+                    </div>
+                  </dl>
+                </li>
+              ))}
+            </ul>
+            <div aria-live="polite" className="contents">
+              {failed && (
+                <p className="flex flex-wrap items-center gap-x-3 text-[13px] text-muted-foreground">
+                  {credits.loaded.length > 0
+                    ? "Some versions' credits didn't load."
+                    : creditsErrorMessage(credits.error?.status)}
+                  <button
+                    type="button"
+                    onClick={credits.retry}
+                    className={cn(
+                      "inline-flex min-h-11 items-center gap-1.5 rounded-sm font-medium text-foreground transition-colors hover:text-primary-text lg:min-h-8",
+                      focusRing,
+                    )}
+                  >
+                    <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
+                    Try again
+                  </button>
+                </p>
+              )}
+              {noCredits && (
+                <p className="text-[13px] text-faint">
+                  Discogs doesn't list credits for this album.
+                </p>
+              )}
+              {master && credits.loaded.length > 0 && (
+                <p className="text-[13px] text-faint">
+                  {credits.targets.length > 1
+                    ? "This album has several versions; credits come from the ones these people are listed on."
+                    : "This album has several versions; credits come from one of them."}
+                </p>
+              )}
+            </div>
+          </>
+        )}
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
           {discogsUrl && (
             <a

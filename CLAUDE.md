@@ -35,7 +35,7 @@ ranks albums by how many of those people worked on them.
     start at the top), and results at the average of the stack albums'
     places, weighted by the people they share with each. A stack shares only as a map; its sheet
     orders the results (sort, tiebreaker, likes first) and takes albums
-    out or adds them, with no filters to draw from. Typing "no
+    out or adds them, drawing from the Results tab's filtered results. Typing "no
     boilerplate" in the sheet's album search unlocks a switch that drops
     the header and site so the graph fills the image (`nb`).
     Never calls Discogs; only Cover
@@ -116,6 +116,18 @@ ranks albums by how many of those people worked on them.
     `stackLayout` also gives each member its parents (linked albums one
     step closer to the start), which the stack page's Albums tab turns into
     a link line per card (`linkLineText`).
+  - A stack's Results tab reads its searches as one album:
+    `src/lib/metaAlbum.ts` (takes any set of searches: credits, people
+    deduped with their albums, results merged less the members; the share
+    map's `stackResults` is built on it). `src/lib/stackFilters.ts` filters
+    it by credit, with member albums as a filter too (off, or "must link"),
+    and scores links (member albums linking a result with someone who
+    counts) and shared; default sort links, then shared, then Popular.
+    Filters are stored per `stackId` in IndexedDB (`stack-filters`, DB v3,
+    `useStackFilters`), start with every chip on, and are deleted by the
+    cache once the stack is under two searches. Searching from a result
+    hangs the new search on the member sharing the most people. Share
+    draws the filtered results.
   - Routes (React Router): `/` home, `/library`,
     `/library/stack/:stackId` (Results tab; `?view=albums` for Albums), and
     `/results?artist=…&album=…`, plus `&master=N` or `&release=N` when the

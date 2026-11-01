@@ -105,6 +105,29 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
   const stateRef = useRef(state);
   stateRef.current = state;
 
+  // A stack's Results filters go once it's fewer than two searches
+  // (deleted, destacked or moved): ids of stacks of two or more.
+  const liveStacks = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const id of state.savedSearchIds) {
+      const search = state.searches[id];
+      if (!search) continue;
+      const stackId = lineageOf(search).stackId;
+      counts.set(stackId, (counts.get(stackId) ?? 0) + 1);
+    }
+    return Array.from(counts)
+      .filter(([, n]) => n > 1)
+      .map(([id]) => id)
+      .sort()
+      .join("\n");
+  }, [state.savedSearchIds, state.searches]);
+  useEffect(() => {
+    if (!savedSearchesLoaded) return;
+    db.pruneStackFilters(new Set(liveStacks.split("\n"))).catch(() => {
+      // Storage blocked: stale filters are harmless.
+    });
+  }, [liveStacks, savedSearchesLoaded]);
+
   // Load the library from IndexedDB on mount, after moving in any searches
   // an earlier version left in sessionStorage.
   useEffect(() => {

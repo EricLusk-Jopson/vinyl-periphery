@@ -21,42 +21,69 @@ import { cn } from "@/lib/utils";
 export const MustInclude: React.FC<{ searchId: string }> = ({ searchId }) => {
   const { searches, updateFilterState } = useCache();
   const search = searches[searchId];
+  const chips = useMemo(() => (search ? requiredChips(search) : []), [search]);
+  if (!search) return null;
+  return (
+    <MustIncludeView
+      chips={chips}
+      options={(query) => mustIncludeOptions(search, query)}
+      onAdd={(item) => {
+        track("filter_changed", {
+          filter: `must_include_${item.kind}`,
+          on: true,
+        });
+        updateFilterState(
+          searchId,
+          item.kind === "contributor"
+            ? requireContributor(search, item.id)
+            : requireRole(search, item.role),
+        );
+      }}
+      onRemove={(item) => {
+        track("filter_changed", {
+          filter: `must_include_${item.kind}`,
+          on: false,
+        });
+        updateFilterState(
+          searchId,
+          unrequire(
+            search,
+            item.kind === "contributor"
+              ? { contributor: item.id }
+              : { role: item.role },
+          ),
+        );
+      }}
+    />
+  );
+};
+
+interface MustIncludeViewProps {
+  chips: MustIncludeItem[];
+  /** Matches for a query, not yet required. */
+  options: (query: string) => MustIncludeItem[];
+  onAdd: (item: MustIncludeItem) => void;
+  onRemove: (item: MustIncludeItem) => void;
+}
+
+/** The "must include" list and picker, for one search or a stack. */
+export const MustIncludeView: React.FC<MustIncludeViewProps> = ({
+  chips,
+  options: optionsFor,
+  onAdd,
+  onRemove,
+}) => {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const id = useId();
-
-  const chips = useMemo(() => (search ? requiredChips(search) : []), [search]);
-  const options = useMemo(
-    () => (search ? mustIncludeOptions(search, query) : []),
-    [search, query],
-  );
-
-  if (!search) return null;
+  const options = useMemo(() => optionsFor(query), [optionsFor, query]);
 
   const add = (item: MustIncludeItem) => {
-    track("filter_changed", { filter: `must_include_${item.kind}`, on: true });
-    updateFilterState(
-      searchId,
-      item.kind === "contributor"
-        ? requireContributor(search, item.id)
-        : requireRole(search, item.role),
-    );
+    onAdd(item);
     setQuery("");
     inputRef.current?.focus();
   };
-
-  const remove = (item: MustIncludeItem) => {
-    track("filter_changed", { filter: `must_include_${item.kind}`, on: false });
-    updateFilterState(
-      searchId,
-      unrequire(
-        search,
-        item.kind === "contributor"
-          ? { contributor: item.id }
-          : { role: item.role },
-      ),
-    );
-  };
+  const remove = onRemove;
 
   return (
     <section

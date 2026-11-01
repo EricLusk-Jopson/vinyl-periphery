@@ -1,6 +1,7 @@
 import { ReleaseCredits } from "@/api/releaseCredits";
 import { Appearance, Contributor, EnrichedRelease } from "@/api/types";
 import { SearchCache } from "@/contexts/cache/types";
+import { contributionsOf } from "./releases";
 import { defaultContributorDisplayPipeline } from "./transformers/contributorProcessor";
 import { defaultRolePipeline } from "./transformers/roleProcessor";
 import { roleCategory, RoleCategory } from "./transformers/roleCategories";
@@ -176,17 +177,67 @@ export const sharedPeople = (
   return people;
 };
 
+/** Discogs's discography roles for an artist's own releases. */
+const OWN_RELEASE_ROLES = new Set(["Main", "UnofficialRelease"]);
+
+const fold = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
+
+/** Whether `name` appears in `text` as whole words. */
+const containsName = (text: string, name: string) => {
+  const escaped = fold(name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return (
+    escaped !== "" &&
+    new RegExp(`(^|[^\\p{L}\\p{N}])${escaped}($|[^\\p{L}\\p{N}])`, "u").test(
+      fold(text),
+    )
+  );
+};
+
 /**
- * Whether "Hide <artist> releases" hides a release: its artist contains the
- * first word of the searched artist (see Known issues in CLAUDE.md).
+ * The searched album's own artists: the people credited as its main
+ * artist (Discogs artist ids), read with its credits.
+ */
+export const mainArtistIds = (
+  search: Pick<SearchCache, "contributors">,
+): number[] =>
+  Object.values(search.contributors)
+    .filter((c) => c.sources.includes("artist"))
+    .map((c) => c.id);
+
+/**
+ * Whether "Hide <artist> releases" hides a release: one of the searched
+ * album's own artists (by Discogs id) has it as their own release, the way
+ * their discography lists it (role Main). Only when the release keeps no
+ * discography roles for them (searches from before those were stored, or
+ * no main artist known) does it fall back to names: the release's artist
+ * naming one of them, or the typed artist, in whole words.
  */
 export const isMainArtistRelease = (
-  search: Pick<SearchCache, "searchParams">,
-  release: Pick<EnrichedRelease, "artist">,
-): boolean =>
-  release.artist
-    .toLowerCase()
-    .includes(search.searchParams.artist.split(" ")[0].toLowerCase());
+  search: Pick<SearchCache, "searchParams" | "contributors">,
+  release: Pick<
+    EnrichedRelease,
+    "artist" | "contributorIds" | "contributions" | "appearances"
+  >,
+): boolean => {
+  const artists = mainArtistIds(search);
+  const on = artists.filter((id) => release.contributorIds.includes(id));
+  const roles = on.map((id) => contributionsOf(release, id));
+  if (roles.some((entries) => entries.length > 0)) {
+    return roles.some((entries) =>
+      entries.some((e) => OWN_RELEASE_ROLES.has(e.role)),
+    );
+  }
+  const names = artists.length
+    ? artists.map((id) =>
+        defaultContributorDisplayPipeline(search.contributors[id].name),
+      )
+    : [search.searchParams.artist];
+  return names.some((name) => containsName(release.artist, name));
+};
 
 /** Role categories switched on in a new search, and by Reset. */
 export const DEFAULT_ROLE_CATEGORIES: RoleCategory[] = ["musicians", "other"];

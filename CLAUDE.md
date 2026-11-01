@@ -152,11 +152,12 @@ switch both run from `main`, so keep `backend/server.js` and
 
 ## Known issues (not fixed yet)
 
-- Contributor discographies are read 500 items a page, up to
-  `MAX_DISCOGRAPHY_PAGES` (4, so 2,000 items) per person. Discogs sorts them
-  by role group (Main, production credits, Appearance), then year, so the
-  few people past the cap lose their latest Appearance credits first
-  (`discographies_capped` on `search_completed` counts them).
+- Contributor discographies are read 500 items a page, newest first
+  (`discographyUrl`: `sort=year&sort_order=desc`), up to
+  `MAX_DISCOGRAPHY_PAGES` (4, so 2,000 items) per person. The few people
+  past the cap lose their oldest credits (`discographies_capped` on
+  `search_completed` counts them). Discogs's default order grouped items
+  by role first, which cost the latest Appearance credits instead.
 - In `/artists/{id}/releases`, release-type items carry no `master_id`
   (none of 32 sampled from Keltner and Albini): they are releases with no
   master (compilations, promos, singles; confirmed for 2429544, whose own

@@ -24,8 +24,9 @@ import {
 import { calculateReleaseScore } from "@/api/contributorSet";
 import { matchingSearchIds } from "@/lib/searchTarget";
 import { migrateSearch } from "@/lib/releases";
-import { isMainArtistRelease } from "@/lib/results";
+import { defaultRoleStates, isMainArtistRelease } from "@/lib/results";
 import { useLikes } from "@/hooks/useLikes";
+import { useHidden } from "@/hooks/useHidden";
 import {
   detachedLineage,
   lineageForNewSearch,
@@ -35,7 +36,7 @@ import {
 import { coverResolver } from "@/api/coverArt";
 import {
   enforceRequired,
-  isContributorCounted,
+  countedContributors,
   meetsRequired,
 } from "@/lib/filters";
 
@@ -103,6 +104,29 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [replacedBy]);
   const stateRef = useRef(state);
   stateRef.current = state;
+
+  // A stack's Results filters go once it's fewer than two searches
+  // (deleted, destacked or moved): ids of stacks of two or more.
+  const liveStacks = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const id of state.savedSearchIds) {
+      const search = state.searches[id];
+      if (!search) continue;
+      const stackId = lineageOf(search).stackId;
+      counts.set(stackId, (counts.get(stackId) ?? 0) + 1);
+    }
+    return Array.from(counts)
+      .filter(([, n]) => n > 1)
+      .map(([id]) => id)
+      .sort()
+      .join("\n");
+  }, [state.savedSearchIds, state.searches]);
+  useEffect(() => {
+    if (!savedSearchesLoaded) return;
+    db.pruneStackFilters(new Set(liveStacks.split("\n"))).catch(() => {
+      // Storage blocked: stale filters are harmless.
+    });
+  }, [liveStacks, savedSearchesLoaded]);
 
   // Load the library from IndexedDB on mount, after moving in any searches
   // an earlier version left in sessionStorage.
@@ -179,16 +203,13 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       );
 
-      // Initialize filter state with all contributors and roles included
+      // Every contributor on; only the default roles (musicians, other).
       const filterState = {
         contributors: Object.keys(contributors).reduce((acc, id) => {
           acc[Number(id)] = true;
           return acc;
         }, {} as Record<number, boolean>),
-        roles: Object.keys(roles).reduce((acc, role) => {
-          acc[role] = true;
-          return acc;
-        }, {} as Record<string, boolean>),
+        roles: defaultRoleStates(Object.keys(roles)),
         excludeMainArtist: true,
         collaborationsOnly: true,
         excludeVarious: false,
@@ -503,13 +524,14 @@ export const useSearchFilters = (searchId: string) => {
     });
   }, [search, searchId, updateFilterState]);
 
-  const isContributorActive = useCallback(
-    (contributorId: number): boolean => {
-      if (!search) return false;
-      // Switched on, and required or with a role on.
-      return isContributorCounted(search, contributorId);
-    },
+  // Who counts, worked out once per filter change from the credits.
+  const counted = useMemo(
+    () => (search ? countedContributors(search) : new Set<number>()),
     [search]
+  );
+  const isContributorActive = useCallback(
+    (contributorId: number): boolean => counted.has(contributorId),
+    [counted]
   );
 
   const isRoleActive = useCallback(
@@ -593,6 +615,13 @@ export const useSearchFilters = (searchId: string) => {
     });
   }, [search, searchId, updateFilterState]);
 
+  const toggleShowHidden = useCallback(() => {
+    if (!search) return;
+    updateFilterState(searchId, {
+      showHidden: !search.filterState.showHidden,
+    });
+  }, [search, searchId, updateFilterState]);
+
   return {
     toggleContributor,
     toggleRole,
@@ -609,6 +638,7 @@ export const useSearchFilters = (searchId: string) => {
     toggleCollaborationsOnly,
     toggleExcludeVarious,
     toggleLikedOnly,
+    toggleShowHidden,
     filterState: search?.filterState,
   };
 };
@@ -620,6 +650,8 @@ export const useFilteredAndScoredReleases = (searchId: string) => {
   const search = searches[searchId];
   // Likes are kept outside the cache; "Only liked" reads them.
   const likes = useLikes();
+  // Hidden albums leave the results unless the filter shows them.
+  const hidden = useHidden();
 
   return useMemo(() => {
     if (!search) return { releases: [], count: 0 };
@@ -664,6 +696,8 @@ export const useFilteredAndScoredReleases = (searchId: string) => {
 
         if (search.filterState.likedOnly && !likes[release.key]) return null;
 
+        if (!search.filterState.showHidden && hidden[release.key]) return null;
+
         const { score, confidence } = calculateReleaseScore(
           { ...release, contributorIds: uniqueContributorIds },
           {
@@ -688,5 +722,5 @@ export const useFilteredAndScoredReleases = (searchId: string) => {
       releases: processedReleases,
       count: processedReleases.length,
     };
-  }, [search, isContributorActive, likes]);
+  }, [search, isContributorActive, likes, hidden]);
 };

@@ -15,6 +15,7 @@ import { SearchCache } from "@/contexts/cache/types";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useToast } from "@/hooks/use-toast";
 import { useLikes } from "@/hooks/useLikes";
+import { useHidden } from "@/hooks/useHidden";
 import { useCoverArt } from "@/hooks/useCoverArt";
 import {
   layoutStackMap,
@@ -51,8 +52,10 @@ import {
 import {
   editsCaption,
   filtersToInclude,
+  editsWithoutHidden,
   NO_EDITS,
   ShareEdits,
+  withoutHidden,
   shareSelection,
 } from "@/lib/shareSelection";
 import { cn } from "@/lib/utils";
@@ -94,6 +97,11 @@ interface ShareButtonProps {
     centre: MapCentre;
     members: SearchCache[];
     levels?: Map<string, number>;
+    /**
+     * The stack's results as its Results tab filters them, in order.
+     * Without it, every result of its searches.
+     */
+    results?: ScoredRelease[];
   };
   /**
    * For one search: the results' order. Both layouts then draw its top
@@ -272,7 +280,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     card: SHARE_COUNTS.card.start,
   });
   // Albums taken out of the image or added to it (one search only).
-  const [edits, setEdits] = useState<ShareEdits>(NO_EDITS);
+  const [chosenEdits, setEdits] = useState<ShareEdits>(NO_EDITS);
   // Covers or titles only; lines from people to their albums.
   const [view, setView] = useState<ShareView>(DEFAULT_VIEW);
   // A stack's results: their order, and whether liked ones come first.
@@ -286,17 +294,26 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState("");
 
+  // Hidden albums never go into an image, even with "Show hidden" on.
+  const hidden = useHidden();
+  const edits = useMemo(
+    () => editsWithoutHidden(chosenEdits, hidden),
+    [chosenEdits, hidden],
+  );
   // One search: its results in the page's order (filters already applied).
   const ranked = useMemo(
     () =>
-      selection
-        ? sortReleases(
-            releases as ScoredRelease[],
-            selection.sort,
-            selection.then,
-          )
-        : (releases as ScoredRelease[]),
-    [releases, selection],
+      withoutHidden(
+        selection
+          ? sortReleases(
+              releases as ScoredRelease[],
+              selection.sort,
+              selection.then,
+            )
+          : (releases as ScoredRelease[]),
+        hidden,
+      ),
+    [releases, selection, hidden],
   );
   // What each layout draws: the top of the list, as edited.
   const mapShown = useMemo(
@@ -314,12 +331,17 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     () => new Set(ranked.map((r) => r.key)),
     [ranked],
   );
-  // A stack: every result of its searches, in the chosen order (no
-  // filters here: the stack has none), edited, then laid out around the
-  // stack's albums.
+  // A stack: its results as the Results tab filters them, in the chosen
+  // order, edited, then laid out around the stack's albums.
   const stackList = useMemo(
-    () => (open && !selection ? stackResults(map.centre, map.members) : []),
-    [open, selection, map.centre, map.members],
+    () =>
+      open && !selection
+        ? withoutHidden(
+            map.results ?? stackResults(map.centre, map.members),
+            hidden,
+          )
+        : [],
+    [open, selection, map.centre, map.members, map.results, hidden],
   );
   const stackOrdered = useMemo(
     () =>
@@ -336,7 +358,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     () => stackAsSearch(search, map.members, stackList),
     [search, map.members, stackList],
   );
-  // A stack has no filters: every result can be shown.
+  // A stack: every result it was given can be shown.
   const allStackKeys = useMemo(
     () => new Set(stackList.map((r) => r.key)),
     [stackList],
@@ -776,6 +798,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
             {(selection || mapReady) && (
               <div className="lg:col-start-2 lg:row-start-2">
                 <ShareAlbums
+                  hidden={hidden}
                   search={selection ? search : stackSearch}
                   shown={shown}
                   visibleKeys={selection ? visibleKeys : allStackKeys}

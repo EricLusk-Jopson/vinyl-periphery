@@ -87,14 +87,17 @@ To test locally, put both Vinyl Periphery variables in `.env` and run
 | `search_failed` | An error stops the search | `artist`, `album`, `phase`, `seconds`, `error` |
 | `search_cancelled` | The user cancels, or leaves mid-search | `artist`, `album`, `phase`, `seconds` |
 | `example_filled` | An example search fills the form | `artist`, `album` |
-| `result_opened` | A result row is expanded | `rank`, `shared`, `sort`; `then` when a tiebreaker is chosen (desktop) |
-| `discogs_opened` | "View on Discogs" is followed | `rank`, `shared`, `sort`; `then` when a tiebreaker is chosen (desktop) |
-| `result_liked` | A result's heart is tapped: liked or unliked (likes belong to the album, in every search) | `liked`, `rank`, `shared`, `sort`; `then` when a tiebreaker is chosen (desktop) |
-| `filter_changed` | Any filter, switch, select-all or reset | `filter`, `on`; `category` for `role_category`. `filter` is one of `hide_main_artist`, `two_plus_shared`, `hide_various`, `contributor`, `role`, `all_contributors`, `all_roles`, `role_category`, `must_include_contributor`, `must_include_role`, `liked_only`, `reset` |
+| `result_opened` | A result row is expanded | `rank`, `shared`, `sort`; `then`: the tiebreaker, if any (Popular by default) |
+| `discogs_opened` | "View on Discogs" is followed | `rank`, `shared`, `sort`; `then`: the tiebreaker, if any (Popular by default) |
+| `result_liked` | A result's heart is tapped: liked or unliked (likes belong to the album, in every search) | `liked`, `rank`, `shared`, `sort`; `then`: the tiebreaker, if any (Popular by default) |
+| `result_hidden` | A result's eye is tapped: hidden or shown again (hides belong to the album, in every search) | `hidden`, `rank`, `shared`, `sort`; `then`: the tiebreaker, if any |
+| `filter_changed` | Any filter, switch, select-all or reset | `filter`, `on`; `category` for `role_category`. `filter` is one of `hide_main_artist`, `two_plus_shared`, `hide_various`, `contributor`, `role`, `all_contributors`, `all_roles`, `role_category`, `must_include_contributor`, `must_include_role`, `liked_only`, `show_hidden`, `reset`. From a stack's Results tab it also carries `scope`: stack, and `filter` can be `album`, `all_albums`, `must_include_album` or `two_plus_links` too. `result_opened`, `discogs_opened`, `result_liked` and `result_hidden` from there carry `scope`: stack and `links` |
 | `result_credits` | An opened result's credits are fetched from Discogs (not when read from storage), once per row when every version it reads has loaded or failed | `outcome`: loaded (any version) or failed (none), `shared` (people linking it), `versions` (releases read: 1, or up to 3 for an album with several versions); when loaded, `found` (of the people, how many some version's credits name) and `hinted` (of the rest, how many have a discography role to show instead); when any failed, `failed` (how many) and `status` (HTTP status of the first, 0 offline) |
 | `cover_lookup` | Every result in a search has art or is known to have none (once per search per page load) | `albums`, `hits` (art found, from storage or MusicBrainz), `misses` (no MusicBrainz link, or the lookup failed) |
 | `stack_saved` | A search is switched to a stack it fits, or to a new stack after a search on its own, with Switch in the Stack drawer | `members` (searches in the stack afterwards), `depth` (along its trail), `from`: results or library, `joined`: true, `new_stack`: true when it starts a stack, `moved`: true when it left another stack |
 | `stack_opened` | A stack's page is opened | `members`, `ghosts` (deleted steps shown) |
+| `stack_view_changed` | A stack page switches tab | `view`: results or albums |
+| `stack_filters_applied` | "Apply each search's filters" on a stack's Results tab: the stack's filters taken from its searches' | `members` |
 | `stack_disbanded` | A stack is destacked (Destack, on its card or page) after confirming: its searches stay, each on its own | `members` |
 | `search_unstacked` | A search is taken out of its stack with Destack in the Stack drawer (results page, library card or stack page); it stays in the library, on its own | `from`: results or library, `members` (searches left in the stack), `depth` (its step in the stack) |
 | `search_jumped` | An existing search is opened instead of running a new one | `from`: result (a result row) or form (the search bar) |
@@ -108,14 +111,15 @@ To test locally, put both Vinyl Periphery variables in `.env` and run
 
 ## Uncategorized roles
 
-The Roles filter groups roles into Musicians, Writing, Audio, Physical media,
-Management and Other, using the patterns in
-`frontend/src/lib/transformers/roleCategories.ts`. `search_completed` reports
+The Roles filter groups roles under the headings of Discogs's credits list,
+matching every Discogs role by name (`frontend/src/lib/transformers/discogsRoles.ts`)
+and other spellings by their endings and common words
+(`frontend/src/lib/transformers/roleCategories.ts`). `search_completed` reports
 the roles that fell into Other: `roles_uncategorized` is the list joined with
 `|`, cut to whole roles within the 200-character limit, and
 `roles_uncategorized_count` is the full count, so a cut list shows. Every few
-hundred searches, tally the values in that column, add patterns for the
-common ones (with a test case each) and ship.
+hundred searches, tally the values in that column, add the common ones (as
+names or words, with a test case each) and ship.
 
 ## Adding an event
 

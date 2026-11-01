@@ -1,7 +1,8 @@
 import React from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { ChevronLeft, Library, Search } from "lucide-react";
-import { LIBRARY_PATH, HOME_PATH, RESULTS_PATH, backLink } from "@/lib/routes";
+import { LIBRARY_PATH, HOME_PATH, RESULTS_PATH } from "@/lib/routes";
+import { useResultsBack } from "@/hooks/useResultsBack";
 import { Wordmark } from "./Wordmark";
 import { cn } from "@/lib/utils";
 
@@ -19,10 +20,11 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onHome, search }) => {
-  const { pathname, state } = useLocation();
+  const { pathname } = useLocation();
   const onHomePage = pathname === HOME_PATH;
   // On phones the results page's back link lives here, saving a row.
-  const back = pathname === RESULTS_PATH ? backLink(state) : null;
+  const resultsBack = useResultsBack();
+  const back = pathname === RESULTS_PATH ? resultsBack : null;
 
   // Glide down to "How it works" rather than jumping, unless the user prefers
   // reduced motion, and move focus to its heading for keyboard users.

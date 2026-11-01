@@ -1,4 +1,11 @@
 import { RequiredFilters, SearchCache } from "@/contexts/cache/types";
+import {
+  availablePeople,
+  availableRoles,
+  countedPeople,
+  creditFiltersOf,
+  creditsOf,
+} from "./credits";
 import { resetFilterState } from "./results";
 import { defaultContributorDisplayPipeline } from "./transformers/contributorProcessor";
 import {
@@ -43,7 +50,11 @@ export interface RolePerson {
   included: boolean;
 }
 
-/** Contributor chips, most albums first, then by name. */
+/**
+ * Contributor chips, most albums first, then by name. Included: not
+ * switched off; available: one of their credits would be on (see
+ * `availablePeople`).
+ */
 export const contributorChips = (search: SearchCache): ContributorChip[] => {
   const counts = new Map<number, number>();
   for (const release of Object.values(search.releases)) {
@@ -53,37 +64,43 @@ export const contributorChips = (search: SearchCache): ContributorChip[] => {
   }
   const { filterState } = search;
   const required = requiredFilters(filterState);
+  const available = availablePeople(
+    creditsOf(search),
+    creditFiltersOf(filterState),
+  );
   return Object.values(search.contributors)
     .map((c) => ({
       id: c.id,
       name: defaultContributorDisplayPipeline(c.name),
       roles: defaultRolePipeline(c.roles),
       count: counts.get(c.id) ?? 0,
-      included: filterState.contributors[c.id] ?? true,
-      available:
-        required.contributors.includes(c.id) ||
-        c.roles.some((role) => filterState.roles[role]),
+      included: filterState.contributors[c.id] !== false,
+      available: available.has(c.id),
       required: required.contributors.includes(c.id),
     }))
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 };
 
-/** Role chips, in alphabetical order. */
+/**
+ * Role chips, in alphabetical order. Available: someone credited with it
+ * is switched on (see `availableRoles`).
+ */
 export const roleChips = (search: SearchCache): RoleChip[] => {
   const { filterState } = search;
   const required = requiredFilters(filterState);
+  const available = availableRoles(
+    creditsOf(search),
+    creditFiltersOf(filterState),
+  );
   return Object.keys(search.roles)
     .sort((a, b) => a.localeCompare(b))
-    .map((role) => {
-      const people = rolePeople(search, role);
-      return {
-        role,
-        included: filterState.roles[role] ?? true,
-        available: people.some((p) => p.included),
-        required: required.roles.includes(role),
-        people,
-      };
-    });
+    .map((role) => ({
+      role,
+      included: filterState.roles[role] !== false,
+      available: available.has(role),
+      required: required.roles.includes(role),
+      people: rolePeople(search, role),
+    }));
 };
 
 /** Everyone credited with a role on the searched album, by name. */
@@ -93,7 +110,7 @@ export const rolePeople = (search: SearchCache, role: string): RolePerson[] =>
     .map((c) => ({
       id: c.id,
       name: defaultContributorDisplayPipeline(c.name),
-      included: Boolean(search.filterState.contributors[c.id]),
+      included: search.filterState.contributors[c.id] !== false,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -115,22 +132,18 @@ export const requiredFilters = (filterState: FilterState): RequiredFilters =>
   filterState.required ?? { contributors: [], roles: [] };
 
 /**
- * Whether a contributor counts towards results: switched on, and either
- * required or with at least one role on. A required person counts whatever
- * their roles, since it's the person that was asked for.
+ * The contributors who count towards results: those with a credit on (not
+ * switched off, with a role on), and those required and switched on,
+ * whatever their roles, since it's the person that was asked for.
  */
+export const countedContributors = (search: SearchCache): Set<number> =>
+  countedPeople(creditsOf(search), creditFiltersOf(search.filterState));
+
+/** Whether one contributor counts (see `countedContributors`). */
 export const isContributorCounted = (
   search: SearchCache,
   id: number,
-): boolean => {
-  const { filterState } = search;
-  if (!filterState.contributors[id]) return false;
-  if (requiredFilters(filterState).contributors.includes(id)) return true;
-  return (
-    search.contributors[id]?.roles.some((role) => filterState.roles[role]) ??
-    false
-  );
-};
+): boolean => countedContributors(search).has(id);
 
 /**
  * Whether a release with these counted contributors has everyone and every
@@ -245,7 +258,9 @@ export const enforceRequired = (
 
 export type MustIncludeItem =
   | { kind: "contributor"; id: number; label: string; detail: string }
-  | { kind: "role"; role: string; label: string; detail: string };
+  | { kind: "role"; role: string; label: string; detail: string }
+  /** A stack's album: every result links it. Stacks only. */
+  | { kind: "album"; key: string; label: string; detail: string };
 
 const categoryLabel = (role: string) =>
   ROLE_CATEGORIES.find((c) => c.id === roleCategory(role))?.label ?? "";
@@ -321,8 +336,9 @@ export const matchesName = (name: string, query: string): boolean =>
   fold(name).includes(fold(query.trim()));
 
 /**
- * How many filters differ from "Reset": each contributor or role switched
- * off or required, plus each of the switches changed. Shown on the
+ * How many filters differ from "Reset": each contributor switched off,
+ * each role switched away from its default (see `defaultRoleStates`),
+ * each one required, plus each of the switches changed. Shown on the
  * mobile Filters bar.
  */
 export const activeFilterCount = (search: SearchCache): number => {
@@ -330,16 +346,20 @@ export const activeFilterCount = (search: SearchCache): number => {
   const { filterState } = search;
   const off = (states: Record<string | number, boolean>) =>
     Object.values(states).filter((on) => !on).length;
+  const changedRoles = Object.entries(filterState.roles).filter(
+    ([role, on]) => on !== (base.roles[role] ?? true),
+  ).length;
   const required = requiredFilters(filterState);
   return (
     off(filterState.contributors) +
-    off(filterState.roles) +
+    changedRoles +
     required.contributors.length +
     required.roles.length +
     Number(filterState.excludeMainArtist !== base.excludeMainArtist) +
     Number(filterState.collaborationsOnly !== base.collaborationsOnly) +
     Number(filterState.excludeVarious !== base.excludeVarious) +
-    Number(Boolean(filterState.likedOnly))
+    Number(Boolean(filterState.likedOnly)) +
+    Number(Boolean(filterState.showHidden))
   );
 };
 

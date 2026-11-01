@@ -7,6 +7,7 @@ import { childLineage, lineageOf } from "./lineage";
 import { matchesName } from "./filters";
 import { linkSummary } from "./linkSummary";
 import { searchStartedAt } from "./searches";
+import { defaultContributorDisplayPipeline } from "./transformers/contributorProcessor";
 
 /**
  * Saved searches grouped by lineage. There is no stack entity: a stack is
@@ -130,6 +131,27 @@ export interface StackLayout {
    * saved album links it to the rest.
    */
   ghosts: GhostStep[];
+  /**
+   * Search id (a member's, or a ghost step's) -> the albums one step closer
+   * to the start that link it, most people first. Empty for the start.
+   */
+  parents: Map<string, StackParent[]>;
+}
+
+/** An album one step closer to the start that links to this one. */
+export interface StackParent {
+  /** The album's node: its target key, or its search id. */
+  key: string;
+  title: string;
+  artist: string;
+  /** Who links them: credited on both. Raw, not filtered. */
+  people: number[];
+  /** Their names, through the display pipeline, where known. */
+  names: string[];
+  /** Not saved any more (shown ghosted). */
+  ghost: boolean;
+  /** Linked only by the trail the search was reached by, not by results. */
+  byTrail: boolean;
 }
 
 /**
@@ -183,6 +205,8 @@ export const stackLayout = (stack: LibraryStack): StackLayout => {
   let found = distances();
 
   // Members nothing links to: join them by the trail they were reached by.
+  // Each trail link remembers who made it (the later step's `via`).
+  const trailVia = new Map<string, number[]>();
   const ghostSteps = new Map<
     string,
     { step: LineageStep; member: SearchCache; index: number }
@@ -194,7 +218,12 @@ export const stackLayout = (stack: LibraryStack): StackLayout => {
       ...path.map((step) => node(step.searchId, step.targetKey)),
       memberNode(member),
     ];
-    chain.slice(1).forEach((n, i) => link(chain[i], n));
+    chain.slice(1).forEach((n, i) => {
+      link(chain[i], n);
+      const via = i + 1 < path.length ? path[i + 1].via : lineageOf(member).via;
+      if (!trailVia.has(`${chain[i]}>${n}`))
+        trailVia.set(`${chain[i]}>${n}`, via);
+    });
     path.forEach((step, index) => {
       const n = node(step.searchId, step.targetKey);
       if (!memberNodes.has(n) && n !== rootNode && !ghostSteps.has(n)) {
@@ -240,22 +269,148 @@ export const stackLayout = (stack: LibraryStack): StackLayout => {
     ghosts.push(ghostOf(step, member, index));
   }
   ghosts.sort((a, b) => a.depth - b.depth);
-  return { levels, ghosts };
+
+  // Parents: linked albums one step closer to the start.
+  const searchByNode = new Map(stack.members.map((m) => [memberNode(m), m]));
+  const info = new Map<string, { title: string; artist: string }>();
+  info.set(rootNode, { title: root.title, artist: root.artist });
+  for (const g of ghosts) {
+    info.set(node(g.step.searchId, g.step.targetKey), g.step);
+  }
+  for (const [n, { step }] of ghostSteps) info.set(n, step);
+  for (const m of stack.members) {
+    info.set(memberNode(m), {
+      title: m.searchParams.album,
+      artist: m.searchParams.artist,
+    });
+  }
+  const nameOf = (id: number, ...searches: Array<SearchCache | undefined>) => {
+    for (const s of [...searches, ...stack.members]) {
+      const name = s?.contributors?.[id]?.name;
+      if (name) return defaultContributorDisplayPipeline(name);
+    }
+    return null;
+  };
+  const parentsOf = (child: string): StackParent[] => {
+    const level = found.get(child);
+    if (level === undefined || level === 0) return [];
+    const childSearch = searchByNode.get(child);
+    const parents: StackParent[] = [];
+    for (const n of adjacent.get(child) ?? []) {
+      if (found.get(n) !== level - 1) continue;
+      const parentSearch = searchByNode.get(n);
+      const credited =
+        parentSearch?.releases?.[child]?.contributorIds ??
+        childSearch?.releases?.[n]?.contributorIds;
+      const people = Array.from(
+        new Set(credited ?? trailVia.get(`${n}>${child}`) ?? []),
+      );
+      const names = people
+        .map((id) => nameOf(id, childSearch, parentSearch))
+        .filter((name): name is string => name !== null);
+      const { title, artist } = info.get(n) ?? { title: n, artist: "" };
+      parents.push({
+        key: n,
+        title,
+        artist,
+        people,
+        names,
+        ghost: !searchByNode.has(n),
+        byTrail: !credited,
+      });
+    }
+    return parents.sort(
+      (a, b) =>
+        b.people.length - a.people.length || a.title.localeCompare(b.title),
+    );
+  };
+  const parents = new Map<string, StackParent[]>();
+  for (const m of stack.members)
+    parents.set(m.searchId, parentsOf(memberNode(m)));
+  for (const g of ghosts) {
+    parents.set(
+      g.step.searchId,
+      parentsOf(node(g.step.searchId, g.step.targetKey)),
+    );
+  }
+  return { levels, ghosts, parents };
 };
 
-export type StackOrder = "depth" | "time";
+const MAX_LINK_NAMES = 2;
 
-/** Members by step (then time), or newest first. */
+const plural = (n: number, one: string, many: string) =>
+  `${n} ${n === 1 ? one : many}`;
+
+const albumName = (parent: StackParent) =>
+  parent.ghost ? `${parent.title} (deleted)` : parent.title;
+
+const distinctPeople = (parents: StackParent[]) =>
+  new Set(parents.flatMap((p) => p.people)).size;
+
+/**
+ * A card's link line: where it was reached from and who links them. "From
+ * In Utero · Steve Albini, Krist Novoselic +1"; with several parents, the
+ * one sharing most people and a count: "From In Utero and 1 more · 4
+ * people". Empty for the start.
+ */
+export const linkLineText = (parents: StackParent[]): string => {
+  if (parents.length === 0) return "";
+  const [first] = parents;
+  if (parents.length > 1) {
+    return `From ${albumName(first)} and ${parents.length - 1} more · ${plural(
+      distinctPeople(parents),
+      "person",
+      "people",
+    )}`;
+  }
+  if (first.people.length === 0) return `From ${albumName(first)}`;
+  const shown = first.names.slice(0, MAX_LINK_NAMES);
+  const rest = first.people.length - shown.length;
+  const who =
+    shown.length === 0
+      ? plural(rest, "person", "people")
+      : `${shown.join(", ")}${rest > 0 ? ` +${rest}` : ""}`;
+  return `From ${albumName(first)} · ${who}`;
+};
+
+const listOf = (items: string[]) =>
+  items.length <= 1
+    ? (items[0] ?? "")
+    : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+
+/** The link line in full, for a card's accessible name: every name. */
+export const linkLineLabel = (parents: StackParent[]): string =>
+  parents.length === 0
+    ? ""
+    : "Linked " +
+      parents
+        .map((p) => {
+          const unnamed = p.people.length - p.names.length;
+          const who = [
+            ...p.names,
+            ...(unnamed > 0
+              ? [
+                  plural(
+                    unnamed,
+                    p.names.length ? "other" : "person",
+                    p.names.length ? "others" : "people",
+                  ),
+                ]
+              : []),
+          ];
+          return `from ${albumName(p)}${who.length ? ` by ${listOf(who)}` : ""}`;
+        })
+        .join("; and ");
+
+/** Members by step, then oldest first within a step. */
 export const stackMembersByDepth = (
   stack: LibraryStack,
-  order: StackOrder = "depth",
   levels: Map<string, number> = stackLayout(stack).levels,
 ): SearchCache[] =>
-  [...stack.members].sort((a, b) =>
-    order === "depth"
-      ? (levels.get(a.searchId) ?? 0) - (levels.get(b.searchId) ?? 0) ||
-        searchStartedAt(a.searchId) - searchStartedAt(b.searchId)
-      : searchStartedAt(b.searchId) - searchStartedAt(a.searchId),
+  [...stack.members].sort(
+    (a, b) =>
+      (levels.get(a.searchId) ?? 0) - (levels.get(b.searchId) ?? 0) ||
+      searchStartedAt(a.searchId) - searchStartedAt(b.searchId),
   );
 
 /** Unsaved albums shown ghosted on a stack's page (see `stackLayout`). */
@@ -356,7 +511,7 @@ export const stacksThisFits = (
 
 /**
  * What links a fit to its parent, by role: their roles on the parent album,
- * as `linkSummary` puts them ("via Musicians (2) · Audio (1)", "via Lacquer
+ * as `linkSummary` puts them ("via Instruments (2) · Production (1)", "via Lacquer
  * Cut By").
  */
 export const fitLinkText = (fit: Pick<StackFit, "parent" | "via">): string =>

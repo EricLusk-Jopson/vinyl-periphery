@@ -23,6 +23,10 @@ import {
 import { track } from "@/lib/analytics";
 import { useLikes } from "@/hooks/useLikes";
 import { setLiked } from "@/services/likes";
+import { setHidden } from "@/services/hidden";
+import { useHidden } from "@/hooks/useHidden";
+import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "../ui/toast";
 import { cn } from "@/lib/utils";
 import { pinToTop } from "@/lib/resultSearch";
 import { iconButton } from "../common/buttons";
@@ -63,6 +67,8 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
 }) => {
   const { searches, updateFilterState } = useCache();
   const likes = useLikes();
+  const hidden = useHidden();
+  const { toast } = useToast();
   const { releases } = useFilteredAndScoredReleases(searchId);
   const search = searches[searchId];
   const sortId = useId();
@@ -266,6 +272,7 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
               sort,
               ...(then ? { then } : {}),
             };
+            const album = { title: release.title, artist: release.artist };
             return (
               <ReleaseRow
                 key={release.key}
@@ -296,12 +303,35 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
                 searching={isSearching}
                 searchingFromHere={isSearching && pendingKey === release.key}
                 liked={Boolean(likes[release.key])}
-                onToggleLike={() => {
-                  const liked = setLiked(release.key, !likes[release.key], {
-                    title: release.title,
-                    artist: release.artist,
-                  });
+                hidden={Boolean(hidden[release.key])}
+                onLike={(like) => {
+                  const liked = setLiked(release.key, like, album);
                   track("result_liked", { liked, ...position });
+                }}
+                onHide={(hide) => {
+                  const isHidden = setHidden(release.key, hide, album);
+                  // A hidden album isn't liked.
+                  const wasLiked = Boolean(likes[release.key]);
+                  if (isHidden && wasLiked) setLiked(release.key, false, album);
+                  track("result_hidden", { hidden: isHidden, ...position });
+                  // Gone from the list: say so, with a way back.
+                  if (isHidden && !search.filterState.showHidden) {
+                    toast({
+                      title: "Album hidden",
+                      description: `${release.title} by ${release.artist}. "Show hidden albums" in the filters lists it again.`,
+                      action: (
+                        <ToastAction
+                          altText="Undo hide"
+                          onClick={() => {
+                            setHidden(release.key, false, album);
+                            if (wasLiked) setLiked(release.key, true, album);
+                          }}
+                        >
+                          Undo
+                        </ToastAction>
+                      ),
+                    });
+                  }
                 }}
               />
             );

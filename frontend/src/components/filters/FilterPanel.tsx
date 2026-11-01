@@ -41,6 +41,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     toggleCollaborationsOnly,
     toggleExcludeVarious,
     toggleLikedOnly,
+    toggleShowHidden,
   } = useSearchFilters(searchId);
   const search = searches[searchId];
   const [query, setQuery] = useState("");
@@ -106,7 +107,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           }}
         />
         <Switch
-          label="Only albums with 2+ shared"
+          label="Only albums with 2+ shared contributors"
           checked={filterState.collaborationsOnly}
           onChange={() => {
             changed("two_plus_shared", !filterState.collaborationsOnly);
@@ -127,6 +128,14 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           onChange={() => {
             changed("liked_only", !filterState.likedOnly);
             toggleLikedOnly();
+          }}
+        />
+        <Switch
+          label="Show hidden albums"
+          checked={Boolean(filterState.showHidden)}
+          onChange={() => {
+            changed("show_hidden", !filterState.showHidden);
+            toggleShowHidden();
           }}
         />
       </div>

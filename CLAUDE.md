@@ -35,7 +35,7 @@ ranks albums by how many of those people worked on them.
     start at the top), and results at the average of the stack albums'
     places, weighted by the people they share with each. A stack shares only as a map; its sheet
     orders the results (sort, tiebreaker, likes first) and takes albums
-    out or adds them, with no filters to draw from. Typing "no
+    out or adds them, drawing from the Results tab's filtered results. Typing "no
     boilerplate" in the sheet's album search unlocks a switch that drops
     the header and site so the graph fills the image (`nb`).
     Never calls Discogs; only Cover
@@ -76,19 +76,34 @@ ranks albums by how many of those people worked on them.
     search is in; its steps are only a fallback for
     placing it (see `stackLayout`).
   - `src/lib/transformers/`: role and name cleanup, with Jest tests.
-    `roleCategories.ts` puts roles into the buckets the Roles filter groups
-    by (Musicians, Writing, Audio, Physical media, Management, Other).
+    `roleCategories.ts` puts roles under the headings of Discogs's credits
+    list, which the Roles filter groups by (Vocals, Instruments, Featuring &
+    Presenting, Conducting & Leading, Writing & Arrangement, Production,
+    Remix, DJ Mix, Technical, Visual, Acting, Literary & Spoken,
+    Management, Other). Every Discogs role is listed by name in
+    `discogsRoles.ts`; other spellings fall back to their endings, plurals
+    and common words.
   - `src/lib/releases.ts`: discography items to results. Each result has a
     `type` and a `key` (`"master:N"` / `"release:N"`); `SearchCache.releases`
     is keyed by `key`. Searches stored before keys existed are migrated as
     they load (`migrateSearch`).
-  - Likes: a heart on each result row. A like belongs to the album (its
+  - Likes and hides: each result row ends in one slot (`AlbumMark`): "⋯"
+    opens Like and Hide; a liked album shows a filled heart there, a
+    hidden one a crossed-out eye, and tapping either undoes it. A hidden
+    album isn't liked. A like belongs to the album (its
     result key), so it shows in every search; kept in localStorage by
     `src/services/likes.ts` (`useLikes`). Liked albums fill in the share
-    map.
+    map. Hides are kept the same way (per album, in
+    `src/services/hidden.ts`, `useHidden`): hidden albums leave the
+    results unless "Show hidden albums" (`filterState.showHidden`) is on,
+    and never go into a share image.
   - `src/lib/filters.ts`: chip state, "must include" (`filterState.required`,
     optional because older saved searches lack it), active filter count.
-    "Only liked albums" is `filterState.likedOnly` (also optional).
+    "Only liked albums" is `filterState.likedOnly` (also optional). A new
+    search (and Reset) has every contributor on but only the musicians'
+    roles (Vocals, Instruments, Featuring, Conducting) and Other
+    (`defaultRoleStates` in `lib/results.ts`); results start
+    sorted Most shared, then Popular (`useResultsSort`).
   - `src/components/ui/`: shadcn primitives. Edit sparingly.
   - `src/lib/stacks.ts`: searches grouped by `lineage.stackId` (two or more
     make a stack), the stack's root, and the stacks a search fits
@@ -98,10 +113,27 @@ ranks albums by how many of those people worked on them.
     when one is in the other's results, and each member's step is its
     fewest links from the root; members nothing links fall back to their
     trail, with its deleted steps ghosted. No stack entity is stored.
+    `stackLayout` also gives each member its parents (linked albums one
+    step closer to the start), which the stack page's Albums tab turns into
+    a link line per card (`linkLineText`).
+  - A stack's Results tab reads its searches as one album:
+    `src/lib/metaAlbum.ts` (takes any set of searches: credits, people
+    deduped with their albums, results merged less the members; the share
+    map's `stackResults` is built on it). `src/lib/stackFilters.ts` filters
+    it by credit, with member albums as a filter too (off, or required in "must include"),
+    and scores links (member albums linking a result with someone who
+    counts) and shared; default sort links, then shared, then Popular.
+    Filters are stored per `stackId` in IndexedDB (`stack-filters`, DB v3,
+    `useStackFilters`), start with every chip on, and are deleted by the
+    cache once the stack is under two searches. Searching from a result
+    hangs the new search on the member sharing the most people. Share
+    draws the filtered results.
   - Routes (React Router): `/` home, `/library`,
-    `/library/stack/:stackId`, and
+    `/library/stack/:stackId` (Albums tab; `?view=results` for Results), and
     `/results?artist=…&album=…`, plus `&master=N` or `&release=N` when the
-    Discogs album is known. A results URL names the album, not a cached
+    Discogs album is known. A results page's back link goes where it was
+    opened from (a stack or the library); otherwise to the stack its search
+    is in, or the library (`useResultsBack`). A results URL names the album, not a cached
     search, so it works on any device: without the search cached, the page
     offers to run it. Each search has a `target` (`src/lib/searchTarget.ts`):
     the first search result's master, or the clicked row's master or
@@ -152,11 +184,12 @@ switch both run from `main`, so keep `backend/server.js` and
 
 ## Known issues (not fixed yet)
 
-- Contributor discographies are read 500 items a page, up to
-  `MAX_DISCOGRAPHY_PAGES` (4, so 2,000 items) per person. Discogs sorts them
-  by role group (Main, production credits, Appearance), then year, so the
-  few people past the cap lose their latest Appearance credits first
-  (`discographies_capped` on `search_completed` counts them).
+- Contributor discographies are read 500 items a page, newest first
+  (`discographyUrl`: `sort=year&sort_order=desc`), up to
+  `MAX_DISCOGRAPHY_PAGES` (4, so 2,000 items) per person. The few people
+  past the cap lose their oldest credits (`discographies_capped` on
+  `search_completed` counts them). Discogs's default order grouped items
+  by role first, which cost the latest Appearance credits instead.
 - In `/artists/{id}/releases`, release-type items carry no `master_id`
   (none of 32 sampled from Keltner and Albini): they are releases with no
   master (compilations, promos, singles; confirmed for 2429544, whose own
@@ -171,5 +204,4 @@ switch both run from `main`, so keep `backend/server.js` and
   its version), and an opened master row reads credits from those versions,
   up to `MAX_CREDIT_VERSIONS` (3). The result's own `mainRelease` is still
   the first contributor's.
-- "Exclude main artist" matches the first word of the typed artist name.
 - Most Discogs calls go from the browser unauthenticated.

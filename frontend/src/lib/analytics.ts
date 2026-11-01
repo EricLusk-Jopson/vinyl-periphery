@@ -22,9 +22,12 @@ export type AnalyticsEvent =
   | "cover_lookup"
   | "stack_saved"
   | "stack_opened"
+  | "stack_view_changed"
+  | "stack_filters_applied"
   | "search_unstacked"
   | "stack_disbanded"
   | "result_liked"
+  | "result_hidden"
   | "search_jumped"
   | "library_view_toggled"
   | "library_searched"
@@ -129,3 +132,10 @@ export function track(event: AnalyticsEvent, properties: EventProperties = {}): 
     // Analytics must never break the app.
   }
 }
+
+/** `filter_changed` from a stack's Results tab. */
+export const trackStackFilter = (
+  filter: string,
+  on: boolean,
+  extra: EventProperties = {},
+) => track("filter_changed", { filter, on, scope: "stack", ...extra });

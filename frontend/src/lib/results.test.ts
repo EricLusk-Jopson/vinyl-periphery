@@ -224,7 +224,8 @@ describe("defaultRoleStates", () => {
       "Mastered By": false,
       "Photography By [Cover]": false,
       Management: false,
-      "Compiled By": true,
+      // Production, as Discogs lists it: off.
+      "Compiled By": false,
     });
   });
 });
@@ -242,7 +243,7 @@ describe("resetFilterState", () => {
     } as unknown as SearchCache;
     expect(resetFilterState(search)).toEqual({
       contributors: { 1: true, 2: true },
-      // Musicians and Other on; audio, physical media and the rest off.
+      // The musicians' roles and Other on; technical, spoken and the rest off.
       roles: {
         Engineer: false,
         Vocals: true,

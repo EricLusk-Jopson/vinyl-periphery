@@ -6,8 +6,8 @@ import {
 } from "./transformers/roleCategories";
 
 /**
- * What links two albums, said by role rather than by name: "Musicians (2)
- * · Audio (1)". A name alone says nothing about why the link matters (a
+ * What links two albums, said by role rather than by name: "Instruments (2)
+ * · Technical (1)". A name alone says nothing about why the link matters (a
  * mastering engineer and a drummer read the same); the category does.
  * Categories come in the Roles filter's order. When every link is in one
  * category, or a category is Other, the roles themselves say more, so
@@ -18,6 +18,7 @@ const MAX_ROLES = 3;
 
 export interface LinkGroup {
   category: RoleCategory;
+  /** The category's short name (see ROLE_CATEGORIES). */
   label: string;
   /** How many of the linking people have a role in it. */
   people: number;
@@ -45,7 +46,7 @@ export const linkGroups = (
       byCategory.set(category, group);
     }
   }
-  return ROLE_CATEGORIES.flatMap(({ id, label }) => {
+  return ROLE_CATEGORIES.flatMap(({ id, short: label }) => {
     const group = byCategory.get(id);
     return group
       ? [{ category: id, label, people: group.people.size, roles: group.roles }]
@@ -59,7 +60,7 @@ const roleList = (roles: string[]) =>
     : roles.join(", ");
 
 /**
- * The summary line: "via Musicians (2) · Audio (1)", "via Lacquer Cut By"
+ * The summary line: "via Instruments (2) · Technical (1)", "via Lacquer Cut By"
  * (one category: its roles), Other always by its roles. With no roles
  * known, how many people.
  */

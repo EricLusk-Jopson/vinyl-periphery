@@ -76,8 +76,13 @@ ranks albums by how many of those people worked on them.
     search is in; its steps are only a fallback for
     placing it (see `stackLayout`).
   - `src/lib/transformers/`: role and name cleanup, with Jest tests.
-    `roleCategories.ts` puts roles into the buckets the Roles filter groups
-    by (Musicians, Writing, Audio, Physical media, Management, Other).
+    `roleCategories.ts` puts roles under the headings of Discogs's credits
+    list, which the Roles filter groups by (Vocals, Instruments, Featuring &
+    Presenting, Conducting & Leading, Writing & Arrangement, Production,
+    Remix, DJ Mix, Technical, Visual, Acting, Literary & Spoken,
+    Management, Other). Every Discogs role is listed by name in
+    `discogsRoles.ts`; other spellings fall back to their endings, plurals
+    and common words.
   - `src/lib/releases.ts`: discography items to results. Each result has a
     `type` and a `key` (`"master:N"` / `"release:N"`); `SearchCache.releases`
     is keyed by `key`. Searches stored before keys existed are migrated as
@@ -89,8 +94,9 @@ ranks albums by how many of those people worked on them.
   - `src/lib/filters.ts`: chip state, "must include" (`filterState.required`,
     optional because older saved searches lack it), active filter count.
     "Only liked albums" is `filterState.likedOnly` (also optional). A new
-    search (and Reset) has every contributor on but only Musicians and
-    Other roles (`defaultRoleStates` in `lib/results.ts`); results start
+    search (and Reset) has every contributor on but only the musicians'
+    roles (Vocals, Instruments, Featuring, Conducting) and Other
+    (`defaultRoleStates` in `lib/results.ts`); results start
     sorted Most shared, then Popular (`useResultsSort`).
   - `src/components/ui/`: shadcn primitives. Edit sparingly.
   - `src/lib/stacks.ts`: searches grouped by `lineage.stackId` (two or more

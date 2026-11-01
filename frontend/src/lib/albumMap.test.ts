@@ -44,8 +44,8 @@ const angleGap = (a: number, b: number) => {
 
 describe("personCategory", () => {
   it("takes the first category in filter order", () => {
-    expect(personCategory(["Producer", "Guitar"])).toBe("musicians");
-    expect(personCategory(["Design"])).toBe("physical");
+    expect(personCategory(["Producer", "Guitar"])).toBe("instruments");
+    expect(personCategory(["Design"])).toBe("visual");
     expect(personCategory([])).toBe("other");
   });
 });
@@ -54,11 +54,11 @@ describe("placePeople", () => {
   it("groups people by category, with a gap between groups", () => {
     const people = placePeople([{ people: [1, 2, 3, 4, 5] }], contributors);
     expect(people.map((p) => [p.id, p.category])).toEqual([
-      [1, "musicians"],
-      [2, "musicians"],
-      [3, "audio"],
-      [4, "audio"],
-      [5, "physical"],
+      [1, "instruments"],
+      [2, "instruments"],
+      [3, "technical"],
+      [4, "technical"],
+      [5, "visual"],
     ]);
     // 5 people + 3 group gaps = 8 slots of 45°.
     const slot = Math.PI / 4;

@@ -356,7 +356,7 @@ export const stacksThisFits = (
 
 /**
  * What links a fit to its parent, by role: their roles on the parent album,
- * as `linkSummary` puts them ("via Musicians (2) · Audio (1)", "via Lacquer
+ * as `linkSummary` puts them ("via Instruments (2) · Production (1)", "via Lacquer
  * Cut By").
  */
 export const fitLinkText = (fit: Pick<StackFit, "parent" | "via">): string =>

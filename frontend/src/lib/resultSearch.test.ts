@@ -71,7 +71,7 @@ describe("searchResults", () => {
     const [eve] = searchResults(makeSearch(), "Eve", new Set());
     expect(eve).toMatchObject({
       contributors: 2,
-      summary: "via Musicians (1) · Audio (1)",
+      summary: "via Vocals (1) · Technical (1)",
       year: 1979,
     });
   });

@@ -108,14 +108,15 @@ To test locally, put both Vinyl Periphery variables in `.env` and run
 
 ## Uncategorized roles
 
-The Roles filter groups roles into Musicians, Writing, Audio, Physical media,
-Management and Other, using the patterns in
-`frontend/src/lib/transformers/roleCategories.ts`. `search_completed` reports
+The Roles filter groups roles under the headings of Discogs's credits list,
+matching every Discogs role by name (`frontend/src/lib/transformers/discogsRoles.ts`)
+and other spellings by their endings and common words
+(`frontend/src/lib/transformers/roleCategories.ts`). `search_completed` reports
 the roles that fell into Other: `roles_uncategorized` is the list joined with
 `|`, cut to whole roles within the 200-character limit, and
 `roles_uncategorized_count` is the full count, so a cut list shows. Every few
-hundred searches, tally the values in that column, add patterns for the
-common ones (with a test case each) and ship.
+hundred searches, tally the values in that column, add the common ones (as
+names or words, with a test case each) and ship.
 
 ## Adding an event
 

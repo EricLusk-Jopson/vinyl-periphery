@@ -244,9 +244,9 @@ describe("roleGroups", () => {
         g.roles.map((r) => r.role),
       ]),
     ).toEqual([
-      ["Musicians", ["Vocals"]],
-      ["Audio", ["Engineer"]],
-      ["Physical media", ["Design", "Photography"]],
+      ["Vocals", ["Vocals"]],
+      ["Technical", ["Engineer"]],
+      ["Visual", ["Design", "Photography"]],
     ]);
   });
 });
@@ -396,7 +396,7 @@ describe("requiredChips", () => {
         label: "Storm Thorgerson",
         detail: "Design, Photography",
       },
-      { kind: "role", role: "Vocals", label: "Vocals", detail: "Musicians" },
+      { kind: "role", role: "Vocals", label: "Vocals", detail: "Vocals" },
     ]);
   });
 });

@@ -26,6 +26,7 @@ import { matchingSearchIds } from "@/lib/searchTarget";
 import { migrateSearch } from "@/lib/releases";
 import { defaultRoleStates, isMainArtistRelease } from "@/lib/results";
 import { useLikes } from "@/hooks/useLikes";
+import { useHidden } from "@/hooks/useHidden";
 import {
   detachedLineage,
   lineageForNewSearch,
@@ -590,6 +591,13 @@ export const useSearchFilters = (searchId: string) => {
     });
   }, [search, searchId, updateFilterState]);
 
+  const toggleShowHidden = useCallback(() => {
+    if (!search) return;
+    updateFilterState(searchId, {
+      showHidden: !search.filterState.showHidden,
+    });
+  }, [search, searchId, updateFilterState]);
+
   return {
     toggleContributor,
     toggleRole,
@@ -606,6 +614,7 @@ export const useSearchFilters = (searchId: string) => {
     toggleCollaborationsOnly,
     toggleExcludeVarious,
     toggleLikedOnly,
+    toggleShowHidden,
     filterState: search?.filterState,
   };
 };
@@ -617,6 +626,8 @@ export const useFilteredAndScoredReleases = (searchId: string) => {
   const search = searches[searchId];
   // Likes are kept outside the cache; "Only liked" reads them.
   const likes = useLikes();
+  // Hidden albums leave the results unless the filter shows them.
+  const hidden = useHidden();
 
   return useMemo(() => {
     if (!search) return { releases: [], count: 0 };
@@ -661,6 +672,8 @@ export const useFilteredAndScoredReleases = (searchId: string) => {
 
         if (search.filterState.likedOnly && !likes[release.key]) return null;
 
+        if (!search.filterState.showHidden && hidden[release.key]) return null;
+
         const { score, confidence } = calculateReleaseScore(
           { ...release, contributorIds: uniqueContributorIds },
           {
@@ -685,5 +698,5 @@ export const useFilteredAndScoredReleases = (searchId: string) => {
       releases: processedReleases,
       count: processedReleases.length,
     };
-  }, [search, isContributorActive, likes]);
+  }, [search, isContributorActive, likes, hidden]);
 };

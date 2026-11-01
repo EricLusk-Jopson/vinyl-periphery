@@ -102,6 +102,23 @@ export const shareSelection = (
   return picked;
 };
 
+/**
+ * Albums and edits without the albums the user has hidden: a share image
+ * never draws one, whatever the results show.
+ */
+export const withoutHidden = <T extends { key: string }>(
+  albums: T[],
+  hidden: Record<string, unknown>,
+): T[] => albums.filter((album) => !hidden[album.key]);
+
+export const editsWithoutHidden = (
+  edits: ShareEdits,
+  hidden: Record<string, unknown>,
+): ShareEdits =>
+  edits.added.some((key) => hidden[key])
+    ? { ...edits, added: edits.added.filter((key) => !hidden[key]) }
+    : edits;
+
 /** The edits, in words for the caption: "2 removed · 1 added". */
 export const editsCaption = (edits: ShareEdits): string =>
   [

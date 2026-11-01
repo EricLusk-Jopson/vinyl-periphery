@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import {
   ArrowRight,
   ArrowUpRight,
-  Heart,
   Loader2,
   RotateCw,
   Users,
@@ -23,6 +22,7 @@ import {
 } from "@/lib/results";
 import { cn } from "@/lib/utils";
 import { AlbumCover } from "../search/AlbumCover";
+import { AlbumMark } from "./AlbumMark";
 
 const MAX_DOTS = 4;
 
@@ -48,7 +48,13 @@ interface ReleaseRowProps {
   searchingFromHere: boolean;
   /** Liked albums show in every search they turn up in. */
   liked: boolean;
-  onToggleLike: () => void;
+  /**
+   * Hidden by the user: only listed with "Show hidden albums" on, dimmed.
+   * Hidden albums are never drawn in a share image, and aren't liked.
+   */
+  hidden: boolean;
+  onLike: (liked: boolean) => void;
+  onHide: (hidden: boolean) => void;
 }
 
 const focusRing =
@@ -73,7 +79,9 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
   searching,
   searchingFromHere,
   liked,
-  onToggleLike,
+  hidden,
+  onLike,
+  onHide,
 }) => {
   const panelId = useId();
   const shared = people.length;
@@ -143,6 +151,7 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
           className={cn(
             "flex min-w-0 flex-1 items-center gap-3 rounded-lg py-3 pl-3 pr-1 text-left md:gap-4 md:py-3.5 md:pl-4",
             focusRing,
+            hidden && "opacity-50",
           )}
         >
           <AlbumCover
@@ -192,27 +201,13 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
             )}
           </span>
         </button>
-        <button
-          type="button"
-          onClick={onToggleLike}
-          aria-pressed={liked}
-          aria-label={`Like ${release.title}`}
-          className={cn(
-            // No fill of its own: hover and press change the heart only.
-            "group/like flex h-11 w-11 shrink-0 items-center justify-center rounded-lg md:mr-1",
-            focusRing,
-          )}
-        >
-          <Heart
-            className={cn(
-              "h-5 w-5 transition-[color,transform] duration-150 group-active/like:scale-90",
-              liked
-                ? "fill-primary text-primary"
-                : "text-muted-foreground group-hover/like:text-foreground",
-            )}
-            aria-hidden="true"
-          />
-        </button>
+        <AlbumMark
+          title={release.title}
+          liked={liked}
+          hidden={hidden}
+          onLike={onLike}
+          onHide={onHide}
+        />
       </div>
 
       <div

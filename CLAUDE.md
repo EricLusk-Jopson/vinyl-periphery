@@ -87,10 +87,16 @@ ranks albums by how many of those people worked on them.
     `type` and a `key` (`"master:N"` / `"release:N"`); `SearchCache.releases`
     is keyed by `key`. Searches stored before keys existed are migrated as
     they load (`migrateSearch`).
-  - Likes: a heart on each result row. A like belongs to the album (its
+  - Likes and hides: each result row ends in one slot (`AlbumMark`): "⋯"
+    opens Like and Hide; a liked album shows a filled heart there, a
+    hidden one a crossed-out eye, and tapping either undoes it. A hidden
+    album isn't liked. A like belongs to the album (its
     result key), so it shows in every search; kept in localStorage by
     `src/services/likes.ts` (`useLikes`). Liked albums fill in the share
-    map.
+    map. Hides are kept the same way (per album, in
+    `src/services/hidden.ts`, `useHidden`): hidden albums leave the
+    results unless "Show hidden albums" (`filterState.showHidden`) is on,
+    and never go into a share image.
   - `src/lib/filters.ts`: chip state, "must include" (`filterState.required`,
     optional because older saved searches lack it), active filter count.
     "Only liked albums" is `filterState.likedOnly` (also optional). A new

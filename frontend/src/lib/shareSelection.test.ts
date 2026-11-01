@@ -2,6 +2,8 @@ import { SearchCache } from "@/contexts/cache/types";
 import { ScoredRelease } from "./results";
 import {
   editsCaption,
+  editsWithoutHidden,
+  withoutHidden,
   filtersToInclude,
   NO_EDITS,
   scoredFor,
@@ -135,5 +137,22 @@ describe("editsCaption", () => {
     expect(editsCaption({ removed: ["a", "b"], added: ["c"] })).toBe(
       "2 removed · 1 added",
     );
+  });
+});
+
+describe("withoutHidden", () => {
+  it("leaves hidden albums out of the albums and the added ones", () => {
+    const hidden = { "master:2": { title: "", artist: "", hiddenAt: 0 } };
+    expect(
+      withoutHidden([{ key: "master:1" }, { key: "master:2" }], hidden),
+    ).toEqual([{ key: "master:1" }]);
+    expect(
+      editsWithoutHidden(
+        { removed: [], added: ["master:2", "master:3"] },
+        hidden,
+      ),
+    ).toEqual({ removed: [], added: ["master:3"] });
+    const untouched = { removed: [], added: ["master:3"] };
+    expect(editsWithoutHidden(untouched, hidden)).toBe(untouched);
   });
 });

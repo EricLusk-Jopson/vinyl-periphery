@@ -343,7 +343,8 @@ export const activeFilterCount = (search: SearchCache): number => {
     Number(filterState.excludeMainArtist !== base.excludeMainArtist) +
     Number(filterState.collaborationsOnly !== base.collaborationsOnly) +
     Number(filterState.excludeVarious !== base.excludeVarious) +
-    Number(Boolean(filterState.likedOnly))
+    Number(Boolean(filterState.likedOnly)) +
+    Number(Boolean(filterState.showHidden))
   );
 };
 

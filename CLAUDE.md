@@ -171,5 +171,4 @@ switch both run from `main`, so keep `backend/server.js` and
   its version), and an opened master row reads credits from those versions,
   up to `MAX_CREDIT_VERSIONS` (3). The result's own `mainRelease` is still
   the first contributor's.
-- "Exclude main artist" matches the first word of the typed artist name.
 - Most Discogs calls go from the browser unauthenticated.

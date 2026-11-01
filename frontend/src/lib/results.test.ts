@@ -9,6 +9,8 @@ import {
   resetFilterState,
   sharedPeople,
   sortReleases,
+  isMainArtistRelease,
+  mainArtistIds,
   popularity,
   compactCount,
   hasPopularity,
@@ -199,6 +201,91 @@ describe("sharedPeople", () => {
       { id: 1, name: "Alan Parsons", roles: "Engineer" },
       { id: 2, name: "Clare Torry", roles: "Vocals, Lead Vocals" },
     ]);
+  });
+});
+
+describe("isMainArtistRelease", () => {
+  // Black Midi (id 10, the searched album's artist) and a session player.
+  const search = {
+    searchParams: { artist: "Black Midi", album: "Hellfire" },
+    contributors: {
+      10: {
+        id: 10,
+        name: "Black Midi",
+        roles: [],
+        sources: ["artist"],
+        resourceUrl: "",
+      },
+      20: {
+        id: 20,
+        name: "Morgan Simpson",
+        roles: ["Drums"],
+        sources: ["credits"],
+        resourceUrl: "",
+      },
+    },
+  } as unknown as SearchCache;
+  const result = (
+    artist: string,
+    contributions: Record<number, { role: string }[]> | undefined,
+  ) => ({
+    artist,
+    contributorIds: contributions
+      ? Object.keys(contributions).map(Number)
+      : [10, 20],
+    ...(contributions ? { contributions } : {}),
+  });
+
+  it("knows the searched album's own artists by id", () => {
+    expect(mainArtistIds(search)).toEqual([10]);
+  });
+
+  it("hides what the artist's discography lists as their own", () => {
+    expect(
+      isMainArtistRelease(
+        search,
+        result("Black Midi", { 10: [{ role: "Main" }] }),
+      ),
+    ).toBe(true);
+    // Credited under another name: still theirs by id.
+    expect(
+      isMainArtistRelease(search, result("bm", { 10: [{ role: "Main" }] })),
+    ).toBe(true);
+  });
+
+  it("keeps what they only appear on, whatever it's called", () => {
+    // The artist produced it: not their own release.
+    expect(
+      isMainArtistRelease(
+        search,
+        result("Black Country, New Road", { 10: [{ role: "Producer" }] }),
+      ),
+    ).toBe(false);
+    // Only the session player is on it, though the name starts the same.
+    expect(
+      isMainArtistRelease(
+        search,
+        result("Black Sabbath", { 20: [{ role: "Drums" }] }),
+      ),
+    ).toBe(false);
+  });
+
+  it("falls back to whole-word names without discography roles", () => {
+    expect(
+      isMainArtistRelease(search, result("Black Midi & Friends", undefined)),
+    ).toBe(true);
+    // The old rule matched "Black": Black Sabbath was hidden.
+    expect(
+      isMainArtistRelease(search, result("Black Sabbath", undefined)),
+    ).toBe(false);
+    // No main artist known: the typed name, whole words.
+    const typed = { ...search, contributors: {} } as unknown as SearchCache;
+    expect(isMainArtistRelease(typed, result("Black Midi", undefined))).toBe(
+      true,
+    );
+    expect(isMainArtistRelease(typed, result("Black Midis", undefined))).toBe(
+      false,
+    );
   });
 });
 

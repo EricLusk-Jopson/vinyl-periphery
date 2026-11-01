@@ -18,6 +18,7 @@ import {
   addRelease,
   DiscographyItem,
   discographyPagesToRead,
+  discographyUrl,
   toEnrichedRelease,
 } from "../lib/releases";
 import { sleep, throwIfAborted } from "./abort";
@@ -200,7 +201,8 @@ export async function listContributorReleases(
       });
     progress(0);
 
-    // Every page, DISCOGRAPHY_PAGE_SIZE at a time, up to the cap. Nearly
+    // Every page, newest first, DISCOGRAPHY_PAGE_SIZE at a time, up to the
+    // cap (so the oldest credits are the ones a cap drops). Nearly
     // everyone fits in the first page; the first page says how many more.
     let pagesToRead = 1;
     let pagesRead = 0;
@@ -212,7 +214,7 @@ export async function listContributorReleases(
           `Fetching releases for contributor: ${contributor.name} (${contributor.id}), page ${page}`
         );
         const response = await fetch(
-          `https://api.discogs.com/artists/${contributor.id}/releases?per_page=${DISCOGRAPHY_PAGE_SIZE}&page=${page}`,
+          discographyUrl(contributor.id, page),
           { signal }
         );
 

@@ -258,7 +258,9 @@ export const enforceRequired = (
 
 export type MustIncludeItem =
   | { kind: "contributor"; id: number; label: string; detail: string }
-  | { kind: "role"; role: string; label: string; detail: string };
+  | { kind: "role"; role: string; label: string; detail: string }
+  /** A stack's album: every result links it. Stacks only. */
+  | { kind: "album"; key: string; label: string; detail: string };
 
 const categoryLabel = (role: string) =>
   ROLE_CATEGORIES.find((c) => c.id === roleCategory(role))?.label ?? "";

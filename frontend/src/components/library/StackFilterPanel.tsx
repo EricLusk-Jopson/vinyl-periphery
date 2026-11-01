@@ -1,10 +1,8 @@
 import React, { useCallback, useId, useMemo, useState } from "react";
-import { Link2 } from "lucide-react";
 import { MetaAlbum } from "@/lib/metaAlbum";
 import { matchesName } from "@/lib/filters";
 import {
   defaultStackFilters,
-  requireAlbum,
   requireInStack,
   setStates,
   stackAlbumChips,
@@ -40,9 +38,9 @@ interface StackFilterPanelProps {
 }
 
 /**
- * A stack's filters, in the same panel as one search's: switches, the
- * stack's albums (each can be switched off or made "must link"), "must
- * include", roles by category, then people, each with the covers of the
+ * A stack's filters, in the same panel as one search's: switches, "must
+ * include" (albums, people and roles), the stack's albums (each can be
+ * switched off), roles by category, then people, each with the covers of the
  * albums they're on.
  */
 export const StackFilterPanel: React.FC<StackFilterPanelProps> = ({
@@ -129,7 +127,7 @@ export const StackFilterPanel: React.FC<StackFilterPanelProps> = ({
           onChange={toggle("excludeMainArtist", "hide_main_artist")}
         />
         <Switch
-          label="Only albums with 2+ shared"
+          label="Only albums with 2+ shared contributors"
           checked={filters.collaborationsOnly}
           onChange={toggle("collaborationsOnly", "two_plus_shared")}
         />
@@ -144,7 +142,7 @@ export const StackFilterPanel: React.FC<StackFilterPanelProps> = ({
           onChange={toggle("likedOnly", "liked_only")}
         />
         <Switch
-          label="Only albums linking 2+ of these"
+          label="Only albums linking 2+ stack albums"
           checked={filters.linksTwoPlus}
           onChange={toggle("linksTwoPlus", "two_plus_links")}
         />
@@ -154,6 +152,24 @@ export const StackFilterPanel: React.FC<StackFilterPanelProps> = ({
           onChange={toggle("showHidden", "show_hidden")}
         />
       </div>
+
+      <MustIncludeView
+        chips={required}
+        options={options}
+        onAdd={(item) => {
+          trackStackFilter(`must_include_${item.kind}`, true);
+          update(requireInStack(filters, item, true));
+        }}
+        onRemove={(item) => {
+          trackStackFilter(`must_include_${item.kind}`, false);
+          update(requireInStack(filters, item, false));
+        }}
+        copy={{
+          thing: "an album, name or role",
+          things: "albums, names or roles",
+          hint: "Every result will link each album, and feature each person and role, you add here.",
+        }}
+      />
 
       <FilterGroup
         title="Albums"
@@ -244,45 +260,13 @@ export const StackFilterPanel: React.FC<StackFilterPanelProps> = ({
                 </span>
                 <span className="sr-only">
                   {` ${album.count === 1 ? "album" : "albums"}`}
-                  {album.required && ", must link: change it with Must link"}
+                  {album.required && ", required: change it in Must include"}
                 </span>
-              </button>
-              <button
-                type="button"
-                aria-pressed={album.required}
-                aria-label={`Must link ${album.title}`}
-                title="Every result links this album"
-                onClick={() => {
-                  trackStackFilter("must_link_album", !album.required);
-                  update(requireAlbum(filters, album.key, !album.required));
-                }}
-                className={cn(
-                  "flex h-11 w-11 shrink-0 items-center justify-center rounded-md transition-colors",
-                  focusRing,
-                  album.required
-                    ? "text-primary-text"
-                    : "text-faint hover:text-foreground",
-                )}
-              >
-                <Link2 className="h-4 w-4" aria-hidden="true" />
               </button>
             </li>
           ))}
         </ul>
       </FilterGroup>
-
-      <MustIncludeView
-        chips={required}
-        options={options}
-        onAdd={(item) => {
-          trackStackFilter(`must_include_${item.kind}`, true);
-          update(requireInStack(filters, item, true));
-        }}
-        onRemove={(item) => {
-          trackStackFilter(`must_include_${item.kind}`, false);
-          update(requireInStack(filters, item, false));
-        }}
-      />
 
       <FilterGroup
         title="Roles"

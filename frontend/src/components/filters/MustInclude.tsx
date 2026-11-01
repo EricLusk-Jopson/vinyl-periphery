@@ -28,6 +28,7 @@ export const MustInclude: React.FC<{ searchId: string }> = ({ searchId }) => {
       chips={chips}
       options={(query) => mustIncludeOptions(search, query)}
       onAdd={(item) => {
+        if (item.kind === "album") return;
         track("filter_changed", {
           filter: `must_include_${item.kind}`,
           on: true,
@@ -40,6 +41,7 @@ export const MustInclude: React.FC<{ searchId: string }> = ({ searchId }) => {
         );
       }}
       onRemove={(item) => {
+        if (item.kind === "album") return;
         track("filter_changed", {
           filter: `must_include_${item.kind}`,
           on: false,
@@ -64,7 +66,29 @@ interface MustIncludeViewProps {
   options: (query: string) => MustIncludeItem[];
   onAdd: (item: MustIncludeItem) => void;
   onRemove: (item: MustIncludeItem) => void;
+  /** The words for what can be added (a stack adds albums too). */
+  copy?: { thing: string; things: string; hint: string };
 }
+
+const SEARCH_COPY = {
+  thing: "a name or role",
+  things: "names or roles",
+  hint: "Every result will feature each person and role you add here.",
+};
+
+const itemKey = (item: MustIncludeItem) =>
+  item.kind === "contributor"
+    ? `c${item.id}`
+    : item.kind === "role"
+      ? `r${item.role}`
+      : `a${item.key}`;
+
+/** The kind, shown beside roles and albums (names need no tag). */
+const KIND_TAG: Record<MustIncludeItem["kind"], string> = {
+  contributor: "",
+  role: "Role",
+  album: "Album",
+};
 
 /** The "must include" list and picker, for one search or a stack. */
 export const MustIncludeView: React.FC<MustIncludeViewProps> = ({
@@ -72,6 +96,7 @@ export const MustIncludeView: React.FC<MustIncludeViewProps> = ({
   options: optionsFor,
   onAdd,
   onRemove,
+  copy = SEARCH_COPY,
 }) => {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -107,11 +132,7 @@ export const MustIncludeView: React.FC<MustIncludeViewProps> = ({
       {chips.length > 0 ? (
         <ul className="flex flex-wrap gap-2">
           {chips.map((chip) => (
-            <li
-              key={
-                chip.kind === "contributor" ? `c${chip.id}` : `r${chip.role}`
-              }
-            >
+            <li key={itemKey(chip)}>
               <button
                 type="button"
                 onClick={() => remove(chip)}
@@ -121,8 +142,10 @@ export const MustIncludeView: React.FC<MustIncludeViewProps> = ({
                 )}
               >
                 <span className="truncate">{chip.label}</span>
-                {chip.kind === "role" && (
-                  <span className="font-mono text-xs text-faint">role</span>
+                {KIND_TAG[chip.kind] && (
+                  <span className="font-mono text-xs text-faint">
+                    {KIND_TAG[chip.kind].toLowerCase()}
+                  </span>
                 )}
                 <X
                   className="h-4 w-4 shrink-0 text-muted-foreground"
@@ -136,13 +159,11 @@ export const MustIncludeView: React.FC<MustIncludeViewProps> = ({
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-faint">
-          Every result will feature each person and role you add here.
-        </p>
+        <p className="text-sm text-faint">{copy.hint}</p>
       )}
 
       <label htmlFor={`${id}-input`} className="sr-only">
-        Add a name or role that results must include
+        Add {copy.thing} that results must include
       </label>
       <input
         ref={inputRef}
@@ -156,7 +177,7 @@ export const MustIncludeView: React.FC<MustIncludeViewProps> = ({
             add(options[0]);
           }
         }}
-        placeholder="Add a name or role"
+        placeholder={`Add ${copy.thing}`}
         autoComplete="off"
         aria-describedby={query.trim() ? `${id}-options` : undefined}
         className={cn(
@@ -171,14 +192,7 @@ export const MustIncludeView: React.FC<MustIncludeViewProps> = ({
           {options.length > 0 ? (
             <ul className="flex flex-col overflow-hidden rounded-lg border">
               {options.map((option) => (
-                <li
-                  key={
-                    option.kind === "contributor"
-                      ? `c${option.id}`
-                      : `r${option.role}`
-                  }
-                  className="border-b last:border-b-0"
-                >
+                <li key={itemKey(option)} className="border-b last:border-b-0">
                   <button
                     type="button"
                     onClick={() => add(option)}
@@ -192,8 +206,8 @@ export const MustIncludeView: React.FC<MustIncludeViewProps> = ({
                         {option.label}
                       </span>
                       <span className="truncate font-mono text-xs text-faint">
-                        {option.kind === "role" ? "Role" : ""}
-                        {option.kind === "role" && option.detail ? " · " : ""}
+                        {KIND_TAG[option.kind]}
+                        {KIND_TAG[option.kind] && option.detail ? " · " : ""}
                         {option.detail}
                       </span>
                     </span>
@@ -208,7 +222,7 @@ export const MustIncludeView: React.FC<MustIncludeViewProps> = ({
             </ul>
           ) : (
             <p className="text-sm text-faint">
-              No names or roles match "{query.trim()}".
+              No {copy.things} match "{query.trim()}".
             </p>
           )}
         </div>

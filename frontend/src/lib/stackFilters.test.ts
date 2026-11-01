@@ -6,6 +6,9 @@ import {
   filteredStackResults,
   filtersFromMembers,
   linkedAlbumsText,
+  requireInStack,
+  stackMustIncludeOptions,
+  stackRequiredChips,
   searchParentFor,
   sortStackResults,
   stackAlbumChips,
@@ -382,5 +385,34 @@ describe("stored state and member filters", () => {
       roles: [],
       albums: [],
     });
+  });
+});
+
+describe("must include", () => {
+  it("finds the stack's albums by title or artist, before people", () => {
+    expect(
+      stackMustIncludeOptions(meta, filters(), "surfer").map((o) => o.kind),
+    ).toEqual(["album"]);
+    expect(
+      stackMustIncludeOptions(meta, filters(), "In Utero Artist")[0],
+    ).toEqual({
+      kind: "album",
+      key: "master:1",
+      label: "In Utero",
+      detail: "In Utero Artist",
+    });
+  });
+
+  it("requires an album, switching it on, and lists it first", () => {
+    const album = stackMustIncludeOptions(meta, filters(), "surfer")[0];
+    const f = filters({ albums: { "master:2": false } });
+    const required = { ...f, ...requireInStack(f, album, true) };
+    expect(required.required.albums).toEqual(["master:2"]);
+    expect(required.albums).toEqual({});
+    expect(stackRequiredChips(meta, required)[0]).toEqual(album);
+    // No longer offered once required.
+    expect(stackMustIncludeOptions(meta, required, "surfer")).toEqual([]);
+    const removed = { ...required, ...requireInStack(required, album, false) };
+    expect(removed.required.albums).toEqual([]);
   });
 });

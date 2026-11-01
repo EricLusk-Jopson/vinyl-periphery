@@ -37,7 +37,7 @@ export interface StackFilterState {
   excludeVarious: boolean;
   likedOnly: boolean;
   showHidden: boolean;
-  /** "Only albums linking 2+ of these": linked from two member albums. */
+  /** "Only albums linking 2+ stack albums": linked from two member albums. */
   linksTwoPlus: boolean;
   required: { contributors: number[]; roles: string[]; albums: string[] };
 }
@@ -498,13 +498,23 @@ export const filtersFromMembers = (meta: MetaAlbum): StackFilterState => {
 const roleCategoryLabel = (role: string) =>
   groupRoles([role], (r) => r)[0]?.label ?? "";
 
-/** Required people and roles, as the "must include" list shows them. */
+const albumItem = (m: MetaAlbum["members"][number]): MustIncludeItem => ({
+  kind: "album",
+  key: m.key,
+  label: m.title,
+  detail: m.artist,
+});
+
+/** Required albums, people and roles, as the "must include" list shows them. */
 export const stackRequiredChips = (
   meta: MetaAlbum,
   filters: StackFilterState,
 ): MustIncludeItem[] => {
   const people = new Map(meta.people.map((p) => [p.id, p]));
   return [
+    ...meta.members
+      .filter((m) => filters.required.albums.includes(m.key))
+      .map(albumItem),
     ...filters.required.contributors.flatMap((id) => {
       const p = people.get(id);
       return p
@@ -527,7 +537,10 @@ export const stackRequiredChips = (
   ];
 };
 
-/** People, then roles, matching a query and not yet required. */
+/**
+ * The stack's albums (by title or artist), then people, then roles,
+ * matching a query and not yet required.
+ */
 export const stackMustIncludeOptions = (
   meta: MetaAlbum,
   filters: StackFilterState,
@@ -535,6 +548,13 @@ export const stackMustIncludeOptions = (
   limit = 8,
 ): MustIncludeItem[] => {
   if (query.trim() === "") return [];
+  const albums = meta.members
+    .filter(
+      (m) =>
+        !filters.required.albums.includes(m.key) &&
+        (matchesName(m.title, query) || matchesName(m.artist, query)),
+    )
+    .map(albumItem);
   const people: MustIncludeItem[] = stackPeopleChips(meta, filters)
     .filter(
       (p) =>
@@ -555,7 +575,7 @@ export const stackMustIncludeOptions = (
       label: role,
       detail: roleCategoryLabel(role),
     }));
-  return [...people, ...roles].slice(0, limit);
+  return [...albums, ...people, ...roles].slice(0, limit);
 };
 
 /** Filter updates for adding or removing a "must include" entry. */
@@ -564,6 +584,7 @@ export const requireInStack = (
   item: MustIncludeItem,
   on: boolean,
 ): Partial<StackFilterState> => {
+  if (item.kind === "album") return requireAlbum(filters, item.key, on);
   const { required } = filters;
   const toggle = <T>(list: T[], value: T) =>
     on
@@ -588,7 +609,7 @@ export const requireInStack = (
       };
 };
 
-/** Filter updates for making an album "must link" or not. */
+/** Filter updates for requiring an album (every result links it) or not. */
 export const requireAlbum = (
   filters: StackFilterState,
   key: string,
@@ -600,6 +621,6 @@ export const requireAlbum = (
       ? Array.from(new Set([...filters.required.albums, key]))
       : filters.required.albums.filter((k) => k !== key),
   },
-  // A must-link album is switched on.
+  // A required album is switched on.
   albums: on ? setStates(filters.albums, [key], true) : filters.albums,
 });

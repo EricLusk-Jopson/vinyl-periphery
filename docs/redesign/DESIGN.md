@@ -90,7 +90,7 @@ in the expanded row and in the chip's accessible name.
 - Search hint under the form: "A full search takes 1 to 3 minutes. Discogs
   limits how quickly we can read its data."
 - Results count: "62 albums". Score: "2 shared". Filters: "Hide Pink Floyd
-  releases" (use the searched artist's name), "Only albums with 2+ shared",
+  releases" (use the searched artist's name), "Only albums with 2+ shared contributors",
   "Hide Various Artists".
 
 ## Accessibility

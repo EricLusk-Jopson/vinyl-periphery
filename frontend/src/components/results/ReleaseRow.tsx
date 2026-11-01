@@ -223,9 +223,6 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
           open ? "flex" : "hidden",
         )}
       >
-        <p className="text-[13px] text-faint">
-          What each person did on {searchedAlbum} and on this album.
-        </p>
         {/* Phones: one line per person. From md: a card each. */}
         <ul className="flex flex-col divide-y rounded-lg border bg-surface md:grid md:grid-cols-[repeat(auto-fill,minmax(220px,1fr))] md:gap-2.5 md:divide-y-0 md:border-0 md:bg-transparent">
           {people.map((person) => (
@@ -289,19 +286,6 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
             </p>
           )}
         </div>
-        {release.community && (
-          <p className="text-[13px] text-faint">
-            On Discogs,{" "}
-            <span className="font-mono text-muted-foreground">
-              {release.community.want.toLocaleString("en-US")}
-            </span>{" "}
-            want it and{" "}
-            <span className="font-mono text-muted-foreground">
-              {release.community.have.toLocaleString("en-US")}
-            </span>{" "}
-            have it. Popularity is the two added up.
-          </p>
-        )}
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
           {discogsUrl && (
             <a

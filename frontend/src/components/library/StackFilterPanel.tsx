@@ -40,9 +40,9 @@ interface StackFilterPanelProps {
 }
 
 /**
- * A stack's filters, in the same panel as one search's: switches, the
- * stack's albums (each can be switched off or made "must link"), "must
- * include", roles by category, then people, each with the covers of the
+ * A stack's filters, in the same panel as one search's: switches, "must
+ * include", the stack's albums (each can be switched off or made "must
+ * link"), roles by category, then people, each with the covers of the
  * albums they're on.
  */
 export const StackFilterPanel: React.FC<StackFilterPanelProps> = ({
@@ -129,7 +129,7 @@ export const StackFilterPanel: React.FC<StackFilterPanelProps> = ({
           onChange={toggle("excludeMainArtist", "hide_main_artist")}
         />
         <Switch
-          label="Only albums with 2+ shared"
+          label="Only albums with 2+ shared contributors"
           checked={filters.collaborationsOnly}
           onChange={toggle("collaborationsOnly", "two_plus_shared")}
         />
@@ -144,7 +144,7 @@ export const StackFilterPanel: React.FC<StackFilterPanelProps> = ({
           onChange={toggle("likedOnly", "liked_only")}
         />
         <Switch
-          label="Only albums linking 2+ of these"
+          label="Only albums linking 2+ stack albums"
           checked={filters.linksTwoPlus}
           onChange={toggle("linksTwoPlus", "two_plus_links")}
         />
@@ -154,6 +154,19 @@ export const StackFilterPanel: React.FC<StackFilterPanelProps> = ({
           onChange={toggle("showHidden", "show_hidden")}
         />
       </div>
+
+      <MustIncludeView
+        chips={required}
+        options={options}
+        onAdd={(item) => {
+          trackStackFilter(`must_include_${item.kind}`, true);
+          update(requireInStack(filters, item, true));
+        }}
+        onRemove={(item) => {
+          trackStackFilter(`must_include_${item.kind}`, false);
+          update(requireInStack(filters, item, false));
+        }}
+      />
 
       <FilterGroup
         title="Albums"
@@ -270,19 +283,6 @@ export const StackFilterPanel: React.FC<StackFilterPanelProps> = ({
           ))}
         </ul>
       </FilterGroup>
-
-      <MustIncludeView
-        chips={required}
-        options={options}
-        onAdd={(item) => {
-          trackStackFilter(`must_include_${item.kind}`, true);
-          update(requireInStack(filters, item, true));
-        }}
-        onRemove={(item) => {
-          trackStackFilter(`must_include_${item.kind}`, false);
-          update(requireInStack(filters, item, false));
-        }}
-      />
 
       <FilterGroup
         title="Roles"

@@ -37,7 +37,7 @@ export interface StackFilterState {
   excludeVarious: boolean;
   likedOnly: boolean;
   showHidden: boolean;
-  /** "Only albums linking 2+ of these": linked from two member albums. */
+  /** "Only albums linking 2+ stack albums": linked from two member albums. */
   linksTwoPlus: boolean;
   required: { contributors: number[]; roles: string[]; albums: string[] };
 }

@@ -107,7 +107,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           }}
         />
         <Switch
-          label="Only albums with 2+ shared"
+          label="Only albums with 2+ shared contributors"
           checked={filterState.collaborationsOnly}
           onChange={() => {
             changed("two_plus_shared", !filterState.collaborationsOnly);

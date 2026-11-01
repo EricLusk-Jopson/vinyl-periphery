@@ -13,6 +13,9 @@ import {
   stackLayout,
   isInStack,
   LibraryStack,
+  linkLineLabel,
+  linkLineText,
+  StackParent,
 } from "./stacks";
 
 // Ids end in a timestamp, as real ones do.
@@ -100,16 +103,11 @@ describe("stackMembersByDepth", () => {
     members: [grandchild, root, child],
   };
 
-  it("orders by depth, or newest first", () => {
+  it("orders by step, then oldest first", () => {
     expect(stackMembersByDepth(stack).map((s) => s.searchId)).toEqual([
       root.searchId,
       child.searchId,
       grandchild.searchId,
-    ]);
-    expect(stackMembersByDepth(stack, "time").map((s) => s.searchId)).toEqual([
-      grandchild.searchId,
-      child.searchId,
-      root.searchId,
     ]);
   });
 });
@@ -363,6 +361,76 @@ describe("stackLayout", () => {
     expect(levels.get(schlagenheim.searchId)).toBe(3);
   });
 
+  it("gives each member its parents: linked albums one step closer", () => {
+    const { parents } = stackLayout(
+      stack(newSound, believe, hellfire, giantPalm, schlagenheim),
+    );
+    expect(parents.get(newSound.searchId)).toEqual([]);
+    expect(parents.get(believe.searchId)).toEqual([
+      {
+        key: "master:10",
+        title: "The New Sound",
+        artist: "The New Sound Artist",
+        people: [1],
+        names: [],
+        ghost: false,
+        byTrail: false,
+      },
+    ]);
+    // Reached from Giant Palm, but linked straight from the start.
+    expect(parents.get(schlagenheim.searchId)?.map((p) => p.title)).toEqual([
+      "The New Sound",
+    ]);
+  });
+
+  it("lists several parents, the one sharing most people first", () => {
+    const named = (search: SearchCache): SearchCache =>
+      ({
+        ...search,
+        contributors: {
+          1: { id: 1, name: "Geordie Greep", roles: ["Guitar"] },
+          2: { id: 2, name: "Cameron Picton (2)", roles: ["Bass"] },
+          3: { id: 3, name: "Morgan Simpson", roles: ["Drums"] },
+        },
+      }) as unknown as SearchCache;
+    const hellfireLinked = {
+      ...hellfire,
+      releases: {
+        "master:13": { key: "master:13", contributorIds: [1, 2, 3] },
+      },
+    } as unknown as SearchCache;
+    const { parents } = stackLayout(
+      stack(newSound, believe, hellfireLinked, named(giantPalm)),
+    );
+    const giant = parents.get(giantPalm.searchId)!;
+    expect(giant.map((p) => [p.title, p.people])).toEqual([
+      ["Hellfire", [1, 2, 3]],
+      ["My New Band Believe", [1]],
+    ]);
+    expect(giant[0].names).toEqual([
+      "Geordie Greep",
+      "Cameron Picton",
+      "Morgan Simpson",
+    ]);
+  });
+
+  it("falls back to the trail step, marked deleted when it's a ghost", () => {
+    const { parents } = stackLayout(stack(newSound, giantPalm));
+    expect(parents.get(giantPalm.searchId)).toEqual([
+      expect.objectContaining({
+        title: "My New Band Believe",
+        people: [1],
+        ghost: true,
+        byTrail: true,
+      }),
+    ]);
+    // The ghost itself links back to the start.
+    const ghost = stackLayout(stack(newSound, giantPalm)).ghosts[0];
+    expect(
+      parents.get(ghost.step.searchId)?.map((p) => [p.title, p.byTrail]),
+    ).toEqual([["The New Sound", false]]);
+  });
+
   it("reports the deepest step", () => {
     expect(stackDepth(stack(newSound, believe, giantPalm, schlagenheim))).toBe(
       2,
@@ -385,5 +453,64 @@ describe("fitLinkText", () => {
       "via Instruments (2) · Production (1)",
     );
     expect(fitLinkText({ parent, via: [9] })).toBe("via 1 contributor");
+  });
+});
+
+describe("linkLineText", () => {
+  const parent = (over: Partial<StackParent>): StackParent => ({
+    key: "master:1",
+    title: "In Utero",
+    artist: "Nirvana",
+    people: [1, 2, 3],
+    names: ["Steve Albini", "Krist Novoselic", "Dave Grohl"],
+    ghost: false,
+    byTrail: false,
+    ...over,
+  });
+
+  it("names up to two people, then counts the rest", () => {
+    expect(linkLineText([parent({})])).toBe(
+      "From In Utero · Steve Albini, Krist Novoselic +1",
+    );
+    expect(
+      linkLineText([parent({ people: [1], names: ["Steve Albini"] })]),
+    ).toBe("From In Utero · Steve Albini");
+    expect(linkLineText([parent({ names: [] })])).toBe(
+      "From In Utero · 3 people",
+    );
+    expect(linkLineText([parent({ people: [], names: [] })])).toBe(
+      "From In Utero",
+    );
+  });
+
+  it("counts the other parents and the distinct people", () => {
+    expect(
+      linkLineText([
+        parent({}),
+        parent({ title: "Surfer Rosa", people: [1, 4], names: [] }),
+      ]),
+    ).toBe("From In Utero and 1 more · 4 people");
+  });
+
+  it("marks a deleted parent, and is empty for the start", () => {
+    expect(linkLineText([parent({ ghost: true, people: [] })])).toBe(
+      "From In Utero (deleted)",
+    );
+    expect(linkLineText([])).toBe("");
+  });
+
+  it("gives every name in the accessible label", () => {
+    expect(linkLineLabel([parent({})])).toBe(
+      "Linked from In Utero by Steve Albini, Krist Novoselic and Dave Grohl",
+    );
+    expect(
+      linkLineLabel([
+        parent({ people: [1], names: ["Steve Albini"] }),
+        parent({ title: "Surfer Rosa", ghost: true, people: [5], names: [] }),
+      ]),
+    ).toBe(
+      "Linked from In Utero by Steve Albini; and from Surfer Rosa (deleted) by 1 person",
+    );
+    expect(linkLineLabel([])).toBe("");
   });
 });

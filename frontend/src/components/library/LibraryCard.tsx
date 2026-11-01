@@ -17,6 +17,8 @@ interface LibraryCardProps {
   from: ResultFrom;
   /** A short line under the meta, e.g. the stack it belongs to. */
   note?: string;
+  /** The note in full, for screen readers, when the visible one is cut short. */
+  noteLabel?: string;
   onDelete: () => Promise<void>;
   /**
    * Put this search into a stack, move it, or take it out. Given only when it's on its own and
@@ -30,6 +32,7 @@ export const LibraryCard: React.FC<LibraryCardProps> = ({
   search,
   from,
   note,
+  noteLabel,
   onDelete,
   onStack,
 }) => {
@@ -74,10 +77,14 @@ export const LibraryCard: React.FC<LibraryCardProps> = ({
             · {timeAgo(searchStartedAt(search.searchId))}
           </span>
           {note && (
-            <span className="truncate font-mono text-xs text-muted-foreground">
+            <span
+              className="line-clamp-2 break-words font-mono text-xs text-muted-foreground"
+              aria-hidden={noteLabel ? true : undefined}
+            >
               {note}
             </span>
           )}
+          {noteLabel && <span className="sr-only">{noteLabel}</span>}
         </span>
       </Link>
       {/* Always visible, not only on hover, so touch and keyboard users

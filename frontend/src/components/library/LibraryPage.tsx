@@ -18,6 +18,7 @@ import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { ToastAction } from "../ui/toast";
 import { LibraryCard } from "./LibraryCard";
+import { LIBRARY_GRID } from "./grid";
 import { StackDrawer } from "./StackDrawer";
 import { StackCard } from "./StackCard";
 import { StackConfirm } from "./StackConfirm";
@@ -179,8 +180,7 @@ export const LibraryPage: React.FC = () => {
     />
   );
 
-  const grid =
-    "grid gap-2.5 md:grid-cols-2 md:gap-4 lg:grid-cols-[repeat(auto-fill,minmax(360px,1fr))]";
+  const grid = LIBRARY_GRID;
 
   let body: React.ReactNode;
   if (searching) {

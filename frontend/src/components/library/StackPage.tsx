@@ -37,6 +37,17 @@ import { AlbumCover } from "../search/AlbumCover";
 import { LibraryCard } from "./LibraryCard";
 import { StackRootCover } from "./StackCard";
 import { useCoverArt } from "@/hooks/useCoverArt";
+import { useLikes } from "@/hooks/useLikes";
+import { useHidden } from "@/hooks/useHidden";
+import { useStackFilters } from "@/hooks/useStackFilters";
+import { useStackSort } from "@/hooks/useStackSort";
+import { metaAlbum } from "@/lib/metaAlbum";
+import {
+  albumsOn,
+  filteredStackResults,
+  sortStackResults,
+} from "@/lib/stackFilters";
+import { StackResults } from "./StackResults";
 import { usableImageUrl } from "@/lib/searches";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { LIBRARY_GRID } from "./grid";
@@ -155,6 +166,27 @@ export const StackPage: React.FC<StackPageProps> = ({
     [members],
   );
 
+  // The Results tab: the members read as one album, filtered and sorted.
+  const stackFilters = useStackFilters(stackId);
+  const order = useStackSort();
+  const likes = useLikes();
+  const hidden = useHidden();
+  const meta = useMemo(
+    () => metaAlbum(stackMembersByDepth(stack, levels)),
+    // stack is built from members.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [members, levels],
+  );
+  const results = useMemo(
+    () =>
+      sortStackResults(
+        filteredStackResults(meta, stackFilters.filters, likes, hidden),
+        order.sort,
+        order.then,
+      ),
+    [meta, stackFilters.filters, likes, hidden, order.sort, order.then],
+  );
+
   const reported = useRef(false);
   useEffect(() => {
     if (reported.current || members.length === 0) return;
@@ -259,6 +291,7 @@ export const StackPage: React.FC<StackPageProps> = ({
               },
               members,
               levels,
+              results,
             }}
             to={stackPath(stackId)}
           />
@@ -282,10 +315,20 @@ export const StackPage: React.FC<StackPageProps> = ({
           <TabsTrigger value="albums">Albums</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="results" className="pt-6">
-          <p className="max-w-[60ch] text-sm text-muted-foreground md:text-base">
-            Combined results for the stack will show here.
-          </p>
+        <TabsContent value="results" className="pt-6 lg:pt-8">
+          {stackFilters.loaded && (
+            <StackResults
+              stackId={stackId}
+              meta={meta}
+              levels={levels}
+              stackFilters={stackFilters}
+              order={order}
+              results={results}
+              of={albumsOn(meta, stackFilters.filters)}
+              onSearchFrom={onSearchStep}
+              isSearching={isSearching}
+            />
+          )}
         </TabsContent>
 
         <TabsContent

@@ -97,6 +97,11 @@ interface ShareButtonProps {
     centre: MapCentre;
     members: SearchCache[];
     levels?: Map<string, number>;
+    /**
+     * The stack's results as its Results tab filters them, in order.
+     * Without it, every result of its searches.
+     */
+    results?: ScoredRelease[];
   };
   /**
    * For one search: the results' order. Both layouts then draw its top
@@ -326,15 +331,17 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     () => new Set(ranked.map((r) => r.key)),
     [ranked],
   );
-  // A stack: every result of its searches, in the chosen order (no
-  // filters here: the stack has none), edited, then laid out around the
-  // stack's albums.
+  // A stack: its results as the Results tab filters them, in the chosen
+  // order, edited, then laid out around the stack's albums.
   const stackList = useMemo(
     () =>
       open && !selection
-        ? withoutHidden(stackResults(map.centre, map.members), hidden)
+        ? withoutHidden(
+            map.results ?? stackResults(map.centre, map.members),
+            hidden,
+          )
         : [],
-    [open, selection, map.centre, map.members, hidden],
+    [open, selection, map.centre, map.members, map.results, hidden],
   );
   const stackOrdered = useMemo(
     () =>
@@ -351,7 +358,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     () => stackAsSearch(search, map.members, stackList),
     [search, map.members, stackList],
   );
-  // A stack has no filters: every result can be shown.
+  // A stack: every result it was given can be shown.
   const allStackKeys = useMemo(
     () => new Set(stackList.map((r) => r.key)),
     [stackList],

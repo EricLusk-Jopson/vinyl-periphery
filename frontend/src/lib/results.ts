@@ -95,6 +95,9 @@ const COMPARE: Record<SortKey, Compare> = {
   artistDesc: (a, b) => byArtist(b, a),
 };
 
+/** One sort as a comparison (0 is a tie), to build other orders on. */
+export const compareBy = (sort: SortKey): Compare => COMPARE[sort];
+
 /** Two directions of the same thing can't break each other's ties. */
 const PAIRS: SortKey[][] = [
   ["newest", "oldest"],

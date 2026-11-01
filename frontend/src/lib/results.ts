@@ -3,6 +3,7 @@ import { Appearance, Contributor, EnrichedRelease } from "@/api/types";
 import { SearchCache } from "@/contexts/cache/types";
 import { defaultContributorDisplayPipeline } from "./transformers/contributorProcessor";
 import { defaultRolePipeline } from "./transformers/roleProcessor";
+import { roleCategory, RoleCategory } from "./transformers/roleCategories";
 
 /** A release as useFilteredAndScoredReleases returns it. */
 export type ScoredRelease = EnrichedRelease & {
@@ -187,10 +188,28 @@ export const isMainArtistRelease = (
     .toLowerCase()
     .includes(search.searchParams.artist.split(" ")[0].toLowerCase());
 
+/** Role categories switched on in a new search, and by Reset. */
+export const DEFAULT_ROLE_CATEGORIES: RoleCategory[] = ["musicians", "other"];
+
 /**
- * Filter state for "Reset filters": every contributor and role back on,
- * nothing required, the 2+ and Various Artists filters off. Hiding the searched artist's own
- * releases stays on, since those are rarely what anyone is after.
+ * The roles a search starts with: musicians (and roles no category
+ * matches) on, writing, audio, physical media and management off.
+ */
+export const defaultRoleStates = (roles: string[]): Record<string, boolean> =>
+  Object.fromEntries(
+    roles.map((role) => [
+      role,
+      DEFAULT_ROLE_CATEGORIES.includes(
+        roleCategory(defaultRolePipeline([role])[0] ?? role),
+      ),
+    ]),
+  );
+
+/**
+ * Filter state for "Reset filters": every contributor back on, the
+ * default roles (`defaultRoleStates`), nothing required, the 2+ and
+ * Various Artists filters off. Hiding the searched artist's own releases
+ * stays on, since those are rarely what anyone is after.
  */
 export const resetFilterState = (
   search: SearchCache,
@@ -198,7 +217,7 @@ export const resetFilterState = (
   contributors: Object.fromEntries(
     Object.keys(search.contributors).map((id) => [Number(id), true]),
   ),
-  roles: Object.fromEntries(Object.keys(search.roles).map((r) => [r, true])),
+  roles: defaultRoleStates(Object.keys(search.roles)),
   excludeMainArtist: true,
   collaborationsOnly: false,
   excludeVarious: false,

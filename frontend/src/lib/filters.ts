@@ -321,8 +321,9 @@ export const matchesName = (name: string, query: string): boolean =>
   fold(name).includes(fold(query.trim()));
 
 /**
- * How many filters differ from "Reset": each contributor or role switched
- * off or required, plus each of the switches changed. Shown on the
+ * How many filters differ from "Reset": each contributor switched off,
+ * each role switched away from its default (see `defaultRoleStates`),
+ * each one required, plus each of the switches changed. Shown on the
  * mobile Filters bar.
  */
 export const activeFilterCount = (search: SearchCache): number => {
@@ -330,10 +331,13 @@ export const activeFilterCount = (search: SearchCache): number => {
   const { filterState } = search;
   const off = (states: Record<string | number, boolean>) =>
     Object.values(states).filter((on) => !on).length;
+  const changedRoles = Object.entries(filterState.roles).filter(
+    ([role, on]) => on !== (base.roles[role] ?? true),
+  ).length;
   const required = requiredFilters(filterState);
   return (
     off(filterState.contributors) +
-    off(filterState.roles) +
+    changedRoles +
     required.contributors.length +
     required.roles.length +
     Number(filterState.excludeMainArtist !== base.excludeMainArtist) +

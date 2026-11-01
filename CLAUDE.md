@@ -88,7 +88,10 @@ ranks albums by how many of those people worked on them.
     map.
   - `src/lib/filters.ts`: chip state, "must include" (`filterState.required`,
     optional because older saved searches lack it), active filter count.
-    "Only liked albums" is `filterState.likedOnly` (also optional).
+    "Only liked albums" is `filterState.likedOnly` (also optional). A new
+    search (and Reset) has every contributor on but only Musicians and
+    Other roles (`defaultRoleStates` in `lib/results.ts`); results start
+    sorted Most shared, then Popular (`useResultsSort`).
   - `src/components/ui/`: shadcn primitives. Edit sparingly.
   - `src/lib/stacks.ts`: searches grouped by `lineage.stackId` (two or more
     make a stack), the stack's root, and the stacks a search fits

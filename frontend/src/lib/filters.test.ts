@@ -16,6 +16,7 @@ import {
   unrequire,
 } from "./filters";
 import { SearchCache } from "@/contexts/cache/types";
+import { resetFilterState } from "./results";
 
 const makeSearch = (): SearchCache => ({
   searchId: "s-1",
@@ -180,18 +181,35 @@ describe("matchesName", () => {
 });
 
 describe("activeFilterCount", () => {
+  // Roles as a new search has them: Vocals on; Engineer, Design and
+  // Photography (audio, physical media) off.
+  const atDefaults = () => {
+    const search = makeSearch();
+    search.filterState.roles = resetFilterState(search).roles;
+    return search;
+  };
+
   it("is 0 at the reset state", () => {
-    expect(activeFilterCount(makeSearch())).toBe(0);
+    expect(activeFilterCount(atDefaults())).toBe(0);
+  });
+
+  it("counts roles switched away from their defaults, either way", () => {
+    const search = atDefaults();
+    search.filterState.roles.Engineer = true;
+    search.filterState.roles.Vocals = false;
+    expect(activeFilterCount(search)).toBe(2);
+    // Every role on, as older searches started: three off their defaults.
+    expect(activeFilterCount(makeSearch())).toBe(3);
   });
 
   it("counts each required contributor and role", () => {
-    const search = makeSearch();
+    const search = atDefaults();
     search.filterState.required = { contributors: [1], roles: ["Vocals"] };
     expect(activeFilterCount(search)).toBe(2);
   });
 
   it("counts each change from the reset state", () => {
-    const search = makeSearch();
+    const search = atDefaults();
     search.filterState.contributors[2] = false;
     search.filterState.roles.Vocals = false;
     search.filterState.collaborationsOnly = true;

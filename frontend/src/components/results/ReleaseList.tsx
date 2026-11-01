@@ -272,6 +272,7 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
               sort,
               ...(then ? { then } : {}),
             };
+            const album = { title: release.title, artist: release.artist };
             return (
               <ReleaseRow
                 key={release.key}
@@ -302,24 +303,16 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
                 searching={isSearching}
                 searchingFromHere={isSearching && pendingKey === release.key}
                 liked={Boolean(likes[release.key])}
-                onToggleLike={() => {
-                  const liked = setLiked(release.key, !likes[release.key], {
-                    title: release.title,
-                    artist: release.artist,
-                  });
+                hidden={Boolean(hidden[release.key])}
+                onLike={(like) => {
+                  const liked = setLiked(release.key, like, album);
                   track("result_liked", { liked, ...position });
                 }}
-                hidden={Boolean(hidden[release.key])}
-                onToggleHidden={() => {
-                  const album = {
-                    title: release.title,
-                    artist: release.artist,
-                  };
-                  const isHidden = setHidden(
-                    release.key,
-                    !hidden[release.key],
-                    album,
-                  );
+                onHide={(hide) => {
+                  const isHidden = setHidden(release.key, hide, album);
+                  // A hidden album isn't liked.
+                  const wasLiked = Boolean(likes[release.key]);
+                  if (isHidden && wasLiked) setLiked(release.key, false, album);
                   track("result_hidden", { hidden: isHidden, ...position });
                   // Gone from the list: say so, with a way back.
                   if (isHidden && !search.filterState.showHidden) {
@@ -329,7 +322,10 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
                       action: (
                         <ToastAction
                           altText="Undo hide"
-                          onClick={() => setHidden(release.key, false, album)}
+                          onClick={() => {
+                            setHidden(release.key, false, album);
+                            if (wasLiked) setLiked(release.key, true, album);
+                          }}
                         >
                           Undo
                         </ToastAction>

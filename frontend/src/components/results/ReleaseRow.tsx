@@ -3,9 +3,6 @@ import { Link } from "react-router-dom";
 import {
   ArrowRight,
   ArrowUpRight,
-  Eye,
-  EyeOff,
-  Heart,
   Loader2,
   RotateCw,
   Users,
@@ -25,6 +22,7 @@ import {
 } from "@/lib/results";
 import { cn } from "@/lib/utils";
 import { AlbumCover } from "../search/AlbumCover";
+import { AlbumMark } from "./AlbumMark";
 
 const MAX_DOTS = 4;
 
@@ -50,13 +48,13 @@ interface ReleaseRowProps {
   searchingFromHere: boolean;
   /** Liked albums show in every search they turn up in. */
   liked: boolean;
-  onToggleLike: () => void;
   /**
    * Hidden by the user: only listed with "Show hidden albums" on, dimmed.
-   * Hidden albums are never drawn in a share image.
+   * Hidden albums are never drawn in a share image, and aren't liked.
    */
   hidden: boolean;
-  onToggleHidden: () => void;
+  onLike: (liked: boolean) => void;
+  onHide: (hidden: boolean) => void;
 }
 
 const focusRing =
@@ -81,9 +79,9 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
   searching,
   searchingFromHere,
   liked,
-  onToggleLike,
   hidden,
-  onToggleHidden,
+  onLike,
+  onHide,
 }) => {
   const panelId = useId();
   const shared = people.length;
@@ -203,51 +201,13 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
             )}
           </span>
         </button>
-        <button
-          type="button"
-          onClick={onToggleHidden}
-          aria-pressed={hidden}
-          aria-label={`${hidden ? "Show" : "Hide"} ${release.title}`}
-          title={hidden ? "Hidden: show it again" : "Hide this album"}
-          className={cn(
-            // Like the heart: no fill of its own, the eye changes.
-            "group/hide flex h-11 w-11 shrink-0 items-center justify-center rounded-lg",
-            focusRing,
-          )}
-        >
-          {hidden ? (
-            <EyeOff
-              className="h-5 w-5 text-foreground transition-transform duration-150 group-active/hide:scale-90"
-              aria-hidden="true"
-            />
-          ) : (
-            <Eye
-              className="h-5 w-5 text-faint transition-[color,transform] duration-150 group-hover/hide:text-foreground group-active/hide:scale-90"
-              aria-hidden="true"
-            />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={onToggleLike}
-          aria-pressed={liked}
-          aria-label={`Like ${release.title}`}
-          className={cn(
-            // No fill of its own: hover and press change the heart only.
-            "group/like flex h-11 w-11 shrink-0 items-center justify-center rounded-lg md:mr-1",
-            focusRing,
-          )}
-        >
-          <Heart
-            className={cn(
-              "h-5 w-5 transition-[color,transform] duration-150 group-active/like:scale-90",
-              liked
-                ? "fill-primary text-primary"
-                : "text-muted-foreground group-hover/like:text-foreground",
-            )}
-            aria-hidden="true"
-          />
-        </button>
+        <AlbumMark
+          title={release.title}
+          liked={liked}
+          hidden={hidden}
+          onLike={onLike}
+          onHide={onHide}
+        />
       </div>
 
       <div

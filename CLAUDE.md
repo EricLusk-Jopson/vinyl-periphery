@@ -120,7 +120,7 @@ ranks albums by how many of those people worked on them.
     `src/lib/metaAlbum.ts` (takes any set of searches: credits, people
     deduped with their albums, results merged less the members; the share
     map's `stackResults` is built on it). `src/lib/stackFilters.ts` filters
-    it by credit, with member albums as a filter too (off, or "must link"),
+    it by credit, with member albums as a filter too (off, or required in "must include"),
     and scores links (member albums linking a result with someone who
     counts) and shared; default sort links, then shared, then Popular.
     Filters are stored per `stackId` in IndexedDB (`stack-filters`, DB v3,

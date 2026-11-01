@@ -1,10 +1,8 @@
 import React, { useCallback, useId, useMemo, useState } from "react";
-import { Link2 } from "lucide-react";
 import { MetaAlbum } from "@/lib/metaAlbum";
 import { matchesName } from "@/lib/filters";
 import {
   defaultStackFilters,
-  requireAlbum,
   requireInStack,
   setStates,
   stackAlbumChips,
@@ -41,8 +39,8 @@ interface StackFilterPanelProps {
 
 /**
  * A stack's filters, in the same panel as one search's: switches, "must
- * include", the stack's albums (each can be switched off or made "must
- * link"), roles by category, then people, each with the covers of the
+ * include" (albums, people and roles), the stack's albums (each can be
+ * switched off), roles by category, then people, each with the covers of the
  * albums they're on.
  */
 export const StackFilterPanel: React.FC<StackFilterPanelProps> = ({
@@ -166,6 +164,11 @@ export const StackFilterPanel: React.FC<StackFilterPanelProps> = ({
           trackStackFilter(`must_include_${item.kind}`, false);
           update(requireInStack(filters, item, false));
         }}
+        copy={{
+          thing: "an album, name or role",
+          things: "albums, names or roles",
+          hint: "Every result will link each album, and feature each person and role, you add here.",
+        }}
       />
 
       <FilterGroup
@@ -257,27 +260,8 @@ export const StackFilterPanel: React.FC<StackFilterPanelProps> = ({
                 </span>
                 <span className="sr-only">
                   {` ${album.count === 1 ? "album" : "albums"}`}
-                  {album.required && ", must link: change it with Must link"}
+                  {album.required && ", required: change it in Must include"}
                 </span>
-              </button>
-              <button
-                type="button"
-                aria-pressed={album.required}
-                aria-label={`Must link ${album.title}`}
-                title="Every result links this album"
-                onClick={() => {
-                  trackStackFilter("must_link_album", !album.required);
-                  update(requireAlbum(filters, album.key, !album.required));
-                }}
-                className={cn(
-                  "flex h-11 w-11 shrink-0 items-center justify-center rounded-md transition-colors",
-                  focusRing,
-                  album.required
-                    ? "text-primary-text"
-                    : "text-faint hover:text-foreground",
-                )}
-              >
-                <Link2 className="h-4 w-4" aria-hidden="true" />
               </button>
             </li>
           ))}

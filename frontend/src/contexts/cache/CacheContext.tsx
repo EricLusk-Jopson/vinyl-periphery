@@ -36,7 +36,7 @@ import {
 import { coverResolver } from "@/api/coverArt";
 import {
   enforceRequired,
-  isContributorCounted,
+  countedContributors,
   meetsRequired,
 } from "@/lib/filters";
 
@@ -501,13 +501,14 @@ export const useSearchFilters = (searchId: string) => {
     });
   }, [search, searchId, updateFilterState]);
 
-  const isContributorActive = useCallback(
-    (contributorId: number): boolean => {
-      if (!search) return false;
-      // Switched on, and required or with a role on.
-      return isContributorCounted(search, contributorId);
-    },
+  // Who counts, worked out once per filter change from the credits.
+  const counted = useMemo(
+    () => (search ? countedContributors(search) : new Set<number>()),
     [search]
+  );
+  const isContributorActive = useCallback(
+    (contributorId: number): boolean => counted.has(contributorId),
+    [counted]
   );
 
   const isRoleActive = useCallback(

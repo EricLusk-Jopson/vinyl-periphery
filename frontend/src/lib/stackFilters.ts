@@ -30,7 +30,7 @@ export interface StackFilterState {
   roles: Record<string, boolean>;
   /** Member albums, by album key. */
   albums: Record<string, boolean>;
-  /** "Hide releases by these artists": any member's own artists. */
+  /** "Hide releases by stack artists": any member's own artists. */
   excludeMainArtist: boolean;
   /** Only results with 2+ people. */
   collaborationsOnly: boolean;

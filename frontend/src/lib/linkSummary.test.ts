@@ -19,10 +19,12 @@ describe("linkSummary", () => {
         person(1, "Mixed By"),
         person(2, "Guitar", "Producer"),
         person(3, "Vocals"),
-        person(4, "Presenter"),
+        person(4, "Party Host"),
         person(5, "Liner Notes"),
       ]),
-    ).toBe("via Musicians (2) · Audio (2) · Physical media (1) · Presenter");
+    ).toBe(
+      "via Vocals (1) · Instruments (1) · Production (1) · Technical (1) · Spoken (1) · Party Host",
+    );
   });
 
   it("cuts long role lists short", () => {
@@ -41,8 +43,8 @@ describe("linkSummary", () => {
       linkGroups([person(1, "Guitar", "Bass"), person(2, "Guitar")]),
     ).toEqual([
       {
-        category: "musicians",
-        label: "Musicians",
+        category: "instruments",
+        label: "Instruments",
         people: 2,
         roles: ["Guitar", "Bass"],
       },

@@ -239,12 +239,23 @@ export const isMainArtistRelease = (
   return names.some((name) => containsName(release.artist, name));
 };
 
-/** Role categories switched on in a new search, and by Reset. */
-export const DEFAULT_ROLE_CATEGORIES: RoleCategory[] = ["musicians", "other"];
+/**
+ * Role categories switched on in a new search, and by Reset: the
+ * musicians (who sang, played, featured or conducted) and roles nothing
+ * else matches.
+ */
+export const DEFAULT_ROLE_CATEGORIES: RoleCategory[] = [
+  "vocals",
+  "instruments",
+  "featuring",
+  "conducting",
+  "other",
+];
 
 /**
- * The roles a search starts with: musicians (and roles no category
- * matches) on, writing, audio, physical media and management off.
+ * The roles a search starts with: the musicians' (and roles no category
+ * matches) on; writing, production, remix, DJ mix, technical, visual,
+ * spoken and management roles off.
  */
 export const defaultRoleStates = (roles: string[]): Record<string, boolean> =>
   Object.fromEntries(

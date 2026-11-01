@@ -1,302 +1,127 @@
 /**
- * Buckets for Discogs credit roles, so whole groups (management, artwork and
- * packaging) can be switched off at once.
- *
- * Loosely follows the groups on Discogs's credits list
- * (https://www.discogs.com/help/creditslist): Instruments, Vocals and
- * Conducting are "musicians"; Production, Technical and Remix are "audio",
- * except lacquer cutting, which makes the record and so is "physical";
- * Visual is "physical"; Management, Companies and Crew are "management".
- * Roles nothing here matches fall into "other", and those are reported with
- * `search_completed` (`roles_uncategorized`) so the patterns can grow.
+ * Buckets for Discogs credit roles: the headings of Discogs's own credits
+ * list (https://www.discogs.com/help/creditslist), so whole groups can be
+ * switched off at once and links can be described by kind. Every role on
+ * that list is matched by name (`discogsRoles.ts`); credits written some
+ * other way fall back to their last words ("Guitar Technician" is a
+ * Technician), their singular or plural, then a few common words. Roles
+ * nothing matches fall into "other", and those are reported with
+ * `search_completed` (`roles_uncategorized`) so the list can grow.
  */
 
-export type RoleCategory =
-  | "musicians"
-  | "writing"
-  | "audio"
-  | "physical"
-  | "management"
-  | "other";
+import { DISCOGS_ROLES } from "./discogsRoles";
 
-/** Display order. */
-export const ROLE_CATEGORIES: { id: RoleCategory; label: string }[] = [
-  { id: "musicians", label: "Musicians" },
-  { id: "writing", label: "Writing" },
-  { id: "audio", label: "Audio" },
-  { id: "physical", label: "Physical media" },
-  { id: "management", label: "Management" },
-  { id: "other", label: "Other" },
+export type RoleCategory = keyof typeof DISCOGS_ROLES;
+
+/** Display order: performers first, then making the record, then the rest. */
+export const ROLE_CATEGORIES: {
+  id: RoleCategory;
+  /** Discogs's heading. */
+  label: string;
+  /** For one-line summaries ("via Writing (2) · Technical (1)"). */
+  short: string;
+}[] = [
+  { id: "vocals", label: "Vocals", short: "Vocals" },
+  { id: "instruments", label: "Instruments", short: "Instruments" },
+  { id: "featuring", label: "Featuring & Presenting", short: "Featuring" },
+  { id: "conducting", label: "Conducting & Leading", short: "Conducting" },
+  { id: "writing", label: "Writing & Arrangement", short: "Writing" },
+  { id: "production", label: "Production", short: "Production" },
+  { id: "remix", label: "Remix", short: "Remix" },
+  { id: "djmix", label: "DJ Mix", short: "DJ Mix" },
+  { id: "technical", label: "Technical", short: "Technical" },
+  { id: "visual", label: "Visual", short: "Visual" },
+  { id: "spoken", label: "Acting, Literary & Spoken", short: "Spoken" },
+  { id: "management", label: "Management", short: "Management" },
+  { id: "other", label: "Other", short: "Other" },
 ];
 
-const words = (list: string[]) =>
-  new RegExp(`\\b(?:${list.join("|")})\\b`, "i");
+/** A name as a lookup key: no case, accents, spaces or punctuation. */
+const keyOf = (name: string) =>
+  name
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}&]+/gu, "");
+
+const withoutParentheses = (name: string) =>
+  name.replace(/\([^)]*\)/g, " ").trim();
+
+/** Discogs's names -> heading; a name's parenthesised part is optional. */
+const BY_KEY: Map<string, RoleCategory> = (() => {
+  const map = new Map<string, RoleCategory>();
+  const entries = Object.entries(DISCOGS_ROLES) as [
+    RoleCategory,
+    readonly string[],
+  ][];
+  for (const [category, names] of entries) {
+    for (const name of names) map.set(keyOf(name), category);
+  }
+  // "Tar (Drum)" also answers to "Tar", unless another role has that name
+  // ("Adapted By (Text)" leaves "Adapted By" to Writing).
+  for (const [category, names] of entries) {
+    for (const name of names) {
+      const bare = keyOf(withoutParentheses(name));
+      if (bare && !map.has(bare)) map.set(bare, category);
+    }
+  }
+  return map;
+})();
+
+/** Common words in credits Discogs's list doesn't name exactly. */
+const WORDS: [RoleCategory, RegExp][] = [
+  ["vocals", /\b(vocal|vocals|voices|singer|singing|sung)\b/i],
+  ["conducting", /\b(conduct\w*)\b/i],
+  ["writing", /\b(arrang\w*|compos\w*|lyric\w*|writ\w*|programm\w*)\b/i],
+  ["production", /\b(produc\w*)\b/i],
+  ["technical", /\b(mix\w*|master\w*|record\w*|engineer\w*|edit\w*|cut)\b/i],
+  [
+    "visual",
+    /\b(photo\w*|design\w*|art|artwork|illustrat\w*|layout|graphic\w*)\b/i,
+  ],
+  ["spoken", /\b(notes|liner)\b/i],
+  ["management", /\b(manag\w*|a&r|booking|promot\w*)\b/i],
+  [
+    "instruments",
+    /\b(sax\w*|keys|guitar\w*|bass|drum\w*|percussion|piano|organ|synth\w*|strings?|horns?|trumpet\w*|trombone\w*|violin\w*|cello\w*|flute\w*|clarinet\w*|harmonica|banjo|mandolin)\b/i,
+  ],
+];
+
+/** One credit's heading, or null when nothing matches it. */
+const lookUp = (role: string): RoleCategory | null => {
+  // Exactly as Discogs names it, parentheses and all: "Adapted By (Text)".
+  const exact = BY_KEY.get(keyOf(role));
+  if (exact) return exact;
+  const words = withoutParentheses(role).split(/\s+/).filter(Boolean);
+  // The whole name, then its endings: "Strings Arranged By" -> "Arranged By".
+  for (let i = 0; i < words.length; i++) {
+    const tail = words.slice(i).join(" ");
+    for (const key of [
+      keyOf(tail),
+      keyOf(tail).replace(/s$/, ""),
+      `${keyOf(tail)}s`,
+    ]) {
+      const found = key && BY_KEY.get(key);
+      if (found) return found;
+    }
+  }
+  return WORDS.find(([, pattern]) => pattern.test(role))?.[0] ?? null;
+};
 
 /**
- * Checked in this order, first match wins. Management comes first so
- * "Executive Producer" and "Guitar Technician" aren't read as audio or
- * musicians; writing before audio and musicians so "Strings Arranged By" is
- * writing; audio before physical so "Sound Design" is audio.
+ * The heading a role belongs to. Takes a role as Discogs sends it or after
+ * `defaultRolePipeline`: bracketed notes are ignored, and of a
+ * comma-separated list the first role that matches decides.
  */
-const PATTERNS: [RoleCategory, RegExp][] = [
-  [
-    "management",
-    words([
-      "management",
-      "manager",
-      "managed",
-      "executive",
-      "a&r",
-      "a & r",
-      "coordinator",
-      "coordination",
-      "co ordinator",
-      "booking",
-      "legal",
-      "lawyer",
-      "promotion",
-      "publicity",
-      "marketing",
-      "copyright",
-      "licensed",
-      "administration",
-      "contractor",
-      "tour",
-      "crew",
-      "technician",
-      "tech",
-      "roadie",
-      "road crew",
-      "stylist",
-      "hair",
-      "make up",
-      "makeup",
-      "wardrobe",
-      "catering",
-      "security",
-      "liaison",
-      "sponsor",
-      "thanks",
-    ]),
-  ],
-  [
-    "writing",
-    words([
-      "written",
-      "writer",
-      "writers",
-      "songwriter",
-      "composed",
-      "composer",
-      "composition",
-      "lyrics",
-      "lyricist",
-      "words",
-      "music by",
-      "arranged",
-      "arranger",
-      "arrangement",
-      "arrangements",
-      "orchestrated",
-      "orchestration",
-      "libretto",
-      "score",
-      "adapted",
-      "songs by",
-    ]),
-  ],
-  [
-    "audio",
-    words([
-      "producer",
-      "produced",
-      "production",
-      "co producer",
-      "engineer",
-      "engineered",
-      "engineering",
-      "mixed",
-      "mix",
-      "mixing",
-      "mastered",
-      "mastering",
-      "remastered",
-      "remastering",
-      "recorded",
-      "recording",
-      "remix",
-      "remixed",
-      "edited",
-      "edit",
-      "editing",
-      "programmed",
-      "programming",
-      "sound",
-      "overdub",
-      "overdubbed",
-      "transfer",
-      "restoration",
-      "tape op",
-      "tape",
-      "audio",
-      "dj",
-      "sequenced",
-      "sampled",
-      "samples",
-    ]),
-  ],
-  [
-    "physical",
-    words([
-      // Cutting the lacquer (or DMM copper) makes the physical record.
-      "lacquer",
-      "cut",
-      "cutting",
-      "dmm",
-      "photography",
-      "photographer",
-      "photo",
-      "photos",
-      "design",
-      "designed",
-      "designer",
-      "art",
-      "artwork",
-      "cover",
-      "sleeve",
-      "illustration",
-      "illustrations",
-      "illustrated",
-      "layout",
-      "painting",
-      "paintings",
-      "drawing",
-      "drawings",
-      "typography",
-      "lettering",
-      "calligraphy",
-      "graphics",
-      "graphic",
-      "logo",
-      "liner notes",
-      "notes",
-      "booklet",
-      "packaging",
-      "image",
-      "images",
-      "text",
-      "translated",
-      "concept",
-    ]),
-  ],
-  [
-    "musicians",
-    words([
-      "vocals?",
-      "voice",
-      "vocalist",
-      "singer",
-      "choir",
-      "chorus",
-      "backing",
-      "rap",
-      "rapper",
-      "mc",
-      "beatbox",
-      "whistl\\w*",
-      "guitars?",
-      "bass",
-      "drums?",
-      "drummer",
-      "percussion",
-      "piano",
-      "keyboards?",
-      "keys",
-      "synth\\w*",
-      "organ",
-      "hammond",
-      "rhodes",
-      "wurlitzer",
-      "clavinet",
-      "mellotron",
-      "moog",
-      "harpsichord",
-      "celesta",
-      "sax\\w*",
-      "trumpet",
-      "trombone",
-      "horns?",
-      "flugelhorn",
-      "cornet",
-      "tuba",
-      "brass",
-      "woodwinds?",
-      "flute",
-      "clarinet",
-      "oboe",
-      "bassoon",
-      "recorder",
-      "harmonica",
-      "violin",
-      "viola",
-      "cello",
-      "fiddle",
-      "strings",
-      "double bass",
-      "contrabass",
-      "harp",
-      "banjo",
-      "mandolin",
-      "ukulele",
-      "dobro",
-      "steel",
-      "sitar",
-      "tabla",
-      "congas",
-      "bongos",
-      "timpani",
-      "vibraphone",
-      "vibes",
-      "marimba",
-      "xylophone",
-      "glockenspiel",
-      "tambourine",
-      "cymbals?",
-      "shaker",
-      "handclaps",
-      "accordion",
-      "bandoneon",
-      "concertina",
-      "melodica",
-      "kalimba",
-      "didgeridoo",
-      "bagpipes",
-      "theremin",
-      "electronics",
-      "sampler",
-      "turntables",
-      "scratches",
-      "instruments?",
-      "musician",
-      "performer",
-      "soloist",
-      "featuring",
-      "conductor",
-      "conducted",
-      "leader",
-      "concertmaster",
-      "orchestra",
-      "ensemble",
-      "band",
-    ]),
-  ],
-];
-
-/** The bucket a role belongs to. Expects a role after `defaultRolePipeline`. */
 export const roleCategory = (role: string): RoleCategory => {
-  const text = role.replace(/[-–—]/g, " ");
-  for (const [category, pattern] of PATTERNS) {
-    if (pattern.test(text)) return category;
+  const parts = role
+    .replace(/\[[^\]]*\]/g, " ")
+    .split(",")
+    .map((p) => p.replace(/[-–—]/g, " ").trim())
+    .filter(Boolean);
+  for (const part of parts) {
+    const found = lookUp(part);
+    if (found) return found;
   }
   return "other";
 };

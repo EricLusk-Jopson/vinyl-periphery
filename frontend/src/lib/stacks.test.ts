@@ -382,7 +382,7 @@ describe("fitLinkText", () => {
   it("says what links them by role, not by name", () => {
     expect(fitLinkText({ parent, via: [1] })).toBe("via Lacquer Cut By");
     expect(fitLinkText({ parent, via: [2, 3] })).toBe(
-      "via Musicians (2) · Audio (1)",
+      "via Instruments (2) · Production (1)",
     );
     expect(fitLinkText({ parent, via: [9] })).toBe("via 1 contributor");
   });

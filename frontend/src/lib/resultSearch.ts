@@ -14,7 +14,7 @@ export interface ResultMatch {
   year: number | null;
   /** The searched album's people on it. */
   contributors: number;
-  /** By role category, like the Stack drawer: "via Musicians (2) · Audio (1)". */
+  /** By role category, like the Stack drawer: "via Instruments (2) · Production (1)". */
   summary: string;
   /** Shown with the filters as they are. */
   visible: boolean;

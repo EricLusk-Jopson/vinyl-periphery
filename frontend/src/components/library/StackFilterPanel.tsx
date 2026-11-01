@@ -122,7 +122,7 @@ export const StackFilterPanel: React.FC<StackFilterPanelProps> = ({
 
       <div className="flex flex-col lg:gap-1">
         <Switch
-          label="Hide releases by these artists"
+          label="Hide releases by stack artists"
           checked={filters.excludeMainArtist}
           onChange={toggle("excludeMainArtist", "hide_main_artist")}
         />

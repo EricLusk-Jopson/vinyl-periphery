@@ -12,9 +12,21 @@ export const libraryPath = (): string => LIBRARY_PATH;
 /** Route pattern for one saved stack. */
 export const STACK_ROUTE = `${LIBRARY_PATH}/stack/:stackId`;
 
-/** One saved stack's page. Stack ids contain spaces and hyphens. */
-export const stackPath = (stackId: string): string =>
-  `${LIBRARY_PATH}/stack/${encodeURIComponent(stackId)}`;
+/** A stack page's tabs: its merged results (the default) or its albums. */
+export type StackView = "results" | "albums";
+
+/**
+ * One saved stack's page, on a tab. Stack ids contain spaces and hyphens.
+ * Results is the default and has no parameter; Albums is `?view=albums`.
+ */
+export const stackPath = (stackId: string, view: StackView = "results"): string =>
+  `${LIBRARY_PATH}/stack/${encodeURIComponent(stackId)}${
+    view === "albums" ? "?view=albums" : ""
+  }`;
+
+/** The tab a stack page's query names: Albums, or Results for anything else. */
+export const stackView = (search: string): StackView =>
+  new URLSearchParams(search).get("view") === "albums" ? "albums" : "results";
 
 export const RESULTS_PATH = "/results";
 
@@ -84,7 +96,8 @@ export const backLink = (state: unknown): { to: string; label: string } => {
 };
 
 /** Where the user is now, as the state for a result opened from here. */
-export const fromLocation = (pathname: string): ResultFrom => {
+export const fromLocation = (location: string): ResultFrom => {
+  const pathname = location.split("?")[0];
   const stack = pathname.match(/^\/library\/stack\/([^/]+)$/);
   if (stack) return { from: "stack", stackId: decodeURIComponent(stack[1]) };
   return pathname === LIBRARY_PATH ? { from: "library" } : { from: "home" };

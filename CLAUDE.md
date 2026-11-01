@@ -113,8 +113,11 @@ ranks albums by how many of those people worked on them.
     when one is in the other's results, and each member's step is its
     fewest links from the root; members nothing links fall back to their
     trail, with its deleted steps ghosted. No stack entity is stored.
+    `stackLayout` also gives each member its parents (linked albums one
+    step closer to the start), which the stack page's Albums tab turns into
+    a link line per card (`linkLineText`).
   - Routes (React Router): `/` home, `/library`,
-    `/library/stack/:stackId`, and
+    `/library/stack/:stackId` (Results tab; `?view=albums` for Albums), and
     `/results?artist=…&album=…`, plus `&master=N` or `&release=N` when the
     Discogs album is known. A results URL names the album, not a cached
     search, so it works on any device: without the search cached, the page

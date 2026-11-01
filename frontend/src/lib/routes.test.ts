@@ -7,6 +7,7 @@ import {
   resultPath,
   resultTarget,
   stackPath,
+  stackView,
 } from "./routes";
 import { searchTarget } from "./searchTarget";
 
@@ -121,5 +122,20 @@ describe("stack routes", () => {
       to: stackPath(stackId),
       label: "Back to stack",
     });
+  });
+
+  it("puts the Albums tab in the query and leaves Results bare", () => {
+    expect(stackPath(stackId, "results")).toBe(stackPath(stackId));
+    const albums = stackPath(stackId, "albums");
+    expect(albums).toBe(
+      "/library/stack/Volcano%20Choir-Unmap-1700000000000?view=albums",
+    );
+    expect(fromLocation(albums)).toEqual({ from: "stack", stackId });
+  });
+
+  it("reads the tab from the query, defaulting to Results", () => {
+    expect(stackView("?view=albums")).toBe("albums");
+    expect(stackView("")).toBe("results");
+    expect(stackView("?view=other")).toBe("results");
   });
 });

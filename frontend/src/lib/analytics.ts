@@ -22,6 +22,7 @@ export type AnalyticsEvent =
   | "cover_lookup"
   | "stack_saved"
   | "stack_opened"
+  | "stack_view_changed"
   | "search_unstacked"
   | "stack_disbanded"
   | "result_liked"

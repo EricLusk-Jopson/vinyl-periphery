@@ -1,5 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  Link,
+  Navigate,
+  useLocation,
+  useNavigate,
+  useParams,
+} from "react-router-dom";
 import { ArrowLeft, Search } from "lucide-react";
 import { LayersOff } from "../common/icons";
 import { SearchParams } from "@/api/types";
@@ -7,14 +13,16 @@ import { useCache } from "@/contexts/cache/CacheContext";
 import { SearchCache } from "@/contexts/cache/types";
 import { KnownAlbum } from "@/hooks/useSearchRun";
 import { track } from "@/lib/analytics";
-import { libraryPath, stackPath } from "@/lib/routes";
+import { libraryPath, stackPath, StackView, stackView } from "@/lib/routes";
 import { ShareButton } from "../share/ShareButton";
 import { targetFromKey } from "@/lib/searchTarget";
 import {
   GhostStep,
   LibraryStack,
+  linkLineLabel,
+  linkLineText,
   savedInStack,
-  StackOrder,
+  StackParent,
   stackLabel,
   stackLayout,
   stackMembersByDepth,
@@ -30,14 +38,11 @@ import { LibraryCard } from "./LibraryCard";
 import { StackRootCover } from "./StackCard";
 import { useCoverArt } from "@/hooks/useCoverArt";
 import { usableImageUrl } from "@/lib/searches";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { LIBRARY_GRID } from "./grid";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
-
-const ORDERS: { id: StackOrder; label: string }[] = [
-  { id: "depth", label: "By step" },
-  { id: "time", label: "Newest first" },
-];
 
 const stepLabel = (depth: number) => (depth === 0 ? "Start" : `Step ${depth}`);
 
@@ -50,9 +55,11 @@ interface StackPageProps {
 /** A deleted step: ghosted, with a way to search it again. */
 const GhostCard: React.FC<{
   ghost: GhostStep;
+  parents: StackParent[];
   onSearch: () => void;
   disabled: boolean;
-}> = ({ ghost, onSearch, disabled }) => {
+}> = ({ ghost, parents, onSearch, disabled }) => {
+  const note = linkLineText(parents);
   const { step } = ghost;
   const own = usableImageUrl(step.thumb);
   const key = !own ? step.targetKey : "";
@@ -72,6 +79,17 @@ const GhostCard: React.FC<{
           {step.artist}
         </span>
         <span className="font-mono text-xs text-faint">Deleted</span>
+        {note && (
+          <>
+            <span
+              className="line-clamp-2 break-words font-mono text-xs text-faint"
+              aria-hidden="true"
+            >
+              {note}
+            </span>
+            <span className="sr-only">{linkLineLabel(parents)}</span>
+          </>
+        )}
       </span>
       <button
         type="button"
@@ -91,9 +109,11 @@ const GhostCard: React.FC<{
 };
 
 /**
- * /library/stack/:stackId — the searches in one stack, by step or newest
- * first. Steps that were deleted show ghosted, with a
- * Search action that rejoins the stack.
+ * /library/stack/:stackId — one stack, as a meta-album. The header sits
+ * above two tabs: Results (the default) and Albums (`?view=albums`), its
+ * searches in a section per step, each saying what links it to the step
+ * before. Steps that were deleted show ghosted, with a Search action that
+ * rejoins the stack.
  */
 export const StackPage: React.FC<StackPageProps> = ({
   onSearchStep,
@@ -101,6 +121,9 @@ export const StackPage: React.FC<StackPageProps> = ({
 }) => {
   const { stackId = "" } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const view = stackView(location.search);
+  const headingId = useId();
   const {
     searches,
     savedSearchIds,
@@ -109,7 +132,6 @@ export const StackPage: React.FC<StackPageProps> = ({
     restoreSearch,
   } = useCache();
   const { toast } = useToast();
-  const [order, setOrder] = useState<StackOrder>("depth");
   const [confirming, setConfirming] = useState(false);
   // The member whose Stack drawer is open.
   const [stacking, setStacking] = useState<SearchCache | null>(null);
@@ -119,11 +141,15 @@ export const StackPage: React.FC<StackPageProps> = ({
     [searches, savedSearchIds, stackId],
   );
   const stack: LibraryStack = { kind: "stack", stackId, members };
-  const { levels, ghosts } = useMemo(
+  const { levels, ghosts, parents } = useMemo(
     () =>
       members.length
         ? stackLayout(stack)
-        : { levels: new Map<string, number>(), ghosts: [] },
+        : {
+            levels: new Map<string, number>(),
+            ghosts: [],
+            parents: new Map<string, StackParent[]>(),
+          },
     // stack is built from members.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [members],
@@ -140,26 +166,27 @@ export const StackPage: React.FC<StackPageProps> = ({
   if (members.length === 0) return <Navigate to={libraryPath()} replace />;
 
   const root = stackRoot(stack);
-  const sorted = stackMembersByDepth(stack, order, levels);
+  const sorted = stackMembersByDepth(stack, levels);
 
-  // In step order, ghosts sit at their step among the searches.
+  // A section per step; deleted steps sit in theirs, after the searches.
   type Entry =
-    | { kind: "member"; search: SearchCache; depth: number }
-    | { kind: "ghost"; ghost: GhostStep; depth: number };
-  const memberEntries: Entry[] = sorted.map((search) => ({
-    kind: "member",
-    search,
-    depth: levels.get(search.searchId) ?? 0,
-  }));
-  const ghostEntries: Entry[] = ghosts.map((ghost) => ({
-    kind: "ghost",
-    ghost,
-    depth: ghost.depth,
-  }));
-  const entries: Entry[] =
-    order === "depth"
-      ? [...memberEntries, ...ghostEntries].sort((a, b) => a.depth - b.depth)
-      : [...memberEntries, ...ghostEntries];
+    | { kind: "member"; search: SearchCache }
+    | { kind: "ghost"; ghost: GhostStep };
+  const steps = new Map<number, Entry[]>();
+  const add = (depth: number, entry: Entry) =>
+    steps.set(depth, [...(steps.get(depth) ?? []), entry]);
+  for (const search of sorted) {
+    add(levels.get(search.searchId) ?? 0, { kind: "member", search });
+  }
+  for (const ghost of ghosts) add(ghost.depth, { kind: "ghost", ghost });
+  const sections = Array.from(steps).sort(([a], [b]) => a - b);
+
+  const changeView = (next: string) => {
+    const tab: StackView = next === "albums" ? "albums" : "results";
+    if (tab === view) return;
+    track("stack_view_changed", { view: tab });
+    navigate(stackPath(stackId, tab), { replace: true });
+  };
 
   const searchGhost = (ghost: GhostStep) => {
     const target = targetFromKey(ghost.step.targetKey);
@@ -249,73 +276,65 @@ export const StackPage: React.FC<StackPageProps> = ({
         </div>
       </header>
 
-      <div
-        role="radiogroup"
-        aria-label="Order"
-        className="mt-6 flex w-fit rounded-lg border p-1 md:mt-8"
-      >
-        {ORDERS.map((o) => (
-          <button
-            key={o.id}
-            type="button"
-            role="radio"
-            aria-checked={order === o.id}
-            onClick={() => setOrder(o.id)}
-            className={cn(
-              "h-11 rounded-md px-4 text-sm font-medium transition-colors md:h-9",
-              focusRing,
-              order === o.id
-                ? "bg-secondary text-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
+      <Tabs value={view} onValueChange={changeView} className="mt-6 md:mt-8">
+        <TabsList aria-label="Stack view">
+          <TabsTrigger value="results">Results</TabsTrigger>
+          <TabsTrigger value="albums">Albums</TabsTrigger>
+        </TabsList>
 
-      <ol className="mt-4 flex flex-col gap-2.5 md:gap-3">
-        {entries.map((entry, i) => (
-          <li
-            key={
-              entry.kind === "member"
-                ? entry.search.searchId
-                : `ghost-${entry.ghost.step.searchId}`
-            }
-            className="flex flex-col gap-1.5 md:flex-row md:items-center md:gap-4"
-          >
-            {/* By step, a step is labelled once, on its first search; the
-                others keep the column so the cards line up. */}
-            <span
-              className={cn(
-                "w-16 shrink-0 font-mono text-xs text-faint",
-                order === "depth" &&
-                  i > 0 &&
-                  entries[i - 1].depth === entry.depth &&
-                  "hidden md:block md:invisible",
-              )}
+        <TabsContent value="results" className="pt-6">
+          <p className="max-w-[60ch] text-sm text-muted-foreground md:text-base">
+            Combined results for the stack will show here.
+          </p>
+        </TabsContent>
+
+        <TabsContent
+          value="albums"
+          className="flex flex-col gap-6 pt-6 md:gap-8"
+        >
+          {sections.map(([depth, entries]) => (
+            <section
+              key={depth}
+              aria-labelledby={`${headingId}-step-${depth}`}
+              className="flex flex-col gap-2.5 md:gap-3"
             >
-              {stepLabel(entry.depth)}
-            </span>
-            <ul className="min-w-0 flex-1">
-              {entry.kind === "member" ? (
-                <LibraryCard
-                  search={entry.search}
-                  from={{ from: "stack", stackId }}
-                  onDelete={() => remove(entry.search.searchId)}
-                  onStack={() => setStacking(entry.search)}
-                />
-              ) : (
-                <GhostCard
-                  ghost={entry.ghost}
-                  onSearch={() => searchGhost(entry.ghost)}
-                  disabled={isSearching}
-                />
-              )}
-            </ul>
-          </li>
-        ))}
-      </ol>
+              <h2
+                id={`${headingId}-step-${depth}`}
+                className="font-mono text-xs uppercase tracking-[1px] text-muted-foreground"
+              >
+                {stepLabel(depth)}
+              </h2>
+              <ul className={LIBRARY_GRID}>
+                {entries.map((entry) => {
+                  if (entry.kind === "ghost") {
+                    return (
+                      <GhostCard
+                        key={`ghost-${entry.ghost.step.searchId}`}
+                        ghost={entry.ghost}
+                        parents={parents.get(entry.ghost.step.searchId) ?? []}
+                        onSearch={() => searchGhost(entry.ghost)}
+                        disabled={isSearching}
+                      />
+                    );
+                  }
+                  const links = parents.get(entry.search.searchId) ?? [];
+                  return (
+                    <LibraryCard
+                      key={entry.search.searchId}
+                      search={entry.search}
+                      from={{ from: "stack", stackId }}
+                      note={linkLineText(links) || undefined}
+                      noteLabel={linkLineLabel(links) || undefined}
+                      onDelete={() => remove(entry.search.searchId)}
+                      onStack={() => setStacking(entry.search)}
+                    />
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+        </TabsContent>
+      </Tabs>
 
       <StackConfirm
         stack={confirming ? stack : null}

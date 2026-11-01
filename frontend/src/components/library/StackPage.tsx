@@ -121,9 +121,9 @@ const GhostCard: React.FC<{
 
 /**
  * /library/stack/:stackId — one stack, as a meta-album. The header sits
- * above two tabs: Results (the default) and Albums (`?view=albums`), its
- * searches in a section per step, each saying what links it to the step
- * before. Steps that were deleted show ghosted, with a Search action that
+ * above two tabs: Albums (the default), its searches in a section per
+ * step, each saying what links it to the step before, and Results
+ * (`?view=results`), the stack's results together. Steps that were deleted show ghosted, with a Search action that
  * rejoins the stack.
  */
 export const StackPage: React.FC<StackPageProps> = ({
@@ -214,7 +214,7 @@ export const StackPage: React.FC<StackPageProps> = ({
   const sections = Array.from(steps).sort(([a], [b]) => a - b);
 
   const changeView = (next: string) => {
-    const tab: StackView = next === "albums" ? "albums" : "results";
+    const tab: StackView = next === "results" ? "results" : "albums";
     if (tab === view) return;
     track("stack_view_changed", { view: tab });
     navigate(stackPath(stackId, tab), { replace: true });
@@ -311,8 +311,8 @@ export const StackPage: React.FC<StackPageProps> = ({
 
       <Tabs value={view} onValueChange={changeView} className="mt-6 md:mt-8">
         <TabsList aria-label="Stack view">
-          <TabsTrigger value="results">Results</TabsTrigger>
           <TabsTrigger value="albums">Albums</TabsTrigger>
+          <TabsTrigger value="results">Results</TabsTrigger>
         </TabsList>
 
         <TabsContent value="results" className="pt-6 lg:pt-8">

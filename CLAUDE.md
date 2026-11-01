@@ -129,9 +129,11 @@ ranks albums by how many of those people worked on them.
     hangs the new search on the member sharing the most people. Share
     draws the filtered results.
   - Routes (React Router): `/` home, `/library`,
-    `/library/stack/:stackId` (Results tab; `?view=albums` for Albums), and
+    `/library/stack/:stackId` (Albums tab; `?view=results` for Results), and
     `/results?artist=…&album=…`, plus `&master=N` or `&release=N` when the
-    Discogs album is known. A results URL names the album, not a cached
+    Discogs album is known. A results page's back link goes where it was
+    opened from (a stack or the library); otherwise to the stack its search
+    is in, or the library (`useResultsBack`). A results URL names the album, not a cached
     search, so it works on any device: without the search cached, the page
     offers to run it. Each search has a `target` (`src/lib/searchTarget.ts`):
     the first search result's master, or the clicked row's master or

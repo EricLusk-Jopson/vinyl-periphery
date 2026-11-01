@@ -6,7 +6,6 @@ import { KnownAlbum } from "@/hooks/useSearchRun";
 import { useCache } from "@/contexts/cache/CacheContext";
 import {
   HOME_PATH,
-  backLink,
   legacyResultParams,
   resultParams,
   resultPath,
@@ -19,6 +18,7 @@ import { FilterFrame } from "../filters/FilterFrame";
 import { AlbumHeader } from "./AlbumHeader";
 import { ReleaseList } from "./ReleaseList";
 import { useResultsSort } from "@/hooks/useResultsSort";
+import { useResultsBack } from "@/hooks/useResultsBack";
 
 interface ResultsPageProps {
   onSearchFrom: (params: SearchParams, known: KnownAlbum) => void;
@@ -66,7 +66,7 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
     ? (matchingSearchIds(searches, params, target)[0] ?? "")
     : "";
   const search = searches[searchId];
-  const back = backLink(location.state);
+  const back = useResultsBack();
   const order = useResultsSort();
 
   // Keep the cache's active search in step with the URL.

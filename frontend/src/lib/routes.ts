@@ -17,16 +17,16 @@ export type StackView = "results" | "albums";
 
 /**
  * One saved stack's page, on a tab. Stack ids contain spaces and hyphens.
- * Results is the default and has no parameter; Albums is `?view=albums`.
+ * Albums is the default and has no parameter; Results is `?view=results`.
  */
-export const stackPath = (stackId: string, view: StackView = "results"): string =>
+export const stackPath = (stackId: string, view: StackView = "albums"): string =>
   `${LIBRARY_PATH}/stack/${encodeURIComponent(stackId)}${
-    view === "albums" ? "?view=albums" : ""
+    view === "results" ? "?view=results" : ""
   }`;
 
-/** The tab a stack page's query names: Albums, or Results for anything else. */
+/** The tab a stack page's query names: Results, or Albums for anything else. */
 export const stackView = (search: string): StackView =>
-  new URLSearchParams(search).get("view") === "albums" ? "albums" : "results";
+  new URLSearchParams(search).get("view") === "results" ? "results" : "albums";
 
 export const RESULTS_PATH = "/results";
 
@@ -83,16 +83,24 @@ export type ResultFrom =
   | { from: "library" }
   | { from: "stack"; stackId: string };
 
-/** The back link for a result, from the state it was opened with. */
-export const backLink = (state: unknown): { to: string; label: string } => {
+/**
+ * The back link for a result: where it was opened from, when that was a
+ * stack or the library. Opened from anywhere else (home, a new search, a
+ * link), it goes to the stack the search is in (`stackId`, when it's in
+ * one of two or more), or the library.
+ */
+export const backLink = (
+  state: unknown,
+  stackId?: string | null,
+): { to: string; label: string } => {
   const from = state as (Partial<ResultFrom> & { stackId?: string }) | null;
   if (from?.from === "stack" && from.stackId) {
     return { to: stackPath(from.stackId), label: "Back to stack" };
   }
-  if (from?.from === "library") {
-    return { to: libraryPath(), label: "Back to library" };
+  if (from?.from !== "library" && stackId) {
+    return { to: stackPath(stackId), label: "Back to stack" };
   }
-  return { to: HOME_PATH, label: "Back to home" };
+  return { to: libraryPath(), label: "Back to library" };
 };
 
 /** Where the user is now, as the state for a result opened from here. */

@@ -10,6 +10,7 @@ import { useHidden } from "@/hooks/useHidden";
 import { useToast } from "@/hooks/use-toast";
 import { StackFilters } from "@/hooks/useStackFilters";
 import { StackSort } from "@/hooks/useStackSort";
+import { useFilterRequest } from "@/hooks/useFilterRequest";
 import { track, trackStackFilter } from "@/lib/analytics";
 import { MetaAlbum } from "@/lib/metaAlbum";
 import { SortKey, sharedPeople, ScoredRelease } from "@/lib/results";
@@ -154,6 +155,9 @@ export const StackResults: React.FC<StackResultsProps> = ({
   const { sort, setSort, then, setThen, canBreakTies } = order;
   const tiebreaks = stackTiebreakOptions(sort);
   const [visible, setVisible] = useState(PAGE_SIZE);
+  // The filter frame; "More filters" in the share sheet opens it too.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  useFilterRequest(() => setFiltersOpen(true));
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
 
@@ -225,7 +229,7 @@ export const StackResults: React.FC<StackResultsProps> = ({
   );
 
   const filterSheet = (
-    <Sheet>
+    <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
       <SheetTrigger asChild>
         <button
           type="button"

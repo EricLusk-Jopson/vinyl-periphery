@@ -8,6 +8,7 @@ import {
   setIncluded,
 } from "@/lib/filters";
 import { resetFilterState } from "@/lib/results";
+import { SEARCH_TOGGLES, setToggle, toggleOn } from "@/lib/filterToggles";
 import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { Chip } from "./Chip";
@@ -34,15 +35,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   variant,
 }) => {
   const { searches, updateFilterState } = useCache();
-  const {
-    toggleContributor,
-    toggleRole,
-    toggleExcludeMainArtist,
-    toggleCollaborationsOnly,
-    toggleExcludeVarious,
-    toggleLikedOnly,
-    toggleShowHidden,
-  } = useSearchFilters(searchId);
+  const { toggleContributor, toggleRole } = useSearchFilters(searchId);
   const search = searches[searchId];
   const [query, setQuery] = useState("");
   const id = useId();
@@ -98,46 +91,20 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
       )}
 
       <div className="flex flex-col lg:gap-1">
-        <Switch
-          label={`Hide ${search.searchParams.artist} releases`}
-          checked={filterState.excludeMainArtist}
-          onChange={() => {
-            changed("hide_main_artist", !filterState.excludeMainArtist);
-            toggleExcludeMainArtist();
-          }}
-        />
-        <Switch
-          label="Only albums with 2+ shared contributors"
-          checked={filterState.collaborationsOnly}
-          onChange={() => {
-            changed("two_plus_shared", !filterState.collaborationsOnly);
-            toggleCollaborationsOnly();
-          }}
-        />
-        <Switch
-          label="Hide Various Artists"
-          checked={filterState.excludeVarious}
-          onChange={() => {
-            changed("hide_various", !filterState.excludeVarious);
-            toggleExcludeVarious();
-          }}
-        />
-        <Switch
-          label="Only liked albums"
-          checked={Boolean(filterState.likedOnly)}
-          onChange={() => {
-            changed("liked_only", !filterState.likedOnly);
-            toggleLikedOnly();
-          }}
-        />
-        <Switch
-          label="Show hidden albums"
-          checked={Boolean(filterState.showHidden)}
-          onChange={() => {
-            changed("show_hidden", !filterState.showHidden);
-            toggleShowHidden();
-          }}
-        />
+        {SEARCH_TOGGLES.map((toggle) => {
+          const on = toggleOn(filterState, toggle.key);
+          return (
+            <Switch
+              key={toggle.key}
+              label={toggle.label(search.searchParams.artist)}
+              checked={on}
+              onChange={() => {
+                changed(toggle.event, !on);
+                updateFilterState(searchId, setToggle(toggle.key, !on));
+              }}
+            />
+          );
+        })}
       </div>
 
       <MustInclude searchId={searchId} />

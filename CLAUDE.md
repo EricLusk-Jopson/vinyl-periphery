@@ -58,7 +58,13 @@ ranks albums by how many of those people worked on them.
     from the image's (`draftChange`: covers found since, or anything
     else), the preview dims and the action is Regenerate. Drafts and the
     last image are kept per search or stack in memory while the page is
-    open (`src/lib/shareDrafts.ts`). Old `/s?…&to=…` links (from when
+    open (`src/lib/shareDrafts.ts`). The sheet also has the page's filter
+    switches (`src/lib/filterToggles.ts`: one list per mode, used by the
+    filter panels too) and, for a stack, its albums (one switched off
+    leaves the ring, `stackMembersOn`). They change the page's own filter
+    state, not a copy, so the image is always of the page. "More filters"
+    closes the sheet and opens the page's filters (`requestFilters`,
+    `useFilterRequest`; a stack page moves to its Results tab). Old `/s?…&to=…` links (from when
     shares carried one) redirect client-side to `to` (`legacyShareTarget`).
 - `backend/server.js`: Express server that mounts the same handlers, for
   local development (and Heroku until the move to Vercel is finished). In

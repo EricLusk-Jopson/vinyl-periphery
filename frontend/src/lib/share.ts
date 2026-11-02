@@ -533,8 +533,42 @@ export type ShareData = {
       levels: Map<string, number>;
       /** The results as the Results tab filters them, or every result. */
       results?: ScoredRelease[];
+      /**
+       * Stack albums switched off in the filters (by album key): left off
+       * the ring, with their links, as on the Results tab.
+       */
+      albumsOff?: string[];
     }
 );
+
+/**
+ * A stack's albums less those switched off, and its centre: the start, or
+ * (when that's off) the shallowest album left.
+ */
+export const stackMembersOn = (
+  centre: MapCentre,
+  members: SearchCache[],
+  levels: Map<string, number>,
+  albumsOff: string[] = [],
+): { centre: MapCentre; members: SearchCache[] } => {
+  const off = new Set(albumsOff);
+  const on = members.filter((m) => !off.has(m.target?.key ?? ""));
+  if (!off.has(centre.key) || on.length === 0) return { centre, members: on };
+  const first = [...on].sort(
+    (a, b) =>
+      (levels.get(a.searchId) ?? 0) - (levels.get(b.searchId) ?? 0) ||
+      (a.savedAt ?? 0) - (b.savedAt ?? 0),
+  )[0];
+  return {
+    centre: {
+      key: first.target?.key ?? "",
+      title: first.searchParams.album,
+      artist: first.searchParams.artist,
+      thumb: first.thumb,
+    },
+    members: on,
+  };
+};
 
 /** What a draft would draw, before covers: for the sheet's controls. */
 export interface SharePlan {
@@ -558,6 +592,8 @@ export interface SharePlan {
   visibleKeys: Set<string>;
   /** The stack map's nodes (the centre first); empty for one search. */
   stackNodes: StackNode[];
+  /** The stack map's centre (the start, unless switched off). */
+  centre?: MapCentre;
   /** Albums to find covers for: everything the image may draw. */
   wanted: string[];
   /** The caption the image will carry. */
@@ -599,8 +635,14 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
       caption,
     };
   }
+  const { centre, members } = stackMembersOn(
+    data.centre,
+    data.members,
+    data.levels,
+    data.albumsOff,
+  );
   const list = withoutHidden(
-    data.results ?? stackResults(data.centre, data.members),
+    data.results ?? stackResults(centre, members),
     data.hidden,
   );
   const { stackOrder } = draft;
@@ -611,14 +653,14 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
     data.likes,
     stackOrder.likesFirst,
   );
-  const pickerSearch = stackAsSearch(data.search, data.members, list);
+  const pickerSearch = stackAsSearch(data.search, members, list);
   const pick = (count: number) =>
     shareSelection(pickerSearch, ordered, count, edits);
   const largest = SHARE_COUNTS.map.options[SHARE_COUNTS.map.options.length - 1];
   const most = Math.min(available(list, edits), largest);
   const capacity = stackMapCapacity(
-    data.centre,
-    data.members,
+    centre,
+    members,
     data.levels,
     data.likes,
     (count) => pick(count).map((r) => r.key),
@@ -626,8 +668,8 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
   );
   const shown = pick(Math.min(draft.counts.map, capacity));
   const stackNodes = layoutStackMap(
-    data.centre,
-    data.members,
+    centre,
+    members,
     data.levels,
     data.likes,
     shown.map((r) => r.key),
@@ -642,8 +684,9 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
     pickerSearch,
     visibleKeys: new Set(list.map((r) => r.key)),
     stackNodes,
+    centre,
     wanted: draft.view.covers
-      ? [data.centre.key, ...stackNodes.slice(1).map((n) => n.key)]
+      ? [centre.key, ...stackNodes.slice(1).map((n) => n.key)]
       : [],
     caption: stackCaption(stackNodes, stackOrder, editsCaption(edits)),
   };
@@ -667,7 +710,12 @@ export const buildPayload = (
   const { coverFor } = data;
   const drawn =
     data.kind === "stack"
-      ? stackMapPayload(data.centre, plan.stackNodes, coverFor, plan.caption)
+      ? stackMapPayload(
+          plan.centre ?? data.centre,
+          plan.stackNodes,
+          coverFor,
+          plan.caption,
+        )
       : plan.layout === "map"
         ? albumMapPayload(
             data.search,

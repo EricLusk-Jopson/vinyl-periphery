@@ -127,11 +127,13 @@ test("decodes a stack map, remapping links past untitled nodes", () => {
   assert.equal(payload.centre.side, 0.5);
   assert.equal(payload.albums.length, 2);
   assert.deepEqual(payload.albums[0], {
-    t: "Bon Iver", r: "Bon Iver", i: "", x: 0, y: 1, side: 0.4, member: true, links: [0],
+    t: "Bon Iver", r: "Bon Iver", i: "", x: 0, y: 1, side: 0.4, member: true, links: [0], weights: [0],
   });
   // y clamped to 12 steps; the untitled node (2) and an unknown one go.
   assert.equal(payload.albums[1].y, 12);
   assert.deepEqual(payload.albums[1].links, [0, 1]);
+  // No weights sent: thinnest lines.
+  assert.deepEqual(payload.albums[1].weights, [1, 1]);
   assert.equal(payload.covers, false);
   assert.equal(payload.lines, true);
   assert.equal(payload.bare, false);

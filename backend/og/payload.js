@@ -9,7 +9,8 @@
 //   { v: 1, l: "stack", c: Album & { s }, n: Node[], d? }       stack map
 //   Node   = Album & { x, y, s: place and cover side in thousandths of
 //            a step, y up; m?: 1 for the stack's own albums;
-//            e?: linked nodes, 0 the centre and k for n[k - 1] }
+//            e?: linked nodes, 0 the centre and k for n[k - 1];
+//            w?: a result's line weight per link, 1 to 3 }
 //   Album  = { t: title, r: artist, i: art }
 //   Result = Album & { n: shared count }
 //   Placed = Album & { x, y: thousandths of the radius from the centre,
@@ -160,7 +161,7 @@ export function parsePayload(raw) {
     const side = (value, fallback) => {
       const n = Number(value);
       return Number.isFinite(n) && value !== null && value !== ""
-        ? Math.max(0.1, Math.min(0.8, n / 1000))
+        ? Math.max(0.1, Math.min(1, n / 1000))
         : fallback;
     };
     const lines = raw.ln === 1;
@@ -174,12 +175,19 @@ export function parsePayload(raw) {
         member: n?.m === 1,
         index: k + 1,
         links: lines ? list(n?.e, MAX_MAP_ALBUMS + 1).map(Number) : [],
+        // Line weights, one per link: 1 to 3 (a stack album's own links: 0).
+        weights: lines ? list(n?.w, MAX_MAP_ALBUMS + 1).map((w) => Math.max(1, Math.min(3, Math.round(Number(w) || 1)))) : [],
       }))
       .filter((n) => n.t);
     // Links point at nodes as sent; untitled ones are dropped, so remap.
     const at = new Map([[0, 0], ...nodes.map((n, i) => [n.index, i + 1])]);
     for (const node of nodes) {
-      node.links = [...new Set(node.links.map((k) => at.get(k) ?? -1))].filter((k) => k >= 0);
+      const seen = new Set();
+      const kept = node.links
+        .map((k, i) => ({ k: at.get(k) ?? -1, w: node.member ? 0 : (node.weights[i] ?? 1) }))
+        .filter(({ k }) => k >= 0 && !seen.has(k) && seen.add(k));
+      node.links = kept.map(({ k }) => k);
+      node.weights = kept.map(({ w }) => w);
       delete node.index;
     }
     const caption = text(raw.d, MAX_CAPTION);

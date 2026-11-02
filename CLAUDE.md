@@ -16,6 +16,13 @@ ranks albums by how many of those people worked on them.
   - `search.js`: `GET /api/search` proxies the first Discogs search with the
     app's key and secret.
   - `health.js`: `GET /api/health`.
+  - `art.js`: `GET /api/art?key=master:N` (or `release:N`) reads a cover
+    from the Discogs master or release with the app's key: `{ key, thumb,
+    image }`, nulls for none. The key's 60 a minute are shared with
+    `/api/search` and every user, so it answers 429 without calling
+    Discogs when the last seen `X-Discogs-Ratelimit-Remaining` is under
+    `ART_RESERVE` (20; per instance, best effort) and passes Discogs's 429
+    on. The CDN caches answers (30 days for a cover, a day for none).
   - `event.js`: `POST /api/event` validates analytics events and forwards
     them to the Google Sheet. See `docs/analytics.md`.
   - `og.js`: `POST /api/og` renders a square share image (1080x1080)
@@ -48,8 +55,9 @@ ranks albums by how many of those people worked on them.
     out or adds them, drawing from the Results tab's filtered results. Typing "no
     boilerplate" in the sheet's album search unlocks a switch that drops
     the header and site so the graph fills the image (`nb`).
-    Never calls Discogs; only Cover
-    Art Archive images, with initials when they don't load. Fonts are
+    Never calls the Discogs API; only cover images (Cover Art Archive, and
+    `i.discogs.com` for `d:<path>` art, rebuilt on that host only), with
+    initials when they don't load. Fonts are
     vendored in `backend/og/fonts` (SIL OFL).
     The sheet's controls edit a draft (`ShareDraft`); the image is made
     once on open (after covers, up to `COVER_WAIT_MS`) and then only on
@@ -85,8 +93,15 @@ ranks albums by how many of those people worked on them.
     ids in batches (about 1 request a second), `src/api/coverArt.ts` queues
     them with rows on screen first, `src/services/coverCache.ts` keeps the
     mappings (misses too) in their own IndexedDB database, and
-    `useCoverArt` gives rows Cover Art Archive URLs as they resolve. No
-    Discogs image calls.
+    `useCoverArt` gives rows Cover Art Archive URLs as they resolve.
+    Covers still missing (a MusicBrainz miss, or an archive image that
+    failed to load: `AlbumCover` reports it) can be fetched from Discogs,
+    only when the user presses "Find N missing covers" (`FindCovers`,
+    `useFindCovers`: share sheet and both Results lists). `src/api/
+    discogsArt.ts` asks `/api/art` one key every 1.5s and stops on a 429,
+    with no retry. Answers are stored on the cover entry (`discogs`,
+    misses rechecked after 30 days); rows prefer the archive, then the
+    Discogs thumb, and share images use the full-size one (`large`).
   - `src/contexts/cache/`: search results, filter state, persistence. Every
     search goes into the library (IndexedDB, `src/services/db.ts`) as it
     finishes and stays until deleted; filter changes are written as they

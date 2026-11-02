@@ -7,6 +7,33 @@ class DiscogsAPIError extends Error {
   }
 }
 
+/**
+ * The app key's last known X-Discogs-Ratelimit-Remaining, from any Discogs
+ * response this instance has seen. Per function instance, so best effort;
+ * Discogs's own 429 is the real limit. Discogs counts over a moving
+ * minute, so a reading older than that says nothing.
+ */
+const RATE_WINDOW_MS = 60 * 1000;
+const rate = { remaining: null, seenAt: 0 };
+
+export function recordRateLimit(value, now = Date.now()) {
+  const n = Number(value);
+  if (value === null || value === undefined || value === "" || !Number.isFinite(n)) return;
+  rate.remaining = n;
+  rate.seenAt = now;
+}
+
+/** The last remaining count seen in the past minute, or null. */
+export function rateLimitRemaining(now = Date.now()) {
+  return rate.remaining !== null && now - rate.seenAt < RATE_WINDOW_MS ? rate.remaining : null;
+}
+
+/** For tests. */
+export function resetRateLimit() {
+  rate.remaining = null;
+  rate.seenAt = 0;
+}
+
 class DiscogsService {
   constructor(config) {
     this.baseURL = "https://api.discogs.com";
@@ -92,6 +119,7 @@ class DiscogsService {
       const rateLimitRemaining = response.headers.get(
         "X-Discogs-Ratelimit-Remaining"
       );
+      recordRateLimit(rateLimitRemaining);
 
       console.log("Discogs API Response:", {
         status: response.status,
@@ -138,6 +166,36 @@ class DiscogsService {
     }
   }
 }
+
+DiscogsService.prototype.getImages = async function getImages(type, id) {
+  // One try, no retries: a retry spends the shared budget again.
+  const url = new URL(`${this.baseURL}/${type}s/${id}`);
+  url.search = new URLSearchParams({ key: this.consumerKey, secret: this.consumerSecret }).toString();
+  let response;
+  try {
+    response = await fetch(url, {
+      headers: { "User-Agent": this.userAgent, Accept: "application/json" },
+      signal: AbortSignal.timeout(10000),
+    });
+  } catch (error) {
+    throw new DiscogsAPIError(
+      error.name === "TimeoutError" || error.name === "AbortError" ? "Request timeout" : `Failed to fetch from Discogs API: ${error.message}`,
+      504,
+    );
+  }
+  const rateLimitRemaining = response.headers.get("X-Discogs-Ratelimit-Remaining");
+  recordRateLimit(rateLimitRemaining);
+  const retryAfter = response.headers.get("Retry-After");
+  if (!response.ok) {
+    const error = new DiscogsAPIError(`Discogs API error: ${response.status}`, response.status, rateLimitRemaining);
+    error.retryAfter = retryAfter;
+    throw error;
+  }
+  const data = await response.json();
+  return { images: Array.isArray(data?.images) ? data.images : [], rateLimitRemaining };
+};
+
+export { DiscogsAPIError };
 
 let client = null;
 

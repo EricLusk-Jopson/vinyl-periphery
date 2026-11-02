@@ -44,7 +44,15 @@ describe("artIdFromCoverUrl", () => {
   it("reads release-group and release art", () => {
     expect(artIdFromCoverUrl(cover("release-group"))).toBe(`g:${MBID}`);
     expect(artIdFromCoverUrl(cover("release"))).toBe(`r:${MBID}`);
-    expect(artIdFromCoverUrl("https://i.discogs.com/x.jpg")).toBe("");
+    expect(artIdFromCoverUrl("https://i.discogs.com/x.jpg")).toBe("d:x.jpg");
+    expect(
+      artIdFromCoverUrl(
+        "https://i.discogs.com/AbC/rs:fit/g:sm/q:90/h:600/w:600/czM6Ly9.jpeg",
+      ),
+    ).toBe("d:AbC/rs:fit/g:sm/q:90/h:600/w:600/czM6Ly9.jpeg");
+    expect(artIdFromCoverUrl("https://i.discogs.com/a/../b.jpg")).toBe("");
+    expect(artIdFromCoverUrl("https://i.discogs.com/x.jpg?y=1")).toBe("");
+    expect(artIdFromCoverUrl("https://img.discogs.com/x.jpg")).toBe("");
     expect(artIdFromCoverUrl(null)).toBe("");
   });
 });

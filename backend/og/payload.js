@@ -1,7 +1,8 @@
 // The share image's input: a compact JSON payload, sent as the body of
 // POST /api/og. It carries everything the image shows (titles, artists, art
-// ids, counts, names), so rendering never calls Discogs or MusicBrainz; the
-// only fetches are Cover Art Archive images.
+// ids, counts, names), so rendering never calls the Discogs API or
+// MusicBrainz; the only fetches are cover images (Cover Art Archive, and
+// i.discogs.com for covers found on Discogs).
 //
 // Version 1:
 //   { v: 1, l: "card", a: Album, x: Result[], d? }             periphery card
@@ -18,7 +19,8 @@
 //            z: size tier, 1 or 2;
 //            s?: cover side in thousandths of the radius, over z }
 //   Person = { n: name, a: angle in degrees, counter-clockwise from the right }
-//   art    = "g:<release-group mbid>" | "r:<release mbid>" | ""
+//   art    = "g:<release-group mbid>" | "r:<release mbid>"
+//            | "d:<path of an i.discogs.com image>" | ""
 //   d      = how the albums were chosen ("Top 12 by Shared · Liked only")
 //   nc: 1  = no covers: every album drawn as its title and artist
 //   nb: 1  = (maps) no boilerplate: no header, caption or site; the graph
@@ -52,10 +54,18 @@ const MBID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const text = (value, max) =>
   typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, max) : "";
 
-/** "g:<mbid>" / "r:<mbid>", or "" for anything else. */
+/**
+ * The path of an i.discogs.com image URL: signed path segments only, no
+ * host, query or way out of the path. The renderer puts the host back.
+ */
+const DISCOGS_PATH = /^(?!.*\.\.)(?!\/)[A-Za-z0-9._~:=+,%/-]{1,512}$/;
+
+/** "g:<mbid>" / "r:<mbid>" / "d:<i.discogs.com path>", or "" for anything else. */
 const art = (value) => {
-  const match = /^([gr]):(.+)$/.exec(typeof value === "string" ? value : "");
-  return match && MBID.test(match[2]) ? `${match[1]}:${match[2].toLowerCase()}` : "";
+  const match = /^([grd]):(.+)$/.exec(typeof value === "string" ? value : "");
+  if (!match) return "";
+  if (match[1] === "d") return DISCOGS_PATH.test(match[2]) ? `d:${match[2]}` : "";
+  return MBID.test(match[2]) ? `${match[1]}:${match[2].toLowerCase()}` : "";
 };
 
 const album = (raw) => ({
@@ -210,8 +220,15 @@ export function parsePayload(raw) {
 /** Share images are square, 1080x1080 (feeds, posts and stories alike). */
 export const IMAGE_SIZE = { width: 1080, height: 1080, name: "square" };
 
-/** The Cover Art Archive URL for an art id. */
+/**
+ * The image URL for an art id: the Cover Art Archive for "g:" and "r:",
+ * i.discogs.com (and only there) for "d:".
+ */
 export const coverArtUrl = (artId, px = 500) => {
+  if (artId.startsWith("d:")) {
+    const path = artId.slice(2);
+    return DISCOGS_PATH.test(path) ? `https://i.discogs.com/${path}` : "";
+  }
   const [kind, mbid] = artId.split(":");
   if (!mbid) return "";
   return `https://coverartarchive.org/${kind === "g" ? "release-group" : "release"}/${mbid}/front-${px}`;

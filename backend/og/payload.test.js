@@ -174,3 +174,14 @@ test("sizes and art URLs", () => {
   assert.equal(coverArtUrl(`r:${MBID}`, 250), `https://coverartarchive.org/release/${MBID}/front-250`);
   assert.equal(coverArtUrl(""), "");
 });
+
+test("takes Discogs image paths as art, and only those", () => {
+  const path = "AbC-12_x/rs:fit/g:sm/q:90/h:600/w:600/czM6Ly9kaXNjb2dzLWRhdGFiYXNlLWltYWdlcy9SLTI0OTUwNC0xMjQ2ODk2NzcwLmpwZWc.jpeg";
+  const card = (i) => parsePayload({ v: 1, l: "card", a: { t: "x", i } });
+  assert.equal(card(`d:${path}`).album.i, `d:${path}`);
+  assert.equal(coverArtUrl(`d:${path}`), `https://i.discogs.com/${path}`);
+  for (const bad of ["d:", "d:/etc/passwd", "d:a/../b", "d:a?x=1", "d:a#b", "d:@evil.example/x", "d:a b", `d:${"a".repeat(513)}`, "x:abc"]) {
+    assert.equal(card(bad).album.i, "", bad);
+  }
+  assert.equal(coverArtUrl("d:a/../b"), "");
+});

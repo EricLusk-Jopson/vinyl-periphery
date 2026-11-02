@@ -8,6 +8,7 @@ import searchHandler from "./handlers/search.js";
 import healthHandler from "./handlers/health.js";
 import eventHandler from "./handlers/event.js";
 import ogHandler from "./handlers/og.js";
+import artHandler from "./handlers/art.js";
 
 dotenv.config();
 
@@ -30,6 +31,7 @@ app.all(["/health", "/api/health"], route(healthHandler));
 app.all("/api/search", route(searchHandler));
 app.all("/api/event", route(eventHandler));
 app.all("/api/og", route(ogHandler));
+app.all("/api/art", route(artHandler));
 
 // Anything else under /api is a JSON 404, not the app's HTML.
 app.all("/api/*", (req, res) => res.status(404).json({ error: "Not found" }));

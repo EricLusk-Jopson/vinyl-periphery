@@ -293,7 +293,7 @@ export const StackPage: React.FC<StackPageProps> = ({
               levels,
               results,
             }}
-            to={stackPath(stackId)}
+            draftKey={`stack:${stackId}`}
           />
           <button
             type="button"

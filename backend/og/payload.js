@@ -1,5 +1,5 @@
-// The share image's input: a compact JSON payload, base64url-encoded in the
-// URL (?p=). It carries everything the image shows (titles, artists, art
+// The share image's input: a compact JSON payload, sent as the body of
+// POST /api/og. It carries everything the image shows (titles, artists, art
 // ids, counts, names), so rendering never calls Discogs or MusicBrainz; the
 // only fetches are Cover Art Archive images.
 //
@@ -30,7 +30,8 @@
 //
 // Keep in step with frontend/src/lib/share.ts, which builds it.
 
-export const MAX_PAYLOAD_CHARS = 6000;
+/** Largest body /api/og takes, as JSON text. */
+export const MAX_PAYLOAD_BYTES = 32 * 1024;
 /** Rows on the results card: up to five full size, then smaller. */
 export const MAX_RESULTS = 10;
 export const MAX_MAP_ALBUMS = 24;
@@ -65,19 +66,32 @@ const album = (raw) => ({
 const list = (value, max) => (Array.isArray(value) ? value.slice(0, max) : []);
 
 /**
- * The payload from its URL form, cleaned and clipped, or null when it's
- * missing, too long, malformed, or has nothing to draw.
+ * A request body as a raw payload: already parsed (Express and Vercel parse
+ * JSON bodies), or JSON text or bytes. Null when it isn't JSON or is over
+ * MAX_PAYLOAD_BYTES.
  */
-export function decodePayload(encoded) {
-  if (typeof encoded !== "string" || encoded.length === 0) return null;
-  if (encoded.length > MAX_PAYLOAD_CHARS) return null;
-  let raw;
-  try {
-    raw = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
-  } catch {
-    return null;
+export function readBody(body) {
+  let raw = body;
+  if (Buffer.isBuffer(raw)) raw = raw.toString("utf8");
+  if (typeof raw === "string") {
+    if (Buffer.byteLength(raw, "utf8") > MAX_PAYLOAD_BYTES) return null;
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  } else if (raw && typeof raw === "object") {
+    if (Buffer.byteLength(JSON.stringify(raw), "utf8") > MAX_PAYLOAD_BYTES) return null;
   }
-  if (!raw || raw.v !== 1) return null;
+  return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : null;
+}
+
+/**
+ * The payload, cleaned and clipped, or null when it's missing, malformed,
+ * or has nothing to draw.
+ */
+export function parsePayload(raw) {
+  if (!raw || typeof raw !== "object" || raw.v !== 1) return null;
 
   if (raw.l === "card") {
     const searched = album(raw.a);
@@ -184,10 +198,6 @@ export function decodePayload(encoded) {
 
   return null;
 }
-
-/** The URL form of a payload (for tests; the frontend has its own). */
-export const encodePayload = (payload) =>
-  Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
 
 /** Share images are square, 1080x1080 (feeds, posts and stories alike). */
 export const IMAGE_SIZE = { width: 1080, height: 1080, name: "square" };

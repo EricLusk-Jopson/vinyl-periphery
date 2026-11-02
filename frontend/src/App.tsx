@@ -34,6 +34,7 @@ import {
   STACK_ROUTE,
   RESULTS_PATH,
   fromLocation,
+  legacyShareTarget,
   resultPath,
 } from "./lib/routes";
 
@@ -273,6 +274,13 @@ const App: React.FC = () => {
           <Route
             path={`${RESULTS_PATH}/:searchId`}
             element={<LegacyResultsRedirect />}
+          />
+          {/* Links shared before images went out as files only. */}
+          <Route
+            path="/s"
+            element={
+              <Navigate to={legacyShareTarget(location.search)} replace />
+            }
           />
           <Route path="*" element={<Navigate to={HOME_PATH} replace />} />
         </Routes>

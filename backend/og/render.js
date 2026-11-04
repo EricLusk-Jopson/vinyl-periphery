@@ -396,6 +396,10 @@ const nameBox = (name) => {
 };
 
 /** Two boxes ({ x, y, w, h }, top-left) overlap, with `margin` to spare. */
+/** A person's dot on the map's circle, and the room covers keep from it. */
+export const MAP_DOT = 9;
+export const MAP_DOT_CLEAR = 6;
+
 const overlaps = (a, b, margin = 0) =>
   a.x < b.x + b.w + margin &&
   b.x < a.x + a.w + margin &&
@@ -408,8 +412,8 @@ const overlaps = (a, b, margin = 0) =>
  *
  * Names come first: each sits just past its dot, and names that would
  * overlap each other are moved apart around the circle (their dots stay
- * where the person is). Then any cover on a name moves off it: toward
- * the middle if it's inside the circle, outward if it's past it.
+ * where the person is). Then any cover on a name or a dot moves off it:
+ * toward the middle if it's inside the circle, outward if it's past it.
  */
 export function mapLayout(payload, radius, { width, height, gap }) {
   const middle = { x: width / 2, y: height / 2 };
@@ -457,13 +461,24 @@ export function mapLayout(payload, radius, { width, height, gap }) {
     labels = labelAngles.map((a, i) => labelAt(a, i));
   }
 
-  // Covers off the names, the centre one aside.
+  // Each person's dot on the circle, with room around it.
+  const dots = angles.map((a) => ({
+    x: middle.x + Math.cos(a) * radius - MAP_DOT / 2,
+    y: middle.y - Math.sin(a) * radius - MAP_DOT / 2,
+    w: MAP_DOT,
+    h: MAP_DOT,
+  }));
+  const blocked = (cover) =>
+    labels.some((label) => overlaps(label, cover, 6)) ||
+    dots.some((dot) => overlaps(dot, cover, MAP_DOT_CLEAR));
+
+  // Covers off the names and dots, the centre one aside.
   for (const cover of covers.slice(1)) {
     const cx = cover.x + cover.w / 2 - middle.x;
     const cy = cover.y + cover.h / 2 - middle.y;
     const length = Math.hypot(cx, cy) || 1;
     const sign = length < radius ? -1 : 1;
-    for (let step = 0; step < 120 && labels.some((label) => overlaps(label, cover, 6)); step++) {
+    for (let step = 0; step < 120 && blocked(cover); step++) {
       cover.x += (sign * 6 * cx) / length;
       cover.y += (sign * 6 * cy) / length;
     }
@@ -604,7 +619,6 @@ export function mapElement(payload, size, art) {
         album.links.map((p) => ({ from: labels[p]?.dot, to: covers[i + 1] })),
       ).filter((l) => l.from)
     : [];
-  const dot = 9;
   const placed = (b, child) =>
     h(
       "div",
@@ -658,15 +672,6 @@ export function mapElement(payload, size, art) {
         },
       },
       ...labels.flatMap((label) => [
-        h("div", {
-          position: "absolute",
-          left: Math.round(label.dot.x - dot / 2),
-          top: Math.round(label.dot.y - dot / 2),
-          width: dot,
-          height: dot,
-          borderRadius: 999,
-          background: C.primaryText,
-        }),
         h(
           "div",
           {
@@ -690,6 +695,18 @@ export function mapElement(payload, size, art) {
         placed(covers[i + 1], tile(album, artOf(album), Math.round(covers[i + 1].w))),
       ),
       placed(covers[0], tile(centre, artOf(centre), Math.round(covers[0].w))),
+      // Dots last, so nothing is ever drawn over one.
+      ...labels.map((label) =>
+        h("div", {
+          position: "absolute",
+          left: Math.round(label.dot.x - MAP_DOT / 2),
+          top: Math.round(label.dot.y - MAP_DOT / 2),
+          width: MAP_DOT,
+          height: MAP_DOT,
+          borderRadius: 999,
+          background: C.primaryText,
+        }),
+      ),
     ),
     !payload.bare && mapHeader("Connections around", payload, size),
     !payload.bare && mapFooter(size),

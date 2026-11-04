@@ -12,21 +12,28 @@ export const libraryPath = (): string => LIBRARY_PATH;
 /** Route pattern for one saved stack. */
 export const STACK_ROUTE = `${LIBRARY_PATH}/stack/:stackId`;
 
-/** A stack page's tabs: its merged results (the default) or its albums. */
-export type StackView = "results" | "albums";
+/**
+ * A stack page's tabs: its albums (the default), its merged results,
+ * their people by year, or a transit map.
+ */
+export type StackView = "results" | "albums" | "people" | "map";
+
+const STACK_VIEWS: StackView[] = ["results", "albums", "people", "map"];
 
 /**
  * One saved stack's page, on a tab. Stack ids contain spaces and hyphens.
- * Albums is the default and has no parameter; Results is `?view=results`.
+ * Albums is the default and has no parameter; the others are `?view=…`.
  */
 export const stackPath = (stackId: string, view: StackView = "albums"): string =>
   `${LIBRARY_PATH}/stack/${encodeURIComponent(stackId)}${
-    view === "results" ? "?view=results" : ""
+    view === "albums" ? "" : `?view=${view}`
   }`;
 
-/** The tab a stack page's query names: Results, or Albums for anything else. */
-export const stackView = (search: string): StackView =>
-  new URLSearchParams(search).get("view") === "results" ? "results" : "albums";
+/** The tab a stack page's query names; Albums for anything else. */
+export const stackView = (search: string): StackView => {
+  const view = new URLSearchParams(search).get("view") as StackView | null;
+  return view && STACK_VIEWS.includes(view) ? view : "albums";
+};
 
 export const RESULTS_PATH = "/results";
 
@@ -119,4 +126,20 @@ export const fromLocation = (location: string): ResultFrom => {
 export const legacyShareTarget = (search: string): string => {
   const to = new URLSearchParams(search).get("to") ?? "";
   return /^\/(results\?|library\/stack\/)\S*$/.test(to) ? to : HOME_PATH;
+};
+
+/** A results page's views: the album list, or its people by year. */
+export type ResultsView = "list" | "people";
+
+/** The view a results page's query names: People, or the list. */
+export const resultsView = (search: string): ResultsView =>
+  new URLSearchParams(search).get("view") === "people" ? "people" : "list";
+
+/** The same results URL on another view (`?view=people`, or none). */
+export const withResultsView = (search: string, view: ResultsView): string => {
+  const query = new URLSearchParams(search);
+  if (view === "people") query.set("view", "people");
+  else query.delete("view");
+  const text = query.toString();
+  return text ? `?${text}` : "";
 };

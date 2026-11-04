@@ -13,7 +13,13 @@ import { useCache } from "@/contexts/cache/CacheContext";
 import { SearchCache } from "@/contexts/cache/types";
 import { KnownAlbum } from "@/hooks/useSearchRun";
 import { track } from "@/lib/analytics";
-import { libraryPath, stackPath, StackView, stackView } from "@/lib/routes";
+import {
+  libraryPath,
+  resultPath,
+  stackPath,
+  StackView,
+  stackView,
+} from "@/lib/routes";
 import { ShareButton } from "../share/ShareButton";
 import { targetFromKey } from "@/lib/searchTarget";
 import {
@@ -40,11 +46,16 @@ import { useCoverArt } from "@/hooks/useCoverArt";
 import { useLikes } from "@/hooks/useLikes";
 import { useHidden } from "@/hooks/useHidden";
 import { useStackFilters } from "@/hooks/useStackFilters";
+import { ResultFocus } from "@/hooks/useFocusResult";
+import { StackPeople } from "../people/StackPeople";
+import { TransitMap } from "../transit/TransitMap";
+import { layoutTransitMap, shareTransitMap } from "@/lib/transitMap";
 import { filtersRequested, onFilterRequest } from "@/lib/filterRequest";
 import { useStackSort } from "@/hooks/useStackSort";
 import { metaAlbum } from "@/lib/metaAlbum";
 import {
   albumsOn,
+  countedByAlbum,
   filteredStackResults,
   sortStackResults,
 } from "@/lib/stackFilters";
@@ -199,6 +210,51 @@ export const StackPage: React.FC<StackPageProps> = ({
     [view, navigate, stackId],
   );
 
+  // The Map tab: left to right where it fits (and in the share image),
+  // top to bottom otherwise.
+  // Albums switched off in the filters aren't stations.
+  const transitMeta = useMemo(
+    () =>
+      metaAlbum(
+        meta.members
+          .filter((m) => stackFilters.filters.albums[m.key] !== false)
+          .map((m) => m.search),
+      ),
+    [meta, stackFilters.filters.albums],
+  );
+  const counted = useMemo(
+    () => countedByAlbum(transitMeta, stackFilters.filters),
+    [transitMeta, stackFilters.filters],
+  );
+  const transitWide = useMemo(
+    () =>
+      layoutTransitMap({
+        meta: transitMeta,
+        levels,
+        counted,
+        orientation: "horizontal",
+      }),
+    [transitMeta, levels, counted],
+  );
+  // The share image: whichever layout draws biggest in the square.
+  const transitShare = useMemo(
+    () => shareTransitMap({ meta: transitMeta, levels, counted }),
+    [transitMeta, levels, counted],
+  );
+  const transitTall = useMemo(
+    () =>
+      layoutTransitMap({
+        meta: transitMeta,
+        levels,
+        counted,
+        orientation: "vertical",
+      }),
+    [transitMeta, levels, counted],
+  );
+
+  // A result picked in the People tab, to show on the Results tab.
+  const [focus, setFocus] = useState<ResultFocus>();
+
   const reported = useRef(false);
   useEffect(() => {
     if (reported.current || members.length === 0) return;
@@ -226,7 +282,10 @@ export const StackPage: React.FC<StackPageProps> = ({
   const sections = Array.from(steps).sort(([a], [b]) => a - b);
 
   const changeView = (next: string) => {
-    const tab: StackView = next === "results" ? "results" : "albums";
+    const tab: StackView =
+      next === "results" || next === "people" || next === "map"
+        ? next
+        : "albums";
     if (tab === view) return;
     track("stack_view_changed", { view: tab });
     navigate(stackPath(stackId, tab), { replace: true });
@@ -304,6 +363,7 @@ export const StackPage: React.FC<StackPageProps> = ({
               members,
               levels,
               results,
+              transit: transitShare,
             }}
             draftKey={`stack:${stackId}`}
             stackFilters={{
@@ -330,7 +390,42 @@ export const StackPage: React.FC<StackPageProps> = ({
         <TabsList aria-label="Stack view">
           <TabsTrigger value="albums">Albums</TabsTrigger>
           <TabsTrigger value="results">Results</TabsTrigger>
+          <TabsTrigger value="people">People</TabsTrigger>
+          <TabsTrigger value="map">Map</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="map" className="pt-6 lg:pt-8">
+          <p className="mb-4 text-sm text-muted-foreground">
+            The stack as a transit map: its albums are stations, and people
+            credited on two or more are lines, step by step from the start.
+          </p>
+          <TransitMap
+            maps={{ horizontal: transitWide, vertical: transitTall }}
+            onStation={(id) => {
+              const search = searches[id];
+              if (!search) return;
+              track("transit_station_opened", {});
+              navigate(resultPath(search.searchParams, search.target), {
+                state: { from: "stack", stackId },
+              });
+            }}
+          />
+        </TabsContent>
+
+        <TabsContent value="people" className="pt-6 lg:pt-8">
+          {stackFilters.loaded && (
+            <StackPeople
+              meta={meta}
+              stackFilters={stackFilters}
+              results={results}
+              startKey={root.targetKey}
+              onResult={(key) => {
+                navigate(stackPath(stackId, "results"), { replace: true });
+                setFocus({ key, at: Date.now() });
+              }}
+            />
+          )}
+        </TabsContent>
 
         <TabsContent value="results" className="pt-6 lg:pt-8">
           {stackFilters.loaded && (
@@ -342,6 +437,7 @@ export const StackPage: React.FC<StackPageProps> = ({
               order={order}
               results={results}
               of={albumsOn(meta, stackFilters.filters)}
+              focus={focus}
               onSearchFrom={onSearchStep}
               isSearching={isSearching}
             />

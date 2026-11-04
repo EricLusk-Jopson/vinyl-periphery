@@ -42,6 +42,15 @@
 
     --radius: 0.5rem;
 
+    /* Transit map lines. Placeholders until the palette is set; none red,
+       which marks connection. Mirrored in backend/og/render.js. */
+    --line-1: 174 62% 47%; /* #2DBFAE teal */
+    --line-2: 38 92% 58%; /* #F6AE2D amber */
+    --line-3: 212 85% 64%; /* #5AA2F2 blue */
+    --line-4: 268 70% 70%; /* #A884E8 violet */
+    --line-5: 140 50% 52%; /* #4EC076 green */
+    --line-6: 300 45% 66%; /* #CF86CF orchid */
+
     color-scheme: dark;
   }
 

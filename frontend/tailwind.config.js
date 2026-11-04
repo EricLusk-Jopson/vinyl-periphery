@@ -57,6 +57,14 @@ export default {
           emphasis: token("border-emphasis"),
         },
         input: token("input"),
+        line: {
+          1: token("line-1"),
+          2: token("line-2"),
+          3: token("line-3"),
+          4: token("line-4"),
+          5: token("line-5"),
+          6: token("line-6"),
+        },
         ring: token("ring"),
       },
       fontFamily: {

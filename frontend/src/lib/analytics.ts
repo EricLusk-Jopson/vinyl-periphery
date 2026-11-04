@@ -37,6 +37,9 @@ export type AnalyticsEvent =
   | "share_more_filters"
   | "covers_requested"
   | "covers_found"
+  | "results_view_changed"
+  | "swimlane_tick_opened"
+  | "transit_station_opened"
   | "chip_details"
   | "results_searched"
   | "result_picked";

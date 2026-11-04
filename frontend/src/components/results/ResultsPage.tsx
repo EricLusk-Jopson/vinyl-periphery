@@ -1,5 +1,11 @@
-import React, { useEffect, useMemo } from "react";
-import { Link, Navigate, useLocation, useParams } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  Link,
+  Navigate,
+  useLocation,
+  useNavigate,
+  useParams,
+} from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { SearchParams, SearchTarget } from "@/api/types";
 import { KnownAlbum } from "@/hooks/useSearchRun";
@@ -10,7 +16,14 @@ import {
   resultParams,
   resultPath,
   resultTarget,
+  resultsView,
+  ResultsView,
+  withResultsView,
 } from "@/lib/routes";
+import { track } from "@/lib/analytics";
+import { ResultFocus } from "@/hooks/useFocusResult";
+import { SearchPeople } from "../people/SearchPeople";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { matchingSearchIds } from "@/lib/searchTarget";
 import { cn } from "@/lib/utils";
 import { FilterPanel } from "../filters/FilterPanel";
@@ -68,6 +81,19 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
   const search = searches[searchId];
   const back = useResultsBack();
   const order = useResultsSort();
+  const navigate = useNavigate();
+  const view = resultsView(location.search);
+  const changeView = (next: string) => {
+    const tab: ResultsView = next === "people" ? "people" : "list";
+    if (tab === view) return;
+    track("results_view_changed", { view: tab });
+    navigate(
+      { search: withResultsView(location.search, tab) },
+      { replace: true, state: location.state },
+    );
+  };
+  // A result picked in the People view, to show in the list.
+  const [focus, setFocus] = useState<ResultFocus>();
 
   // Keep the cache's active search in step with the URL.
   useEffect(() => {
@@ -131,17 +157,44 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
           <FilterPanel searchId={searchId} variant="sidebar" />
         </aside>
         <div className="min-w-0 flex-1">
-          <ReleaseList
-            searchId={searchId}
-            order={order}
-            onSearchFrom={onSearchFrom}
-            isSearching={isSearching}
-            toolbarAction={
-              <div className="lg:hidden">
-                <FilterFrame searchId={searchId} />
+          <Tabs value={view} onValueChange={changeView}>
+            <TabsList aria-label="Results view" className="mb-4">
+              <TabsTrigger value="list">Albums</TabsTrigger>
+              <TabsTrigger value="people">People</TabsTrigger>
+            </TabsList>
+            <TabsContent value="list">
+              <ReleaseList
+                searchId={searchId}
+                order={order}
+                onSearchFrom={onSearchFrom}
+                isSearching={isSearching}
+                focus={focus}
+                toolbarAction={
+                  <div className="lg:hidden">
+                    <FilterFrame searchId={searchId} />
+                  </div>
+                }
+              />
+            </TabsContent>
+            <TabsContent value="people">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground">
+                  Everyone who counts under your filters, by year. Solid
+                  marks are albums in your results.
+                </p>
+                <div className="shrink-0 lg:hidden">
+                  <FilterFrame searchId={searchId} />
+                </div>
               </div>
-            }
-          />
+              <SearchPeople
+                searchId={searchId}
+                onResult={(key) => {
+                  changeView("list");
+                  setFocus({ key, at: Date.now() });
+                }}
+              />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </div>

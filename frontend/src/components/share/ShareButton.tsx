@@ -1,6 +1,7 @@
-import React, { useEffect, useId, useMemo, useState } from "react";
-import { Download, Share2 } from "lucide-react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Download, Loader2, RefreshCw, Share2 } from "lucide-react";
 import { coverResolver } from "@/api/coverArt";
+import { renderShareImage } from "@/api/shareImage";
 import {
   Sheet,
   SheetContent,
@@ -17,47 +18,29 @@ import { useToast } from "@/hooks/use-toast";
 import { useLikes } from "@/hooks/useLikes";
 import { useHidden } from "@/hooks/useHidden";
 import { useCoverArt } from "@/hooks/useCoverArt";
-import {
-  layoutStackMap,
-  orderStackResults,
-  stackAsSearch,
-  stackResults,
-} from "@/lib/stackMap";
 import { track } from "@/lib/analytics";
 import {
   ScoredRelease,
   SORT_OPTIONS,
   SortKey,
-  sortReleases,
   tiebreakOptions,
 } from "@/lib/results";
 import {
-  albumMapPayload,
-  cardPayload,
+  buildPayload,
   MapCentre,
-  stackMapPayload,
+  ShareData,
+  ShareDraft,
   ShareLayout,
-  shareImagePath,
-  shareLink,
   countOptions,
-  SHARE_COUNTS,
   canDrawLines,
-  stackCaption,
-  DEFAULT_VIEW,
+  draftChange,
   NO_BOILERPLATE,
-  ShareView,
-  withView,
-  selectionCaption,
+  planShare,
+  serialisePayload,
+  StackOrder,
 } from "@/lib/share";
-import {
-  editsCaption,
-  filtersToInclude,
-  editsWithoutHidden,
-  NO_EDITS,
-  ShareEdits,
-  withoutHidden,
-  shareSelection,
-} from "@/lib/shareSelection";
+import { filtersToInclude, ShareEdits } from "@/lib/shareSelection";
+import { committedShare, CommittedShare, shareDraft, keepShare } from "@/lib/shareDrafts";
 import { cn } from "@/lib/utils";
 import { dialogButton } from "../common/buttons";
 import {
@@ -109,8 +92,11 @@ interface ShareButtonProps {
    * say how they were chosen. Without it, the map is the stack's.
    */
   selection?: { sort: SortKey; then: SortKey | null };
-  /** Where the shared link opens: these results, or a stack. */
-  to: string;
+  /**
+   * Names this share's draft, kept in memory while the page is open:
+   * "search:<id>" or "stack:<stackId>".
+   */
+  draftKey: string;
   /** Button style: compact icon on phones (results header) or labelled. */
   compact?: boolean;
 }
@@ -162,12 +148,6 @@ const Segmented = <T extends string>({
     </div>
   </div>
 );
-
-interface StackOrder {
-  sort: SortKey;
-  then: SortKey | null;
-  likesFirst: boolean;
-}
 
 /**
  * The order of a stack's results: a sort, a tiebreaker, and whether
@@ -254,15 +234,16 @@ const StackOrderControls: React.FC<{
  * Share: a square, watermarked image: a map of the stack (or this
  * search) and the liked albums around it, or these results as a list;
  * through the native share sheet where it takes files, as a download
- * otherwise. The image is rendered by /api/og from data in the URL. Covers
- * for every album it draws are looked up first (up to COVER_WAIT_MS), so
- * albums that were never on screen still get their art.
+ * otherwise. The controls edit a draft; the image (POST /api/og) is made
+ * once when the sheet opens (after covers are looked up, up to
+ * COVER_WAIT_MS) and then only when the user presses Regenerate, so what's
+ * shared is always the image on screen.
  */
 export const ShareButton: React.FC<ShareButtonProps> = ({
   search,
   map,
   selection,
-  to,
+  draftKey,
   compact = false,
 }) => {
   const { updateFilterState } = useCache();
@@ -273,147 +254,60 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   const coarse = useMediaQuery("(pointer: coarse)");
   const [open, setOpen] = useState(false);
   const likes = useLikes();
-  const [chosen, setChosen] = useState<ShareLayout>("map");
-  // How many albums each layout draws (one search only).
-  const [counts, setCounts] = useState<Record<ShareLayout, number>>({
-    map: SHARE_COUNTS.map.start,
-    card: SHARE_COUNTS.card.start,
-  });
-  // Albums taken out of the image or added to it (one search only).
-  const [chosenEdits, setEdits] = useState<ShareEdits>(NO_EDITS);
-  // Covers or titles only; lines from people to their albums.
-  const [view, setView] = useState<ShareView>(DEFAULT_VIEW);
-  // A stack's results: their order, and whether liked ones come first.
-  const [stackOrder, setStackOrder] = useState<StackOrder>({
-    sort: "shared",
-    then: null,
-    likesFirst: true,
-  });
+  const hidden = useHidden();
+  // What the controls set. Kept per search or stack while the page is open.
+  const [draft, setDraftState] = useState<ShareDraft>(() =>
+    shareDraft(draftKey),
+  );
+  // The image last made, and the payload it was made from.
+  const [committed, setCommitted] = useState<CommittedShare | null>(() =>
+    committedShare(draftKey),
+  );
+  useEffect(() => {
+    setDraftState(shareDraft(draftKey));
+    setCommitted(committedShare(draftKey));
+  }, [draftKey]);
+  useEffect(() => {
+    keepShare(draftKey, draft, committed);
+  }, [draftKey, draft, committed]);
+  const setDraft = (update: (current: ShareDraft) => ShareDraft) =>
+    setDraftState(update);
+  const setView = (update: Partial<ShareDraft["view"]>) =>
+    setDraft((d) => ({ ...d, view: { ...d.view, ...update } }));
+  const setEdits = (update: (current: ShareEdits) => ShareEdits) =>
+    setDraft((d) => ({ ...d, edits: update(d.edits) }));
   // The "no boilerplate" switch, once its phrase has been typed here.
   const [bareUnlocked, setBareUnlocked] = useState(readBareUnlocked);
   const [busy, setBusy] = useState(false);
-  const [loaded, setLoaded] = useState("");
 
-  // Hidden albums never go into an image, even with "Show hidden" on.
-  const hidden = useHidden();
-  const edits = useMemo(
-    () => editsWithoutHidden(chosenEdits, hidden),
-    [chosenEdits, hidden],
+  const coverFor = (key: string) => coverResolver.get(key);
+  const data = useMemo<ShareData | null>(() => {
+    if (!open) return null;
+    const common = { likes, hidden, coverFor };
+    return selection
+      ? {
+          ...common,
+          kind: "search",
+          search,
+          releases: releases as ScoredRelease[],
+          selection,
+        }
+      : {
+          ...common,
+          kind: "stack",
+          search,
+          centre: map.centre,
+          members: map.members,
+          levels: map.levels ?? new Map(),
+          results: map.results,
+        };
+  }, [open, likes, hidden, selection, search, releases, map]);
+  const plan = useMemo(
+    () => (data ? planShare(draft, data) : null),
+    [draft, data],
   );
-  // One search: its results in the page's order (filters already applied).
-  const ranked = useMemo(
-    () =>
-      withoutHidden(
-        selection
-          ? sortReleases(
-              releases as ScoredRelease[],
-              selection.sort,
-              selection.then,
-            )
-          : (releases as ScoredRelease[]),
-        hidden,
-      ),
-    [releases, selection, hidden],
-  );
-  // What each layout draws: the top of the list, as edited.
-  const mapShown = useMemo(
-    () => (selection ? shareSelection(search, ranked, counts.map, edits) : []),
-    [selection, search, ranked, counts.map, edits],
-  );
-  const cardShown = useMemo(
-    () =>
-      selection
-        ? shareSelection(search, ranked, counts.card, edits)
-        : ranked.slice(0, counts.card),
-    [selection, search, ranked, counts.card, edits],
-  );
-  const visibleKeys = useMemo(
-    () => new Set(ranked.map((r) => r.key)),
-    [ranked],
-  );
-  // A stack: its results as the Results tab filters them, in the chosen
-  // order, edited, then laid out around the stack's albums.
-  const stackList = useMemo(
-    () =>
-      open && !selection
-        ? withoutHidden(
-            map.results ?? stackResults(map.centre, map.members),
-            hidden,
-          )
-        : [],
-    [open, selection, map.centre, map.members, map.results, hidden],
-  );
-  const stackOrdered = useMemo(
-    () =>
-      orderStackResults(
-        stackList,
-        stackOrder.sort,
-        stackOrder.then,
-        likes,
-        stackOrder.likesFirst,
-      ),
-    [stackList, stackOrder, likes],
-  );
-  const stackSearch = useMemo(
-    () => stackAsSearch(search, map.members, stackList),
-    [search, map.members, stackList],
-  );
-  // A stack: every result it was given can be shown.
-  const allStackKeys = useMemo(
-    () => new Set(stackList.map((r) => r.key)),
-    [stackList],
-  );
-  const stackShown = useMemo(
-    () => shareSelection(stackSearch, stackOrdered, counts.map, edits),
-    [stackSearch, stackOrdered, counts.map, edits],
-  );
-  // Albums there are to draw: the list less removed ones, plus added ones.
-  const pool = selection ? ranked : stackList;
-  const available = new Set([
-    ...pool.map((r) => r.key).filter((k) => !edits.removed.includes(k)),
-    ...edits.added,
-  ]).size;
-  const stackNodes = useMemo(
-    () =>
-      open && !selection
-        ? layoutStackMap(
-            map.centre,
-            map.members,
-            map.levels ?? new Map(),
-            likes,
-            stackShown.map((r) => r.key),
-          )
-        : [],
-    [open, selection, map.centre, map.members, map.levels, likes, stackShown],
-  );
-  // What the map would show around its centre.
-  const around = useMemo(
-    () => (!open ? [] : selection ? mapShown : stackNodes.slice(1)),
-    [open, selection, mapShown, stackNodes],
-  );
-  const caption = (count: number) =>
-    selection
-      ? [
-          selectionCaption(search, count, selection.sort, selection.then),
-          editsCaption(edits),
-        ]
-          .filter(Boolean)
-          .join(" · ")
-      : undefined;
-  // The albums either layout draws, so their covers can be looked up.
-  const wanted = useMemo(
-    () =>
-      // Without covers there's no art to wait for.
-      open && view.covers
-        ? [
-            map.centre.key,
-            ...around.map((a) => a.key),
-            search.target?.key ?? "",
-            ...cardShown.map((r) => r.key),
-          ].filter(Boolean)
-        : [],
-    [open, view.covers, map.centre.key, around, search.target?.key, cardShown],
-  );
+
+  const wanted = plan?.wanted ?? [];
   const cover = useCoverArt(wanted);
   const [waited, setWaited] = useState(false);
   useEffect(() => {
@@ -423,59 +317,91 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     return () => clearTimeout(timer);
   }, [open]);
   const ready =
-    open && (waited || wanted.every((key) => cover(key) !== undefined));
-  // Changes as covers arrive, so the image is rebuilt with them.
+    plan !== null &&
+    (waited || wanted.every((key) => cover(key) !== undefined));
+  // Changes as covers arrive, so the draft picks them up.
   const covers = ready ? wanted.map((key) => cover(key) ?? "").join("|") : "";
-
-  const coverFor = (key: string) => coverResolver.get(key);
-  const mapImage = useMemo(
-    () =>
-      !ready
-        ? null
-        : selection
-          ? albumMapPayload(
-              search,
-              mapShown,
-              likes,
-              coverFor,
-              caption(mapShown.length),
-            )
-          : stackMapPayload(
-              map.centre,
-              stackNodes,
-              coverFor,
-              stackCaption(stackNodes, stackOrder, editsCaption(edits)),
-            ),
+  const payload = useMemo(
+    () => (ready && data && plan ? buildPayload(draft, data, plan) : null),
     // coverFor reads the resolver; `covers` says when it has changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [ready, covers, selection, mapShown, map.centre, stackNodes, stackOrder],
+    [ready, covers, draft, data, plan],
   );
-  // A map with nothing around its centre isn't worth sharing.
-  const mapReady = around.length > 0;
-  // A stack is shared as its map only.
-  const layout: ShareLayout = !selection ? "map" : mapReady ? chosen : "card";
-  const drawn = useMemo(() => {
-    if (!ready) return null;
-    return layout === "map"
-      ? mapImage
-      : cardPayload(
-          search,
-          cardShown,
-          coverFor,
-          caption(cardShown.length),
-          cardShown.length,
-        );
-    // coverFor reads the resolver; `covers` says when it has changed.
+  const change = draftChange(payload, committed?.encoded ?? null);
+
+  // Making the image: one request at a time, the latest wins.
+  const request = useRef<AbortController | null>(null);
+  const [rendering, setRendering] = useState(false);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => () => request.current?.abort(), []);
+  const regenerate = async (auto = false) => {
+    if (!payload || !plan) return;
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
+    setRendering(true);
+    if (!auto) {
+      track("share_regenerated", { layout: plan.layout, stack: !selection });
+    }
+    const encoded = serialisePayload(payload);
+    try {
+      const blob = await renderShareImage(payload, controller.signal);
+      setCommitted({
+        encoded,
+        blob,
+        layout: plan.layout,
+        albums: plan.shown.length,
+        removed: plan.edits.removed.length,
+        added: plan.edits.added.length,
+        bare: !draft.view.boilerplate,
+      });
+      setFailed(false);
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      console.error("Image failed:", error);
+      setFailed(true);
+      toast({
+        title: "Couldn't make the image",
+        description: "Try again in a moment.",
+        variant: "destructive",
+      });
+    } finally {
+      if (request.current === controller) {
+        request.current = null;
+        setRendering(false);
+      }
+    }
+  };
+  // The first image: once, when the sheet opens and covers are ready.
+  useEffect(() => {
+    if (open && payload && !committed && !rendering && !failed) {
+      void regenerate(true);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, covers, layout, mapImage, search, cardShown, selection, edits]);
-  // The album counts to offer for this layout (one search only).
-  const shown = !selection
-    ? stackShown
-    : layout === "map"
-      ? mapShown
-      : cardShown;
+  }, [open, payload, committed, rendering, failed]);
+  useEffect(() => {
+    if (!open) setFailed(false);
+  }, [open]);
+
+  // The preview: the committed image, as an object URL.
+  const [preview, setPreview] = useState("");
+  useEffect(() => {
+    if (!committed) {
+      setPreview("");
+      return;
+    }
+    const url = URL.createObjectURL(committed.blob);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [committed]);
+
+  const layout: ShareLayout = plan?.layout ?? "map";
+  const mapReady = plan?.mapReady ?? false;
+  const shown = plan?.shown ?? [];
   const shownCount = shown.length;
-  const countChoices = countOptions(layout, available);
+  const countChoices = countOptions(layout, plan?.available ?? 0);
+  // Something to make: nothing yet, or the draft has changed since.
+  const stale = !committed || change !== "same";
 
   const removeAlbum = (key: string) =>
     setEdits((current) =>
@@ -498,10 +424,14 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   };
 
   // Lines need people to run from: maps of one search have them.
-  const linesAvailable = drawn !== null && canDrawLines(drawn);
-  const payload = useMemo(
-    () => (drawn ? withView(drawn, view) : null),
-    [drawn, view],
+  const linesAvailable = useMemo(
+    () =>
+      data && plan
+        ? canDrawLines(buildPayload({ ...draft, view: { ...draft.view, lines: true } }, data, plan))
+        : false,
+    // Only whether there are links matters, not the art.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, plan],
   );
   // Typing the phrase in the album search unlocks the boilerplate switch.
   const takeQuery = (query: string) => {
@@ -515,13 +445,12 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     toast({ title: "Boilerplate switch unlocked" });
     return true;
   };
-  const image = payload ? shareImagePath(payload) : "";
-  const link = payload ? shareLink(window.location.origin, payload, to) : "";
+  const sharedLayout = committed?.layout ?? layout;
   const title =
-    layout === "map"
+    sharedLayout === "map"
       ? `${map.centre.title} by ${map.centre.artist} on Vinyl Periphery`
       : `${search.searchParams.album} by ${search.searchParams.artist} on Vinyl Periphery`;
-  const fileName = `vinyl-periphery-${layout}.png`;
+  const fileName = `vinyl-periphery-${sharedLayout}.png`;
 
   const download = (blob: Blob) => {
     const url = URL.createObjectURL(blob);
@@ -532,60 +461,24 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
-  // The image as a file, fetched as soon as its URL is known (the preview
-  // has usually loaded it already, so this comes from the cache). Sharing
-  // then needs no wait: the share sheet only opens straight off a tap.
-  const [prepared, setPrepared] = useState<{ url: string; blob: Blob } | null>(
-    null,
-  );
-  useEffect(() => {
-    if (!open || !image) return;
-    const controller = new AbortController();
-    fetch(image, { signal: controller.signal })
-      .then((response) => {
-        if (!response.ok) throw new Error(`Image failed: ${response.status}`);
-        return response.blob();
-      })
-      .then((blob) => setPrepared({ url: image, blob }))
-      .catch(() => {
-        // Fetched again on the tap.
-      });
-    return () => controller.abort();
-  }, [open, image]);
-
+  // Shares the image on screen: the share sheet only opens straight off a
+  // tap, so the file is already here.
   const shareImage = async () => {
-    if (!payload || busy) return;
+    if (!committed || stale || busy) return;
     setBusy(true);
     track("share_created", {
-      layout,
+      layout: committed.layout,
       stack: !selection,
-      albums: shownCount,
-      removed: edits.removed.length,
-      added: edits.added.length,
-      ...(view.boilerplate ? {} : { bare: true }),
+      albums: committed.albums,
+      removed: committed.removed,
+      added: committed.added,
+      ...(committed.bare ? { bare: true } : {}),
     });
-    let blob: Blob | null = prepared?.url === image ? prepared.blob : null;
-    try {
-      if (!blob) {
-        const response = await fetch(image);
-        if (!response.ok) throw new Error(`Image failed: ${response.status}`);
-        blob = await response.blob();
-      }
-    } catch (error) {
-      console.error("Image failed:", error);
-      toast({
-        title: "Couldn't make the image",
-        description: "Try again in a moment.",
-        variant: "destructive",
-      });
-      setBusy(false);
-      return;
-    }
-    const file = new File([blob], fileName, { type: "image/png" });
+    const file = new File([committed.blob], fileName, { type: "image/png" });
     if (useShareSheet && navigator.canShare?.({ files: [file] })) {
       try {
-        await navigator.share({ files: [file], title, url: link });
-        track("share_completed", { layout, method: "share" });
+        await navigator.share({ files: [file], title });
+        track("share_completed", { layout: committed.layout, method: "share" });
         setBusy(false);
         return;
       } catch (error) {
@@ -598,8 +491,8 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
         console.error("Share failed, downloading instead:", error);
       }
     }
-    download(blob);
-    track("share_completed", { layout, method: "download" });
+    download(committed.blob);
+    track("share_completed", { layout: committed.layout, method: "download" });
     setBusy(false);
   };
 
@@ -619,6 +512,44 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     }
   }, []);
   const useShareSheet = canShareFiles && coarse;
+
+  // The one action: Regenerate while the draft differs from the image,
+  // then Share or Download for the image on screen.
+  const action = stale ? (
+    <button
+      type="button"
+      onClick={() => void regenerate()}
+      disabled={rendering || !payload}
+      className={cn(dialogButton.primary, "w-full gap-2")}
+    >
+      {rendering || (!committed && !failed) ? (
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+      ) : (
+        <RefreshCw className="h-4 w-4" aria-hidden="true" />
+      )}
+      {rendering || (!committed && !failed) ? "Making the image…" : "Regenerate"}
+    </button>
+  ) : (
+    <button
+      type="button"
+      onClick={() => void shareImage()}
+      disabled={busy}
+      className={cn(dialogButton.primary, "w-full gap-2")}
+    >
+      {useShareSheet ? (
+        <Share2 className="h-4 w-4" aria-hidden="true" />
+      ) : (
+        <Download className="h-4 w-4" aria-hidden="true" />
+      )}
+      {useShareSheet ? "Share image" : "Download image"}
+    </button>
+  );
+  const notice =
+    !committed || !stale || rendering
+      ? null
+      : change === "covers"
+        ? "More covers found"
+        : "Changes not applied";
 
   return (
     <>
@@ -689,7 +620,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                     label="Show"
                     value={layout}
                     options={LAYOUTS}
-                    onChange={(value) => setChosen(value)}
+                    onChange={(chosen) => setDraft((d) => ({ ...d, chosen }))}
                   />
                 )}
                 {countChoices.length > 0 && (
@@ -701,26 +632,26 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                       label: c.label,
                     }))}
                     onChange={(value) =>
-                      setCounts((current) => ({
-                        ...current,
-                        [layout]: Number(value),
+                      setDraft((d) => ({
+                        ...d,
+                        counts: { ...d.counts, [layout]: Number(value) },
                       }))
                     }
                   />
                 )}
                 {!selection && (
                   <StackOrderControls
-                    order={stackOrder}
-                    onChange={(order) => setStackOrder(order)}
+                    order={draft.stackOrder}
+                    onChange={(stackOrder) =>
+                      setDraft((d) => ({ ...d, stackOrder }))
+                    }
                   />
                 )}
                 <div className="flex flex-col">
                   <Switch
                     label="Album covers"
-                    checked={view.covers}
-                    onChange={(covers) =>
-                      setView((current) => ({ ...current, covers }))
-                    }
+                    checked={draft.view.covers}
+                    onChange={(covers) => setView({ covers })}
                   />
                   {linesAvailable && (
                     <Switch
@@ -729,19 +660,15 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                           ? "Lines from people to albums"
                           : "Lines between linked albums"
                       }
-                      checked={view.lines}
-                      onChange={(lines) =>
-                        setView((current) => ({ ...current, lines }))
-                      }
+                      checked={draft.view.lines}
+                      onChange={(lines) => setView({ lines })}
                     />
                   )}
                   {bareUnlocked && layout === "map" && (
                     <Switch
                       label="Title and watermark"
-                      checked={view.boilerplate}
-                      onChange={(boilerplate) =>
-                        setView((current) => ({ ...current, boilerplate }))
-                      }
+                      checked={draft.view.boilerplate}
+                      onChange={(boilerplate) => setView({ boilerplate })}
                     />
                   )}
                 </div>
@@ -755,55 +682,66 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                   "lg:max-w-none",
                 )}
               >
-                {loaded !== image && (
-                  <span className="absolute inset-0 flex items-center justify-center font-mono text-xs text-faint">
-                    {image ? "Making the image…" : "Finding covers…"}
+                {!preview && (
+                  <span className="absolute inset-0 flex items-center justify-center font-mono text-xs text-muted-foreground">
+                    {failed
+                      ? "Couldn't make the image"
+                      : payload
+                        ? "Making the image…"
+                        : "Finding covers…"}
                   </span>
                 )}
-                {image && (
+                {preview && (
                   <img
-                    key={image}
-                    src={image}
+                    src={preview}
                     alt="Preview of the share image"
-                    onLoad={() => setLoaded(image)}
                     className={cn(
                       "relative h-full w-full object-cover transition-opacity duration-200",
-                      loaded === image ? "opacity-100" : "opacity-0",
+                      stale || rendering ? "opacity-40" : "opacity-100",
                     )}
                   />
                 )}
+                {preview && rendering && (
+                  <span
+                    className="absolute inset-0 flex items-center justify-center"
+                    role="status"
+                    aria-label="Making the image"
+                  >
+                    <Loader2
+                      className="h-8 w-8 animate-spin text-foreground"
+                      aria-hidden="true"
+                    />
+                  </span>
+                )}
+                {notice && (
+                  <span
+                    className="absolute inset-0 flex flex-col items-center justify-center gap-1 px-6 text-center"
+                    role="status"
+                  >
+                    <span className="rounded-md bg-background/90 px-3 py-1.5 text-sm font-medium text-foreground">
+                      {notice}
+                    </span>
+                    <span className="rounded-md bg-background/90 px-2 py-0.5 text-xs text-muted-foreground">
+                      Regenerate to update the image
+                    </span>
+                  </span>
+                )}
               </div>
 
-              {/* One action: the image, through the share sheet where it
-                  takes files (with the link back here), or downloaded. */}
-              <button
-                type="button"
-                onClick={() => void shareImage()}
-                disabled={busy || !payload}
-                className={cn(dialogButton.primary, "gap-2")}
-              >
-                {useShareSheet ? (
-                  <Share2 className="h-4 w-4" aria-hidden="true" />
-                ) : (
-                  <Download className="h-4 w-4" aria-hidden="true" />
-                )}
-                {busy
-                  ? "Making the image…"
-                  : useShareSheet
-                    ? "Share image"
-                    : "Download image"}
-              </button>
+              {/* Desktop: the action under the preview. Narrower sheets
+                  keep it in a footer that stays in reach (below). */}
+              <div className="hidden lg:flex">{action}</div>
             </div>
 
             {(selection || mapReady) && (
               <div className="lg:col-start-2 lg:row-start-2">
                 <ShareAlbums
                   hidden={hidden}
-                  search={selection ? search : stackSearch}
+                  search={plan?.pickerSearch ?? search}
                   shown={shown}
-                  visibleKeys={selection ? visibleKeys : allStackKeys}
+                  visibleKeys={plan?.visibleKeys ?? new Set()}
                   onQuery={takeQuery}
-                  edits={edits}
+                  edits={plan?.edits ?? draft.edits}
                   cover={cover}
                   onRemove={removeAlbum}
                   onAdd={addAlbum}
@@ -813,6 +751,12 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                 />
               </div>
             )}
+          </div>
+
+          {/* Phones and tablets: the action in a footer that stays in
+              reach while the controls scroll. */}
+          <div className="sticky bottom-0 z-10 -mx-5 -mb-5 mt-auto border-t bg-background px-5 pb-5 pt-3 md:-mx-6 md:-mb-6 md:px-6 md:pb-6 lg:hidden">
+            {action}
           </div>
         </SheetContent>
       </Sheet>

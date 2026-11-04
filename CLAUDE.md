@@ -18,9 +18,10 @@ ranks albums by how many of those people worked on them.
   - `health.js`: `GET /api/health`.
   - `event.js`: `POST /api/event` validates analytics events and forwards
     them to the Google Sheet. See `docs/analytics.md`.
-  - `og.js`: `GET /api/og?p=…` renders a square share image (1080x1080)
-    (`@vercel/og`) from a payload in the URL (`backend/og/payload.js`;
-    built by `frontend/src/lib/share.ts`): a map, laid out by the client,
+  - `og.js`: `POST /api/og` renders a square share image (1080x1080)
+    (`@vercel/og`) from a JSON payload body (`backend/og/payload.js`, 32 KB
+    at most; built by `buildPayload` in `frontend/src/lib/share.ts`): a
+    map, laid out by the client,
     or a list of top results. For one search, both draw its top results
     as filtered and sorted on the page, with a line saying how they were
     chosen; the map groups people around the circle by role category
@@ -41,8 +42,15 @@ ranks albums by how many of those people worked on them.
     Never calls Discogs; only Cover
     Art Archive images, with initials when they don't load. Fonts are
     vendored in `backend/og/fonts` (SIL OFL).
-  - `share.js`: `/s?p=…&to=…` (rewritten to `/api/share`) serves Open Graph
-    tags for a shared link, then redirects to the app.
+    The sheet's controls edit a draft (`ShareDraft`); the image is made
+    once on open (after covers, up to `COVER_WAIT_MS`) and then only on
+    Regenerate. The preview is that image's blob, which is also the file
+    shared or downloaded, with no link. While the draft's payload differs
+    from the image's (`draftChange`: covers found since, or anything
+    else), the preview dims and the action is Regenerate. Drafts and the
+    last image are kept per search or stack in memory while the page is
+    open (`src/lib/shareDrafts.ts`). Old `/s?…&to=…` links (from when
+    shares carried one) redirect client-side to `to` (`legacyShareTarget`).
 - `backend/server.js`: Express server that mounts the same handlers, for
   local development (and Heroku until the move to Vercel is finished). In
   production mode it also serves `frontend/dist`.

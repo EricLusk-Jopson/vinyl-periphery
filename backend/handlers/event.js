@@ -42,6 +42,7 @@ export const EVENTS = new Set([
   "library_searched",
   "share_created",
   "share_completed",
+  "share_regenerated",
   "chip_details",
   "results_searched",
   "result_picked",

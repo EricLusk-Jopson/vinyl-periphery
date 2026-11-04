@@ -3,17 +3,20 @@ import { ScoredRelease } from "./results";
 import {
   artIdFromCoverUrl,
   cardPayload,
-  encodeSharePayload,
   mapHasAlbums,
   stackMapPayload,
   stackCaption,
-  shareImagePath,
   albumMapPayload,
   countOptions,
   canDrawLines,
   withView,
   selectionCaption,
-  shareLink,
+  buildPayload,
+  defaultDraft,
+  draftChange,
+  planShare,
+  serialisePayload,
+  ShareData,
 } from "./share";
 import { layoutStackMap, stackResults } from "./stackMap";
 
@@ -146,38 +149,118 @@ describe("stackMapPayload", () => {
   });
 });
 
-describe("URLs", () => {
-  const payload = {
-    v: 1 as const,
-    l: "card" as const,
-    a: { t: "Ünmap ✓", r: "A", i: "" },
-    x: [],
+describe("buildPayload and the draft", () => {
+  const releases = Array.from({ length: 8 }, (_, i) => ({
+    key: `master:${10 + i}`,
+    title: `Album ${10 + i}`,
+    artist: "Someone",
+    year: String(2000 + i),
+    contributorIds: [1, 2].slice(0, (i % 2) + 1),
+    activeContributors: [1, 2].slice(0, (i % 2) + 1),
+    score: (i % 2) + 1,
+    confidence: 1,
+  })) as unknown as ScoredRelease[];
+  const base = () => {
+    const s = search(9, "Unmap", [
+      [1, "Justin Vernon"],
+      [2, "Brian Joseph"],
+    ]);
+    s.releases = Object.fromEntries(releases.map((r) => [r.key, r]));
+    s.roles = {};
+    s.filterState = {
+      contributors: { 1: true, 2: true },
+      roles: {},
+      excludeMainArtist: true,
+      collaborationsOnly: false,
+      excludeVarious: false,
+    };
+    return s;
   };
-
-  it("encodes UTF-8 as base64url", () => {
-    const encoded = encodeSharePayload(payload);
-    expect(encoded).not.toMatch(/[+/=]/);
-    const binary = atob(encoded.replace(/-/g, "+").replace(/_/g, "/"));
-    const json = decodeURIComponent(
-      Array.from(
-        binary,
-        (c) => `%${c.charCodeAt(0).toString(16).padStart(2, "0")}`,
-      ).join(""),
-    );
-    expect(JSON.parse(json)).toEqual(payload);
+  let art: Record<string, string> = {};
+  const data = (hidden: Record<string, unknown> = {}): ShareData => ({
+    kind: "search",
+    search: base(),
+    releases,
+    selection: { sort: "shared", then: null },
+    likes: {},
+    hidden,
+    coverFor: (key) => art[key] ?? null,
+  });
+  beforeEach(() => {
+    art = {};
   });
 
-  it("builds the image and link URLs", () => {
-    expect(shareImagePath(payload)).toMatch(/^\/api\/og\?p=[\w-]+$/);
-    expect(
-      shareLink(
-        "https://vinylperiphery.com",
-        payload,
-        "/results?artist=a&album=b",
-      ),
-    ).toMatch(
-      /^https:\/\/vinylperiphery\.com\/s\?p=[\w-]+&to=%2Fresults%3Fartist%3Da%26album%3Db$/,
+  it("draws the chosen layout and count, captioned, as the view says", () => {
+    const draft = { ...defaultDraft(), chosen: "card" as const };
+    draft.counts = { ...draft.counts, card: 3 };
+    const payload = buildPayload(draft, data());
+    if (payload.l !== "card") throw new Error();
+    expect(payload.x).toHaveLength(3);
+    // "Shared" alone keeps the page's ranking.
+    expect(payload.x.map((x) => x.t)).toEqual([
+      "Album 10",
+      "Album 11",
+      "Album 12",
+    ]);
+    expect(payload.d).toBe("Top 3 by Shared");
+    const bare = buildPayload(
+      { ...draft, view: { ...draft.view, covers: false } },
+      data(),
     );
+    expect(bare).toMatchObject({ l: "card", nc: 1 });
+  });
+
+  it("plans what the controls need: shown, available, covers to find", () => {
+    const draft = defaultDraft();
+    draft.counts = { ...draft.counts, map: 6 };
+    const plan = planShare(draft, data({ "master:11": { at: 0 } }));
+    expect(plan.layout).toBe("map");
+    expect(plan.shown).toHaveLength(6);
+    expect(plan.shown.map((r) => r.key)).not.toContain("master:11");
+    expect(plan.available).toBe(7);
+    expect(plan.wanted[0]).toBe("master:9");
+    expect(plan.wanted).toHaveLength(7);
+    const noCovers = planShare(
+      { ...draft, view: { ...draft.view, covers: false } },
+      data(),
+    );
+    expect(noCovers.wanted).toEqual([]);
+  });
+
+  it("is the same payload for the same draft and data", () => {
+    const draft = defaultDraft();
+    expect(serialisePayload(buildPayload(draft, data()))).toBe(
+      serialisePayload(buildPayload(draft, data())),
+    );
+  });
+
+  it("tells unchanged, cover-only and other changes apart", () => {
+    const draft = defaultDraft();
+    const committed = serialisePayload(buildPayload(draft, data()));
+    expect(draftChange(buildPayload(draft, data()), committed)).toBe("same");
+    // A cover found since: only art differs.
+    art = { "master:11": cover("release-group") };
+    expect(draftChange(buildPayload(draft, data()), committed)).toBe("covers");
+    // A control changed.
+    const fewer = { ...draft, counts: { ...draft.counts, map: 6 } };
+    expect(draftChange(buildPayload(fewer, data()), committed)).toBe(
+      "changed",
+    );
+    const lines = { ...draft, view: { ...draft.view, lines: true } };
+    expect(draftChange(buildPayload(lines, data()), committed)).toBe(
+      "changed",
+    );
+    // Nothing made yet, or nothing to compare: nothing to apply.
+    expect(draftChange(buildPayload(draft, data()), null)).toBe("same");
+    expect(draftChange(null, committed)).toBe("same");
+  });
+
+  it("ignores a change that doesn't alter the image", () => {
+    const draft = defaultDraft();
+    const committed = serialisePayload(buildPayload(draft, data()));
+    // The card's count changes nothing while the map is shown.
+    const card = { ...draft, counts: { ...draft.counts, card: 3 } };
+    expect(draftChange(buildPayload(card, data()), committed)).toBe("same");
   });
 });
 

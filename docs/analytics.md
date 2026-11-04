@@ -103,8 +103,9 @@ To test locally, put both Vinyl Periphery variables in `.env` and run
 | `search_jumped` | An existing search is opened instead of running a new one | `from`: result (a result row) or form (the search bar) |
 | `library_view_toggled` | The library switches between stacked and flat | `view`: stacked or flat |
 | `library_searched` | The library search is used (once typing pauses) | `results`, `length` (characters typed; the text isn't sent) |
-| `share_created` | Share or Download is pressed and the image is made | `layout`: map or card; `stack` (shared from a stack page); `albums` (how many results it draws), `removed` and `added` (albums taken out of or added to the image in the share sheet); `bare`: true when the title and watermark were switched off |
+| `share_created` | Share or Download is pressed (the image on screen is shared as a file, with no link) | `layout`: map or card; `stack` (shared from a stack page); `albums` (how many results it draws), `removed` and `added` (albums taken out of or added to the image in the share sheet); `bare`: true when the title and watermark were switched off |
 | `share_completed` | The share sheet finished or the image downloaded | `layout`, `method`: share or download (link: from before Copy link was removed) |
+| `share_regenerated` | Regenerate is pressed in the share sheet (not the first image, made on open) | `layout`: map or card; `stack` (from a stack page) |
 | `chip_details` | A contributor or role chip's details open (who did what) | `kind`: contributor or role, `via`: hover (a mouse resting a second), hold (a press held a second) or key (context menu key, Shift+F10 or right click) |
 | `results_searched` | The results search (Find an album) is used, once typing pauses | `results` (albums listed), `hidden` (of those, how many the filters hide), `length` (characters typed; the text isn't sent) |
 | `result_picked` | An album is picked in the results search and put on top | `filtered`: true when the filters hid it and were reset to show it (after confirming) |

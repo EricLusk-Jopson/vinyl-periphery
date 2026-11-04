@@ -10,7 +10,7 @@ import { StackDrawer } from "../library/StackDrawer";
 import { ShareButton } from "../share/ShareButton";
 import { ResultsSort } from "@/hooks/useResultsSort";
 import { isInStack } from "@/lib/stacks";
-import { libraryPath, resultPath } from "@/lib/routes";
+import { libraryPath } from "@/lib/routes";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "../ui/toast";
 
@@ -105,7 +105,7 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search, order }) => {
             search={search}
             map={map}
             selection={selection}
-            to={resultPath(search.searchParams, search.target)}
+            draftKey={`search:${search.searchId}`}
             compact
           />
           <button

@@ -166,7 +166,8 @@ ranks albums by how many of those people worked on them.
       count on two or more are lines (6 drawn), each running through its
       stations in its own year order. No time axis: stations go where the
       lines read best, found by a seeded simulated annealing on a grid
-      (`SCORE`): no turn over 90° anywhere; lines like running straight,
+      (`SCORE`): no turn over 90° anywhere; bends at 45°, right angles
+      only where a station splits many ways; lines like running straight,
       less the longer they have; lines splitting at a station (or joining
       from different stations) go clearly different ways; never over a
       station a line skips, few crossings or touches, no legs along other

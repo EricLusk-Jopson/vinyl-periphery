@@ -360,8 +360,13 @@ const SCORE = {
   overlap: 70,
   crossing: 45,
   bend: 6,
-  turn45: 3,
-  turn90: 8,
+  /** A 45° turn: the usual way to bend. */
+  turn45: 2.5,
+  /**
+   * A 90° turn: avoided unless a station has many lines going different
+   * ways (the split rule then outweighs it).
+   */
+  turn90: 30,
   longRun: 0.6,
   longLeg: 0.5,
   back: 9,
@@ -539,7 +544,8 @@ const score = (net: Network, st: GridState, flow: TransitOrientation): number =>
       // The longer it's run straight, the readier it is to turn.
       const ready = 1 / (1 + dirs[k - 1].length / 2);
       if (turn > 2) cost += SCORE.uTurn;
-      else if (turn === 2) cost += SCORE.turn90 * ready;
+      // A right angle stays dear however long the line has run straight.
+      else if (turn === 2) cost += SCORE.turn90 * Math.max(0.75, ready);
       else if (turn === 1) cost += SCORE.turn45 * ready;
     });
   });
@@ -896,14 +902,20 @@ export const shareTransitMap = (
   // The grid size that draws biggest in the square with no labels
   // colliding, fewer labels on lines breaking near-ties.
   const st = searchGrid(net, orientation);
-  let best: { map: TransitMap; value: number } | null = null;
-  for (let cell = 36; cell <= 150; cell += 6) {
-    const map = drawAt(net, st, orientation, cell, 1);
-    if (labelsCollide(map)) continue;
-    const value = Math.min(1, shareScale(map)) - 0.015 * labelLineHits(map);
-    if (!best || value > best.value + 1e-6) best = { map, value };
-  }
-  return best?.map ?? layoutTransitMap({ ...input, orientation });
+  const fit = (grow: number): TransitMap | null => {
+    let best: { map: TransitMap; value: number } | null = null;
+    for (let cell = 36; cell <= 150; cell += 6) {
+      const map = drawAt(net, st, orientation, cell, grow);
+      if (labelsCollide(map)) continue;
+      const value = Math.min(1, shareScale(map)) - 0.015 * labelLineHits(map);
+      if (!best || value > best.value + 1e-6) best = { map, value };
+    }
+    return best?.map ?? null;
+  };
+  // (Sizing label boxes for text drawn below 1:1 spreads the map, which
+  // shrinks it further: the fit alone, with a little room in the boxes'
+  // padding, does better.)
+  return fit(1) ?? layoutTransitMap({ ...input, orientation });
 };
 
 /** Undated albums go after the rest. */

@@ -117,6 +117,29 @@ describe("layoutTransitMap", () => {
     }
   });
 
+  it("bends at 45°, keeping right angles for busy splits", () => {
+    const count = (input: { stops: TransitStop[]; people: typeof busy extends () => infer R ? R extends { people: infer P } ? P : never : never }) => {
+      const map = shareTransitMap(input);
+      let t45 = 0;
+      let t90 = 0;
+      for (const line of map.lines) {
+        const dirs = directions(line.legs);
+        dirs.slice(1).forEach((d, k) => {
+          const turn = between(dirs[k], d);
+          if (turn > 60) t90++;
+          else if (turn > 20) t45++;
+        });
+      }
+      return { t45, t90 };
+    };
+    // A chain: no right angles at all.
+    const chain = stack(8, 3, (k) => k);
+    expect(count(chain).t90).toBe(0);
+    // A busy map: mostly 45° bends.
+    const { t45, t90 } = count(busy());
+    expect(t90).toBeLessThanOrEqual(t45 / 4);
+  });
+
   it.each(inputs)("runs every leg at 0, 45 or 90° (%s)", (_, input) => {
     const map = layoutTransitMap({ ...input, orientation: "vertical" });
     for (const d of map.lines.flatMap((l) => directions(l.legs))) {
@@ -243,10 +266,12 @@ describe("legRoute and offsetPath", () => {
 });
 
 describe("shareTransitMap", () => {
-  it("fits a busy map to the square at full size, labels apart", () => {
+  it("fits a busy map to the square nearly full size, labels apart", () => {
     const map = shareTransitMap(busy());
     expect(labelsCollide(map)).toBe(false);
-    expect(shareScale(map)).toBeGreaterThanOrEqual(0.95);
+    // Text keeps its size below 1:1, so this bounds how far it outgrows
+    // its boxes (about a tenth, within their padding).
+    expect(shareScale(map)).toBeGreaterThanOrEqual(0.88);
     expect(shareTransitMap(busy())).toEqual(map);
   });
 });

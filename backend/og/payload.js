@@ -10,7 +10,8 @@
 //   { v: 1, l: "stack", c: Album & { s }, n: Node[], d? }       stack map
 //   { v: 1, l: "lanes", c: Album, y: [from, to], k: Mark[],     swimlanes
 //     n: Lane[], u?, d? }
-//   Mark   = { t: album title, y: year, m?: 1 for the searched album }
+//   Mark   = { t: album title, y: year }: the searched album, or each
+//            stack album, drawn alike
 //   Lane   = { n: name, c: results, s: [year, count][] (results),
 //            f: [year, count][] (their other items), p?: 1 when the page
 //            cap cut their oldest items }
@@ -18,7 +19,8 @@
 //   { v: 1, l: "transit", c: Album, w, h, s: Station[], n: Line[],  transit map
 //     o?, d? }
 //   Station = { t, r, x, y: its place, q: radius, k: colours of its lines,
-//            b: [x, y, w, h] its label's box, a: "start" | "middle" | "end" }
+//            b: [x, y, w, h] its label's box, a: "start" | "middle" | "end",
+//            m?: 1 for the searched album or a stack's }
 //   Line   = { n: name, c: colour 0-5, g: legs, each [x, y][] }
 //   o      = people on 2+ albums not drawn as lines
 //   Places in layout units (w x h); the renderer scales them to fit.
@@ -54,7 +56,8 @@ export const MAX_RESULTS = 10;
 export const MAX_MAP_ALBUMS = 24;
 export const MAX_MAP_PEOPLE = 16;
 export const MAX_LANES = 8;
-export const MAX_TRANSIT_STATIONS = 12;
+// A stack's albums and up to 12 results, or one album and its results.
+export const MAX_TRANSIT_STATIONS = 32;
 export const MAX_TRANSIT_LINES = 6;
 const MAX_LANE_YEARS = 150;
 const MAX_TITLE = 80;
@@ -200,8 +203,8 @@ export function parsePayload(raw) {
         partial: n?.p === 1,
       }))
       .filter((n) => n.name && n.solid.length + n.faint.length > 0);
-    const albums = list(raw.k, 8)
-      .map((k) => ({ t: text(k?.t, MAX_TITLE), year: year(k?.y), accent: k?.m === 1 }))
+    const albums = list(raw.k, 12)
+      .map((k) => ({ t: text(k?.t, MAX_TITLE), year: year(k?.y) }))
       .filter((k) => k.year !== null);
     const years = [...lanes.flatMap((l) => [...l.solid, ...l.faint].map(([y]) => y)), ...albums.map((a) => a.year)];
     const range = Array.isArray(raw.y) ? raw.y.map(year) : [];
@@ -242,6 +245,7 @@ export function parsePayload(raw) {
           lines: list(s?.k, MAX_TRANSIT_LINES).map(colour),
           label: { x: box[0], y: box[1], w: box[2], h: box[3] },
           align: ["start", "middle", "end"].includes(s?.a) ? s.a : "middle",
+          marked: s?.m === 1,
         };
       })
       .filter((s) => s.t);

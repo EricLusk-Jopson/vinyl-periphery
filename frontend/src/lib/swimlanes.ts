@@ -1,26 +1,25 @@
 import { Contributor, EnrichedRelease } from "@/api/types";
 import { SearchCache } from "@/contexts/cache/types";
-import { MetaAlbum } from "./metaAlbum";
+import { albumKeyOf } from "./credits";
 import { releaseYear, ScoredRelease } from "./results";
 import { groupOrder, primaryGroup, RoleGroup } from "./roleGroups";
 import { defaultContributorDisplayPipeline } from "./transformers/contributorProcessor";
 
 /**
- * Swimlanes: the searched album's people across their careers. One lane
- * per person who counts under the filters, a tick per year they have
- * discography items, solid where the year has current results they link
- * and faint otherwise, and a line at the searched album's year (one per
- * stack album in a stack). Pure.
+ * Swimlanes: people across their careers, for the share image. One lane
+ * per person who counts under the filters and links one of the albums
+ * chosen for the image; a tick per year they have discography items, tall
+ * where the year has chosen albums they link and short otherwise; and a
+ * line at the searched album's year (one per stack album in a stack, all
+ * alike). Pure.
  */
 
-/** Lanes shown before "Show all". */
-export const LANES_SHOWN = 12;
 /** Lanes in the share image. */
 export const LANES_SHARED = 8;
 
 export interface LaneTick {
   year: number;
-  /** Current results (after filters) this person links, that year. */
+  /** Albums chosen for the image this person links, that year. */
   results: string[];
   /** Their other items that year. */
   others: number;
@@ -46,12 +45,11 @@ export interface Lane {
   partial: boolean;
 }
 
+/** The searched album's year (or each stack album's), drawn as a line. */
 export interface AlbumMark {
   key: string;
   title: string;
   year: number;
-  /** The searched album, or a stack's start: drawn in the accent. */
-  accent: boolean;
 }
 
 export interface Swimlanes {
@@ -73,9 +71,9 @@ export interface SwimlaneInput {
   people: LanePerson[];
   /** Everyone's discography items, once per album. */
   releases: EnrichedRelease[];
-  /** Current results, with who counts on each. */
+  /** The albums chosen for the image, with who counts on each. */
   results: Pick<ScoredRelease, "key" | "activeContributors">[];
-  albums: Array<{ key: string; title: string; year: number | null; accent: boolean }>;
+  albums: Array<{ key: string; title: string; year: number | null }>;
 }
 
 /** Lanes from people, their items and the current results. */
@@ -134,7 +132,7 @@ export const buildSwimlanes = (input: SwimlaneInput): Swimlanes => {
   );
   const albums = input.albums
     .filter((a): a is AlbumMark => a.year !== null)
-    .sort((a, b) => a.year - b.year || Number(b.accent) - Number(a.accent));
+    .sort((a, b) => a.year - b.year || a.key.localeCompare(b.key));
   const years = [
     ...lanes.flatMap((l) => l.ticks.map((t) => t.year)),
     ...albums.map((a) => a.year),
@@ -142,7 +140,8 @@ export const buildSwimlanes = (input: SwimlaneInput): Swimlanes => {
   const from = years.length ? Math.min(...years) : 0;
   const to = years.length ? Math.max(...years) : 0;
   return {
-    lanes,
+    // Only people linking a chosen album.
+    lanes: lanes.filter((l) => l.results > 0),
     // At least a few years wide, so one year doesn't fill the lane.
     from: to - from < 4 ? from - 2 : from,
     to: to - from < 4 ? to + 2 : to,
@@ -174,6 +173,7 @@ export const topLanes = (lanes: Swimlanes, limit: number): Swimlanes => {
 export const searchSwimlanes = (
   search: SearchCache,
   counted: Set<number>,
+  /** The albums chosen for the image. */
   results: Pick<ScoredRelease, "key" | "activeContributors">[],
 ): Swimlanes => {
   const own = search.target ? search.releases[search.target.key] : undefined;
@@ -188,7 +188,6 @@ export const searchSwimlanes = (
         key: search.target?.key ?? search.searchId,
         title: search.searchParams.album,
         year: releaseYear(own?.year),
-        accent: true,
       },
     ],
   });
@@ -196,25 +195,25 @@ export const searchSwimlanes = (
 
 /**
  * A stack's lanes: everyone counted on any stack album, their items from
- * every member's results, and a line per stack album (the start's in the
- * accent).
+ * every stack album's search, and a line per stack album.
  */
 export const stackSwimlanes = (
-  meta: MetaAlbum,
+  members: SearchCache[],
+  /** Stack album key -> people who count there (the stack's filters). */
   counted: Map<string, Set<number>>,
+  /** The albums chosen for the image. */
   results: Pick<ScoredRelease, "key" | "activeContributors">[],
-  startKey: string,
 ): Swimlanes => {
   const people = new Map<number, Contributor>();
-  for (const member of meta.members) {
-    for (const id of counted.get(member.key) ?? []) {
-      const contributor = member.search.contributors?.[id];
+  for (const member of members) {
+    for (const id of counted.get(albumKeyOf(member)) ?? []) {
+      const contributor = member.contributors?.[id];
       if (contributor && !people.has(id)) people.set(id, contributor);
     }
   }
   const releases = new Map<string, EnrichedRelease>();
-  for (const member of meta.members) {
-    for (const release of Object.values(member.search.releases ?? {})) {
+  for (const member of members) {
+    for (const release of Object.values(member.releases ?? {})) {
       const known = releases.get(release.key);
       releases.set(
         release.key,
@@ -230,19 +229,25 @@ export const stackSwimlanes = (
     }
   }
   // A stack album's year: as its own search lists it, else any member's.
-  const yearOf = (member: MetaAlbum["members"][number]) =>
-    releaseYear(member.search.releases?.[member.key]?.year) ??
-    releaseYear(releases.get(member.key)?.year);
+  const yearOf = (member: SearchCache) => {
+    const key = albumKeyOf(member);
+    return (
+      releaseYear(member.releases?.[key]?.year) ??
+      releaseYear(releases.get(key)?.year)
+    );
+  };
+  const seen = new Set<string>();
   return buildSwimlanes({
     people: Array.from(people, ([id, contributor]) => ({ id, contributor })),
     releases: Array.from(releases.values()),
     results,
-    albums: meta.members.map((m) => ({
-      key: m.key,
-      title: m.title,
-      year: yearOf(m),
-      accent: m.key === startKey,
-    })),
+    albums: members
+      .filter((m) => !seen.has(albumKeyOf(m)) && seen.add(albumKeyOf(m)))
+      .map((m) => ({
+        key: albumKeyOf(m),
+        title: m.searchParams.album,
+        year: yearOf(m),
+      })),
   });
 };
 
@@ -251,24 +256,6 @@ export const laneSpan = (lane: Lane): string => {
   if (lane.ticks.length === 0) return "";
   const last = lane.ticks[lane.ticks.length - 1].year;
   return lane.first === last ? String(last) : `${lane.first}–${last}`;
-};
-
-/**
- * The solid tick nearest a year on a lane, within `reach` years: what a
- * tap on the lane picks.
- */
-export const nearestResultTick = (
-  lane: Lane,
-  year: number,
-  reach: number,
-): LaneTick | null => {
-  let best: LaneTick | null = null;
-  for (const tick of lane.ticks) {
-    if (tick.results.length === 0) continue;
-    const d = Math.abs(tick.year - year);
-    if (d <= reach && (!best || d < Math.abs(best.year - year))) best = tick;
-  }
-  return best;
 };
 
 /** Decade marks for the axis: every 10 years, or 5 on a short range. */

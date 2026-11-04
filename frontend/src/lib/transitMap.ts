@@ -1,16 +1,17 @@
-import { MetaAlbum } from "./metaAlbum";
 
 /**
- * A stack as a transit map: its albums are stations, and the people
- * credited on two or more of them are lines running through them in step
- * order. Interchanges (stations on 2+ lines) are drawn larger.
+ * A transit map of albums: they are stations, and the people credited on
+ * two or more of them are lines running through them in time order. For
+ * one search, its album and the results chosen; for a stack, its albums
+ * and the results chosen. The searched or stacked albums are marked.
+ * Interchanges (stations on 2+ lines) are drawn larger.
  *
  * An MVP layout, not a general octilinear solver:
- * - a station's place along the map is its step from the start
- *   (`stackLayout`), and across, its order within the step (each step
- *   ordered by where the stations it shares lines with sit in the step
- *   before, to cut crossings);
- * - each line runs station to station in step order with 0/45/90° legs;
+ * - a station's place along the map is its column (for these maps, its
+ *   year: one column per year), and across, its order within the column
+ *   (ordered by where the stations it shares lines with sit in the
+ *   columns before, to cut crossings);
+ * - each line runs station to station in column order with 0/45/90° legs;
  *   a leg that would run over another station (a line skipping an album)
  *   bends around it instead, each line at its own distance and side, so
  *   it never seems to stop where it doesn't;
@@ -19,9 +20,15 @@ import { MetaAlbum } from "./metaAlbum";
  *   other label or station (then the fewest lines). If any label still
  *   overlaps, the map spreads out and tries again.
  *
- * Horizontal (steps left to right) for wide screens and the share image,
- * vertical (steps top to bottom) for phones. Pure and deterministic.
+ * Horizontal (time left to right) or vertical (top to bottom); the share
+ * image takes whichever draws bigger. Pure and deterministic.
  */
+
+import { EnrichedRelease } from "@/api/types";
+import { SearchCache } from "@/contexts/cache/types";
+import { albumKeyOf } from "./credits";
+import { releaseYear, ScoredRelease } from "./results";
+import { defaultContributorDisplayPipeline } from "./transformers/contributorProcessor";
 
 /** Lines drawn; the rest are listed under the map. */
 export const TRANSIT_LINES = 6;
@@ -48,8 +55,10 @@ export interface TransitStation {
   key: string;
   title: string;
   artist: string;
-  searchId: string;
+  /** The column it's in (see `TransitStop.column`). */
   step: number;
+  /** The searched album, or one of the stack's. */
+  marked: boolean;
   x: number;
   y: number;
   /** Lines through it. */
@@ -76,7 +85,7 @@ export interface TransitLine {
   name: string;
   /** Colour slot, 0 to TRANSIT_LINES - 1. */
   colour: number;
-  /** Station indices in step order. */
+  /** Station indices in column order. */
   stations: number[];
   /**
    * The drawn legs, station to station, each offset for the lines sharing
@@ -214,15 +223,31 @@ export const offsetPath = (points: Point[], offset: number): Point[] => {
   });
 };
 
+/** An album to draw as a station. */
+export interface TransitStop {
+  key: string;
+  title: string;
+  /** The label's second line: artist and year. */
+  detail: string;
+  /** Its column, left to right (time order: see the builders). */
+  column: number;
+  /** The searched album, or one of the stack's. */
+  marked: boolean;
+}
+
+/** Someone credited on stations, by key. */
+export interface TransitPerson {
+  id: number;
+  name: string;
+  stations: string[];
+}
+
 export interface TransitInput {
+  stops: TransitStop[];
+  people: TransitPerson[];
+  orientation: TransitOrientation;
   /** Spacing other than the orientation's usual (`TRANSIT`). */
   space?: { step: number; across: number };
-  meta: MetaAlbum;
-  /** Member search id -> step (`stackLayout`). */
-  levels: Map<string, number>;
-  /** Album key -> people who count there (the stack's filters). */
-  counted: Map<string, Set<number>>;
-  orientation: TransitOrientation;
 }
 
 /** Where label candidates sit around a station, in order of preference. */
@@ -250,25 +275,36 @@ const segmentHitsBox = (a: Point, b: Point, box: Box) => {
 };
 
 const layoutAt = (input: TransitInput, spread: number): TransitMap => {
-  const { meta, levels, counted, orientation } = input;
+  const { orientation } = input;
+  if (input.stops.length === 0) {
+    return { orientation, stations: [], lines: [], others: [], width: 0, height: 0 };
+  }
   const space = input.space ?? TRANSIT[orientation];
-  // Stations: the stack's albums, by step.
-  const stations = meta.members.map((m) => ({
-    key: m.key,
-    title: m.title,
-    artist: m.artist,
-    searchId: m.search.searchId,
-    step: levels.get(m.search.searchId) ?? 0,
-    savedAt: m.search.savedAt ?? 0,
+  // Columns ranked, so gaps between years don't stretch the map.
+  const columns = Array.from(new Set(input.stops.map((s) => s.column))).sort(
+    (a, b) => a - b,
+  );
+  const stations = input.stops.map((s, k) => ({
+    key: s.key,
+    title: s.title,
+    artist: s.detail,
+    marked: s.marked,
+    step: columns.indexOf(s.column),
+    savedAt: k,
   }));
-  // Lines: people counted on 2+ stations.
-  const onStations = meta.people
+  const index = new Map(stations.map((s, i) => [s.key, i]));
+  // Lines: people on 2+ stations.
+  const onStations = input.people
     .map((p) => ({
       id: p.id,
       name: p.name,
-      stations: stations
-        .map((s, i) => (counted.get(s.key)?.has(p.id) ? i : -1))
-        .filter((i) => i >= 0),
+      stations: Array.from(
+        new Set(
+          p.stations
+            .map((key) => index.get(key))
+            .filter((i): i is number => i !== undefined),
+        ),
+      ).sort((a, b) => a - b),
     }))
     .filter((p) => p.stations.length >= 2)
     .sort(
@@ -489,8 +525,8 @@ const layoutAt = (input: TransitInput, spread: number): TransitMap => {
       key: s.key,
       title: s.title,
       artist: s.artist,
-      searchId: s.searchId,
       step: s.step,
+      marked: s.marked,
       ...shift(points[i]),
       lines: through[i],
       radius: radius[i],
@@ -510,12 +546,17 @@ const layoutAt = (input: TransitInput, spread: number): TransitMap => {
   };
 };
 
-/** Whether any two labels overlap, or a label covers a station. */
+/**
+ * Whether any two labels overlap, a label covers a station, or two
+ * stations touch.
+ */
 export const labelsCollide = (map: TransitMap): boolean =>
   map.stations.some((s, i) =>
     map.stations.some(
       (t, j) =>
         (j > i && overlaps(s.label, t.label)) ||
+        (j > i &&
+          Math.hypot(s.x - t.x, s.y - t.y) < s.radius + t.radius + 6) ||
         overlaps(s.label, {
           x: t.x - t.radius,
           y: t.y - t.radius,
@@ -563,6 +604,9 @@ export const shareScale = (map: TransitMap): number => {
 export const shareTransitMap = (
   input: Omit<TransitInput, "orientation" | "space">,
 ): TransitMap => {
+  if (input.stops.length === 0) {
+    return layoutTransitMap({ ...input, orientation: "horizontal" });
+  }
   let best: { map: TransitMap; scale: number } | null = null;
   for (const orientation of ["horizontal", "vertical"] as const) {
     for (const tight of [1, 0.8, 0.65, 0.5]) {
@@ -578,4 +622,126 @@ export const shareTransitMap = (
     }
   }
   return best?.map ?? layoutTransitMap({ ...input, orientation: "horizontal" });
+};
+
+/** Undated albums go after the rest. */
+const UNDATED = 9999;
+
+const stopFor = (
+  key: string,
+  title: string,
+  artist: string,
+  year: number | null,
+  marked: boolean,
+): TransitStop => ({
+  key,
+  title,
+  // The year always shows: the artist is cut first.
+  detail: year ? `${cut(artist, TRANSIT.chars - 7)} · ${year}` : artist,
+  column: year ?? UNDATED,
+  marked,
+});
+
+/**
+ * One search's transit map: its album and the results chosen, by year;
+ * its people who count under the filters as lines, through the album and
+ * every chosen result they link.
+ */
+export const searchTransit = (
+  search: SearchCache,
+  shown: Pick<ScoredRelease, "key" | "title" | "artist" | "year" | "activeContributors">[],
+  counted: Set<number>,
+): Omit<TransitInput, "orientation"> => {
+  const albumKey = albumKeyOf(search);
+  const own = search.target ? search.releases[search.target.key] : undefined;
+  const results = shown.filter((r) => r.key !== albumKey);
+  const stops = [
+    stopFor(
+      albumKey,
+      search.searchParams.album,
+      search.searchParams.artist,
+      releaseYear(own?.year),
+      true,
+    ),
+    ...results.map((r) =>
+      stopFor(r.key, r.title, r.artist, releaseYear(r.year), false),
+    ),
+  ];
+  const people = Array.from(counted)
+    .filter((id) => search.contributors[id])
+    .map((id) => ({
+      id,
+      name: defaultContributorDisplayPipeline(search.contributors[id].name),
+      stations: [
+        albumKey,
+        ...results
+          .filter((r) => r.activeContributors.includes(id))
+          .map((r) => r.key),
+      ],
+    }));
+  return { stops, people };
+};
+
+/**
+ * A stack's transit map: its albums (switched on) and the results chosen,
+ * by year; people as lines through the stack albums they count on and the
+ * chosen results they link.
+ */
+export const stackTransit = (
+  members: SearchCache[],
+  /** Stack album key -> people who count there (the stack's filters). */
+  counted: Map<string, Set<number>>,
+  shown: Pick<ScoredRelease, "key" | "title" | "artist" | "year" | "activeContributors">[],
+): Omit<TransitInput, "orientation"> => {
+  const keys = members.map(albumKeyOf);
+  const known = new Map<string, EnrichedRelease>();
+  for (const m of members) {
+    for (const r of Object.values(m.releases ?? {})) {
+      if (!known.has(r.key)) known.set(r.key, r);
+    }
+  }
+  // A stack album's year: as its own search lists it, else any member's.
+  const yearOf = (m: SearchCache, key: string) =>
+    releaseYear(m.releases?.[key]?.year) ?? releaseYear(known.get(key)?.year);
+  const seen = new Set<string>();
+  const stops: TransitStop[] = [];
+  members.forEach((m, i) => {
+    if (seen.has(keys[i])) return;
+    seen.add(keys[i]);
+    stops.push(
+      stopFor(
+        keys[i],
+        m.searchParams.album,
+        m.searchParams.artist,
+        yearOf(m, keys[i]),
+        true,
+      ),
+    );
+  });
+  const results = shown.filter((r) => !seen.has(r.key));
+  stops.push(
+    ...results.map((r) =>
+      stopFor(r.key, r.title, r.artist, releaseYear(r.year), false),
+    ),
+  );
+  const names = new Map<number, string>();
+  members.forEach((m, i) => {
+    for (const id of counted.get(keys[i]) ?? []) {
+      const c = m.contributors?.[id];
+      if (c && !names.has(id)) {
+        names.set(id, defaultContributorDisplayPipeline(c.name));
+      }
+    }
+  });
+  const people = Array.from(names, ([id, name]) => ({
+    id,
+    name,
+    stations: [
+      ...keys.filter((key) => counted.get(key)?.has(id)),
+      ...results
+        .filter((r) => r.activeContributors.includes(id))
+        .map((r) => r.key),
+    ],
+  }));
+  return { stops, people };
 };

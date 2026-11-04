@@ -2,10 +2,17 @@ import { SearchCache } from "@/contexts/cache/types";
 import { Likes } from "@/services/likes";
 import { ALBUM_MAP_PEOPLE, layoutAlbumMap } from "./albumMap";
 import { countedContributors, requiredFilters } from "./filters";
-import { TransitMap } from "./transitMap";
+import { albumKeyOf } from "./credits";
+import {
+  searchTransit,
+  shareTransitMap,
+  stackTransit,
+  TransitMap,
+} from "./transitMap";
 import {
   LANES_SHARED,
   searchSwimlanes,
+  stackSwimlanes,
   Swimlanes,
   topLanes,
 } from "./swimlanes";
@@ -128,12 +135,12 @@ export type SharePayload =
   | {
       v: 1;
       l: "lanes";
-      /** The searched album. */
+      /** The searched album, or the stack's start. */
       c: ShareAlbum;
       /** The years drawn. */
       y: [number, number];
-      /** Album lines: the searched album's year, `m` for the accent. */
-      k: Array<{ t: string; y: number; m?: 1 }>;
+      /** Album lines: the searched album's year, or each stack album's. */
+      k: Array<{ t: string; y: number }>;
       /** Lanes, in order: name, results, result and other years. */
       n: Array<{
         n: string;
@@ -166,6 +173,8 @@ export type SharePayload =
         /** Label box: x, y, w, h. */
         b: [number, number, number, number];
         a: "start" | "middle" | "end";
+        /** The searched album, or one of the stack's: marked. */
+        m?: 1;
       }>;
       /** Lines: name, colour, legs of [x, y] points. */
       n: Array<{ n: string; c: number; g: Array<Array<[number, number]>> }>;
@@ -185,9 +194,9 @@ export const SHARE_COUNTS: Record<
   map: { options: [6, 12, 18, 24], start: 12 },
   card: { options: [3, 5, 8, 10], start: 5 },
   // Always the top LANES_SHARED people: nothing to choose.
-  lanes: { options: [LANES_SHARED], start: LANES_SHARED },
-  // Every stack album: nothing to choose.
-  transit: { options: [0], start: 0 },
+  lanes: { options: [6, 12, 18, 24], start: 12 },
+  // Stations need room for their labels.
+  transit: { options: [4, 6, 9, 12], start: 6 },
 };
 
 /**
@@ -494,7 +503,16 @@ export const stackCaption = (
   edits?: string,
 ): string => {
   const stacked = nodes.filter((n) => n.member).length;
-  const around = nodes.length - stacked;
+  return stackSelectionCaption(stacked, nodes.length - stacked, order, edits);
+};
+
+/** How a stack's albums were chosen, for any of its images. */
+export const stackSelectionCaption = (
+  stacked: number,
+  around: number,
+  order?: { sort: SortKey; then: SortKey | null; likesFirst: boolean },
+  edits?: string,
+): string => {
   const by =
     order && around > 0
       ? `, by ${sortName(order.sort)}${order.then ? `, then ${sortName(order.then)}` : ""}`
@@ -620,8 +638,12 @@ export type ShareData = {
        * the ring, with their links, as on the Results tab.
        */
       albumsOff?: string[];
-      /** The stack as a transit map (left to right), as its Map tab has it. */
-      transit?: TransitMap;
+      /**
+       * Stack album key -> people who count there under the stack's
+       * filters (`countedByAlbum`), for swimlanes and transit maps.
+       * Without it, everyone credited.
+       */
+      counted?: Map<string, Set<number>>;
     }
 );
 
@@ -680,9 +702,11 @@ export interface SharePlan {
   centre?: MapCentre;
   /** The swimlanes drawn, when that's the layout. */
   lanes?: Swimlanes;
-  /** There are people with dated items to draw as swimlanes. */
+  /** The transit map drawn, when that's the layout. */
+  transit?: TransitMap;
+  /** The albums chosen have people to draw as swimlanes. */
   lanesReady?: boolean;
-  /** The stack has lines to draw as a transit map. */
+  /** The albums chosen have people on two or more to draw as lines. */
   transitReady?: boolean;
   /** Albums to find covers for: everything the image may draw. */
   wanted: string[];
@@ -699,58 +723,58 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
       sortReleases(data.releases, selection.sort, selection.then),
       data.hidden,
     );
-    const mapShown = shareSelection(search, ranked, draft.counts.map, edits);
-    const cardShown = shareSelection(search, ranked, draft.counts.card, edits);
-    const mapReady = mapShown.length > 0;
-    const allLanes = searchSwimlanes(
-      search,
-      countedContributors(search),
-      ranked,
+    const counted = countedContributors(search);
+    // Every layout draws the albums chosen: the top of the list, edited.
+    const pick = (layout: ShareLayout) =>
+      shareSelection(search, ranked, draft.counts[layout], edits);
+    const mapReady = pick("map").length > 0;
+    const lanesFor = (shown: ScoredRelease[]) =>
+      topLanes(searchSwimlanes(search, counted, shown), LANES_SHARED);
+    const transitFor = (shown: ScoredRelease[]) =>
+      searchTransit(search, shown, counted);
+    const lanesReady = lanesFor(pick("lanes")).lanes.length > 0;
+    const transitReady = transitFor(pick("transit")).people.some(
+      (p) => p.stations.length >= 2,
     );
-    const lanes = topLanes(allLanes, LANES_SHARED);
-    const lanesReady = lanes.lanes.some((l) => l.ticks.length > 0);
-    const layout: ShareLayout =
-      draft.chosen === "lanes"
-        ? lanesReady
-          ? "lanes"
-          : "card"
-        : mapReady
-          ? draft.chosen
-          : "card";
-    const shown = layout === "map" ? mapShown : cardShown;
-    const caption =
-      layout === "lanes"
-        ? lanesCaption(
-            search,
-            lanes.lanes.length,
-            allLanes.lanes.length,
-            selection,
-          )
-        : [
-            selectionCaption(
-              search,
-              shown.length,
-              selection.sort,
-              selection.then,
-            ),
-            editsCaption(edits),
-          ]
-            .filter(Boolean)
-            .join(" · ");
+    const ready: Record<ShareLayout, boolean> = {
+      map: mapReady,
+      card: true,
+      lanes: lanesReady,
+      transit: transitReady,
+    };
+    const layout: ShareLayout = ready[draft.chosen]
+      ? draft.chosen
+      : mapReady
+        ? "map"
+        : "card";
+    const shown = pick(layout);
+    const lanes = layout === "lanes" ? lanesFor(shown) : undefined;
+    const transit =
+      layout === "transit" ? shareTransitMap(transitFor(shown)) : undefined;
+    const caption = [
+      selectionCaption(search, shown.length, selection.sort, selection.then),
+      editsCaption(edits),
+      lanes ? peopleCount(lanes.lanes.length, "") : "",
+      transit ? peopleCount(transit.lines.length, " as lines") : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
     return {
       layout,
       edits,
       shown,
       mapReady,
+      lanesReady,
+      transitReady,
       available: available(ranked, edits),
       pickerSearch: search,
       visibleKeys: new Set(ranked.map((r) => r.key)),
       stackNodes: [],
-      ...(layout === "lanes" ? { lanes } : {}),
-      lanesReady,
-      // The swimlanes draw no covers.
+      ...(lanes ? { lanes } : {}),
+      ...(transit ? { transit } : {}),
+      // Swimlanes and transit maps draw no covers.
       wanted:
-        draft.view.covers && layout !== "lanes"
+        draft.view.covers && (layout === "map" || layout === "card")
           ? [search.target?.key ?? "", ...shown.map((r) => r.key)].filter(
               Boolean,
             )
@@ -779,6 +803,15 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
   const pickerSearch = stackAsSearch(data.search, members, list);
   const pick = (count: number) =>
     shareSelection(pickerSearch, ordered, count, edits);
+  // Who counts on each stack album: the page's, or everyone credited.
+  const counted =
+    data.counted ??
+    new Map(
+      members.map((m) => [
+        albumKeyOf(m),
+        new Set(Object.keys(m.contributors ?? {}).map(Number)),
+      ]),
+    );
   const largest = SHARE_COUNTS.map.options[SHARE_COUNTS.map.options.length - 1];
   const most = Math.min(available(list, edits), largest);
   const capacity = stackMapCapacity(
@@ -789,38 +822,75 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
     (count) => pick(count).map((r) => r.key),
     most,
   );
-  const shown = pick(Math.min(draft.counts.map, capacity));
-  const stackNodes = layoutStackMap(
-    centre,
-    members,
-    data.levels,
-    data.likes,
-    shown.map((r) => r.key),
+  const lanesFor = (shown: ScoredRelease[]) =>
+    topLanes(stackSwimlanes(members, counted, shown), LANES_SHARED);
+  const transitFor = (shown: ScoredRelease[]) =>
+    stackTransit(members, counted, shown);
+  const lanesReady = lanesFor(pick(draft.counts.lanes)).lanes.length > 0;
+  const transitReady = transitFor(pick(draft.counts.transit)).people.some(
+    (p) => p.stations.length >= 2,
   );
-  const transitReady = (data.transit?.lines.length ?? 0) > 0;
-  const transit = draft.chosen === "transit" && transitReady;
+  const layout: ShareLayout =
+    draft.chosen === "lanes" && lanesReady
+      ? "lanes"
+      : draft.chosen === "transit" && transitReady
+        ? "transit"
+        : "map";
+  const shown =
+    layout === "map"
+      ? pick(Math.min(draft.counts.map, capacity))
+      : pick(draft.counts[layout]);
+  const stackNodes =
+    layout === "map"
+      ? layoutStackMap(
+          centre,
+          members,
+          data.levels,
+          data.likes,
+          shown.map((r) => r.key),
+        )
+      : [];
+  const lanes = layout === "lanes" ? lanesFor(shown) : undefined;
+  const transit =
+    layout === "transit" ? shareTransitMap(transitFor(shown)) : undefined;
+  const stacked = new Set(members.map(albumKeyOf)).size;
   return {
-    layout: transit ? "transit" : "map",
+    layout,
+    lanesReady,
     transitReady,
     edits,
     shown,
-    mapReady: stackNodes.length > 1,
+    mapReady: stacked > 1 || shown.length > 0,
     available: available(list, edits),
-    ...(capacity < most ? { cap: capacity } : {}),
+    ...(layout === "map" && capacity < most ? { cap: capacity } : {}),
     pickerSearch,
     visibleKeys: new Set(list.map((r) => r.key)),
     stackNodes,
     centre,
+    ...(lanes ? { lanes } : {}),
+    ...(transit ? { transit } : {}),
     wanted:
-      draft.view.covers && !transit
+      draft.view.covers && layout === "map"
         ? [centre.key, ...stackNodes.slice(1).map((n) => n.key)]
         : [],
-    caption:
-      transit && data.transit
-        ? transitCaption(data.transit)
-        : stackCaption(stackNodes, stackOrder, editsCaption(edits)),
+    caption: [
+      stackSelectionCaption(
+        stacked,
+        shown.length,
+        stackOrder,
+        editsCaption(edits),
+      ),
+      lanes ? peopleCount(lanes.lanes.length, "") : "",
+      transit ? peopleCount(transit.lines.length, " as lines") : "",
+    ]
+      .filter(Boolean)
+      .join(" · "),
   };
 };
+
+/** "8 people", "1 person as lines". */
+const peopleCount = (n: number, suffix: string) =>
+  `${n} ${n === 1 ? "person" : "people"}${suffix}`;
 
 const available = (pool: ScoredRelease[], edits: ShareEdits) =>
   new Set([
@@ -838,18 +908,21 @@ export const buildPayload = (
   plan: SharePlan = planShare(draft, data),
 ): SharePayload => {
   const { coverFor } = data;
+  const header =
+    data.kind === "stack"
+      ? plan.centre ?? data.centre
+      : {
+          key: data.search.target?.key ?? "",
+          title: data.search.searchParams.album,
+          artist: data.search.searchParams.artist,
+        };
   const drawn =
-    data.kind === "stack" && plan.layout === "transit" && data.transit
-      ? transitPayload(data.centre, data.transit, plan.caption)
-      : data.kind === "stack"
-        ? stackMapPayload(
-            plan.centre ?? data.centre,
-            plan.stackNodes,
-            coverFor,
-            plan.caption,
-          )
-        : plan.layout === "lanes" && plan.lanes
-          ? lanesPayload(data.search, plan.lanes, plan.caption)
+    plan.layout === "transit" && plan.transit
+      ? transitPayload(header, plan.transit, plan.caption)
+      : plan.layout === "lanes" && plan.lanes
+        ? lanesPayload(header, plan.lanes, plan.caption)
+        : data.kind === "stack"
+          ? stackMapPayload(header, plan.stackNodes, coverFor, plan.caption)
           : plan.layout === "map"
             ? albumMapPayload(
                 data.search,
@@ -868,46 +941,17 @@ export const buildPayload = (
   return withView(drawn, draft.view);
 };
 
-/**
- * How the swimlanes were chosen, in a line: "Top 8 of 23 people by results
- * · 2+ shared · Liked only". Filters as `selectionCaption` names them.
- */
-export const lanesCaption = (
-  search: SearchCache,
-  shown: number,
-  of: number,
-  selection: { sort: SortKey; then: SortKey | null },
-): string => {
-  const filters = selectionCaption(search, 0, selection.sort, selection.then)
-    .split(" · ")
-    .slice(1);
-  return [
-    shown < of
-      ? `Top ${shown} of ${of} people by results`
-      : `${shown} ${shown === 1 ? "person" : "people"}`,
-    ...filters,
-  ].join(" · ");
-};
-
 /** The swimlanes share image: the lanes as drawn, ticks by year. */
 export const lanesPayload = (
-  search: SearchCache,
+  album: MapCentre,
   lanes: Swimlanes,
   caption?: string,
 ): SharePayload => ({
   v: 1,
   l: "lanes",
-  c: {
-    t: search.searchParams.album,
-    r: search.searchParams.artist,
-    i: "",
-  },
+  c: { t: album.title, r: album.artist, i: "" },
   y: [lanes.from, lanes.to],
-  k: lanes.albums.map((a) => ({
-    t: a.title,
-    y: a.year,
-    ...(a.accent ? { m: 1 as const } : {}),
-  })),
+  k: lanes.albums.map((a) => ({ t: a.title, y: a.year })),
   n: lanes.lanes.map((lane) => ({
     n: lane.name,
     c: lane.results,
@@ -923,17 +967,7 @@ export const lanesPayload = (
   ...(caption ? { d: caption } : {}),
 });
 
-/** What a transit map shows, in a line: "6 albums · 4 people as lines". */
-export const transitCaption = (map: TransitMap): string =>
-  [
-    `${map.stations.length} ${map.stations.length === 1 ? "album" : "albums"}`,
-    `${map.lines.length} ${map.lines.length === 1 ? "person" : "people"} as lines`,
-    map.others.length > 0 ? `${map.others.length} more on two or more` : "",
-  ]
-    .filter(Boolean)
-    .join(" · ");
-
-/** The transit map share image, laid out as on the Map tab. */
+/** The transit map share image, as `shareTransitMap` laid it out. */
 export const transitPayload = (
   centre: MapCentre,
   map: TransitMap,
@@ -953,6 +987,7 @@ export const transitPayload = (
     k: s.lines,
     b: [s.label.x, s.label.y, s.label.w, s.label.h],
     a: s.label.align,
+    ...(s.marked ? { m: 1 as const } : {}),
   })),
   n: map.lines.map((l) => ({
     n: l.name,

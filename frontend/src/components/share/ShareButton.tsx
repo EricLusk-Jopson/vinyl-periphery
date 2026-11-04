@@ -71,7 +71,6 @@ import {
   SelectValue,
 } from "../ui/select";
 import { ShareAlbums } from "./ShareAlbums";
-import { TransitMap } from "@/lib/transitMap";
 import { FindCovers } from "../common/FindCovers";
 import { StackAlbumList } from "../library/StackAlbumList";
 import { Switch } from "../filters/Switch";
@@ -108,8 +107,11 @@ interface ShareButtonProps {
      * Without it, every result of its searches.
      */
     results?: ScoredRelease[];
-    /** The stack as a transit map, for the Transit layout. */
-    transit?: TransitMap;
+    /**
+     * Stack album key -> who counts there under the stack's filters, for
+     * the People and Transit images.
+     */
+    counted?: Map<string, Set<number>>;
   };
   /**
    * For one search: the results' order. Both layouts then draw its top
@@ -135,9 +137,10 @@ interface ShareButtonProps {
   compact?: boolean;
 }
 
-/** A stack's layouts: the ring of album overlap, or the transit map. */
+/** A stack's layouts: the ring of album overlap, people, a transit map. */
 const STACK_LAYOUTS: { id: ShareLayout; label: string }[] = [
   { id: "map", label: "Map" },
+  { id: "lanes", label: "People" },
   { id: "transit", label: "Transit" },
 ];
 
@@ -145,6 +148,7 @@ const LAYOUTS: { id: ShareLayout; label: string }[] = [
   { id: "map", label: "Map" },
   { id: "card", label: "Results" },
   { id: "lanes", label: "People" },
+  { id: "transit", label: "Transit" },
 ];
 
 /** A segmented choice, as radios. */
@@ -345,7 +349,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
           members: map.members,
           levels: map.levels ?? new Map(),
           results: map.results,
-          transit: map.transit,
+          counted: map.counted,
           albumsOff: Object.entries(stackFilters?.filters.albums ?? {})
             .filter(([, on]) => !on)
             .map(([key]) => key),
@@ -448,6 +452,16 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   const mapReady = plan?.mapReady ?? false;
   const shown = plan?.shown ?? [];
   const shownCount = shown.length;
+  // The layouts there's something to draw for.
+  const layoutReady: Record<ShareLayout, boolean> = {
+    map: mapReady,
+    card: true,
+    lanes: Boolean(plan?.lanesReady),
+    transit: Boolean(plan?.transitReady),
+  };
+  const layoutChoices = (selection ? LAYOUTS : STACK_LAYOUTS).filter(
+    (o) => layoutReady[o.id],
+  );
   const countChoices = countOptions(layout, plan?.available ?? 0, plan?.cap);
   // Something to make: nothing yet, or the draft has changed since.
   const stale = !committed || change !== "same";
@@ -670,9 +684,9 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
             </SheetTitle>
             <SheetDescription className="text-left text-sm text-muted-foreground">
               {layout === "transit"
-                ? `The stack as a transit map: its albums are stations, and the people credited on two or more are lines, step by step from ${map.centre.title}.`
-                : selection && layout === "lanes"
-                  ? `The people on ${search.searchParams.album} with the most results, across their careers: tall marks are albums in your results, the red line is ${search.searchParams.album}.`
+                ? `A transit map of the albums chosen below, by year: ${selection ? `${search.searchParams.album} and its results` : "the stack's albums and its results"} are stations, and people credited on two or more are lines.`
+                : layout === "lanes"
+                  ? `The people on the albums chosen below, across their careers: tall marks are those albums, and the red ${selection ? `line is ${search.searchParams.album}` : "lines are the stack's albums"}.`
                   : selection
                     ? `The top albums connected to ${search.searchParams.album}, as your filters and sort show them. Take albums out or add others below.`
                     : layout === "map"
@@ -698,54 +712,41 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
           >
             {
               <div className="flex flex-col gap-4 lg:col-start-2 lg:row-start-1">
-                {selection && (mapReady || plan?.lanesReady) && (
+                {layoutChoices.length > 1 && (
                   <Segmented
                     label="Show"
                     value={layout}
-                    options={LAYOUTS.filter(
-                      (o) =>
-                        (o.id !== "map" || mapReady) &&
-                        (o.id !== "lanes" || plan?.lanesReady),
+                    options={layoutChoices}
+                    onChange={(chosen) => setDraft((d) => ({ ...d, chosen }))}
+                  />
+                )}
+                {(countChoices.length > 0 || plan?.cap !== undefined) && (
+                  <div className="flex flex-col gap-1.5">
+                    {countChoices.length > 0 && (
+                      <Segmented
+                        label="Albums"
+                        value={String(shownCount)}
+                        options={countChoices.map((c) => ({
+                          id: String(c.count),
+                          label: c.label,
+                        }))}
+                        onChange={(value) =>
+                          setDraft((d) => ({
+                            ...d,
+                            counts: { ...d.counts, [layout]: Number(value) },
+                          }))
+                        }
+                      />
                     )}
-                    onChange={(chosen) => setDraft((d) => ({ ...d, chosen }))}
-                  />
+                    {plan?.cap !== undefined && (
+                      <p className="text-[13px] text-muted-foreground">
+                        Up to {plan.cap} for this stack, so covers stay big
+                        enough to read
+                      </p>
+                    )}
+                  </div>
                 )}
-                {!selection && plan?.transitReady && (
-                  <Segmented
-                    label="Show"
-                    value={layout}
-                    options={STACK_LAYOUTS}
-                    onChange={(chosen) => setDraft((d) => ({ ...d, chosen }))}
-                  />
-                )}
-                {layout !== "transit" &&
-                  (countChoices.length > 0 || plan?.cap !== undefined) && (
-                    <div className="flex flex-col gap-1.5">
-                      {countChoices.length > 0 && (
-                        <Segmented
-                          label="Albums"
-                          value={String(shownCount)}
-                          options={countChoices.map((c) => ({
-                            id: String(c.count),
-                            label: c.label,
-                          }))}
-                          onChange={(value) =>
-                            setDraft((d) => ({
-                              ...d,
-                              counts: { ...d.counts, [layout]: Number(value) },
-                            }))
-                          }
-                        />
-                      )}
-                      {plan?.cap !== undefined && (
-                        <p className="text-[13px] text-muted-foreground">
-                          Up to {plan.cap} for this stack, so covers stay big
-                          enough to read
-                        </p>
-                      )}
-                    </div>
-                  )}
-                {!selection && layout !== "transit" && (
+                {!selection && (
                   <StackOrderControls
                     order={draft.stackOrder}
                     onChange={(stackOrder) =>
@@ -927,26 +928,24 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
               </button>
             </div>
 
-            {(selection || mapReady) &&
-              layout !== "lanes" &&
-              layout !== "transit" && (
-                <div className="lg:col-start-2 lg:row-start-3">
-                  <ShareAlbums
-                    hidden={hidden}
-                    search={plan?.pickerSearch ?? search}
-                    shown={shown}
-                    visibleKeys={plan?.visibleKeys ?? new Set()}
-                    onQuery={takeQuery}
-                    edits={plan?.edits ?? draft.edits}
-                    cover={cover}
-                    onRemove={removeAlbum}
-                    onAdd={addAlbum}
-                    onRestore={() =>
-                      setEdits((current) => ({ ...current, removed: [] }))
-                    }
-                  />
-                </div>
-              )}
+            {(selection || mapReady) && (
+              <div className="lg:col-start-2 lg:row-start-3">
+                <ShareAlbums
+                  hidden={hidden}
+                  search={plan?.pickerSearch ?? search}
+                  shown={shown}
+                  visibleKeys={plan?.visibleKeys ?? new Set()}
+                  onQuery={takeQuery}
+                  edits={plan?.edits ?? draft.edits}
+                  cover={cover}
+                  onRemove={removeAlbum}
+                  onAdd={addAlbum}
+                  onRestore={() =>
+                    setEdits((current) => ({ ...current, removed: [] }))
+                  }
+                />
+              </div>
+            )}
           </div>
 
           {/* Phones and tablets: the action in a footer that stays in

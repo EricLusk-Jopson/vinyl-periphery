@@ -12,7 +12,6 @@ import { useToast } from "@/hooks/use-toast";
 import { StackFilters } from "@/hooks/useStackFilters";
 import { StackSort } from "@/hooks/useStackSort";
 import { useFilterRequest } from "@/hooks/useFilterRequest";
-import { ResultFocus, useFocusResult } from "@/hooks/useFocusResult";
 import { track, trackStackFilter } from "@/lib/analytics";
 import { MetaAlbum } from "@/lib/metaAlbum";
 import { SortKey, sharedPeople, ScoredRelease } from "@/lib/results";
@@ -77,8 +76,6 @@ interface StackResultsProps {
   of: number;
   onSearchFrom: (params: SearchParams, known: KnownAlbum) => void;
   isSearching: boolean;
-  /** A result to open and scroll to (from the People tab). */
-  focus?: ResultFocus;
 }
 
 /** A linked member and who links it, with their roles there. */
@@ -149,7 +146,6 @@ export const StackResults: React.FC<StackResultsProps> = ({
   of,
   onSearchFrom,
   isSearching,
-  focus,
 }) => {
   const { searches } = useCache();
   const likes = useLikes();
@@ -185,13 +181,6 @@ export const StackResults: React.FC<StackResultsProps> = ({
   }, [searches]);
 
   const keys = useMemo(() => results.map((r) => r.key), [results]);
-  const highlighted = useFocusResult(
-    focus,
-    keys,
-    PAGE_SIZE,
-    setVisible,
-    setOpenKey,
-  );
   const cover = useCoverArt(keys, stackId);
 
   const total = results.length;
@@ -436,7 +425,6 @@ export const StackResults: React.FC<StackResultsProps> = ({
                       : undefined
                   }
                   open={openKey === release.key}
-                  highlighted={highlighted === release.key}
                   onToggle={() => {
                     if (openKey !== release.key) {
                       track("result_opened", position);

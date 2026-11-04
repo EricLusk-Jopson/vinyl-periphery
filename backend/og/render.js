@@ -11,7 +11,8 @@ import { MAP_SIZES, MAX_RESULTS } from "./payload.js";
 
 // Mirrors docs/redesign/tokens.md. Satori has no CSS variables, so the
 // renderer spells the values out here, once.
-// Transit map lines, as the line-1 to line-6 tokens (placeholders).
+// Transit map line colours: placeholders until the palette is set. Never
+// red, which marks the searched and stacked albums.
 const LINE_COLOURS = ["#2DBFAE", "#F6AE2D", "#5AA2F2", "#A884E8", "#4EC076", "#CF86CF"];
 
 const C = {
@@ -844,7 +845,9 @@ export function stackElement(payload, size, art) {
 }
 
 /** Swimlanes' frame inside the graph box: names left, tracks right. */
-const LANES = { name: 300, gap: 24, top: 34, axis: 34, legend: 34, maxRow: 96 };
+const LANES = { name: 300, gap: 24, labelRow: 22, axis: 34, legend: 34, maxRow: 96 };
+/** Album labels over the lanes: mono 16px, about this wide a character. */
+const LANE_LABEL = { size: 16, char: 9.7, chars: 30, gap: 14 };
 
 /** Decade marks for the axis: every 10 years, or 5 on a short range. */
 export const laneAxis = (from, to) => {
@@ -861,16 +864,35 @@ export const laneAxis = (from, to) => {
 export function lanesGeometry(payload, { width, height }) {
   const left = MAP_FRAME.pad + LANES.name + LANES.gap;
   const right = width - MAP_FRAME.pad;
-  const rows = Math.max(1, payload.lanes.length);
-  const row = Math.min(LANES.maxRow, (height - LANES.top - LANES.axis - LANES.legend) / rows);
   const x = (year) => left + ((right - left) * (year - payload.from)) / Math.max(1, payload.to - payload.from);
+  // Every album line is labelled alike, just right of its line (left of
+  // it only at the right edge); labels that would touch go a row down.
+  const rows = [];
+  const labels = payload.albums.map((album) => {
+    const text = `${shorten(album.t, LANE_LABEL.chars)} · ${album.year}`;
+    const w = text.length * LANE_LABEL.char;
+    const at = x(album.year);
+    return { text, w, x: at + 8 + w > width - 8 ? at - 8 - w : at + 8, row: 0 };
+  });
+  // Left to right, each in the first row it fits.
+  for (const label of [...labels].sort((a, b) => a.x - b.x)) {
+    let row = rows.findIndex((end) => label.x >= end);
+    if (row < 0) row = rows.length;
+    rows[row] = label.x + label.w + LANE_LABEL.gap;
+    label.row = row;
+  }
+  const top = Math.max(1, rows.length) * LANES.labelRow + 12;
+  const lanes = Math.max(1, payload.lanes.length);
+  const row = Math.min(LANES.maxRow, (height - top - LANES.axis - LANES.legend) / lanes);
   return {
     left,
     right,
     row,
     x,
-    laneTop: (i) => LANES.top + i * row,
-    axisTop: LANES.top + rows * row + 8,
+    top,
+    labels: labels.map((l) => ({ ...l, y: l.row * LANES.labelRow })),
+    laneTop: (i) => top + i * row,
+    axisTop: top + lanes * row + 8,
   };
 }
 
@@ -890,28 +912,28 @@ export function lanesElement(payload, size) {
       lines.push({ x1: g.left, x2: g.x(first), y1: mid(i), y2: mid(i), stroke: C.border, strokeWidth: 6, strokeDasharray: "3 5" });
     }
     lines.push({ x1: g.x(first), x2: g.x(last), y1: mid(i), y2: mid(i), stroke: C.border, strokeWidth: 2 });
+    // Their other releases: short marks, the same colour as the tall.
     for (const [year] of lane.faint) {
-      lines.push({ x1: g.x(year), x2: g.x(year), y1: mid(i) - tick * 0.5, y2: mid(i) + tick * 0.5, stroke: C.faint, strokeOpacity: 0.5, strokeWidth: 2 });
+      lines.push({ x1: g.x(year), x2: g.x(year), y1: mid(i) - tick * 0.5, y2: mid(i) + tick * 0.5, stroke: C.muted, strokeWidth: 2 });
     }
   });
-  // The album lines, over the faint ticks and under the results.
+  // The album lines, all alike, over the short marks and under the tall.
   for (const album of payload.albums) {
     lines.push({
       x1: g.x(album.year),
       x2: g.x(album.year),
-      y1: LANES.top - 6,
+      y1: g.top - 6,
       y2: g.laneTop(payload.lanes.length),
-      stroke: album.accent ? C.primary : C.border,
-      strokeWidth: album.accent ? 3 : 2,
+      stroke: C.primary,
+      strokeWidth: 3,
     });
   }
   payload.lanes.forEach((lane, i) => {
     for (const [year, count] of lane.solid) {
       const reach = tick + Math.min(10, 3 * count);
-      lines.push({ x1: g.x(year), x2: g.x(year), y1: mid(i) - reach, y2: mid(i) + reach, stroke: C.foreground, strokeWidth: 3 });
+      lines.push({ x1: g.x(year), x2: g.x(year), y1: mid(i) - reach, y2: mid(i) + reach, stroke: C.muted, strokeWidth: 3 });
     }
   });
-  const marked = payload.albums.find((a) => a.accent);
   const text = (style, ...children) => h("div", { position: "absolute", ...style }, ...children);
   const mono = { fontFamily: "IBM Plex Mono", fontSize: 16, color: C.faint };
 
@@ -947,18 +969,19 @@ export function lanesElement(payload, size) {
           })),
         },
       },
-      marked &&
+      ...g.labels.map((label) =>
         text(
           {
-            top: 0,
-            ...(g.x(marked.year) > (g.left + g.right) / 2
-              ? { right: Math.round(box.width - g.x(marked.year) + 8) }
-              : { left: Math.round(g.x(marked.year) + 8) }),
+            top: Math.round(label.y),
+            left: Math.round(label.x),
             ...mono,
+            fontSize: LANE_LABEL.size,
             color: C.primaryText,
+            whiteSpace: "nowrap",
           },
-          `${shorten(marked.t, 34)} · ${marked.year}`,
+          label.text,
         ),
+      ),
       ...payload.lanes.map((lane, i) =>
         text(
           {
@@ -973,7 +996,7 @@ export function lanesElement(payload, size) {
           h(
             "div",
             { ...mono, fontSize: 15 },
-            `${lane.results} ${lane.results === 1 ? "result" : "results"}${lane.partial ? " · oldest not read" : ""}`,
+            `${lane.results} ${lane.results === 1 ? "album" : "albums"} here${lane.partial ? " · oldest not read" : ""}`,
           ),
         ),
       ),
@@ -982,7 +1005,7 @@ export function lanesElement(payload, size) {
       ),
       text(
         { top: Math.round(g.axisTop + LANES.axis), left: MAP_FRAME.pad, ...mono, gap: 28 },
-        h("div", {}, "Tall: in the results"),
+        h("div", {}, "Tall: the albums chosen"),
         h("div", {}, "Short: their other releases"),
         payload.undated > 0 && h("div", {}, `${payload.undated} undated, not shown`),
       ),
@@ -1067,10 +1090,13 @@ export function transitElement(payload, size) {
                 props: {
                   cx: Math.round(cx),
                   cy: Math.round(cy),
-                  r: Math.round(s.radius * Math.max(1, g.scale)),
-                  fill: single ?? C.background,
-                  stroke: single ? C.background : s.lines.length ? C.foreground : C.faint,
-                  strokeWidth: s.lines.length >= 2 ? 4 : 3,
+                  // Scaled with the map, so stations keep the room the
+                  // layout gave them.
+                  r: Math.max(4, Math.round(s.radius * g.scale)),
+                  fill: single && !s.marked ? single : C.background,
+                  // The searched album (or the stack's): ringed in red.
+                  stroke: s.marked ? C.primary : single ? C.background : s.lines.length ? C.foreground : C.faint,
+                  strokeWidth: s.marked || s.lines.length >= 2 ? 4 : 3,
                 },
               };
             }),

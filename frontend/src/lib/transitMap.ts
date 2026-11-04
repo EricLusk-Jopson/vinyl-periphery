@@ -51,6 +51,10 @@ export const TRANSIT = {
   chars: 20,
   /** Room kept clear around labels. */
   pad: 4,
+  /** A numbered station's radius, at the least (its number inside). */
+  numbered: 13,
+  /** Most characters on a legend line. */
+  legendChars: 34,
 };
 
 export interface TransitStation {
@@ -61,6 +65,8 @@ export interface TransitStation {
   step: number;
   /** The searched album, or one of the stack's. */
   marked: boolean;
+  /** Its number in the legend: 1 for the earliest. */
+  number: number;
   x: number;
   y: number;
   /** Lines through it. */
@@ -103,6 +109,11 @@ export interface TransitMap {
   lines: TransitLine[];
   /** People on 2+ stations not drawn as lines, most stations first. */
   others: Array<{ id: number; name: string; stations: number }>;
+  /**
+   * Stations are numbered (in time order) and their titles listed in a
+   * legend beside the map, rather than labelled where they are.
+   */
+  legend: boolean;
   /** The map's box, labels included, in layout units. */
   width: number;
   height: number;
@@ -372,6 +383,8 @@ const SCORE = {
   back: 9,
   sideways: 1.5,
   area: 0.12,
+  /** The map's longest side: it should fold up, not run on. */
+  span: 1.5,
 };
 
 /**
@@ -566,10 +579,9 @@ const score = (net: Network, st: GridState, flow: TransitOrientation): number =>
   // Compact.
   const xs = st.at.map((p) => p.x);
   const ys = st.at.map((p) => p.y);
-  cost +=
-    SCORE.area *
-    (Math.max(...xs) - Math.min(...xs) + 2) *
-    (Math.max(...ys) - Math.min(...ys) + 2);
+  const w = Math.max(...xs) - Math.min(...xs) + 2;
+  const h = Math.max(...ys) - Math.min(...ys) + 2;
+  cost += SCORE.area * w * h + SCORE.span * Math.max(w, h);
   return cost;
 };
 
@@ -667,14 +679,16 @@ const remember = (signature: string, found: { state: GridState; cost: number }) 
   while (searched.size > SEARCHED_KEPT) searched.delete(searched.keys().next().value!);
 };
 
-/** The grid layout drawn at `cell` pixels a step, with its labels. */
+/**
+ * The grid layout drawn at `cell` pixels a step, with its labels: beside
+ * the stations, or (`legend`) as numbers in them, the titles in a legend.
+ */
 const drawAt = (
   net: Network,
   st: GridState,
   flow: TransitOrientation,
   cell: number,
-  /** Label boxes this much larger (text drawn bigger than the map scale). */
-  grow: number,
+  legend = false,
 ): TransitMap => {
   const px = (p: Point): Point => ({ x: p.x * cell, y: p.y * cell });
   const points = st.at.map(px);
@@ -712,9 +726,13 @@ const drawAt = (
   );
   // Interchanges grow to cover the lines side by side through them.
   const radius = through.map((on, i) =>
-    on.length >= 2
-      ? Math.max(TRANSIT.station + 3, (spreadAt.get(i) ?? 0) + 7)
-      : TRANSIT.station,
+    Math.max(
+      on.length >= 2
+        ? Math.max(TRANSIT.station + 3, (spreadAt.get(i) ?? 0) + 7)
+        : TRANSIT.station,
+      // Room for its number, in a legend map.
+      legend ? TRANSIT.numbered : 0,
+    ),
   );
   const dots: Box[] = points.map((p, i) => ({
     x: p.x - radius[i],
@@ -728,9 +746,17 @@ const drawAt = (
     .sort((a, b) => net.stations[a].rank - net.stations[b].rank);
   const placed: Array<TransitLabel | undefined> = [];
   for (const i of order) {
-    const size = labelSize(net.stations[i].title, net.stations[i].artist);
-    const w = size.w * grow;
-    const h = size.h * grow;
+    if (legend) {
+      // The number sits in the station; the title goes in the legend.
+      placed[i] = {
+        ...dots[i],
+        align: "middle",
+        title: cut(net.stations[i].title, TRANSIT.legendChars),
+        artist: cut(net.stations[i].artist, TRANSIT.legendChars),
+      };
+      continue;
+    }
+    const { w, h } = labelSize(net.stations[i].title, net.stations[i].artist);
     const p = points[i];
     const r = radius[i] + 6;
     let best: { label: TransitLabel; cost: number } | null = null;
@@ -785,6 +811,7 @@ const drawAt = (
       title: s.title,
       artist: s.artist,
       step: s.rank,
+      number: s.rank + 1,
       marked: s.marked,
       ...shift(points[i]),
       lines: through[i],
@@ -793,6 +820,7 @@ const drawAt = (
     })),
     lines: lines.map((l) => ({ ...l, legs: l.legs.map((leg) => leg.map(shift)) })),
     others: net.others,
+    legend,
     width: Math.ceil(maxX - minX),
     height: Math.ceil(maxY - minY),
   };
@@ -803,7 +831,15 @@ const drawAt = (
  * stations touch.
  */
 export const labelsCollide = (map: TransitMap): boolean =>
-  map.stations.some((s, i) =>
+  map.legend
+    ? // Labels are in the legend: only stations can meet.
+      map.stations.some((s, i) =>
+        map.stations.some(
+          (t, j) =>
+            j > i && Math.hypot(s.x - t.x, s.y - t.y) < s.radius + t.radius + 6,
+        ),
+      )
+    : map.stations.some((s, i) =>
     map.stations.some(
       (t, j) =>
         (j > i && overlaps(s.label, t.label)) ||
@@ -820,7 +856,9 @@ export const labelsCollide = (map: TransitMap): boolean =>
 
 /** How many line segments run through labels. */
 export const labelLineHits = (map: TransitMap): number =>
-  map.stations.reduce(
+  map.legend
+    ? 0
+    : map.stations.reduce(
     (n, s) =>
       n +
       map.lines.reduce(
@@ -844,12 +882,20 @@ export const labelLineHits = (map: TransitMap): number =>
 export const layoutTransitMap = (input: TransitInput): TransitMap => {
   const { orientation } = input;
   if (input.stops.length === 0) {
-    return { orientation, stations: [], lines: [], others: [], width: 0, height: 0 };
+    return {
+      orientation,
+      stations: [],
+      lines: [],
+      others: [],
+      legend: false,
+      width: 0,
+      height: 0,
+    };
   }
   const net = networkOf(input);
   const st = searchGrid(net, orientation);
   const at = (k: number) =>
-    drawAt(net, st, orientation, TRANSIT.cell * (1 + 0.2 * k), 1);
+    drawAt(net, st, orientation, TRANSIT.cell * (1 + 0.2 * k));
   let k = 0;
   let map = at(0);
   for (k = 1; k <= 10 && labelsCollide(map); k++) map = at(k);
@@ -867,24 +913,33 @@ export const layoutTransitMap = (input: TransitInput): TransitMap => {
  * The share image's box for a transit map, over its legend (see
  * transitGeometry in backend/og/render.js; keep in step).
  */
-export const TRANSIT_SHARE_BOX = { width: 984, height: 788, legendRow: 34 };
+export const TRANSIT_SHARE_BOX = {
+  width: 984,
+  height: 788,
+  legendRow: 34,
+  /** A legend map's column of station titles, and the gap before it. */
+  stationList: 340,
+};
 
 /** How big a map draws in the share box: its scale, at most 1.6. */
 export const shareScale = (map: TransitMap): number => {
   const rows =
     Math.ceil(map.lines.length / 2) + (map.others.length > 0 ? 1 : 0);
   const height = TRANSIT_SHARE_BOX.height - rows * TRANSIT_SHARE_BOX.legendRow - 12;
-  return Math.min(
-    TRANSIT_SHARE_BOX.width / map.width,
-    height / map.height,
-    1.6,
-  );
+  // A legend map shares the width with its column of station titles.
+  const width = map.legend
+    ? TRANSIT_SHARE_BOX.width - TRANSIT_SHARE_BOX.stationList
+    : TRANSIT_SHARE_BOX.width;
+  return Math.min(width / map.width, height / map.height, 1.6);
 };
 
 /**
  * The transit map for the square share image: flowing down or flowing
  * right, whichever reads better, drawn at the grid size that fits the
  * square best (text never shrinks below its sizes, so 1:1 is the aim).
+ * Labels go beside the stations only where they fit at full size with no
+ * line through them; otherwise the stations are numbered and their
+ * titles listed in a legend.
  */
 export const shareTransitMap = (
   input: Omit<TransitInput, "orientation">,
@@ -901,21 +956,33 @@ export const shareTransitMap = (
       : "vertical";
   // The grid size that draws biggest in the square with no labels
   // colliding, fewer labels on lines breaking near-ties.
-  const st = searchGrid(net, orientation);
-  const fit = (grow: number): TransitMap | null => {
+  const fit = (
+    legend: boolean,
+    flow: TransitOrientation = orientation,
+  ): TransitMap | null => {
+    const st = searchGrid(net, flow);
     let best: { map: TransitMap; value: number } | null = null;
     for (let cell = 36; cell <= 150; cell += 6) {
-      const map = drawAt(net, st, orientation, cell, grow);
+      const map = drawAt(net, st, flow, cell, legend);
       if (labelsCollide(map)) continue;
       const value = Math.min(1, shareScale(map)) - 0.015 * labelLineHits(map);
       if (!best || value > best.value + 1e-6) best = { map, value };
     }
     return best?.map ?? null;
   };
-  // (Sizing label boxes for text drawn below 1:1 spreads the map, which
-  // shrinks it further: the fit alone, with a little room in the boxes'
-  // padding, does better.)
-  return fit(1) ?? layoutTransitMap({ ...input, orientation });
+  // Labels beside the stations when they fit at full size; otherwise
+  // numbered stations and their titles in a legend, so the labels never
+  // crowd the map or shrink it.
+  const labelled = fit(false);
+  if (labelled && shareScale(labelled) >= 1 && labelLineHits(labelled) === 0) {
+    return labelled;
+  }
+  // A legend takes a column of the width: whichever flow draws bigger
+  // in what's left.
+  const numbered = [fit(true), fit(true, orientation === "vertical" ? "horizontal" : "vertical")]
+    .filter((m): m is TransitMap => m !== null)
+    .sort((a, b) => shareScale(b) - shareScale(a))[0];
+  return numbered ?? labelled ?? layoutTransitMap({ ...input, orientation });
 };
 
 /** Undated albums go after the rest. */

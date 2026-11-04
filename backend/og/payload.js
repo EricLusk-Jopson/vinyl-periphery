@@ -20,7 +20,9 @@
 //     o?, d? }
 //   Station = { t, r, x, y: its place, q: radius, k: colours of its lines,
 //            b: [x, y, w, h] its label's box, a: "start" | "middle" | "end",
-//            m?: 1 for the searched album or a stack's }
+//            m?: 1 for the searched album or a stack's,
+//            n?: its number in the station list }
+//   sl: 1  = stations numbered and listed beside the map, not labelled
 //   Line   = { n: name, c: colour 0-5, g: legs, each [x, y][] }
 //   o      = people on 2+ albums not drawn as lines
 //   Places in layout units (w x h); the renderer scales them to fit.
@@ -246,6 +248,7 @@ export function parsePayload(raw) {
           label: { x: box[0], y: box[1], w: box[2], h: box[3] },
           align: ["start", "middle", "end"].includes(s?.a) ? s.a : "middle",
           marked: s?.m === 1,
+          number: Math.max(0, Math.min(99, Math.floor(Number(s?.n) || 0))),
         };
       })
       .filter((s) => s.t);
@@ -267,6 +270,8 @@ export function parsePayload(raw) {
       stations,
       lines,
       others: Math.max(0, Math.min(999, Math.floor(Number(raw.o) || 0))),
+      // Numbered stations, titles in a list beside the map.
+      legend: raw.sl === 1 && stations.every((s) => s.number > 0),
       caption: text(raw.d, MAX_CAPTION),
       covers: false,
       bare: false,

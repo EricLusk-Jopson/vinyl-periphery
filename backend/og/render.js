@@ -1017,18 +1017,35 @@ export function lanesElement(payload, size) {
 
 /** Room under a transit map for its legend. */
 const TRANSIT_LEGEND = { row: 34, columns: 2 };
+/**
+ * A numbered transit map's station list, on the right (keep the width in
+ * step with TRANSIT_SHARE_BOX.stationList in frontend/src/lib/transitMap.ts).
+ */
+const STATION_LIST = { width: 340, gap: 24, row: 42, compactRow: 27 };
 
 /** The transit map fitted to the box over its legend: scale and offset. */
 export function transitGeometry(payload, { width, height }) {
   const rows = Math.ceil(payload.lines.length / TRANSIT_LEGEND.columns) + (payload.others ? 1 : 0);
   const legend = rows * TRANSIT_LEGEND.row + 12;
-  const room = { w: width - 2 * MAP_FRAME.pad, h: height - legend };
+  // A numbered map leaves a column on the right for its station list.
+  const list = payload.legend ? STATION_LIST.width : 0;
+  const room = { w: width - 2 * MAP_FRAME.pad - list, h: height - legend };
   const scale = Math.min(room.w / payload.width, room.h / payload.height, 1.6);
+  // The station list: two lines an entry, or one where there are many.
+  const entries = payload.legend ? payload.stations.length : 0;
+  const twoLine = entries * STATION_LIST.row <= room.h;
   return {
     scale,
     left: MAP_FRAME.pad + (room.w - payload.width * scale) / 2,
     top: (room.h - payload.height * scale) / 2,
     legendTop: height - legend + 12,
+    list: {
+      left: width - MAP_FRAME.pad - list + STATION_LIST.gap,
+      width: list - STATION_LIST.gap,
+      row: twoLine ? STATION_LIST.row : STATION_LIST.compactRow,
+      twoLine,
+      top: Math.max(0, (room.h - entries * (twoLine ? STATION_LIST.row : STATION_LIST.compactRow)) / 2),
+    },
   };
 }
 
@@ -1092,10 +1109,19 @@ export function transitElement(payload, size) {
                   cy: Math.round(cy),
                   // Scaled with the map, so stations keep the room the
                   // layout gave them.
-                  r: Math.max(4, Math.round(s.radius * g.scale)),
-                  fill: single && !s.marked ? single : C.background,
+                  r: Math.max(payload.legend ? 11 : 4, Math.round(s.radius * g.scale)),
+                  // Numbered stations stay dark inside, for their number.
+                  fill: single && !s.marked && !payload.legend ? single : C.background,
                   // The searched album (or the stack's): ringed in red.
-                  stroke: s.marked ? C.primary : single ? C.background : s.lines.length ? C.foreground : C.faint,
+                  stroke: s.marked
+                    ? C.primary
+                    : single
+                      ? payload.legend
+                        ? single
+                        : C.background
+                      : s.lines.length
+                        ? C.foreground
+                        : C.faint,
                   strokeWidth: s.marked || s.lines.length >= 2 ? 4 : 3,
                 },
               };
@@ -1103,7 +1129,75 @@ export function transitElement(payload, size) {
           ],
         },
       },
-      ...payload.stations.map((s) => {
+      // Numbered: the number in each station, the titles in a list.
+      ...(payload.legend
+        ? payload.stations.map((s) => {
+            const [cx, cy] = at(s.x, s.y);
+            const r = Math.max(11, s.radius * g.scale);
+            return h(
+              "div",
+              {
+                position: "absolute",
+                left: Math.round(cx - r),
+                top: Math.round(cy - r),
+                width: Math.round(2 * r),
+                height: Math.round(2 * r),
+                alignItems: "center",
+                justifyContent: "center",
+                fontFamily: "IBM Plex Mono",
+                fontSize: r < 13 ? 12 : 13,
+                fontWeight: 400,
+                color: C.foreground,
+              },
+              String(s.number),
+            );
+          })
+        : []),
+      payload.legend &&
+        h(
+          "div",
+          {
+            position: "absolute",
+            left: Math.round(g.list.left),
+            top: Math.round(g.list.top),
+            width: Math.round(g.list.width),
+            flexDirection: "column",
+          },
+          ...[...payload.stations]
+            .sort((a, b) => a.number - b.number)
+            .map((s) =>
+              h(
+                "div",
+                { height: g.list.row, alignItems: "flex-start", gap: 10 },
+                h(
+                  "div",
+                  {
+                    width: 26,
+                    flexShrink: 0,
+                    justifyContent: "flex-end",
+                    fontFamily: "IBM Plex Mono",
+                    fontSize: 15,
+                    lineHeight: 1.3,
+                    color: s.marked ? C.primaryText : C.muted,
+                  },
+                  String(s.number),
+                ),
+                g.list.twoLine
+                  ? h(
+                      "div",
+                      { flexDirection: "column", minWidth: 0 },
+                      h("div", { fontSize: 16, fontWeight: 600, lineHeight: 1.3, whiteSpace: "nowrap" }, shorten(s.t, 30)),
+                      s.r && h("div", { fontFamily: "IBM Plex Mono", fontSize: 13, color: C.faint, whiteSpace: "nowrap" }, shorten(s.r, 36)),
+                    )
+                  : h(
+                      "div",
+                      { fontSize: 15, lineHeight: 1.3, whiteSpace: "nowrap" },
+                      shorten(`${s.t}${s.r ? ` · ${s.r.split(" · ").pop()}` : ""}`, 34),
+                    ),
+              ),
+            ),
+        ),
+      ...(payload.legend ? [] : payload.stations).map((s) => {
         const [x, y] = at(s.label.x, s.label.y);
         const w = s.label.w * g.scale;
         const align = s.align === "middle" ? "center" : s.align === "end" ? "flex-end" : "flex-start";

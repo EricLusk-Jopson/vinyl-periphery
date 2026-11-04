@@ -176,7 +176,11 @@ ranks albums by how many of those people worked on them.
       by side by person id. The searched or stacked albums are ringed in
       red. `shareTransitMap` searches both flows roughly, refines the one
       that scores better, and draws it at the grid size that fits the
-      square best with no labels colliding. Layouts are cached by input.
+      square best with no labels colliding. Labels sit beside the
+      stations only when that fits at full size with no line through
+      them; otherwise stations are numbered (in time order) and their
+      titles listed in a column beside the map (`legend`, payload `sl`),
+      in whichever flow draws bigger there. Layouts are cached by input.
       Line colours are placeholders in `render.js`, never red.
   - `src/lib/filters.ts`: chip state, "must include" (`filterState.required`,
     optional because older saved searches lack it), active filter count.

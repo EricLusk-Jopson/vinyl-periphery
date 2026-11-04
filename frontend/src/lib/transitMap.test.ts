@@ -266,12 +266,29 @@ describe("legRoute and offsetPath", () => {
 });
 
 describe("shareTransitMap", () => {
-  it("fits a busy map to the square nearly full size, labels apart", () => {
-    const map = shareTransitMap(busy());
+  it("labels a small map beside its stations, where that fits at full size", () => {
+    const map = shareTransitMap(stack(4, 3));
+    expect(map.legend).toBe(false);
     expect(labelsCollide(map)).toBe(false);
-    // Text keeps its size below 1:1, so this bounds how far it outgrows
-    // its boxes (about a tenth, within their padding).
-    expect(shareScale(map)).toBeGreaterThanOrEqual(0.88);
+    expect(shareScale(map)).toBeGreaterThanOrEqual(1);
+  });
+
+  it("numbers a busy map's stations, their titles in a legend", () => {
+    const map = shareTransitMap(busy());
+    expect(map.legend).toBe(true);
+    // Numbered in time order, 1 the earliest.
+    const byNumber = [...map.stations].sort((a, b) => a.number - b.number);
+    expect(byNumber.map((s) => s.number)).toEqual(
+      map.stations.map((_, i) => i + 1),
+    );
+    expect(byNumber.map((s) => s.step)).toEqual(
+      [...byNumber.map((s) => s.step)].sort((a, b) => a - b),
+    );
+    // Without labels in the way the map draws nearly full size, stations
+    // big enough for their number and never touching.
+    expect(shareScale(map)).toBeGreaterThanOrEqual(0.85);
+    expect(map.stations.every((s) => s.radius >= 13)).toBe(true);
+    expect(labelsCollide(map)).toBe(false);
     expect(shareTransitMap(busy())).toEqual(map);
   });
 });

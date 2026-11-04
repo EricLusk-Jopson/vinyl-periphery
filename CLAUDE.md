@@ -137,6 +137,14 @@ ranks albums by how many of those people worked on them.
     `src/services/hidden.ts`, `useHidden`): hidden albums leave the
     results unless "Show hidden albums" (`filterState.showHidden`) is on,
     and never go into a share image.
+  - `src/lib/roleGroups.ts`: five coarse role groups (band, session and
+    guests, production, engineering and mastering, art and design, plus
+    other) on top of the Discogs headings, for the visuals. "Band" is the
+    main artist and members (`Contributor.sources`), not a role string.
+    `primaryGroup` picks band > production > engineering > session > art.
+    `Contributor.discography` records how much of each person's
+    discography was read (`capped`: the page cap cut their oldest items).
+    The visuals' plan is `features/new-visuals.md`.
   - `src/lib/filters.ts`: chip state, "must include" (`filterState.required`,
     optional because older saved searches lack it), active filter count.
     "Only liked albums" is `filterState.likedOnly` (also optional). A new

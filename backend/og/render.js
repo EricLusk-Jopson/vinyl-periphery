@@ -726,8 +726,8 @@ export function stackGeometry(payload, { width, height, edge, maxStep }) {
 
 // Keep in step with STACK_CANVAS in frontend/src/lib/stackMap.ts.
 const STACK_FIT = { edge: 32, maxStep: 420 };
-/** Line widths: the stack's own links, and results by weight (1 to 3). */
-const STACK_LINE = { member: 4, result: [1.5, 2.5, 3.5] };
+/** Result line widths by weight (1 to 3). */
+const STACK_LINE = [1.5, 2.5, 3.5];
 
 /**
  * The part of the line between two boxes' middles outside both (where it
@@ -758,17 +758,16 @@ export function stackElement(payload, size, art) {
   const { boxes } = stackGeometry(payload, { ...box, ...STACK_FIT });
   const { centre } = payload;
   const artOf = (item) => (payload.covers === false ? null : art.get(item.i));
-  // Lines: between the stack's own albums, strong and in the accent;
-  // results to the albums they share people with, muted, thicker for more
-  // people. Each runs edge to edge, so a short one still shows.
+  // Lines: results to the albums they share people with, muted, thicker
+  // for more people. Each runs edge to edge, so a short one still shows.
+  // None between the stack's own albums (older payloads may send them).
   const links = payload.lines
     ? payload.albums.flatMap((node, i) =>
-        node.links
+        (node.member ? [] : node.links)
           .map((k, j) => ({ k, weight: node.weights?.[j] ?? 1 }))
           .filter(({ k }) => boxes[k])
           .map(({ k, weight }) => ({
             ...edgeToEdge(boxes[i + 1], boxes[k]),
-            strong: node.member,
             weight,
           }))
           .filter((l) => l.from),
@@ -804,9 +803,9 @@ export function stackElement(payload, size, art) {
               y1: Math.round(l.from.y),
               x2: Math.round(l.to.x),
               y2: Math.round(l.to.y),
-              stroke: l.strong ? C.primary : C.muted,
-              strokeOpacity: l.strong ? 0.9 : 0.55,
-              strokeWidth: l.strong ? STACK_LINE.member : STACK_LINE.result[l.weight - 1] ?? 1.5,
+              stroke: C.muted,
+              strokeOpacity: 0.55,
+              strokeWidth: STACK_LINE[l.weight - 1] ?? 1.5,
               strokeLinecap: "round",
             },
           })),

@@ -134,7 +134,9 @@ describe("stackMapPayload", () => {
     expect(payload.c).toMatchObject({ t: "Unmap", i: `g:${MBID}` });
     const [step, ...results] = payload.n;
     // Bon Iver: a stack album, one step (1000) out, linked to the centre.
-    expect(step).toMatchObject({ t: "Bon Iver", m: 1, e: [0] });
+    expect(step).toMatchObject({ t: "Bon Iver", m: 1 });
+    // No line between the stack's own albums.
+    expect(step.e).toBeUndefined();
     expect(Math.hypot(step.x, step.y)).toBeCloseTo(1000, -1);
     // Album 5 shares people with both stack albums: linked to both.
     expect(results.find((r) => r.t === "Album 5")?.e).toEqual([0, 1]);

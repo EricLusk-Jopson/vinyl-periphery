@@ -724,7 +724,33 @@ export function stackGeometry(payload, { width, height, edge, maxStep }) {
   return { step, boxes };
 }
 
+// Keep in step with STACK_CANVAS in frontend/src/lib/stackMap.ts.
 const STACK_FIT = { edge: 32, maxStep: 420 };
+/** Result line widths by weight (1 to 3). */
+const STACK_LINE = [1.5, 2.5, 3.5];
+
+/**
+ * The part of the line between two boxes' middles outside both (where it
+ * leaves one cover and meets the other), or { from: null } when they touch.
+ */
+export const edgeToEdge = (a, b) => {
+  const ca = { x: a.x + a.w / 2, y: a.y + a.h / 2 };
+  const cb = { x: b.x + b.w / 2, y: b.y + b.h / 2 };
+  const dx = cb.x - ca.x;
+  const dy = cb.y - ca.y;
+  const d = Math.hypot(dx, dy);
+  if (d === 0) return { from: null, to: null };
+  const across = Math.max(Math.abs(dx), Math.abs(dy)) / d;
+  const ta = a.w / 2 / across;
+  const tb = b.w / 2 / across;
+  if (ta + tb >= d) return { from: null, to: null };
+  const ux = dx / d;
+  const uy = dy / d;
+  return {
+    from: { x: ca.x + ux * ta, y: ca.y + uy * ta },
+    to: { x: cb.x - ux * tb, y: cb.y - uy * tb },
+  };
+};
 
 /** Stack map: its albums a step apart, results where they overlap most. */
 export function stackElement(payload, size, art) {
@@ -732,18 +758,19 @@ export function stackElement(payload, size, art) {
   const { boxes } = stackGeometry(payload, { ...box, ...STACK_FIT });
   const { centre } = payload;
   const artOf = (item) => (payload.covers === false ? null : art.get(item.i));
-  const middleOf = (b) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
-  // Lines: stack albums to the album they came from, a little stronger;
-  // results to the albums they share people with.
+  // Lines: results to the albums they share people with, muted, thicker
+  // for more people. Each runs edge to edge, so a short one still shows.
+  // None between the stack's own albums (older payloads may send them).
   const links = payload.lines
     ? payload.albums.flatMap((node, i) =>
-        node.links
-          .filter((k) => boxes[k])
-          .map((k) => ({
-            from: middleOf(boxes[i + 1]),
-            to: middleOf(boxes[k]),
-            strong: node.member,
-          })),
+        (node.member ? [] : node.links)
+          .map((k, j) => ({ k, weight: node.weights?.[j] ?? 1 }))
+          .filter(({ k }) => boxes[k])
+          .map(({ k, weight }) => ({
+            ...edgeToEdge(boxes[i + 1], boxes[k]),
+            weight,
+          }))
+          .filter((l) => l.from),
       )
     : [];
   const placed = (b, child) =>
@@ -776,9 +803,10 @@ export function stackElement(payload, size, art) {
               y1: Math.round(l.from.y),
               x2: Math.round(l.to.x),
               y2: Math.round(l.to.y),
-              stroke: l.strong ? C.muted : C.faint,
-              strokeOpacity: l.strong ? 0.7 : 0.4,
-              strokeWidth: l.strong ? 2.5 : 1.5,
+              stroke: C.muted,
+              strokeOpacity: 0.55,
+              strokeWidth: STACK_LINE[l.weight - 1] ?? 1.5,
+              strokeLinecap: "round",
             },
           })),
         },

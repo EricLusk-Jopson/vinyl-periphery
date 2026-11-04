@@ -6,10 +6,6 @@
   "outputDirectory": "frontend/dist",
   "rewrites": [
     {
-      "source": "/s",
-      "destination": "/api/share"
-    },
-    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }

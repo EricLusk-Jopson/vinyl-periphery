@@ -5,11 +5,13 @@ import { SearchCache } from "@/contexts/cache/types";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { KnownAlbum } from "@/hooks/useSearchRun";
 import { useCoverArt } from "@/hooks/useCoverArt";
+import { FindCovers } from "../common/FindCovers";
 import { useLikes } from "@/hooks/useLikes";
 import { useHidden } from "@/hooks/useHidden";
 import { useToast } from "@/hooks/use-toast";
 import { StackFilters } from "@/hooks/useStackFilters";
 import { StackSort } from "@/hooks/useStackSort";
+import { useFilterRequest } from "@/hooks/useFilterRequest";
 import { track, trackStackFilter } from "@/lib/analytics";
 import { MetaAlbum } from "@/lib/metaAlbum";
 import { SortKey, sharedPeople, ScoredRelease } from "@/lib/results";
@@ -154,6 +156,9 @@ export const StackResults: React.FC<StackResultsProps> = ({
   const { sort, setSort, then, setThen, canBreakTies } = order;
   const tiebreaks = stackTiebreakOptions(sort);
   const [visible, setVisible] = useState(PAGE_SIZE);
+  // The filter frame; "More filters" in the share sheet opens it too.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  useFilterRequest(() => setFiltersOpen(true));
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
 
@@ -180,6 +185,7 @@ export const StackResults: React.FC<StackResultsProps> = ({
 
   const total = results.length;
   const shown = results.slice(0, visible);
+  const shownKeys = shown.map((r) => r.key);
   const current =
     STACK_SORT_OPTIONS.find((o) => o.value === sort) ?? STACK_SORT_OPTIONS[0];
   const active = stackFilterCount(filters);
@@ -225,7 +231,7 @@ export const StackResults: React.FC<StackResultsProps> = ({
   );
 
   const filterSheet = (
-    <Sheet>
+    <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
       <SheetTrigger asChild>
         <button
           type="button"
@@ -375,6 +381,8 @@ export const StackResults: React.FC<StackResultsProps> = ({
             <div className="lg:hidden">{filterSheet}</div>
           </div>
         </div>
+
+        <FindCovers keys={shownKeys} where="stack" />
 
         {total > 0 ? (
           <ul className="lg:border-t">

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { ChevronLeft, SlidersHorizontal } from "lucide-react";
 import {
   Sheet,
@@ -16,6 +16,7 @@ import { activeFilterCount } from "@/lib/filters";
 import { resetFilterState } from "@/lib/results";
 import { cn } from "@/lib/utils";
 import { FilterPanel } from "./FilterPanel";
+import { useFilterRequest } from "@/hooks/useFilterRequest";
 
 interface FilterFrameProps {
   searchId: string;
@@ -34,13 +35,16 @@ const focusRing =
 export const FilterFrame: React.FC<FilterFrameProps> = ({ searchId }) => {
   const { searches, updateFilterState } = useCache();
   const { count } = useFilteredAndScoredReleases(searchId);
+  const [open, setOpen] = useState(false);
+  // "More filters" in the share sheet.
+  useFilterRequest(() => setOpen(true));
   const search = searches[searchId];
   if (!search) return null;
 
   const active = activeFilterCount(search);
 
   return (
-    <Sheet>
+    <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
         <button
           type="button"

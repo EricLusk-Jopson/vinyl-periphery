@@ -1,6 +1,12 @@
 import { SearchCache } from "@/contexts/cache/types";
 import {
+  COVER_FLOOR,
+  fitToCanvas,
   layoutStackMap,
+  MIN_LINK,
+  STACK_CANVAS,
+  stackMapCapacity,
+  visibleLink,
   orderStackResults,
   relaxGraph,
   STACK_SIZES,
@@ -134,8 +140,12 @@ describe("layoutStackMap", () => {
     ]);
     const results = two.filter((n) => !n.member);
     expect(results.map((n) => n.key)).toEqual(["master:51", "master:50"]);
-    expect(results[0].side).toBeCloseTo(
-      STACK_SIZES.smallest + STACK_SIZES.liked,
+    // Sizes scale together: a like adds to the smallest size.
+    expect(results[0].side / two[0].side).toBeCloseTo(
+      (STACK_SIZES.smallest + STACK_SIZES.liked) / STACK_SIZES.centre,
+    );
+    expect(results[1].side / two[0].side).toBeCloseTo(
+      STACK_SIZES.smallest / STACK_SIZES.centre,
     );
   });
 });
@@ -192,5 +202,134 @@ describe("relaxGraph", () => {
     ]);
     expect(placed[0]).toEqual({ x: 0, y: 0 });
     expect(distance(placed[1])).toBeGreaterThan(0.3);
+  });
+});
+
+describe("polar layout", () => {
+  // A chain of `n` stack albums; each has results of its own and some
+  // shared with others, a deterministic mix.
+  const chain = (n: number, own = 6, shared = 12) => {
+    const searches: SearchCache[] = [];
+    for (let m = 0; m < n; m++) {
+      const results: Record<number, number[]> = {};
+      for (let r = 0; r < own; r++) results[1000 + m * 100 + r] = [m * 10 + 1];
+      for (let r = 0; r < shared; r++) {
+        // Result r is on albums r % n, (r + 1) % n, and every album for
+        // the first two.
+        if (r < 2 || m === r % n || m === (r + 1) % n) {
+          results[5000 + r] = [m * 10 + 1, m * 10 + 2].slice(0, 1 + (r % 2));
+        }
+      }
+      if (m + 1 < n) results[100 + m + 1] = [m * 10 + 3];
+      searches.push(member(100 + m, results, m));
+    }
+    const levels = new Map(searches.map((s, m) => [s.searchId, m]));
+    const start = { key: "master:100", title: "Album 100", artist: "A" };
+    return { searches, levels, start };
+  };
+  const layout = (n: number, count: number) => {
+    const { searches, levels, start } = chain(n);
+    const keys = stackResults(start, searches)
+      .map((r) => r.key)
+      .slice(0, count);
+    return layoutStackMap(start, searches, levels, {}, keys);
+  };
+
+  const checks = (nodes: ReturnType<typeof layout>) => {
+    // No covers overlap.
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const reach = (nodes[i].side + nodes[j].side) / 2;
+        const apart =
+          Math.abs(nodes[i].x - nodes[j].x) >= reach - 1e-6 ||
+          Math.abs(nodes[i].y - nodes[j].y) >= reach - 1e-6;
+        expect(apart).toBe(true);
+      }
+    }
+    // Every result's lines show.
+    for (const node of nodes.filter((n) => !n.member)) {
+      for (const k of node.links) {
+        expect(visibleLink(node, nodes[k])).toBeGreaterThanOrEqual(
+          MIN_LINK - 1e-6,
+        );
+      }
+    }
+    // Everything inside the share image's box.
+    const { step } = fitToCanvas(nodes);
+    const minX = Math.min(...nodes.map((n) => n.x - n.side / 2));
+    const maxX = Math.max(...nodes.map((n) => n.x + n.side / 2));
+    const minY = Math.min(...nodes.map((n) => n.y - n.side / 2));
+    const maxY = Math.max(...nodes.map((n) => n.y + n.side / 2));
+    expect((maxX - minX) * step).toBeLessThanOrEqual(
+      STACK_CANVAS.width - 2 * STACK_CANVAS.edge + 1e-6,
+    );
+    expect((maxY - minY) * step).toBeLessThanOrEqual(
+      STACK_CANVAS.height - 2 * STACK_CANVAS.edge + 1e-6,
+    );
+  };
+
+  it("lays out 4 stack albums and 20 results apart, lines showing, in the box", () => {
+    const nodes = layout(4, 20);
+    expect(nodes.filter((n) => !n.member)).toHaveLength(20);
+    checks(nodes);
+  });
+
+  it("gives the same layout for the same input", () => {
+    expect(layout(4, 20)).toEqual(layout(4, 20));
+  });
+
+  it.each([2, 3, 5, 8])("holds for %i stack albums", (n) => {
+    checks(layout(n, 18));
+  });
+
+  it("puts results linked to one album outside the ring, beyond it", () => {
+    const nodes = layout(4, 24);
+    const ring = Math.hypot(nodes[1].x, nodes[1].y);
+    const own = nodes.filter((n) => !n.member && n.links.length === 1);
+    expect(own.length).toBeGreaterThan(0);
+    for (const node of own) {
+      const album = nodes[node.links[0]];
+      expect(Math.hypot(node.x, node.y)).toBeGreaterThan(ring);
+      // Nearer its own album than any other.
+      for (const other of nodes.filter((n) => n.member && n !== album)) {
+        expect(distance(node, album)).toBeLessThan(distance(node, other));
+      }
+    }
+    // Results linking every album sit nearer the middle than any linked
+    // to one.
+    const all = nodes.filter((n) => !n.member && n.links.length === 4);
+    expect(all.length).toBeGreaterThan(0);
+    const nearestOwn = Math.min(...own.map((n) => Math.hypot(n.x, n.y)));
+    for (const node of all) {
+      expect(Math.hypot(node.x, node.y)).toBeLessThan(nearestOwn);
+    }
+  });
+
+  it("links stack albums to each one they link, with result weights", () => {
+    const nodes = layout(3, 12);
+    // A chain: 2 links 1, 3 links 2.
+    expect(nodes[1].links).toEqual([0]);
+    expect(nodes[2].links).toEqual([1]);
+    const result = nodes.find((n) => !n.member)!;
+    expect(result.weights).toHaveLength(result.links.length);
+  });
+
+  it("caps the results at what fits above the cover floor", () => {
+    const { searches, levels, start } = chain(8, 10, 12);
+    const keys = stackResults(start, searches).map((r) => r.key);
+    const cap = stackMapCapacity(
+      start,
+      searches,
+      levels,
+      {},
+      (count) => keys.slice(0, count),
+      24,
+    );
+    expect(cap).toBeGreaterThanOrEqual(6);
+    expect(cap).toBeLessThanOrEqual(24);
+    const fitted = fitToCanvas(
+      layoutStackMap(start, searches, levels, {}, keys.slice(0, cap)),
+    );
+    expect(fitted.smallest).toBeGreaterThanOrEqual(COVER_FLOOR);
   });
 });

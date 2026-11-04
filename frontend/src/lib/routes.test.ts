@@ -1,4 +1,5 @@
 import {
+  legacyShareTarget,
   backLink,
   fromLocation,
   libraryPath,
@@ -148,5 +149,19 @@ describe("stack routes", () => {
     expect(stackView("?view=results")).toBe("results");
     expect(stackView("")).toBe("albums");
     expect(stackView("?view=other")).toBe("albums");
+  });
+});
+
+describe("legacyShareTarget", () => {
+  it("follows old share links to app pages only", () => {
+    expect(
+      legacyShareTarget("?p=x&to=%2Fresults%3Fartist%3Da%26album%3Db"),
+    ).toBe("/results?artist=a&album=b");
+    expect(legacyShareTarget("?to=%2Flibrary%2Fstack%2Fabc")).toBe(
+      "/library/stack/abc",
+    );
+    expect(legacyShareTarget("?to=https%3A%2F%2Fevil.example")).toBe("/");
+    expect(legacyShareTarget("?to=%2F%2Fevil.example%2Fresults%3F")).toBe("/");
+    expect(legacyShareTarget("")).toBe("/");
   });
 });

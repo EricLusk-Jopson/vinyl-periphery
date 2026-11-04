@@ -110,3 +110,13 @@ export const fromLocation = (location: string): ResultFrom => {
   if (stack) return { from: "stack", stackId: decodeURIComponent(stack[1]) };
   return pathname === LIBRARY_PATH ? { from: "library" } : { from: "home" };
 };
+
+/**
+ * Where an old shared link (`/s?p=…&to=…`, from before images were shared
+ * as files only) goes: its `to`, when that's a results or stack page here,
+ * or home.
+ */
+export const legacyShareTarget = (search: string): string => {
+  const to = new URLSearchParams(search).get("to") ?? "";
+  return /^\/(results\?|library\/stack\/)\S*$/.test(to) ? to : HOME_PATH;
+};

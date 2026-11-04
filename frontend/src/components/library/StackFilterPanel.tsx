@@ -13,6 +13,7 @@ import {
   stackRoleGroups,
 } from "@/lib/stackFilters";
 import { track, trackStackFilter } from "@/lib/analytics";
+import { STACK_TOGGLES, toggleOn } from "@/lib/filterToggles";
 import { cn } from "@/lib/utils";
 import { Chip } from "../filters/Chip";
 import { ContributorDetails, RoleDetails } from "../filters/ChipDetails";
@@ -20,6 +21,7 @@ import { FilterGroup } from "../filters/FilterGroup";
 import { MustIncludeView } from "../filters/MustInclude";
 import { Switch } from "../filters/Switch";
 import { SearchCover } from "../search/SearchCover";
+import { StackAlbumList } from "./StackAlbumList";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
@@ -121,36 +123,14 @@ export const StackFilterPanel: React.FC<StackFilterPanelProps> = ({
       </button>
 
       <div className="flex flex-col lg:gap-1">
-        <Switch
-          label="Hide releases by stack artists"
-          checked={filters.excludeMainArtist}
-          onChange={toggle("excludeMainArtist", "hide_main_artist")}
-        />
-        <Switch
-          label="Only albums with 2+ shared contributors"
-          checked={filters.collaborationsOnly}
-          onChange={toggle("collaborationsOnly", "two_plus_shared")}
-        />
-        <Switch
-          label="Hide Various Artists"
-          checked={filters.excludeVarious}
-          onChange={toggle("excludeVarious", "hide_various")}
-        />
-        <Switch
-          label="Only liked albums"
-          checked={filters.likedOnly}
-          onChange={toggle("likedOnly", "liked_only")}
-        />
-        <Switch
-          label="Only albums linking 2+ stack albums"
-          checked={filters.linksTwoPlus}
-          onChange={toggle("linksTwoPlus", "two_plus_links")}
-        />
-        <Switch
-          label="Show hidden albums"
-          checked={filters.showHidden}
-          onChange={toggle("showHidden", "show_hidden")}
-        />
+        {STACK_TOGGLES.map((t) => (
+          <Switch
+            key={t.key}
+            label={t.label("")}
+            checked={toggleOn(filters, t.key)}
+            onChange={toggle(t.key, t.event)}
+          />
+        ))}
       </div>
 
       <MustIncludeView
@@ -192,80 +172,15 @@ export const StackFilterPanel: React.FC<StackFilterPanelProps> = ({
           });
         }}
       >
-        <ul className="flex flex-col gap-1.5">
-          {albums.map((album) => (
-            <li key={album.key} className="flex items-center gap-1">
-              <button
-                type="button"
-                aria-pressed={album.included}
-                aria-disabled={album.required || undefined}
-                onClick={
-                  album.required
-                    ? undefined
-                    : () => {
-                        trackStackFilter("album", !album.included);
-                        update({
-                          albums: setStates(
-                            filters.albums,
-                            [album.key],
-                            !album.included,
-                          ),
-                        });
-                      }
-                }
-                className={cn(
-                  "flex min-h-11 min-w-0 flex-1 items-center gap-2.5 rounded-md border px-2 py-1.5 text-left transition-colors duration-150",
-                  focusRing,
-                  album.required
-                    ? "cursor-not-allowed border-primary bg-primary text-primary-foreground"
-                    : album.included
-                      ? "border-border-emphasis bg-secondary text-foreground hover:border-border-strong"
-                      : "bg-transparent text-faint hover:text-muted-foreground",
-                )}
-              >
-                <SearchCover
-                  search={album.search}
-                  className={cn(
-                    "h-8 w-8 rounded-[3px] text-xs",
-                    !album.included && "opacity-50",
-                  )}
-                />
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span
-                    className={cn(
-                      "truncate text-sm",
-                      !album.included && "line-through",
-                    )}
-                  >
-                    {album.title}
-                  </span>
-                  <span
-                    className={cn(
-                      "truncate font-mono text-xs",
-                      album.required
-                        ? "text-primary-foreground"
-                        : "text-muted-foreground",
-                    )}
-                  >
-                    {album.artist}
-                  </span>
-                </span>
-                <span
-                  className={cn(
-                    "shrink-0 font-mono text-xs",
-                    album.required ? "text-primary-foreground" : "text-faint",
-                  )}
-                >
-                  {album.count}
-                </span>
-                <span className="sr-only">
-                  {` ${album.count === 1 ? "album" : "albums"}`}
-                  {album.required && ", required: change it in Must include"}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <StackAlbumList
+          albums={albums}
+          onToggle={(album) => {
+            trackStackFilter("album", !album.included);
+            update({
+              albums: setStates(filters.albums, [album.key], !album.included),
+            });
+          }}
+        />
       </FilterGroup>
 
       <FilterGroup

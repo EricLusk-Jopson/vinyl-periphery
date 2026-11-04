@@ -1,7 +1,8 @@
-// The share image's input: a compact JSON payload, base64url-encoded in the
-// URL (?p=). It carries everything the image shows (titles, artists, art
-// ids, counts, names), so rendering never calls Discogs or MusicBrainz; the
-// only fetches are Cover Art Archive images.
+// The share image's input: a compact JSON payload, sent as the body of
+// POST /api/og. It carries everything the image shows (titles, artists, art
+// ids, counts, names), so rendering never calls the Discogs API or
+// MusicBrainz; the only fetches are cover images (Cover Art Archive, and
+// i.discogs.com for covers found on Discogs).
 //
 // Version 1:
 //   { v: 1, l: "card", a: Album, x: Result[], d? }             periphery card
@@ -9,7 +10,8 @@
 //   { v: 1, l: "stack", c: Album & { s }, n: Node[], d? }       stack map
 //   Node   = Album & { x, y, s: place and cover side in thousandths of
 //            a step, y up; m?: 1 for the stack's own albums;
-//            e?: linked nodes, 0 the centre and k for n[k - 1] }
+//            e?: linked nodes, 0 the centre and k for n[k - 1];
+//            w?: a result's line weight per link, 1 to 3 }
 //   Album  = { t: title, r: artist, i: art }
 //   Result = Album & { n: shared count }
 //   Placed = Album & { x, y: thousandths of the radius from the centre,
@@ -17,7 +19,8 @@
 //            z: size tier, 1 or 2;
 //            s?: cover side in thousandths of the radius, over z }
 //   Person = { n: name, a: angle in degrees, counter-clockwise from the right }
-//   art    = "g:<release-group mbid>" | "r:<release mbid>" | ""
+//   art    = "g:<release-group mbid>" | "r:<release mbid>"
+//            | "d:<path of an i.discogs.com image>" | ""
 //   d      = how the albums were chosen ("Top 12 by Shared · Liked only")
 //   nc: 1  = no covers: every album drawn as its title and artist
 //   nb: 1  = (maps) no boilerplate: no header, caption or site; the graph
@@ -30,7 +33,8 @@
 //
 // Keep in step with frontend/src/lib/share.ts, which builds it.
 
-export const MAX_PAYLOAD_CHARS = 6000;
+/** Largest body /api/og takes, as JSON text. */
+export const MAX_PAYLOAD_BYTES = 32 * 1024;
 /** Rows on the results card: up to five full size, then smaller. */
 export const MAX_RESULTS = 10;
 export const MAX_MAP_ALBUMS = 24;
@@ -50,10 +54,18 @@ const MBID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const text = (value, max) =>
   typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, max) : "";
 
-/** "g:<mbid>" / "r:<mbid>", or "" for anything else. */
+/**
+ * The path of an i.discogs.com image URL: signed path segments only, no
+ * host, query or way out of the path. The renderer puts the host back.
+ */
+const DISCOGS_PATH = /^(?!.*\.\.)(?!\/)[A-Za-z0-9._~:=+,%/-]{1,512}$/;
+
+/** "g:<mbid>" / "r:<mbid>" / "d:<i.discogs.com path>", or "" for anything else. */
 const art = (value) => {
-  const match = /^([gr]):(.+)$/.exec(typeof value === "string" ? value : "");
-  return match && MBID.test(match[2]) ? `${match[1]}:${match[2].toLowerCase()}` : "";
+  const match = /^([grd]):(.+)$/.exec(typeof value === "string" ? value : "");
+  if (!match) return "";
+  if (match[1] === "d") return DISCOGS_PATH.test(match[2]) ? `d:${match[2]}` : "";
+  return MBID.test(match[2]) ? `${match[1]}:${match[2].toLowerCase()}` : "";
 };
 
 const album = (raw) => ({
@@ -65,19 +77,32 @@ const album = (raw) => ({
 const list = (value, max) => (Array.isArray(value) ? value.slice(0, max) : []);
 
 /**
- * The payload from its URL form, cleaned and clipped, or null when it's
- * missing, too long, malformed, or has nothing to draw.
+ * A request body as a raw payload: already parsed (Express and Vercel parse
+ * JSON bodies), or JSON text or bytes. Null when it isn't JSON or is over
+ * MAX_PAYLOAD_BYTES.
  */
-export function decodePayload(encoded) {
-  if (typeof encoded !== "string" || encoded.length === 0) return null;
-  if (encoded.length > MAX_PAYLOAD_CHARS) return null;
-  let raw;
-  try {
-    raw = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
-  } catch {
-    return null;
+export function readBody(body) {
+  let raw = body;
+  if (Buffer.isBuffer(raw)) raw = raw.toString("utf8");
+  if (typeof raw === "string") {
+    if (Buffer.byteLength(raw, "utf8") > MAX_PAYLOAD_BYTES) return null;
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  } else if (raw && typeof raw === "object") {
+    if (Buffer.byteLength(JSON.stringify(raw), "utf8") > MAX_PAYLOAD_BYTES) return null;
   }
-  if (!raw || raw.v !== 1) return null;
+  return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : null;
+}
+
+/**
+ * The payload, cleaned and clipped, or null when it's missing, malformed,
+ * or has nothing to draw.
+ */
+export function parsePayload(raw) {
+  if (!raw || typeof raw !== "object" || raw.v !== 1) return null;
 
   if (raw.l === "card") {
     const searched = album(raw.a);
@@ -146,7 +171,7 @@ export function decodePayload(encoded) {
     const side = (value, fallback) => {
       const n = Number(value);
       return Number.isFinite(n) && value !== null && value !== ""
-        ? Math.max(0.1, Math.min(0.8, n / 1000))
+        ? Math.max(0.1, Math.min(1, n / 1000))
         : fallback;
     };
     const lines = raw.ln === 1;
@@ -160,12 +185,19 @@ export function decodePayload(encoded) {
         member: n?.m === 1,
         index: k + 1,
         links: lines ? list(n?.e, MAX_MAP_ALBUMS + 1).map(Number) : [],
+        // Line weights, one per link: 1 to 3 (a stack album's own links: 0).
+        weights: lines ? list(n?.w, MAX_MAP_ALBUMS + 1).map((w) => Math.max(1, Math.min(3, Math.round(Number(w) || 1)))) : [],
       }))
       .filter((n) => n.t);
     // Links point at nodes as sent; untitled ones are dropped, so remap.
     const at = new Map([[0, 0], ...nodes.map((n, i) => [n.index, i + 1])]);
     for (const node of nodes) {
-      node.links = [...new Set(node.links.map((k) => at.get(k) ?? -1))].filter((k) => k >= 0);
+      const seen = new Set();
+      const kept = node.links
+        .map((k, i) => ({ k: at.get(k) ?? -1, w: node.member ? 0 : (node.weights[i] ?? 1) }))
+        .filter(({ k }) => k >= 0 && !seen.has(k) && seen.add(k));
+      node.links = kept.map(({ k }) => k);
+      node.weights = kept.map(({ w }) => w);
       delete node.index;
     }
     const caption = text(raw.d, MAX_CAPTION);
@@ -185,15 +217,18 @@ export function decodePayload(encoded) {
   return null;
 }
 
-/** The URL form of a payload (for tests; the frontend has its own). */
-export const encodePayload = (payload) =>
-  Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
-
 /** Share images are square, 1080x1080 (feeds, posts and stories alike). */
 export const IMAGE_SIZE = { width: 1080, height: 1080, name: "square" };
 
-/** The Cover Art Archive URL for an art id. */
+/**
+ * The image URL for an art id: the Cover Art Archive for "g:" and "r:",
+ * i.discogs.com (and only there) for "d:".
+ */
 export const coverArtUrl = (artId, px = 500) => {
+  if (artId.startsWith("d:")) {
+    const path = artId.slice(2);
+    return DISCOGS_PATH.test(path) ? `https://i.discogs.com/${path}` : "";
+  }
   const [kind, mbid] = artId.split(":");
   if (!mbid) return "";
   return `https://coverartarchive.org/${kind === "g" ? "release-group" : "release"}/${mbid}/front-${px}`;

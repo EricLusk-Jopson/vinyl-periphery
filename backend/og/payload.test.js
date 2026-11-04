@@ -2,10 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   coverArtUrl,
-  decodePayload,
-  encodePayload,
   IMAGE_SIZE,
-  MAX_PAYLOAD_CHARS,
+  MAX_PAYLOAD_BYTES,
+  parsePayload,
+  readBody,
   MAX_MAP_ALBUMS,
   MAX_RESULTS,
 } from "./payload.js";
@@ -13,8 +13,7 @@ import {
 const MBID = "1b022e01-4da6-387b-8658-8678046e4cef";
 
 test("decodes a periphery card, cleaning and clipping", () => {
-  const payload = decodePayload(
-    encodePayload({
+  const payload = parsePayload(({
       v: 1,
       l: "card",
       a: { t: "  Unmap ", r: "Volcano Choir", i: `g:${MBID.toUpperCase()}` },
@@ -33,8 +32,7 @@ test("decodes a periphery card, cleaning and clipping", () => {
 });
 
 test("decodes a map, clamping places and clipping names", () => {
-  const payload = decodePayload(
-    encodePayload({
+  const payload = parsePayload(({
       v: 1,
       l: "map",
       c: { t: "The New Sound", r: "Geordie Greep", i: `g:${MBID}` },
@@ -64,8 +62,7 @@ test("decodes a map, clamping places and clipping names", () => {
 });
 
 test("decodes sizes and the caption, within bounds", () => {
-  const payload = decodePayload(
-    encodePayload({
+  const payload = parsePayload(({
       v: 1,
       l: "map",
       c: { t: "Unmap", r: "Volcano Choir", i: "" },
@@ -87,8 +84,7 @@ test("decodes sizes and the caption, within bounds", () => {
 });
 
 test("decodes lines and no-cover flags, remapping links past nameless people", () => {
-  const payload = decodePayload(
-    encodePayload({
+  const payload = parsePayload(({
       v: 1,
       l: "map",
       c: { t: "Unmap", r: "Volcano Choir", i: "" },
@@ -106,8 +102,7 @@ test("decodes lines and no-cover flags, remapping links past nameless people", (
   assert.equal(payload.covers, false);
   // 0 stays 0, 1 (nameless) and 9 go, 2 becomes 1.
   assert.deepEqual(payload.albums[0].links, [0, 1]);
-  const plain = decodePayload(
-    encodePayload({ v: 1, l: "map", c: { t: "x" }, n: [{ t: "A", l: [0] }], p: [{ n: "P", a: 0 }] }),
+  const plain = parsePayload(({ v: 1, l: "map", c: { t: "x" }, n: [{ t: "A", l: [0] }], p: [{ n: "P", a: 0 }] }),
   );
   assert.equal(plain.lines, false);
   assert.equal(plain.covers, true);
@@ -115,8 +110,7 @@ test("decodes lines and no-cover flags, remapping links past nameless people", (
 });
 
 test("decodes a stack map, remapping links past untitled nodes", () => {
-  const payload = decodePayload(
-    encodePayload({
+  const payload = parsePayload(({
       v: 1,
       l: "stack",
       c: { t: "Unmap", r: "Volcano Choir", i: "", s: 500 },
@@ -133,28 +127,42 @@ test("decodes a stack map, remapping links past untitled nodes", () => {
   assert.equal(payload.centre.side, 0.5);
   assert.equal(payload.albums.length, 2);
   assert.deepEqual(payload.albums[0], {
-    t: "Bon Iver", r: "Bon Iver", i: "", x: 0, y: 1, side: 0.4, member: true, links: [0],
+    t: "Bon Iver", r: "Bon Iver", i: "", x: 0, y: 1, side: 0.4, member: true, links: [0], weights: [0],
   });
   // y clamped to 12 steps; the untitled node (2) and an unknown one go.
   assert.equal(payload.albums[1].y, 12);
   assert.deepEqual(payload.albums[1].links, [0, 1]);
+  // No weights sent: thinnest lines.
+  assert.deepEqual(payload.albums[1].weights, [1, 1]);
   assert.equal(payload.covers, false);
   assert.equal(payload.lines, true);
   assert.equal(payload.bare, false);
-  const bare = decodePayload(encodePayload({ v: 1, l: "stack", c: { t: "x" }, n: [{ t: "A" }], nb: 1 }));
+  const bare = parsePayload(({ v: 1, l: "stack", c: { t: "x" }, n: [{ t: "A" }], nb: 1 }));
   assert.equal(bare.bare, true);
 });
 
 test("rejects missing, oversized, malformed and empty payloads", () => {
-  assert.equal(decodePayload(""), null);
-  assert.equal(decodePayload(undefined), null);
-  assert.equal(decodePayload("a".repeat(MAX_PAYLOAD_CHARS + 1)), null);
-  assert.equal(decodePayload("not base64 json"), null);
-  assert.equal(decodePayload(encodePayload({ v: 2, l: "card", a: { t: "x" } })), null);
-  assert.equal(decodePayload(encodePayload({ v: 1, l: "card", a: { t: "" } })), null);
-  assert.equal(decodePayload(encodePayload({ v: 1, l: "map", c: { t: "x" }, n: [] })), null);
-  assert.equal(decodePayload(encodePayload({ v: 1, l: "map", c: { t: "" }, n: [{ t: "y" }] })), null);
-  assert.equal(decodePayload(encodePayload({ v: 1, l: "poster" })), null);
+  assert.equal(parsePayload(null), null);
+  assert.equal(parsePayload(undefined), null);
+  assert.equal(parsePayload("text"), null);
+  assert.equal(parsePayload(({ v: 2, l: "card", a: { t: "x" } })), null);
+  assert.equal(parsePayload(({ v: 1, l: "card", a: { t: "" } })), null);
+  assert.equal(parsePayload(({ v: 1, l: "map", c: { t: "x" }, n: [] })), null);
+  assert.equal(parsePayload(({ v: 1, l: "map", c: { t: "" }, n: [{ t: "y" }] })), null);
+  assert.equal(parsePayload(({ v: 1, l: "poster" })), null);
+});
+
+test("reads bodies as objects, JSON text or bytes, up to the limit", () => {
+  const card = { v: 1, l: "card", a: { t: "x" } };
+  assert.deepEqual(readBody(card), card);
+  assert.deepEqual(readBody(JSON.stringify(card)), card);
+  assert.deepEqual(readBody(Buffer.from(JSON.stringify(card))), card);
+  assert.equal(readBody("not json"), null);
+  assert.equal(readBody("[1]"), null);
+  assert.equal(readBody(undefined), null);
+  const big = { ...card, d: "a".repeat(MAX_PAYLOAD_BYTES) };
+  assert.equal(readBody(big), null);
+  assert.equal(readBody(JSON.stringify(big)), null);
 });
 
 test("sizes and art URLs", () => {
@@ -165,4 +173,15 @@ test("sizes and art URLs", () => {
   );
   assert.equal(coverArtUrl(`r:${MBID}`, 250), `https://coverartarchive.org/release/${MBID}/front-250`);
   assert.equal(coverArtUrl(""), "");
+});
+
+test("takes Discogs image paths as art, and only those", () => {
+  const path = "AbC-12_x/rs:fit/g:sm/q:90/h:600/w:600/czM6Ly9kaXNjb2dzLWRhdGFiYXNlLWltYWdlcy9SLTI0OTUwNC0xMjQ2ODk2NzcwLmpwZWc.jpeg";
+  const card = (i) => parsePayload({ v: 1, l: "card", a: { t: "x", i } });
+  assert.equal(card(`d:${path}`).album.i, `d:${path}`);
+  assert.equal(coverArtUrl(`d:${path}`), `https://i.discogs.com/${path}`);
+  for (const bad of ["d:", "d:/etc/passwd", "d:a/../b", "d:a?x=1", "d:a#b", "d:@evil.example/x", "d:a b", `d:${"a".repeat(513)}`, "x:abc"]) {
+    assert.equal(card(bad).album.i, "", bad);
+  }
+  assert.equal(coverArtUrl("d:a/../b"), "");
 });

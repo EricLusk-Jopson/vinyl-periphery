@@ -3,6 +3,7 @@ import { Search } from "lucide-react";
 import { SearchParams } from "@/api/types";
 import { KnownAlbum } from "@/hooks/useSearchRun";
 import { useCoverArt } from "@/hooks/useCoverArt";
+import { FindCovers } from "../common/FindCovers";
 import { searchTarget } from "@/lib/searchTarget";
 import { resultPath } from "@/lib/routes";
 import { SearchCache } from "@/contexts/cache/types";
@@ -251,6 +252,8 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
           {toolbarAction}
         </div>
       </div>
+
+      <FindCovers keys={shownKeys} where="results" />
 
       {sort === "popular" &&
         total > 0 &&

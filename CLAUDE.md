@@ -16,11 +16,19 @@ ranks albums by how many of those people worked on them.
   - `search.js`: `GET /api/search` proxies the first Discogs search with the
     app's key and secret.
   - `health.js`: `GET /api/health`.
+  - `art.js`: `GET /api/art?key=master:N` (or `release:N`) reads a cover
+    from the Discogs master or release with the app's key: `{ key, thumb,
+    image }`, nulls for none. The key's 60 a minute are shared with
+    `/api/search` and every user, so it answers 429 without calling
+    Discogs when the last seen `X-Discogs-Ratelimit-Remaining` is under
+    `ART_RESERVE` (20; per instance, best effort) and passes Discogs's 429
+    on. The CDN caches answers (30 days for a cover, a day for none).
   - `event.js`: `POST /api/event` validates analytics events and forwards
     them to the Google Sheet. See `docs/analytics.md`.
-  - `og.js`: `GET /api/og?p=…` renders a square share image (1080x1080)
-    (`@vercel/og`) from a payload in the URL (`backend/og/payload.js`;
-    built by `frontend/src/lib/share.ts`): a map, laid out by the client,
+  - `og.js`: `POST /api/og` renders a square share image (1080x1080)
+    (`@vercel/og`) from a JSON payload body (`backend/og/payload.js`, 32 KB
+    at most; built by `buildPayload` in `frontend/src/lib/share.ts`): a
+    map, laid out by the client,
     or a list of top results. For one search, both draw its top results
     as filtered and sorted on the page, with a line saying how they were
     chosen; the map groups people around the circle by role category
@@ -32,17 +40,41 @@ ranks albums by how many of those people worked on them.
     them. For a stack, the map is of album
     overlap, not people (`frontend/src/lib/stackMap.ts`): the stack's
     albums on a ring (a regular polygon with sides one step long, the
-    start at the top), and results at the average of the stack albums'
-    places, weighted by the people they share with each. A stack shares only as a map; its sheet
+    start at the top), and results placed by what they link
+    (`placeResults`): at the weighted mean angle of their stack albums
+    (weights: people shared), outside the ring beyond the one album they
+    link, or inside, nearer the middle the more they link. `relaxGraph`
+    then pushes covers apart (stack albums fixed) and keeps every line at
+    least `MIN_LINK` long. Covers scale with the ring (the smallest scale
+    whose result covers clear `COVER_FLOOR`, 64px at 1080, once fitted:
+    `fitToCanvas`), and the sheet offers no more results than fit above
+    that floor (`stackMapCapacity`, "Up to N for this stack"). Lines run
+    edge to edge from results to the stack albums they link, muted and
+    thicker for more people shared (`w`); none between the stack's own
+    albums. A stack shares only as a map; its sheet
     orders the results (sort, tiebreaker, likes first) and takes albums
     out or adds them, drawing from the Results tab's filtered results. Typing "no
     boilerplate" in the sheet's album search unlocks a switch that drops
     the header and site so the graph fills the image (`nb`).
-    Never calls Discogs; only Cover
-    Art Archive images, with initials when they don't load. Fonts are
+    Never calls the Discogs API; only cover images (Cover Art Archive, and
+    `i.discogs.com` for `d:<path>` art, rebuilt on that host only), with
+    initials when they don't load. Fonts are
     vendored in `backend/og/fonts` (SIL OFL).
-  - `share.js`: `/s?p=…&to=…` (rewritten to `/api/share`) serves Open Graph
-    tags for a shared link, then redirects to the app.
+    The sheet's controls edit a draft (`ShareDraft`); the image is made
+    once on open (after covers, up to `COVER_WAIT_MS`) and then only on
+    Regenerate. The preview is that image's blob, which is also the file
+    shared or downloaded, with no link. While the draft's payload differs
+    from the image's (`draftChange`: covers found since, or anything
+    else), the preview dims and the action is Regenerate. Drafts and the
+    last image are kept per search or stack in memory while the page is
+    open (`src/lib/shareDrafts.ts`). The sheet also has the page's filter
+    switches (`src/lib/filterToggles.ts`: one list per mode, used by the
+    filter panels too) and, for a stack, its albums (one switched off
+    leaves the ring, `stackMembersOn`). They change the page's own filter
+    state, not a copy, so the image is always of the page. "More filters"
+    closes the sheet and opens the page's filters (`requestFilters`,
+    `useFilterRequest`; a stack page moves to its Results tab). Old `/s?…&to=…` links (from when
+    shares carried one) redirect client-side to `to` (`legacyShareTarget`).
 - `backend/server.js`: Express server that mounts the same handlers, for
   local development (and Heroku until the move to Vercel is finished). In
   production mode it also serves `frontend/dist`.
@@ -62,8 +94,15 @@ ranks albums by how many of those people worked on them.
     ids in batches (about 1 request a second), `src/api/coverArt.ts` queues
     them with rows on screen first, `src/services/coverCache.ts` keeps the
     mappings (misses too) in their own IndexedDB database, and
-    `useCoverArt` gives rows Cover Art Archive URLs as they resolve. No
-    Discogs image calls.
+    `useCoverArt` gives rows Cover Art Archive URLs as they resolve.
+    Covers still missing (a MusicBrainz miss, or an archive image that
+    failed to load: `AlbumCover` reports it) can be fetched from Discogs,
+    only when the user presses "Find N missing covers" (`FindCovers`,
+    `useFindCovers`: share sheet and both Results lists). `src/api/
+    discogsArt.ts` asks `/api/art` one key every 1.5s and stops on a 429,
+    with no retry. Answers are stored on the cover entry (`discogs`,
+    misses rechecked after 30 days); rows prefer the archive, then the
+    Discogs thumb, and share images use the full-size one (`large`).
   - `src/contexts/cache/`: search results, filter state, persistence. Every
     search goes into the library (IndexedDB, `src/services/db.ts`) as it
     finishes and stays until deleted; filter changes are written as they

@@ -8,7 +8,7 @@ import searchHandler from "./handlers/search.js";
 import healthHandler from "./handlers/health.js";
 import eventHandler from "./handlers/event.js";
 import ogHandler from "./handlers/og.js";
-import shareHandler from "./handlers/share.js";
+import artHandler from "./handlers/art.js";
 
 dotenv.config();
 
@@ -18,6 +18,9 @@ const distDir = path.join(__dirname, "../frontend/dist");
 const port = process.env.PORT || 5000;
 const app = express();
 
+// Share image payloads are bigger than other bodies (see MAX_PAYLOAD_BYTES
+// in og/payload.js). Parsed here first, the general parser skips them.
+app.use("/api/og", express.json({ limit: "32kb" }));
 app.use(express.json({ limit: "16kb" }));
 
 /** Runs a shared handler, passing async errors to the error middleware. */
@@ -28,8 +31,7 @@ app.all(["/health", "/api/health"], route(healthHandler));
 app.all("/api/search", route(searchHandler));
 app.all("/api/event", route(eventHandler));
 app.all("/api/og", route(ogHandler));
-// Shared links: Open Graph tags for crawlers, then on to the app.
-app.all(["/s", "/api/share"], route(shareHandler));
+app.all("/api/art", route(artHandler));
 
 // Anything else under /api is a JSON 404, not the app's HTML.
 app.all("/api/*", (req, res) => res.status(404).json({ error: "Not found" }));

@@ -1,5 +1,6 @@
-// Cover Art Archive images for the share renderer, as data URLs. Cover art
-// is the only thing rendering fetches; anything slow or missing falls back
+// Cover images for the share renderer, as data URLs: Cover Art Archive,
+// and i.discogs.com for covers found on Discogs. Cover art is the only
+// thing rendering fetches; anything slow or missing falls back
 // to a placeholder rather than failing the image.
 
 import { coverArtUrl } from "./payload.js";
@@ -27,8 +28,14 @@ export async function fetchArt(artId, fetchImpl = fetch, deadline = Date.now() +
     const left = deadline - Date.now();
     if (left < 500) break;
     try {
-      const response = await fetchImpl(coverArtUrl(artId, 500), {
-        redirect: "follow",
+      const url = coverArtUrl(artId, 500);
+      if (!url) return null;
+      const discogs = artId.startsWith("d:");
+      const response = await fetchImpl(url, {
+        // The archive redirects to archive.org; Discogs images shouldn't
+        // redirect at all, so nothing leads off i.discogs.com.
+        redirect: discogs ? "error" : "follow",
+        headers: discogs ? { "User-Agent": "VinylPeriphery/1.0.0" } : undefined,
         signal: AbortSignal.timeout(Math.min(ART_TIMEOUT_MS, left)),
       });
       const type = response.headers.get("content-type") ?? "";

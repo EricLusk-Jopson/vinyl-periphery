@@ -40,6 +40,7 @@ import { useCoverArt } from "@/hooks/useCoverArt";
 import { useLikes } from "@/hooks/useLikes";
 import { useHidden } from "@/hooks/useHidden";
 import { useStackFilters } from "@/hooks/useStackFilters";
+import { filtersRequested, onFilterRequest } from "@/lib/filterRequest";
 import { useStackSort } from "@/hooks/useStackSort";
 import { metaAlbum } from "@/lib/metaAlbum";
 import {
@@ -187,6 +188,17 @@ export const StackPage: React.FC<StackPageProps> = ({
     [meta, stackFilters.filters, likes, hidden, order.sort, order.then],
   );
 
+  // "More filters" in the share sheet: the filters are on the Results tab.
+  useEffect(
+    () =>
+      onFilterRequest(() => {
+        if (filtersRequested() && view !== "results") {
+          navigate(stackPath(stackId, "results"), { replace: true });
+        }
+      }),
+    [view, navigate, stackId],
+  );
+
   const reported = useRef(false);
   useEffect(() => {
     if (reported.current || members.length === 0) return;
@@ -293,7 +305,12 @@ export const StackPage: React.FC<StackPageProps> = ({
               levels,
               results,
             }}
-            to={stackPath(stackId)}
+            draftKey={`stack:${stackId}`}
+            stackFilters={{
+              filters: stackFilters.filters,
+              update: stackFilters.update,
+              meta,
+            }}
           />
           <button
             type="button"

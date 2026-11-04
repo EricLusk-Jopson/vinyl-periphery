@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { artIds, cardSizes, edgeToEdge, stackElement, fitTileText, initials, mapGeometry, mapLayout, nameLines, renderPng, shorten, stackGeometry } from "./render.js";
+import { artIds, cardSizes, edgeToEdge, stackElement, fitTileText, initials, mapElement, mapGeometry, mapLayout, MAP_DOT, MAP_DOT_CLEAR, nameLines, renderPng, shorten, stackGeometry } from "./render.js";
 
 import { artSettled, fetchArt, loadArt } from "./art.js";
 import { IMAGE_SIZE, parsePayload } from "./payload.js";
@@ -78,6 +78,48 @@ test("names come first: covers move off them", () => {
   assert.ok(Math.abs(labels[0].x - (450 + 250 + 10)) < 1);
   assert.ok(!overlap(labels[0], covers[1]));
   assert.ok(covers[1].x > labels[0].x);
+});
+
+test("covers never sit on a person's dot", () => {
+  // Covers straddling the circle right on the dots at 90° and 200°, one
+  // a little inside and one a little outside.
+  const payload = {
+    ...map,
+    albums: [
+      { t: "Top", r: "", i: "", x: 0, y: 0.97, z: 1, side: 0.28, links: [] },
+      { t: "Left", r: "", i: "", x: Math.cos((200 * Math.PI) / 180) * 1.03, y: Math.sin((200 * Math.PI) / 180) * 1.03, z: 1, side: 0.28, links: [] },
+    ],
+    people: [
+      { name: "Ben Frost", angle: 90 },
+      { name: "Tim Hecker", angle: 200 },
+    ],
+  };
+  const options = { width: 900, height: 700, gap: 10 };
+  const { labels, covers } = mapLayout(payload, 250, options);
+  const clear = (dot, cover) =>
+    dot.x + MAP_DOT / 2 + MAP_DOT_CLEAR <= cover.x ||
+    cover.x + cover.w <= dot.x - MAP_DOT / 2 - MAP_DOT_CLEAR ||
+    dot.y + MAP_DOT / 2 + MAP_DOT_CLEAR <= cover.y ||
+    cover.y + cover.h <= dot.y - MAP_DOT / 2 - MAP_DOT_CLEAR;
+  for (const label of labels) {
+    for (const cover of covers.slice(1)) assert.ok(clear(label.dot, cover), label.name);
+  }
+});
+
+test("draws the dots over everything else", () => {
+  const payload = {
+    ...map,
+    people: [
+      { name: "Ben Frost", angle: 90 },
+      { name: "Tim Hecker", angle: 200 },
+    ],
+  };
+  const graph = mapElement(payload, IMAGE_SIZE, new Map()).props.children[0];
+  const kids = graph.props.children;
+  const isDot = (k) => k?.props?.style?.borderRadius === 999 && k.props.style.width === MAP_DOT;
+  // The last children are the two dots, after every cover.
+  assert.ok(kids.slice(-2).every(isDot));
+  assert.equal(kids.filter(isDot).length, 2);
 });
 
 test("renders lines and the no-cover view", async () => {

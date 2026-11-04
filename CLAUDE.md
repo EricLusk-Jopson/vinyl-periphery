@@ -36,8 +36,9 @@ ranks albums by how many of those people worked on them.
     or add any result; adding a hidden one switches its people on in the
     filters (`frontend/src/lib/shareSelection.ts`). Two toggles: album
     covers (off: titles and artists only) and, on that map, lines from
-    each person to their albums. Names there come first: covers move off
-    them. For a stack, the map is of album
+    each person to their albums. Names and dots there come first: covers
+    move off them (`MAP_DOT_CLEAR`), and the dots are drawn last, over
+    everything. For a stack, the map is of album
     overlap, not people (`frontend/src/lib/stackMap.ts`): the stack's
     albums on a ring (a regular polygon with sides one step long, the
     start at the top), and results placed by what they link

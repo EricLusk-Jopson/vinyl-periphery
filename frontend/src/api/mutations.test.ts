@@ -101,6 +101,24 @@ describe("listContributorReleases", () => {
     ]);
   });
 
+  it("keeps each person's coverage on the contributor", async () => {
+    global.fetch = serve({ 1: 9, 2: 1 });
+    const set = contributorSet([1, 2]);
+    const result = listContributorReleases({ contributorSet: set }, {});
+    await jest.advanceTimersByTimeAsync(60_000);
+    await result;
+    expect(set.contributors[1].discography).toEqual({
+      items: 4500,
+      pages: 4,
+      capped: true,
+    });
+    expect(set.contributors[2].discography).toEqual({
+      items: 500,
+      pages: 1,
+      capped: false,
+    });
+  });
+
   it("keeps the pages read when a later one fails", async () => {
     global.fetch = serve({ 1: 3 }, 2);
     jest.spyOn(console, "error").mockImplementation(() => {});

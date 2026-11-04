@@ -11,6 +11,9 @@ import { MAP_SIZES, MAX_RESULTS } from "./payload.js";
 
 // Mirrors docs/redesign/tokens.md. Satori has no CSS variables, so the
 // renderer spells the values out here, once.
+// Transit map lines, as the line-1 to line-6 tokens (placeholders).
+const LINE_COLOURS = ["#2DBFAE", "#F6AE2D", "#5AA2F2", "#A884E8", "#4EC076", "#CF86CF"];
+
 const C = {
   background: "#0C0C0D",
   surface: "#141416",
@@ -989,6 +992,143 @@ export function lanesElement(payload, size) {
   );
 }
 
+/** Room under a transit map for its legend. */
+const TRANSIT_LEGEND = { row: 34, columns: 2 };
+
+/** The transit map fitted to the box over its legend: scale and offset. */
+export function transitGeometry(payload, { width, height }) {
+  const rows = Math.ceil(payload.lines.length / TRANSIT_LEGEND.columns) + (payload.others ? 1 : 0);
+  const legend = rows * TRANSIT_LEGEND.row + 12;
+  const room = { w: width - 2 * MAP_FRAME.pad, h: height - legend };
+  const scale = Math.min(room.w / payload.width, room.h / payload.height, 1.6);
+  return {
+    scale,
+    left: MAP_FRAME.pad + (room.w - payload.width * scale) / 2,
+    top: (room.h - payload.height * scale) / 2,
+    legendTop: height - legend + 12,
+  };
+}
+
+/** A stack as a transit map: albums as stations, people as lines. */
+export function transitElement(payload, size) {
+  const { top, ...box } = mapBox(payload, size);
+  const g = transitGeometry(payload, box);
+  const at = (x, y) => [g.left + x * g.scale, g.top + y * g.scale];
+  const legs = payload.lines.flatMap((line) =>
+    line.legs.map((leg) => ({
+      colour: LINE_COLOURS[line.colour],
+      d: leg
+        .map(([x, y], i) => {
+          const [px, py] = at(x, y);
+          return `${i === 0 ? "M" : "L"}${px.toFixed(1)} ${py.toFixed(1)}`;
+        })
+        .join(" "),
+    })),
+  );
+  const titleSize = Math.max(14, Math.round(15 * g.scale));
+  const artistSize = Math.max(12, Math.round(12 * g.scale));
+  return h(
+    "div",
+    {
+      position: "relative",
+      width: size.width,
+      height: size.height,
+      background: C.background,
+      color: C.foreground,
+      fontFamily: "IBM Plex Sans",
+    },
+    h(
+      "div",
+      { position: "absolute", left: 0, top, width: box.width, height: box.height },
+      {
+        type: "svg",
+        props: {
+          width: box.width,
+          height: box.height,
+          viewBox: `0 0 ${box.width} ${box.height}`,
+          style: { position: "absolute", left: 0, top: 0 },
+          children: [
+            ...legs.map((leg) => ({
+              type: "path",
+              props: {
+                d: leg.d,
+                fill: "none",
+                stroke: leg.colour,
+                strokeWidth: Math.max(4, 5 * g.scale),
+                strokeLinecap: "round",
+                strokeLinejoin: "round",
+              },
+            })),
+            ...payload.stations.map((s) => {
+              const [cx, cy] = at(s.x, s.y);
+              const single = s.lines.length === 1 ? LINE_COLOURS[s.lines[0]] : null;
+              return {
+                type: "circle",
+                props: {
+                  cx: Math.round(cx),
+                  cy: Math.round(cy),
+                  r: Math.round(s.radius * Math.max(1, g.scale)),
+                  fill: single ?? C.background,
+                  stroke: single ? C.background : s.lines.length ? C.foreground : C.faint,
+                  strokeWidth: s.lines.length >= 2 ? 4 : 3,
+                },
+              };
+            }),
+          ],
+        },
+      },
+      ...payload.stations.map((s) => {
+        const [x, y] = at(s.label.x, s.label.y);
+        const w = s.label.w * g.scale;
+        const align = s.align === "middle" ? "center" : s.align === "end" ? "flex-end" : "flex-start";
+        // Text a little wider than its box at larger scale: centred on it.
+        const extra = 40;
+        const left = s.align === "middle" ? x - extra / 2 : s.align === "end" ? x - extra : x;
+        return h(
+          "div",
+          {
+            position: "absolute",
+            left: Math.round(left),
+            top: Math.round(y),
+            width: Math.round(w + extra),
+            flexDirection: "column",
+            alignItems: align,
+          },
+          h("div", { fontSize: titleSize, fontWeight: 600, lineHeight: 1.25, whiteSpace: "nowrap" }, s.t),
+          s.r && h("div", { fontFamily: "IBM Plex Mono", fontSize: artistSize, color: C.faint, whiteSpace: "nowrap" }, s.r),
+        );
+      }),
+      h(
+        "div",
+        {
+          position: "absolute",
+          left: MAP_FRAME.pad,
+          top: Math.round(g.legendTop),
+          width: box.width - 2 * MAP_FRAME.pad,
+          flexWrap: "wrap",
+          rowGap: 8,
+        },
+        ...payload.lines.map((line) =>
+          h(
+            "div",
+            { width: "50%", alignItems: "center", gap: 12, height: TRANSIT_LEGEND.row - 8 },
+            h("div", { width: 30, height: 6, borderRadius: 3, background: LINE_COLOURS[line.colour] }),
+            h("div", { fontSize: 19, color: C.foreground }, shorten(line.name, 32)),
+          ),
+        ),
+        payload.others > 0 &&
+          h(
+            "div",
+            { width: "100%", fontFamily: "IBM Plex Mono", fontSize: 16, color: C.faint, height: TRANSIT_LEGEND.row - 8, alignItems: "center" },
+            `+ ${payload.others} more on two or more albums`,
+          ),
+      ),
+    ),
+    mapHeader("Transit map from", payload, size),
+    mapFooter(size),
+  );
+}
+
 /** The art ids a payload shows. */
 export const artIds = (payload) =>
   payload.covers === false
@@ -1007,6 +1147,8 @@ export async function renderPng(payload, size, art) {
       ? cardElement(payload, size, art)
       : payload.layout === "lanes"
         ? lanesElement(payload, size)
+      : payload.layout === "transit"
+        ? transitElement(payload, size)
       : payload.layout === "stack"
         ? stackElement(payload, size, art)
         : mapElement(payload, size, art);

@@ -473,3 +473,84 @@ describe("withView", () => {
     ).not.toHaveProperty("ln");
   });
 });
+
+describe("transit share", () => {
+  const transit = {
+    orientation: "horizontal" as const,
+    width: 400,
+    height: 120,
+    stations: [
+      {
+        key: "master:1",
+        title: "Unmap",
+        artist: "Volcano Choir",
+        searchId: "a",
+        step: 0,
+        x: 20,
+        y: 40,
+        lines: [0, 1],
+        radius: 12,
+        label: {
+          x: 0,
+          y: 60,
+          w: 90,
+          h: 35,
+          align: "start" as const,
+          title: "Unmap",
+          artist: "Volcano Choir",
+        },
+      },
+    ],
+    lines: [
+      {
+        id: 7,
+        name: "Justin Vernon",
+        colour: 0,
+        stations: [0],
+        legs: [
+          [
+            { x: 20, y: 40 },
+            { x: 380, y: 40 },
+          ],
+        ],
+      },
+    ],
+    others: [{ id: 9, name: "Brian Joseph", stations: 2 }],
+  };
+
+  it("draws the stack's transit map when chosen, with no covers to find", () => {
+    const s = search(1, "Unmap");
+    const data: ShareData = {
+      kind: "stack",
+      search: s,
+      centre: { key: "master:1", title: "Unmap", artist: "Volcano Choir" },
+      members: [s],
+      levels: new Map(),
+      results: [],
+      transit,
+      likes: {},
+      hidden: {},
+      coverFor: () => null,
+    };
+    const draft = { ...defaultDraft(), chosen: "transit" as const };
+    const plan = planShare(draft, data);
+    expect(plan.layout).toBe("transit");
+    expect(plan.transitReady).toBe(true);
+    expect(plan.wanted).toEqual([]);
+    const payload = buildPayload(draft, data, plan);
+    expect(payload).toMatchObject({
+      l: "transit",
+      c: { t: "Unmap", r: "Volcano Choir" },
+      w: 400,
+      h: 120,
+      s: [{ t: "Unmap", q: 12, k: [0, 1], b: [0, 60, 90, 35], a: "start" }],
+      n: [{ n: "Justin Vernon", c: 0, g: [[[20, 40], [380, 40]]] }],
+      o: 1,
+      d: "1 album · 1 person as lines · 1 more on two or more",
+    });
+    // No lines: the ring map instead.
+    const flat = planShare(draft, { ...data, transit: { ...transit, lines: [] } });
+    expect(flat.layout).toBe("map");
+    expect(flat.transitReady).toBe(false);
+  });
+});

@@ -96,14 +96,14 @@ To test locally, put both Vinyl Periphery variables in `.env` and run
 | `cover_lookup` | Every result in a search has art or is known to have none (once per search per page load) | `albums`, `hits` (art found, from storage or MusicBrainz), `misses` (no MusicBrainz link, or the lookup failed) |
 | `stack_saved` | A search is switched to a stack it fits, or to a new stack after a search on its own, with Switch in the Stack drawer | `members` (searches in the stack afterwards), `depth` (along its trail), `from`: results or library, `joined`: true, `new_stack`: true when it starts a stack, `moved`: true when it left another stack |
 | `stack_opened` | A stack's page is opened | `members`, `ghosts` (deleted steps shown) |
-| `stack_view_changed` | A stack page switches tab | `view`: results or albums |
+| `stack_view_changed` | A stack page switches tab | `view`: albums, results, people or map |
 | `stack_filters_applied` | "Apply each search's filters" on a stack's Results tab: the stack's filters taken from its searches' | `members` |
 | `stack_disbanded` | A stack is destacked (Destack, on its card or page) after confirming: its searches stay, each on its own | `members` |
 | `search_unstacked` | A search is taken out of its stack with Destack in the Stack drawer (results page, library card or stack page); it stays in the library, on its own | `from`: results or library, `members` (searches left in the stack), `depth` (its step in the stack) |
 | `search_jumped` | An existing search is opened instead of running a new one | `from`: result (a result row) or form (the search bar) |
 | `library_view_toggled` | The library switches between stacked and flat | `view`: stacked or flat |
 | `library_searched` | The library search is used (once typing pauses) | `results`, `length` (characters typed; the text isn't sent) |
-| `share_created` | Share or Download is pressed (the image on screen is shared as a file, with no link) | `layout`: map or card; `stack` (shared from a stack page); `albums` (how many results it draws), `removed` and `added` (albums taken out of or added to the image in the share sheet); `bare`: true when the title and watermark were switched off |
+| `share_created` | Share or Download is pressed (the image on screen is shared as a file, with no link) | `layout`: map, card, lanes (People) or transit; `stack` (shared from a stack page); `albums` (how many results it draws), `removed` and `added` (albums taken out of or added to the image in the share sheet); `bare`: true when the title and watermark were switched off |
 | `share_completed` | The share sheet finished or the image downloaded | `layout`, `method`: share or download (link: from before Copy link was removed) |
 | `share_regenerated` | Regenerate is pressed in the share sheet (not the first image, made on open) | `layout`: map or card; `stack` (from a stack page) |
 | `share_more_filters` | "More filters" in the share sheet: the sheet closes and the page's filters open | `stack` (from a stack page) |
@@ -111,6 +111,7 @@ To test locally, put both Vinyl Periphery variables in `.env` and run
 | `covers_found` | A "Find missing covers" run ends (done, cancelled, or stopped by Discogs) | `found` (covers found), `none` (albums Discogs has no image for), `busy`: true when Discogs (or the server, keeping room for search) said not now |
 | `results_view_changed` | A results page switches between Albums and People (`?view=people`) | `view`: list or people |
 | `swimlane_tick_opened` | A result picked from a lane in the People view is shown in the list | `scope`: search, or stack (a stack's People tab) |
+| `transit_station_opened` | A station on a stack's transit map (Map tab) is opened: its results page | (none) |
 | `chip_details` | A contributor or role chip's details open (who did what) | `kind`: contributor or role, `via`: hover (a mouse resting a second), hold (a press held a second) or key (context menu key, Shift+F10 or right click) |
 | `results_searched` | The results search (Find an album) is used, once typing pauses | `results` (albums listed), `hidden` (of those, how many the filters hide), `length` (characters typed; the text isn't sent) |
 | `result_picked` | An album is picked in the results search and put on top | `filtered`: true when the filters hid it and were reset to show it (after confirming) |

@@ -265,6 +265,35 @@ describe("buildPayload and the draft", () => {
     expect(draftChange(null, committed)).toBe("same");
   });
 
+  it("draws the People layout as swimlanes, with no covers to find", () => {
+    const people = {
+      ...data(),
+      search: (() => {
+        const s = base();
+        s.contributors[1].roles = ["Drums"];
+        s.contributors[2].roles = ["Producer"];
+        return s;
+      })(),
+    };
+    const draft = { ...defaultDraft(), chosen: "lanes" as const };
+    const plan = planShare(draft, people);
+    expect(plan.layout).toBe("lanes");
+    expect(plan.wanted).toEqual([]);
+    const payload = buildPayload(draft, people, plan);
+    if (payload.l !== "lanes") throw new Error();
+    expect(payload.c.t).toBe("Unmap");
+    // Session (drums) before production; every result is solid.
+    expect(payload.n.map((n) => n.n)).toEqual(["Justin Vernon", "Brian Joseph"]);
+    expect(payload.n[0].c).toBe(8);
+    expect(payload.n[0].s.reduce((sum, [, n]) => sum + n, 0)).toBe(8);
+    expect(payload.y).toEqual([2000, 2007]);
+    expect(payload.d).toBe("2 people");
+    // Covers off changes nothing on swimlanes.
+    expect(
+      buildPayload({ ...draft, view: { ...draft.view, covers: false } }, people),
+    ).toEqual(payload);
+  });
+
   it("ignores a change that doesn't alter the image", () => {
     const draft = defaultDraft();
     const committed = serialisePayload(buildPayload(draft, data()));

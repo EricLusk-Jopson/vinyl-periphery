@@ -29,7 +29,8 @@ ranks albums by how many of those people worked on them.
     (`@vercel/og`) from a JSON payload body (`backend/og/payload.js`, 32 KB
     at most; built by `buildPayload` in `frontend/src/lib/share.ts`): a
     map, laid out by the client,
-    or a list of top results. For one search, both draw its top results
+    a list of top results, or swimlanes (`lanes`). For one search, the
+    map and the list draw its top results
     as filtered and sorted on the page, with a line saying how they were
     chosen; the map groups people around the circle by role category
     (`frontend/src/lib/albumMap.ts`). The share sheet can take albums out
@@ -145,6 +146,17 @@ ranks albums by how many of those people worked on them.
     `Contributor.discography` records how much of each person's
     discography was read (`capped`: the page cap cut their oldest items).
     The visuals' plan is `features/new-visuals.md`.
+  - Swimlanes (`src/lib/swimlanes.ts`, `components/people/`): a People
+    view on Results (`?view=people`) and a People tab on a stack page.
+    A lane per person who counts under the filters, ticks by year (solid:
+    current results they link; faint: their other items), a line at the
+    searched album's year (one per stack album, the start's in the
+    accent). Lanes sort by primary group, then first year; 12 shown, then
+    "Show all". Undated items are counted, not drawn; lanes the page cap
+    cut short are hatched before their first year. Tapping a lane picks
+    the nearest results year; its results open in the list
+    (`useFocusResult`). A name toggles "must include". Share: "People" in
+    the search's sheet (`lanes` payload, top 8 lanes).
   - `src/lib/filters.ts`: chip state, "must include" (`filterState.required`,
     optional because older saved searches lack it), active filter count.
     "Only liked albums" is `filterState.likedOnly` (also optional). A new

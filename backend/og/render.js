@@ -840,6 +840,155 @@ export function stackElement(payload, size, art) {
   );
 }
 
+/** Swimlanes' frame inside the graph box: names left, tracks right. */
+const LANES = { name: 300, gap: 24, top: 34, axis: 34, legend: 34, maxRow: 96 };
+
+/** Decade marks for the axis: every 10 years, or 5 on a short range. */
+export const laneAxis = (from, to) => {
+  const step = to - from <= 20 ? 5 : 10;
+  const marks = [];
+  for (let y = Math.ceil(from / step) * step; y <= to; y += step) marks.push(y);
+  return marks;
+};
+
+/**
+ * The swimlanes' geometry in pixels: the tracks' x range, each lane's row,
+ * and a year's x.
+ */
+export function lanesGeometry(payload, { width, height }) {
+  const left = MAP_FRAME.pad + LANES.name + LANES.gap;
+  const right = width - MAP_FRAME.pad;
+  const rows = Math.max(1, payload.lanes.length);
+  const row = Math.min(LANES.maxRow, (height - LANES.top - LANES.axis - LANES.legend) / rows);
+  const x = (year) => left + ((right - left) * (year - payload.from)) / Math.max(1, payload.to - payload.from);
+  return {
+    left,
+    right,
+    row,
+    x,
+    laneTop: (i) => LANES.top + i * row,
+    axisTop: LANES.top + rows * row + 8,
+  };
+}
+
+/** Swimlanes: a lane per person, ticks by year, the album's year marked. */
+export function lanesElement(payload, size) {
+  const { top, ...box } = mapBox(payload, size);
+  const g = lanesGeometry(payload, box);
+  const mid = (i) => g.laneTop(i) + g.row / 2;
+  const tick = Math.min(30, g.row * 0.34);
+  const lines = [];
+  payload.lanes.forEach((lane, i) => {
+    const years = [...lane.solid, ...lane.faint].map(([y]) => y);
+    const first = Math.min(...years);
+    const last = Math.max(...years);
+    // Before a cut-short lane's first year: not read, dashed.
+    if (lane.partial && first > payload.from) {
+      lines.push({ x1: g.left, x2: g.x(first), y1: mid(i), y2: mid(i), stroke: C.border, strokeWidth: 6, strokeDasharray: "3 5" });
+    }
+    lines.push({ x1: g.x(first), x2: g.x(last), y1: mid(i), y2: mid(i), stroke: C.border, strokeWidth: 2 });
+    for (const [year] of lane.faint) {
+      lines.push({ x1: g.x(year), x2: g.x(year), y1: mid(i) - tick * 0.5, y2: mid(i) + tick * 0.5, stroke: C.faint, strokeOpacity: 0.5, strokeWidth: 2 });
+    }
+  });
+  // The album lines, over the faint ticks and under the results.
+  for (const album of payload.albums) {
+    lines.push({
+      x1: g.x(album.year),
+      x2: g.x(album.year),
+      y1: LANES.top - 6,
+      y2: g.laneTop(payload.lanes.length),
+      stroke: album.accent ? C.primary : C.border,
+      strokeWidth: album.accent ? 3 : 2,
+    });
+  }
+  payload.lanes.forEach((lane, i) => {
+    for (const [year, count] of lane.solid) {
+      const reach = tick + Math.min(10, 3 * count);
+      lines.push({ x1: g.x(year), x2: g.x(year), y1: mid(i) - reach, y2: mid(i) + reach, stroke: C.foreground, strokeWidth: 3 });
+    }
+  });
+  const marked = payload.albums.find((a) => a.accent);
+  const text = (style, ...children) => h("div", { position: "absolute", ...style }, ...children);
+  const mono = { fontFamily: "IBM Plex Mono", fontSize: 16, color: C.faint };
+
+  return h(
+    "div",
+    {
+      position: "relative",
+      width: size.width,
+      height: size.height,
+      background: C.background,
+      color: C.foreground,
+      fontFamily: "IBM Plex Sans",
+    },
+    h(
+      "div",
+      { position: "absolute", left: 0, top, width: box.width, height: box.height },
+      {
+        type: "svg",
+        props: {
+          width: box.width,
+          height: box.height,
+          viewBox: `0 0 ${box.width} ${box.height}`,
+          style: { position: "absolute", left: 0, top: 0 },
+          children: lines.map((l) => ({
+            type: "line",
+            props: {
+              ...l,
+              x1: Math.round(l.x1),
+              x2: Math.round(l.x2),
+              y1: Math.round(l.y1),
+              y2: Math.round(l.y2),
+            },
+          })),
+        },
+      },
+      marked &&
+        text(
+          {
+            top: 0,
+            ...(g.x(marked.year) > (g.left + g.right) / 2
+              ? { right: Math.round(box.width - g.x(marked.year) + 8) }
+              : { left: Math.round(g.x(marked.year) + 8) }),
+            ...mono,
+            color: C.primaryText,
+          },
+          `${shorten(marked.t, 34)} · ${marked.year}`,
+        ),
+      ...payload.lanes.map((lane, i) =>
+        text(
+          {
+            left: MAP_FRAME.pad,
+            top: Math.round(g.laneTop(i)),
+            width: LANES.name,
+            height: Math.round(g.row),
+            flexDirection: "column",
+            justifyContent: "center",
+          },
+          h("div", { fontSize: g.row < 60 ? 19 : 22, fontWeight: 600, lineHeight: 1.2 }, shorten(lane.name, 24)),
+          h(
+            "div",
+            { ...mono, fontSize: 15 },
+            `${lane.results} ${lane.results === 1 ? "result" : "results"}${lane.partial ? " · oldest not read" : ""}`,
+          ),
+        ),
+      ),
+      ...laneAxis(payload.from, payload.to).map((year) =>
+        text({ top: Math.round(g.axisTop), left: Math.round(g.x(year) - 24), width: 48, justifyContent: "center", ...mono }, String(year)),
+      ),
+      text(
+        { top: Math.round(g.axisTop + LANES.axis), left: MAP_FRAME.pad, ...mono, gap: 28 },
+        h("div", {}, "Tall: in the results"),
+        h("div", {}, "Short: their other releases"),
+        payload.undated > 0 && h("div", {}, `${payload.undated} undated, not shown`),
+      ),
+    ),
+    mapHeader("People around", payload, size),
+    mapFooter(size),
+  );
+}
+
 /** The art ids a payload shows. */
 export const artIds = (payload) =>
   payload.covers === false
@@ -856,6 +1005,8 @@ export async function renderPng(payload, size, art) {
   const element =
     payload.layout === "card"
       ? cardElement(payload, size, art)
+      : payload.layout === "lanes"
+        ? lanesElement(payload, size)
       : payload.layout === "stack"
         ? stackElement(payload, size, art)
         : mapElement(payload, size, art);

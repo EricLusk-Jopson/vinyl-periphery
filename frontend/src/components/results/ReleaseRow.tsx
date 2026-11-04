@@ -67,6 +67,8 @@ interface ReleaseRowProps {
     of: number;
     panel: React.ReactNode;
   };
+  /** Picked elsewhere (the People view): outlined for a moment. */
+  highlighted?: boolean;
 }
 
 const focusRing =
@@ -95,6 +97,7 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
   onLike,
   onHide,
   stack,
+  highlighted = false,
 }) => {
   const panelId = useId();
   const shared = people.length;
@@ -154,7 +157,13 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
     contributionsText(contributionsOf(release, personId)) ?? note;
 
   return (
-    <li className="border-b">
+    <li
+      className={cn(
+        "border-b transition-shadow duration-200",
+        highlighted && "rounded-lg ring-2 ring-ring",
+      )}
+      data-result-key={release.key}
+    >
       {/* The whole card highlights on hover, like button included. */}
       <div className="flex items-center rounded-lg transition-colors hover:bg-surface">
         <button

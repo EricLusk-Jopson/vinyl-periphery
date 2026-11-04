@@ -135,6 +135,7 @@ interface ShareButtonProps {
 const LAYOUTS: { id: ShareLayout; label: string }[] = [
   { id: "map", label: "Map" },
   { id: "card", label: "Results" },
+  { id: "lanes", label: "People" },
 ];
 
 /** A segmented choice, as radios. */
@@ -658,12 +659,15 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
               Share
             </SheetTitle>
             <SheetDescription className="text-left text-sm text-muted-foreground">
-              {selection
-                ? `The top albums connected to ${search.searchParams.album}, as your filters and sort show them. Take albums out or add others below.`
-                : layout === "map"
-                  ? `A map of the stack from ${map.centre.title}: each step one unit from the album it came from, and its results nearest the albums they share people with. Choose their order, take albums out or add others below.`
-                  : `An image of what connects to ${search.searchParams.album}.`}
+              {selection && layout === "lanes"
+                ? `The people on ${search.searchParams.album} with the most results, across their careers: tall marks are albums in your results, the red line is ${search.searchParams.album}.`
+                : selection
+                  ? `The top albums connected to ${search.searchParams.album}, as your filters and sort show them. Take albums out or add others below.`
+                  : layout === "map"
+                    ? `A map of the stack from ${map.centre.title}: each step one unit from the album it came from, and its results nearest the albums they share people with. Choose their order, take albums out or add others below.`
+                    : `An image of what connects to ${search.searchParams.album}.`}
               {!mapReady &&
+                layout !== "lanes" &&
                 (selection
                   ? " No albums match these filters."
                   : " Stack another album to share a map.")}
@@ -681,11 +685,15 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
           >
             {
               <div className="flex flex-col gap-4 lg:col-start-2 lg:row-start-1">
-                {selection && mapReady && (
+                {selection && (mapReady || plan?.lanesReady) && (
                   <Segmented
                     label="Show"
                     value={layout}
-                    options={LAYOUTS}
+                    options={LAYOUTS.filter(
+                      (o) =>
+                        (o.id !== "map" || mapReady) &&
+                        (o.id !== "lanes" || plan?.lanesReady),
+                    )}
                     onChange={(chosen) => setDraft((d) => ({ ...d, chosen }))}
                   />
                 )}
@@ -724,11 +732,13 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                   />
                 )}
                 <div className="flex flex-col">
-                  <Switch
-                    label="Album covers"
-                    checked={draft.view.covers}
-                    onChange={(covers) => setView({ covers })}
-                  />
+                  {layout !== "lanes" && (
+                    <Switch
+                      label="Album covers"
+                      checked={draft.view.covers}
+                      onChange={(covers) => setView({ covers })}
+                    />
+                  )}
                   {linesAvailable && (
                     <Switch
                       label={
@@ -895,7 +905,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
               </button>
             </div>
 
-            {(selection || mapReady) && (
+            {(selection || mapReady) && layout !== "lanes" && (
               <div className="lg:col-start-2 lg:row-start-3">
                 <ShareAlbums
                   hidden={hidden}

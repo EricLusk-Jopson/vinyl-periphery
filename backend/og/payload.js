@@ -8,6 +8,13 @@
 //   { v: 1, l: "card", a: Album, x: Result[], d? }             periphery card
 //   { v: 1, l: "map",  c: Album, n: Placed[], p: Person[], d? } map
 //   { v: 1, l: "stack", c: Album & { s }, n: Node[], d? }       stack map
+//   { v: 1, l: "lanes", c: Album, y: [from, to], k: Mark[],     swimlanes
+//     n: Lane[], u?, d? }
+//   Mark   = { t: album title, y: year, m?: 1 for the searched album }
+//   Lane   = { n: name, c: results, s: [year, count][] (results),
+//            f: [year, count][] (their other items), p?: 1 when the page
+//            cap cut their oldest items }
+//   u      = undated items, not drawn
 //   Node   = Album & { x, y, s: place and cover side in thousandths of
 //            a step, y up; m?: 1 for the stack's own albums;
 //            e?: linked nodes, 0 the centre and k for n[k - 1];
@@ -39,6 +46,8 @@ export const MAX_PAYLOAD_BYTES = 32 * 1024;
 export const MAX_RESULTS = 10;
 export const MAX_MAP_ALBUMS = 24;
 export const MAX_MAP_PEOPLE = 16;
+export const MAX_LANES = 8;
+const MAX_LANE_YEARS = 150;
 const MAX_TITLE = 80;
 const MAX_ARTIST = 60;
 const MAX_NAME = 40;
@@ -160,6 +169,48 @@ export function parsePayload(raw) {
           bare: raw.nb === 1,
         }
       : null;
+  }
+
+  if (raw.l === "lanes") {
+    const centre = album(raw.c);
+    if (!centre.t) return null;
+    const year = (value) => {
+      const n = Math.round(Number(value));
+      return Number.isFinite(n) && n >= 1800 && n <= 2100 ? n : null;
+    };
+    const ticks = (value) =>
+      list(value, MAX_LANE_YEARS)
+        .map((t) => [year(Array.isArray(t) ? t[0] : null), Math.max(1, Math.min(99, Math.round(Number(Array.isArray(t) ? t[1] : 1) || 1)))])
+        .filter(([y]) => y !== null);
+    const lanes = list(raw.n, MAX_LANES)
+      .map((n) => ({
+        name: text(n?.n, MAX_NAME),
+        results: Math.max(0, Math.min(99999, Math.floor(Number(n?.c) || 0))),
+        solid: ticks(n?.s),
+        faint: ticks(n?.f),
+        partial: n?.p === 1,
+      }))
+      .filter((n) => n.name && n.solid.length + n.faint.length > 0);
+    const albums = list(raw.k, 8)
+      .map((k) => ({ t: text(k?.t, MAX_TITLE), year: year(k?.y), accent: k?.m === 1 }))
+      .filter((k) => k.year !== null);
+    const years = [...lanes.flatMap((l) => [...l.solid, ...l.faint].map(([y]) => y)), ...albums.map((a) => a.year)];
+    const range = Array.isArray(raw.y) ? raw.y.map(year) : [];
+    const from = range[0] ?? Math.min(...years);
+    const to = range[1] ?? Math.max(...years);
+    if (lanes.length === 0 || !(from < to)) return null;
+    return {
+      layout: "lanes",
+      centre,
+      from,
+      to,
+      albums,
+      lanes,
+      undated: Math.max(0, Math.min(99999, Math.floor(Number(raw.u) || 0))),
+      caption: text(raw.d, MAX_CAPTION),
+      covers: false,
+      bare: false,
+    };
   }
 
   if (raw.l === "stack") {

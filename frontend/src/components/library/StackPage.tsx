@@ -40,6 +40,8 @@ import { useCoverArt } from "@/hooks/useCoverArt";
 import { useLikes } from "@/hooks/useLikes";
 import { useHidden } from "@/hooks/useHidden";
 import { useStackFilters } from "@/hooks/useStackFilters";
+import { ResultFocus } from "@/hooks/useFocusResult";
+import { StackPeople } from "../people/StackPeople";
 import { filtersRequested, onFilterRequest } from "@/lib/filterRequest";
 import { useStackSort } from "@/hooks/useStackSort";
 import { metaAlbum } from "@/lib/metaAlbum";
@@ -199,6 +201,9 @@ export const StackPage: React.FC<StackPageProps> = ({
     [view, navigate, stackId],
   );
 
+  // A result picked in the People tab, to show on the Results tab.
+  const [focus, setFocus] = useState<ResultFocus>();
+
   const reported = useRef(false);
   useEffect(() => {
     if (reported.current || members.length === 0) return;
@@ -226,7 +231,8 @@ export const StackPage: React.FC<StackPageProps> = ({
   const sections = Array.from(steps).sort(([a], [b]) => a - b);
 
   const changeView = (next: string) => {
-    const tab: StackView = next === "results" ? "results" : "albums";
+    const tab: StackView =
+      next === "results" || next === "people" ? next : "albums";
     if (tab === view) return;
     track("stack_view_changed", { view: tab });
     navigate(stackPath(stackId, tab), { replace: true });
@@ -330,7 +336,23 @@ export const StackPage: React.FC<StackPageProps> = ({
         <TabsList aria-label="Stack view">
           <TabsTrigger value="albums">Albums</TabsTrigger>
           <TabsTrigger value="results">Results</TabsTrigger>
+          <TabsTrigger value="people">People</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="people" className="pt-6 lg:pt-8">
+          {stackFilters.loaded && (
+            <StackPeople
+              meta={meta}
+              stackFilters={stackFilters}
+              results={results}
+              startKey={root.targetKey}
+              onResult={(key) => {
+                navigate(stackPath(stackId, "results"), { replace: true });
+                setFocus({ key, at: Date.now() });
+              }}
+            />
+          )}
+        </TabsContent>
 
         <TabsContent value="results" className="pt-6 lg:pt-8">
           {stackFilters.loaded && (
@@ -342,6 +364,7 @@ export const StackPage: React.FC<StackPageProps> = ({
               order={order}
               results={results}
               of={albumsOn(meta, stackFilters.filters)}
+              focus={focus}
               onSearchFrom={onSearchStep}
               isSearching={isSearching}
             />

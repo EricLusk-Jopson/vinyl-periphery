@@ -162,15 +162,21 @@ ranks albums by how many of those people worked on them.
       year.
     - Transit (`src/lib/transitMap.ts`, `transit` payload): the searched
       album (or the stack's albums, those switched on) and the albums
-      chosen are stations, by year (`searchTransit`, `stackTransit`); the
-      people who count on two or more are lines (6 drawn). The searched
-      or stacked albums are ringed in red. 0/45/90° legs; a leg that would
-      cross a station it doesn't stop at bends round it on its own rail;
-      lines sharing a leg run side by side by person id; labels take the
-      first clear spot, and the map spreads out until none overlap.
-      `shareTransitMap` picks the orientation and spacing that draws
-      biggest in the square. Line colours are placeholders in
-      `render.js`, never red.
+      chosen are stations (`searchTransit`, `stackTransit`); the people who
+      count on two or more are lines (6 drawn), each running through its
+      stations in its own year order. No time axis: stations go where the
+      lines read best, found by a seeded simulated annealing on a grid
+      (`SCORE`): no turn over 90° anywhere; lines like running straight,
+      less the longer they have; lines splitting at a station (or joining
+      from different stations) go clearly different ways; never over a
+      station a line skips, few crossings or touches, no legs along other
+      legs, stations apart, compact, a mild overall flow. Legs are
+      straight or one run and one diagonal; lines sharing a leg run side
+      by side by person id. The searched or stacked albums are ringed in
+      red. `shareTransitMap` searches both flows roughly, refines the one
+      that scores better, and draws it at the grid size that fits the
+      square best with no labels colliding. Layouts are cached by input.
+      Line colours are placeholders in `render.js`, never red.
   - `src/lib/filters.ts`: chip state, "must include" (`filterState.required`,
     optional because older saved searches lack it), active filter count.
     "Only liked albums" is `filterState.likedOnly` (also optional). A new

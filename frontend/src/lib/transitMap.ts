@@ -1,27 +1,28 @@
-
 /**
  * A transit map of albums: they are stations, and the people credited on
- * two or more of them are lines running through them in time order. For
- * one search, its album and the results chosen; for a stack, its albums
- * and the results chosen. The searched or stacked albums are marked.
- * Interchanges (stations on 2+ lines) are drawn larger.
+ * two or more of them are lines. For one search, its album and the
+ * albums chosen; for a stack, its albums and the albums chosen. The
+ * searched or stacked albums are marked. Interchanges (stations on 2+
+ * lines) are drawn larger.
  *
- * An MVP layout, not a general octilinear solver:
- * - a station's place along the map is its column (for these maps, its
- *   year: one column per year), and across, its order within the column
- *   (ordered by where the stations it shares lines with sit in the
- *   columns before, to cut crossings);
- * - each line runs station to station in column order with 0/45/90° legs;
- *   a leg that would run over another station (a line skipping an album)
- *   bends around it instead, each line at its own distance and side, so
- *   it never seems to stop where it doesn't;
- * - lines sharing a leg run side by side, in a fixed order by person id;
- * - each label takes the first spot around its station that overlaps no
- *   other label or station (then the fewest lines). If any label still
- *   overlaps, the map spreads out and tries again.
- *
- * Horizontal (time left to right) or vertical (top to bottom); the share
- * image takes whichever draws bigger. Pure and deterministic.
+ * There's no time axis: the lines are time. Each line runs through its
+ * stations in its own order (by year), and stations go wherever the
+ * lines read best. The layout is a search over a grid (simulated
+ * annealing, seeded, so the same input gives the same map) that scores:
+ * - no line turning more than 90° (inertia), anywhere, stations too;
+ * - lines liking to run straight, less so the longer they've run, and
+ *   turning soonest after a bend costing most;
+ * - lines that split at a station (going on to different stations)
+ *   leaving it in clearly different directions, and lines arriving from
+ *   different stations arriving from different directions;
+ * - no line running over a station it doesn't stop at, no two stations
+ *   close, few crossings, no two legs running along each other, legs not
+ *   too long, and a gentle preference for one overall direction of flow.
+ * Legs are 0/45/90°: straight, or one straight run and one diagonal.
+ * Lines sharing a leg run side by side, in a fixed order by person id.
+ * Each label takes the first spot around its station that overlaps no
+ * other label or station (then the fewest lines); if any still overlaps,
+ * the grid spreads out and tries again. Pure and deterministic.
  */
 
 import { EnrichedRelease } from "@/api/types";
@@ -33,12 +34,13 @@ import { defaultContributorDisplayPipeline } from "./transformers/contributorPro
 /** Lines drawn; the rest are listed under the map. */
 export const TRANSIT_LINES = 6;
 
+/** Which way the map flows overall: down, or to the right. */
 export type TransitOrientation = "horizontal" | "vertical";
 
 /** Spacing in layout units (pixels at 1:1) and label type sizes. */
 export const TRANSIT = {
-  horizontal: { step: 230, across: 120 },
-  vertical: { step: 150, across: 140 },
+  /** Pixels per grid step; stations are at least two steps apart. */
+  cell: 62,
   /** Between parallel lines on a shared leg. */
   gap: 7,
   line: 5,
@@ -55,7 +57,7 @@ export interface TransitStation {
   key: string;
   title: string;
   artist: string;
-  /** The column it's in (see `TransitStop.column`). */
+  /** Its place in time among the stations (by `TransitStop.column`). */
   step: number;
   /** The searched album, or one of the stack's. */
   marked: boolean;
@@ -85,11 +87,12 @@ export interface TransitLine {
   name: string;
   /** Colour slot, 0 to TRANSIT_LINES - 1. */
   colour: number;
-  /** Station indices in column order. */
+  /** Station indices in the line's own order (by year). */
   stations: number[];
   /**
-   * The drawn legs, station to station, each offset for the lines sharing
-   * it. Legs meet under the stations, which cover the lines side by side.
+   * The drawn legs, station to station in the line's order, each offset
+   * for the lines sharing it. Legs meet under the stations, which cover
+   * the lines side by side.
    */
   legs: Array<Array<{ x: number; y: number }>>;
 }
@@ -128,81 +131,6 @@ export const labelSize = (title: string, artist: string) => ({
   h: TRANSIT.title.line + (artist ? TRANSIT.artist.line : 0),
 });
 
-/**
- * An octilinear route from a to b: straight, or a straight run, one 45°
- * leg and another straight run, along the main direction (`along`).
- */
-export const octilinear = (
-  a: Point,
-  b: Point,
-  orientation: TransitOrientation,
-): Point[] => {
-  const main = orientation === "horizontal" ? "x" : "y";
-  const side = main === "x" ? "y" : "x";
-  const d = b[main] - a[main];
-  const s = b[side] - a[side];
-  const at = (m: number, n: number): Point =>
-    main === "x" ? { x: m, y: n } : { x: n, y: m };
-  if (d === 0 || s === 0) return [a, b];
-  const along = Math.abs(d);
-  const across = Math.abs(s);
-  const dm = Math.sign(d);
-  const ds = Math.sign(s);
-  const points =
-    across <= along
-      ? [
-          a,
-          at(a[main] + (dm * (along - across)) / 2, a[side]),
-          at(b[main] - (dm * (along - across)) / 2, b[side]),
-          b,
-        ]
-      : [
-          a,
-          at(a[main], a[side] + (ds * (across - along)) / 2),
-          at(b[main], b[side] - (ds * (across - along)) / 2),
-          b,
-        ];
-  return points.filter(
-    (p, i) => i === 0 || p.x !== points[i - 1].x || p.y !== points[i - 1].y,
-  );
-};
-
-/**
- * A route from a to b that leaves a at 45° for a rail `far` to one side
- * (`side`: -1 or 1) of them both, runs along it, and comes back at 45°:
- * how a line passes stations it doesn't stop at. Null when a and b are
- * too close along for that.
- */
-export const bypass = (
-  a: Point,
-  b: Point,
-  side: number,
-  far: number,
-  orientation: TransitOrientation,
-): Point[] | null => {
-  const main = orientation === "horizontal" ? "x" : "y";
-  const cross = main === "x" ? "y" : "x";
-  const at = (m: number, n: number): Point =>
-    main === "x" ? { x: m, y: n } : { x: n, y: m };
-  const rail =
-    side < 0
-      ? Math.min(a[cross], b[cross]) - far
-      : Math.max(a[cross], b[cross]) + far;
-  const up = Math.abs(rail - a[cross]);
-  const down = Math.abs(rail - b[cross]);
-  const along = b[main] - a[main];
-  const dir = Math.sign(along) || 1;
-  if (up + down > Math.abs(along)) return null;
-  return [
-    a,
-    at(a[main] + dir * up, rail),
-    at(b[main] - dir * down, rail),
-    b,
-  ].filter(
-    (p, i, all) => i === 0 || p.x !== all[i - 1].x || p.y !== all[i - 1].y,
-  );
-};
-
 /** A polyline moved `offset` to its left, corners mitred. */
 export const offsetPath = (points: Point[], offset: number): Point[] => {
   if (offset === 0 || points.length < 2) return points;
@@ -229,7 +157,7 @@ export interface TransitStop {
   title: string;
   /** The label's second line: artist and year. */
   detail: string;
-  /** Its column, left to right (time order: see the builders). */
+  /** When it's from (the year: see the builders); orders each line. */
   column: number;
   /** The searched album, or one of the stack's. */
   marked: boolean;
@@ -245,9 +173,8 @@ export interface TransitPerson {
 export interface TransitInput {
   stops: TransitStop[];
   people: TransitPerson[];
+  /** Which way the map flows overall. */
   orientation: TransitOrientation;
-  /** Spacing other than the orientation's usual (`TRANSIT`). */
-  space?: { step: number; across: number };
 }
 
 /** Where label candidates sit around a station, in order of preference. */
@@ -274,26 +201,92 @@ const segmentHitsBox = (a: Point, b: Point, box: Box) => {
   return false;
 };
 
-const layoutAt = (input: TransitInput, spread: number): TransitMap => {
-  const { orientation } = input;
-  if (input.stops.length === 0) {
-    return { orientation, stations: [], lines: [], others: [], width: 0, height: 0 };
+
+/** The eight directions, a step of 45° each, clockwise from the right. */
+const DIRS: Point[] = [
+  { x: 1, y: 0 },
+  { x: 1, y: 1 },
+  { x: 0, y: 1 },
+  { x: -1, y: 1 },
+  { x: -1, y: 0 },
+  { x: -1, y: -1 },
+  { x: 0, y: -1 },
+  { x: 1, y: -1 },
+];
+const dirOf = (a: Point, b: Point): number => {
+  const dx = Math.sign(b.x - a.x);
+  const dy = Math.sign(b.y - a.y);
+  return DIRS.findIndex((d) => d.x === dx && d.y === dy);
+};
+/** How far apart two directions are, in steps of 45° (0 to 4). */
+const turnOf = (a: number, b: number): number => {
+  const d = Math.abs(a - b) % 8;
+  return Math.min(d, 8 - d);
+};
+const cheb = (a: Point, b: Point) =>
+  Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+
+/**
+ * A leg from a to b on the grid: straight when they're in line (0/45/90°),
+ * else a straight run and a diagonal, the diagonal last (`late`) or first.
+ */
+export const legRoute = (a: Point, b: Point, late: boolean): Point[] => {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const ax = Math.abs(dx);
+  const ay = Math.abs(dy);
+  if (dx === 0 || dy === 0 || ax === ay) return [a, b];
+  const diag = Math.min(ax, ay);
+  const run = { x: ax > ay ? Math.sign(dx) * (ax - diag) : 0, y: ay > ax ? Math.sign(dy) * (ay - diag) : 0 };
+  const corner = late
+    ? { x: a.x + run.x, y: a.y + run.y }
+    : { x: b.x - run.x, y: b.y - run.y };
+  return [a, corner, b];
+};
+
+/** A small seeded generator (mulberry32), for a repeatable search. */
+const seeded = (seed: number) => {
+  let t = seed >>> 0;
+  return () => {
+    t = (t + 0x6d2b79f5) >>> 0;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r;
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+};
+const hash = (text: string) => {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619);
   }
-  const space = input.space ?? TRANSIT[orientation];
-  // Columns ranked, so gaps between years don't stretch the map.
-  const columns = Array.from(new Set(input.stops.map((s) => s.column))).sort(
-    (a, b) => a - b,
-  );
+  return h >>> 0;
+};
+
+/** What the grid search works on: stations, lines, and the legs between. */
+interface Network {
+  stations: Array<{ key: string; title: string; artist: string; marked: boolean; rank: number }>;
+  lines: Array<{ id: number; name: string; stations: number[] }>;
+  others: TransitMap["others"];
+  /** Legs, one per pair of stations next to each other on any line. */
+  legs: Array<{ a: number; b: number }>;
+  /** Per line, its legs in order, and whether it runs each one a -> b. */
+  runs: Array<Array<{ leg: number; forward: boolean }>>;
+}
+
+const networkOf = (input: Omit<TransitInput, "orientation">): Network => {
   const stations = input.stops.map((s, k) => ({
     key: s.key,
     title: s.title,
     artist: s.detail,
     marked: s.marked,
-    step: columns.indexOf(s.column),
-    savedAt: k,
+    column: s.column,
+    k,
   }));
+  // Time order: by year, then as given.
+  const byTime = [...stations].sort((a, b) => a.column - b.column || a.k - b.k);
+  const rank = new Map(byTime.map((s, r) => [s.k, r]));
   const index = new Map(stations.map((s, i) => [s.key, i]));
-  // Lines: people on 2+ stations.
   const onStations = input.people
     .map((p) => ({
       id: p.id,
@@ -304,7 +297,7 @@ const layoutAt = (input: TransitInput, spread: number): TransitMap => {
             .map((key) => index.get(key))
             .filter((i): i is number => i !== undefined),
         ),
-      ).sort((a, b) => a - b),
+      ).sort((a, b) => rank.get(a)! - rank.get(b)!),
     }))
     .filter((p) => p.stations.length >= 2)
     .sort(
@@ -313,135 +306,402 @@ const layoutAt = (input: TransitInput, spread: number): TransitMap => {
         a.name.localeCompare(b.name) ||
         a.id - b.id,
     );
-  const drawn = onStations.slice(0, TRANSIT_LINES);
-
-  // Order within each step: the first by when it was searched; later ones
-  // by the mean place of the stations they share lines with a step back.
-  const steps = Array.from(new Set(stations.map((s) => s.step))).sort(
-    (a, b) => a - b,
+  const lines = onStations.slice(0, TRANSIT_LINES);
+  const legs: Network["legs"] = [];
+  const legAt = new Map<string, number>();
+  const runs = lines.map((line) =>
+    line.stations.slice(1).map((to, k) => {
+      const from = line.stations[k];
+      const id = from < to ? `${from}-${to}` : `${to}-${from}`;
+      if (!legAt.has(id)) {
+        legAt.set(id, legs.length);
+        legs.push({ a: from, b: to });
+      }
+      const leg = legAt.get(id)!;
+      return { leg, forward: legs[leg].a === from };
+    }),
   );
-  const row = new Map<number, number>();
-  for (const step of steps) {
-    const here = stations
-      .map((s, i) => ({ s, i }))
-      .filter(({ s }) => s.step === step);
-    const before = (i: number) => {
-      const near = drawn
-        .filter((l) => l.stations.includes(i))
-        .flatMap((l) => l.stations)
-        .filter((j) => stations[j].step < step && row.has(j))
-        .map((j) => row.get(j)!);
-      return near.length ? near.reduce((a, b) => a + b, 0) / near.length : null;
-    };
-    here
-      .map(({ s, i }) => ({ s, i, mean: before(i) }))
-      .sort(
-        (a, b) =>
-          (a.mean ?? Infinity) - (b.mean ?? Infinity) ||
-          a.s.savedAt - b.s.savedAt ||
-          a.s.key.localeCompare(b.s.key),
-      )
-      .forEach(({ i }, k, all) => row.set(i, k - (all.length - 1) / 2));
-  }
-  const place = (i: number): Point => {
-    const m = stations[i].step * space.step * spread;
-    const n = row.get(i)! * space.across * spread;
-    return orientation === "horizontal" ? { x: m, y: n } : { x: n, y: m };
+  return {
+    stations: stations.map((s) => ({
+      key: s.key,
+      title: s.title,
+      artist: s.artist,
+      marked: s.marked,
+      rank: rank.get(s.k)!,
+    })),
+    lines,
+    others: onStations.slice(TRANSIT_LINES).map((p) => ({
+      id: p.id,
+      name: p.name,
+      stations: p.stations.length,
+    })),
+    legs,
+    runs,
   };
-  const points = stations.map((_, i) => place(i));
+};
 
-  // Legs: consecutive stations on each line, in step order then across.
-  const legs = drawn.map((line) => {
-    const order = [...line.stations].sort(
-      (a, b) =>
-        stations[a].step - stations[b].step || row.get(a)! - row.get(b)!,
-    );
-    return { line, order };
+/** A grid layout: each station's place, and each leg's shape. */
+interface GridState {
+  at: Point[];
+  late: boolean[];
+}
+
+/** Weights for the grid search's score (see the top of this file). */
+const SCORE = {
+  near: 1000,
+  /** Stations only two steps apart: their labels are cramped. */
+  snug: 22,
+  through: 800,
+  /** A line passing a step from a station it doesn't stop at. */
+  brush: 30,
+  uTurn: 600,
+  sameWayOut: 200,
+  closeWayOut: 40,
+  overlap: 70,
+  crossing: 45,
+  bend: 6,
+  turn45: 3,
+  turn90: 8,
+  longRun: 0.6,
+  longLeg: 0.5,
+  back: 9,
+  sideways: 1.5,
+  area: 0.12,
+};
+
+/**
+ * Whether two segments cross or touch (a bend of one on the other reads
+ * as a junction with no station). Meeting at a station doesn't count:
+ * legs meet there.
+ */
+const segmentsCross = (
+  p: Point,
+  q: Point,
+  r: Point,
+  s: Point,
+  isStation: (a: Point) => boolean,
+) => {
+  const same = (a: Point, b: Point) => a.x === b.x && a.y === b.y;
+  for (const [a, b] of [
+    [p, r],
+    [p, s],
+    [q, r],
+    [q, s],
+  ]) {
+    if (same(a, b)) return !isStation(a);
+  }
+  const d = (a: Point, b: Point, c: Point) =>
+    (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+  const d1 = d(r, s, p);
+  const d2 = d(r, s, q);
+  const d3 = d(p, q, r);
+  const d4 = d(p, q, s);
+  if (d1 === 0 && d2 === 0) return false;
+  return d1 * d2 <= 0 && d3 * d4 <= 0;
+};
+
+/** Whether two segments run along each other (in line, overlapping). */
+const segmentsOverlap = (p: Point, q: Point, r: Point, s: Point) => {
+  const cross = (a: Point, b: Point, c: Point) =>
+    (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+  if (cross(p, q, r) !== 0 || cross(p, q, s) !== 0) return false;
+  const along = Math.abs(q.x - p.x) >= Math.abs(q.y - p.y) ? "x" : "y";
+  const [a1, a2] = [Math.min(p[along], q[along]), Math.max(p[along], q[along])];
+  const [b1, b2] = [Math.min(r[along], s[along]), Math.max(r[along], s[along])];
+  return Math.min(a2, b2) - Math.max(a1, b1) > 0;
+};
+
+/** Whether a point sits on a segment (the grid: exactly). */
+const onSegment = (c: Point, p: Point, q: Point) => {
+  const cross = (q.x - p.x) * (c.y - p.y) - (q.y - p.y) * (c.x - p.x);
+  if (cross !== 0) return false;
+  return (
+    c.x >= Math.min(p.x, q.x) &&
+    c.x <= Math.max(p.x, q.x) &&
+    c.y >= Math.min(p.y, q.y) &&
+    c.y <= Math.max(p.y, q.y)
+  );
+};
+
+/** Whether a point is within a step of a segment (not on it). */
+const nearSegment = (c: Point, p: Point, q: Point) => {
+  const dx = q.x - p.x;
+  const dy = q.y - p.y;
+  const length = dx * dx + dy * dy || 1;
+  const t = Math.max(0, Math.min(1, ((c.x - p.x) * dx + (c.y - p.y) * dy) / length));
+  return Math.hypot(p.x + t * dx - c.x, p.y + t * dy - c.y) < 1.01;
+};
+
+/** The score of a grid layout: lower is better. */
+const score = (net: Network, st: GridState, flow: TransitOrientation): number => {
+  let cost = 0;
+  const n = st.at.length;
+  // Stations two steps apart at least.
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const d = cheb(st.at[i], st.at[j]);
+      if (d < 2) cost += SCORE.near * (2 - d);
+      else if (d === 2) cost += SCORE.snug;
+    }
+  }
+  const routes = net.legs.map((leg, k) =>
+    legRoute(st.at[leg.a], st.at[leg.b], st.late[k]),
+  );
+  const segments = routes.flatMap((route, leg) =>
+    route.slice(1).map((q, k) => {
+      const p = route[k];
+      return {
+        p,
+        q,
+        leg,
+        x1: Math.min(p.x, q.x),
+        x2: Math.max(p.x, q.x),
+        y1: Math.min(p.y, q.y),
+        y2: Math.max(p.y, q.y),
+      };
+    }),
+  );
+  routes.forEach((route, k) => {
+    const { a, b } = net.legs[k];
+    // A leg's own bend, and its length.
+    if (route.length > 2) cost += SCORE.bend;
+    const length = cheb(st.at[a], st.at[b]);
+    if (length > 3) cost += SCORE.longLeg * (length - 3) ** 2;
+    // Never over a station it doesn't stop at, and not close by.
+    for (let i = 0; i < n; i++) {
+      if (i === a || i === b) continue;
+      for (let s = 1; s < route.length; s++) {
+        const p = route[s - 1];
+        const q = route[s];
+        if (onSegment(st.at[i], p, q)) cost += SCORE.through;
+        else if (nearSegment(st.at[i], p, q)) cost += SCORE.brush;
+      }
+    }
   });
-  // Whether a route runs over a station other than its ends.
-  const clear = TRANSIT.station + TRANSIT.gap + 6;
-  const hitsStation = (route: Point[], ends: number[]) =>
-    points.some(
-      (c, i) =>
-        !ends.includes(i) &&
-        route.slice(1).some((q, k) => {
-          const p = route[k];
-          for (let t = 0; t <= 1; t += 0.05) {
-            const x = p.x + (q.x - p.x) * t;
-            const y = p.y + (q.y - p.y) * t;
-            if (Math.hypot(x - c.x, y - c.y) < clear) return true;
-          }
-          return false;
-        }),
-    );
-  // Each leg's route: straight (octilinear), or bent around a station in
-  // the way: through a point beside the middle of the leg, the line's own
-  // distance and side, further out until it's clear.
-  const routeOf = (from: number, to: number, nth: number) => {
-    const direct = octilinear(points[from], points[to], orientation);
-    if (!hitsStation(direct, [from, to])) return { route: direct, bent: false };
-    const a = points[from];
-    const b = points[to];
-    const side = nth % 2 === 0 ? -1 : 1;
-    for (let tries = 0; tries < 8; tries++) {
-      const far = space.across * spread * (0.32 + 0.14 * (Math.floor(nth / 2) + tries));
-      for (const s of [side, -side]) {
-        const route = bypass(a, b, s, far, orientation);
-        if (route && !hitsStation(route, [from, to])) {
-          return { route, bent: true };
+  // Crossings, and legs running along other legs.
+  const stationAt = new Set(st.at.map((p) => `${p.x},${p.y}`));
+  const isStation = (p: Point) => stationAt.has(`${p.x},${p.y}`);
+  for (let i = 0; i < segments.length; i++) {
+    for (let j = i + 1; j < segments.length; j++) {
+      const s1 = segments[i];
+      const s2 = segments[j];
+      if (s1.leg === s2.leg) continue;
+      // Boxes apart: neither crossing nor overlapping.
+      if (s1.x2 < s2.x1 || s2.x2 < s1.x1 || s1.y2 < s2.y1 || s2.y2 < s1.y1) {
+        continue;
+      }
+      if (segmentsOverlap(s1.p, s1.q, s2.p, s2.q)) cost += SCORE.overlap;
+      else if (segmentsCross(s1.p, s1.q, s2.p, s2.q, isStation)) {
+        cost += SCORE.crossing;
+      }
+    }
+  }
+  // Each line: its turns, its straight runs, and its overall flow.
+  const outs = new Map<number, Map<number, number>>();
+  const ins = new Map<number, Map<number, number>>();
+  net.runs.forEach((runs, l) => {
+    const stations = net.lines[l].stations;
+    const path: Point[] = [];
+    runs.forEach(({ leg, forward }, k) => {
+      const route = forward ? routes[leg] : [...routes[leg]].reverse();
+      path.push(...(k === 0 ? route : route.slice(1)));
+      const from = stations[k];
+      const to = stations[k + 1];
+      // Which way it leaves `from` for `to`, and arrives at `to`.
+      const out = dirOf(route[0], route[1]);
+      const inn = dirOf(route[route.length - 2], route[route.length - 1]);
+      if (!outs.has(from)) outs.set(from, new Map());
+      outs.get(from)!.set(to, out);
+      if (!ins.has(to)) ins.set(to, new Map());
+      ins.get(to)!.set(from, inn);
+      // Flow: forward overall, a little sideways is fine.
+      const d =
+        flow === "vertical"
+          ? st.at[to].y - st.at[from].y
+          : st.at[to].x - st.at[from].x;
+      if (d < 0) cost += SCORE.back * (1 - d);
+      else if (d === 0) cost += SCORE.sideways;
+    });
+    // Runs of one direction, with their lengths.
+    const dirs: Array<{ dir: number; length: number }> = [];
+    for (let k = 1; k < path.length; k++) {
+      const dir = dirOf(path[k - 1], path[k]);
+      const length = cheb(path[k - 1], path[k]);
+      if (length === 0) continue;
+      const last = dirs[dirs.length - 1];
+      if (last && last.dir === dir) last.length += length;
+      else dirs.push({ dir, length });
+    }
+    dirs.forEach((run, k) => {
+      if (run.length > 4) cost += SCORE.longRun * (run.length - 4);
+      if (k === 0) return;
+      const turn = turnOf(dirs[k - 1].dir, run.dir);
+      // The longer it's run straight, the readier it is to turn.
+      const ready = 1 / (1 + dirs[k - 1].length / 2);
+      if (turn > 2) cost += SCORE.uTurn;
+      else if (turn === 2) cost += SCORE.turn90 * ready;
+      else if (turn === 1) cost += SCORE.turn45 * ready;
+    });
+  });
+  // Splits: different next stations, clearly different directions out;
+  // different previous stations, clearly different directions in.
+  for (const ways of [outs, ins]) {
+    for (const dirs of ways.values()) {
+      const list = Array.from(dirs.values());
+      for (let i = 0; i < list.length; i++) {
+        for (let j = i + 1; j < list.length; j++) {
+          const t = turnOf(list[i], list[j]);
+          if (t === 0) cost += SCORE.sameWayOut;
+          else if (t === 1) cost += SCORE.closeWayOut;
         }
       }
     }
-    return { route: direct, bent: false };
-  };
-  const routed = legs.map(({ line, order }, nth) => ({
-    line,
-    order,
-    legs: order.slice(1).map((to, k) => ({
-      id: `${order[k]}-${to}`,
-      ...routeOf(order[k], to, nth),
-    })),
-  }));
-  // Lines sharing a straight leg, by person id: their slot side by side.
-  const bundles = new Map<string, number[]>();
-  for (const { line, legs: ls } of routed) {
-    for (const leg of ls) {
-      if (leg.bent) continue;
-      bundles.set(
-        leg.id,
-        [...(bundles.get(leg.id) ?? []), line.id].sort((a, b) => a - b),
-      );
+  }
+  // Compact.
+  const xs = st.at.map((p) => p.x);
+  const ys = st.at.map((p) => p.y);
+  cost +=
+    SCORE.area *
+    (Math.max(...xs) - Math.min(...xs) + 2) *
+    (Math.max(...ys) - Math.min(...ys) + 2);
+  return cost;
+};
+
+/** Grid layouts already searched, by their input. */
+const searched = new Map<string, { state: GridState; cost: number }>();
+const SEARCHED_KEPT = 24;
+
+/** One annealing run from `start`: the best layout it found, and its score. */
+const anneal = (
+  net: Network,
+  flow: TransitOrientation,
+  start: GridState,
+  steps: number,
+  hot: number,
+  random: () => number,
+): { state: GridState; cost: number } => {
+  const n = start.at.length;
+  let state = start;
+  let cost = score(net, state, flow);
+  let best = { state, cost };
+  const cold = 0.05;
+  for (let k = 0; k < steps; k++) {
+    const t = hot * (cold / hot) ** (k / steps);
+    const next: GridState = { at: [...state.at], late: [...state.late] };
+    const pick = random();
+    if (pick < 0.12 && net.legs.length > 0) {
+      const leg = Math.floor(random() * net.legs.length);
+      next.late[leg] = !next.late[leg];
+    } else if (pick < 0.24 && n > 1) {
+      const i = Math.floor(random() * n);
+      const j = Math.floor(random() * n);
+      [next.at[i], next.at[j]] = [next.at[j], next.at[i]];
+    } else {
+      const i = Math.floor(random() * n);
+      const step = () => Math.floor(random() * 5) - 2;
+      next.at[i] = { x: next.at[i].x + step(), y: next.at[i].y + step() };
+    }
+    const nextCost = score(net, next, flow);
+    if (nextCost <= cost || random() < Math.exp((cost - nextCost) / t)) {
+      state = next;
+      cost = nextCost;
+      if (cost < best.cost) best = { state, cost };
     }
   }
-  // How far each station's lines spread either side of it.
-  const spreadAt = new Map<number, number>();
-  const lines: TransitLine[] = routed.map(({ line, order, legs: ls }, colour) => {
-    const routes: Point[][] = ls.map((leg) => {
-      const bundle = leg.bent ? [line.id] : bundles.get(leg.id)!;
-      const slot = bundle.indexOf(line.id) - (bundle.length - 1) / 2;
-      for (const end of leg.id.split("-").map(Number)) {
-        spreadAt.set(
-          end,
-          Math.max(spreadAt.get(end) ?? 0, Math.abs(slot) * TRANSIT.gap),
-        );
-      }
-      return offsetPath(leg.route, slot * TRANSIT.gap);
-    });
-    return {
-      id: line.id,
-      name: line.name,
-      colour,
-      stations: order,
-      legs: routes.map((leg) =>
-        leg.map((p) => ({
-          x: Math.round(p.x * 10) / 10,
-          y: Math.round(p.y * 10) / 10,
-        })),
-      ),
-    };
-  });
+  return best;
+};
 
-  const through = stations.map((_, i) =>
+const signatureOf = (net: Network) =>
+  JSON.stringify([
+    net.stations.map((s) => [s.key, s.rank]),
+    net.lines.map((l) => [l.id, l.stations]),
+  ]);
+
+/**
+ * A first, rough search flowing one way (seeded simulated annealing from
+ * a straight line in time order), remembered by its input.
+ */
+const roughGrid = (
+  net: Network,
+  flow: TransitOrientation,
+): { state: GridState; cost: number } => {
+  const signature = `rough:${flow}:${signatureOf(net)}`;
+  const known = searched.get(signature);
+  if (known) return known;
+  const start: GridState = {
+    at: net.stations.map((s) =>
+      flow === "vertical" ? { x: 0, y: s.rank * 2 } : { x: s.rank * 2, y: 0 },
+    ),
+    late: net.legs.map(() => true),
+  };
+  const found =
+    net.stations.length > 1 && net.legs.length > 0
+      ? anneal(net, flow, start, Math.min(4000, 300 * net.stations.length), 40, seeded(hash(signature)))
+      : { state: start, cost: 0 };
+  remember(signature, found);
+  return found;
+};
+
+/** The rough search refined, cooler, from where it ended. */
+const searchGrid = (net: Network, flow: TransitOrientation): GridState => {
+  const signature = `fine:${flow}:${signatureOf(net)}`;
+  const known = searched.get(signature);
+  if (known) return known.state;
+  const rough = roughGrid(net, flow);
+  const found =
+    net.stations.length > 1 && net.legs.length > 0
+      ? anneal(net, flow, rough.state, Math.min(5000, 400 * net.stations.length), 6, seeded(hash(signature)))
+      : rough;
+  remember(signature, found);
+  return found.state;
+};
+
+const remember = (signature: string, found: { state: GridState; cost: number }) => {
+  searched.set(signature, found);
+  while (searched.size > SEARCHED_KEPT) searched.delete(searched.keys().next().value!);
+};
+
+/** The grid layout drawn at `cell` pixels a step, with its labels. */
+const drawAt = (
+  net: Network,
+  st: GridState,
+  flow: TransitOrientation,
+  cell: number,
+  /** Label boxes this much larger (text drawn bigger than the map scale). */
+  grow: number,
+): TransitMap => {
+  const px = (p: Point): Point => ({ x: p.x * cell, y: p.y * cell });
+  const points = st.at.map(px);
+  // Lines sharing a leg, by person id: their slot side by side.
+  const bundles = net.legs.map((_, leg) =>
+    net.runs
+      .map((runs, l) => (runs.some((r) => r.leg === leg) ? net.lines[l].id : -1))
+      .filter((id) => id >= 0)
+      .sort((a, b) => a - b),
+  );
+  const spreadAt = new Map<number, number>();
+  const lines: TransitLine[] = net.lines.map((line, colour) => ({
+    id: line.id,
+    name: line.name,
+    colour,
+    stations: line.stations,
+    legs: net.runs[colour].map(({ leg, forward }) => {
+      const bundle = bundles[leg];
+      const slot = bundle.indexOf(line.id) - (bundle.length - 1) / 2;
+      const { a, b } = net.legs[leg];
+      for (const end of [a, b]) {
+        spreadAt.set(end, Math.max(spreadAt.get(end) ?? 0, Math.abs(slot) * TRANSIT.gap));
+      }
+      // Offset along the leg's own direction, so every line on it agrees.
+      const route = offsetPath(legRoute(st.at[a], st.at[b], st.late[leg]).map(px), slot * TRANSIT.gap);
+      const oriented = forward ? route : [...route].reverse();
+      return oriented.map((p) => ({
+        x: Math.round(p.x * 10) / 10,
+        y: Math.round(p.y * 10) / 10,
+      }));
+    }),
+  }));
+  const through = net.stations.map((_, i) =>
     lines.filter((l) => l.stations.includes(i)).map((l) => l.colour),
   );
   // Interchanges grow to cover the lines side by side through them.
@@ -456,17 +716,15 @@ const layoutAt = (input: TransitInput, spread: number): TransitMap => {
     w: radius[i] * 2,
     h: radius[i] * 2,
   }));
-
-  // Labels, the start first, then in step order.
-  const order = stations
+  // Labels, in time order.
+  const order = net.stations
     .map((_, i) => i)
-    .sort(
-      (a, b) =>
-        stations[a].step - stations[b].step || row.get(a)! - row.get(b)!,
-    );
+    .sort((a, b) => net.stations[a].rank - net.stations[b].rank);
   const placed: Array<TransitLabel | undefined> = [];
   for (const i of order) {
-    const { w, h } = labelSize(stations[i].title, stations[i].artist);
+    const size = labelSize(net.stations[i].title, net.stations[i].artist);
+    const w = size.w * grow;
+    const h = size.h * grow;
     const p = points[i];
     const r = radius[i] + 6;
     let best: { label: TransitLabel; cost: number } | null = null;
@@ -477,19 +735,17 @@ const layoutAt = (input: TransitInput, spread: number): TransitMap => {
       const label: TransitLabel = {
         ...box,
         align: spot.align,
-        title: cut(stations[i].title),
-        artist: cut(stations[i].artist),
+        title: cut(net.stations[i].title),
+        artist: cut(net.stations[i].artist),
       };
       const hitsLabel = placed.some((l) => l && overlaps(l, box, TRANSIT.pad));
       const hitsStation = dots.some((d) => overlaps(d, box, TRANSIT.pad));
       const crossings = lines.reduce(
-        (n, l) =>
-          n +
+        (sum, l) =>
+          sum +
           l.legs.reduce(
             (m, leg) =>
-              m +
-              leg.slice(1).filter((q, k) => segmentHitsBox(leg[k], q, box))
-                .length,
+              m + leg.slice(1).filter((q, k) => segmentHitsBox(leg[k], q, box)).length,
             0,
           ),
         0,
@@ -506,9 +762,7 @@ const layoutAt = (input: TransitInput, spread: number): TransitMap => {
   const boxes = [
     ...dots,
     ...labels,
-    ...lines.flatMap((l) =>
-      l.legs.flat().map((p) => ({ x: p.x, y: p.y, w: 0, h: 0 })),
-    ),
+    ...lines.flatMap((l) => l.legs.flat().map((p) => ({ x: p.x, y: p.y, w: 0, h: 0 }))),
   ];
   const minX = Math.min(...boxes.map((b) => b.x)) - TRANSIT.pad;
   const minY = Math.min(...boxes.map((b) => b.y)) - TRANSIT.pad;
@@ -518,29 +772,21 @@ const layoutAt = (input: TransitInput, spread: number): TransitMap => {
     x: Math.round((p.x - minX) * 10) / 10,
     y: Math.round((p.y - minY) * 10) / 10,
   });
-
   return {
-    orientation,
-    stations: stations.map((s, i) => ({
+    orientation: flow,
+    stations: net.stations.map((s, i) => ({
       key: s.key,
       title: s.title,
       artist: s.artist,
-      step: s.step,
+      step: s.rank,
       marked: s.marked,
       ...shift(points[i]),
       lines: through[i],
       radius: radius[i],
       label: { ...labels[i], ...shift(labels[i]) },
     })),
-    lines: lines.map((l) => ({
-      ...l,
-      legs: l.legs.map((leg) => leg.map(shift)),
-    })),
-    others: onStations.slice(TRANSIT_LINES).map((p) => ({
-      id: p.id,
-      name: p.name,
-      stations: p.stations.length,
-    })),
+    lines: lines.map((l) => ({ ...l, legs: l.legs.map((leg) => leg.map(shift)) })),
+    others: net.others,
     width: Math.ceil(maxX - minX),
     height: Math.ceil(maxY - minY),
   };
@@ -566,16 +812,49 @@ export const labelsCollide = (map: TransitMap): boolean =>
     ),
   );
 
+/** How many line segments run through labels. */
+export const labelLineHits = (map: TransitMap): number =>
+  map.stations.reduce(
+    (n, s) =>
+      n +
+      map.lines.reduce(
+        (m, line) =>
+          m +
+          line.legs.reduce(
+            (o, leg) =>
+              o + leg.slice(1).filter((q, k) => segmentHitsBox(leg[k], q, s.label)).length,
+            0,
+          ),
+        0,
+      ),
+    0,
+  );
+
 /**
- * The transit map for a stack: laid out, and spread out (up to a few
- * times) until no label overlaps another or a station.
+ * The transit map: the grid search, then drawn, spread out (up to a few
+ * times) until no label overlaps another or a station, and a little
+ * more where that takes lines off labels.
  */
 export const layoutTransitMap = (input: TransitInput): TransitMap => {
-  let map = layoutAt(input, 1);
-  for (let k = 1; k <= 6 && labelsCollide(map); k++) {
-    map = layoutAt(input, 1 + 0.25 * k);
+  const { orientation } = input;
+  if (input.stops.length === 0) {
+    return { orientation, stations: [], lines: [], others: [], width: 0, height: 0 };
   }
-  return map;
+  const net = networkOf(input);
+  const st = searchGrid(net, orientation);
+  const at = (k: number) =>
+    drawAt(net, st, orientation, TRANSIT.cell * (1 + 0.2 * k), 1);
+  let k = 0;
+  let map = at(0);
+  for (k = 1; k <= 10 && labelsCollide(map); k++) map = at(k);
+  // A little more room where that takes lines off labels.
+  let best = { map, hits: labelLineHits(map) };
+  for (let more = k; more < k + 3 && best.hits > 0; more++) {
+    const wider = at(more);
+    const hits = labelLineHits(wider);
+    if (!labelsCollide(wider) && hits < best.hits * 0.6) best = { map: wider, hits };
+  }
+  return best.map;
 };
 
 /**
@@ -597,31 +876,34 @@ export const shareScale = (map: TransitMap): number => {
 };
 
 /**
- * The transit map for the square share image: both orientations at a few
- * spacings, keeping the one that draws biggest with no labels overlapping
- * (so its 12px text, at that scale, stays inside its boxes).
+ * The transit map for the square share image: flowing down or flowing
+ * right, whichever reads better, drawn at the grid size that fits the
+ * square best (text never shrinks below its sizes, so 1:1 is the aim).
  */
 export const shareTransitMap = (
-  input: Omit<TransitInput, "orientation" | "space">,
+  input: Omit<TransitInput, "orientation">,
 ): TransitMap => {
   if (input.stops.length === 0) {
-    return layoutTransitMap({ ...input, orientation: "horizontal" });
+    return layoutTransitMap({ ...input, orientation: "vertical" });
   }
-  let best: { map: TransitMap; scale: number } | null = null;
-  for (const orientation of ["horizontal", "vertical"] as const) {
-    for (const tight of [1, 0.8, 0.65, 0.5]) {
-      const base = TRANSIT[orientation];
-      const map = layoutTransitMap({
-        ...input,
-        orientation,
-        space: { step: base.step * tight, across: base.across },
-      });
-      if (labelsCollide(map)) continue;
-      const scale = shareScale(map);
-      if (!best || scale > best.scale + 0.01) best = { map, scale };
-    }
+  // The way that reads better (the lower score) after a rough search;
+  // only that one is refined.
+  const net = networkOf(input);
+  const orientation: TransitOrientation =
+    roughGrid(net, "horizontal").cost < roughGrid(net, "vertical").cost
+      ? "horizontal"
+      : "vertical";
+  // The grid size that draws biggest in the square with no labels
+  // colliding, fewer labels on lines breaking near-ties.
+  const st = searchGrid(net, orientation);
+  let best: { map: TransitMap; value: number } | null = null;
+  for (let cell = 36; cell <= 150; cell += 6) {
+    const map = drawAt(net, st, orientation, cell, 1);
+    if (labelsCollide(map)) continue;
+    const value = Math.min(1, shareScale(map)) - 0.015 * labelLineHits(map);
+    if (!best || value > best.value + 1e-6) best = { map, value };
   }
-  return best?.map ?? layoutTransitMap({ ...input, orientation: "horizontal" });
+  return best?.map ?? layoutTransitMap({ ...input, orientation });
 };
 
 /** Undated albums go after the rest. */

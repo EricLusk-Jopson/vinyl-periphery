@@ -3,7 +3,6 @@ import { Search } from "lucide-react";
 import { SearchParams } from "@/api/types";
 import { KnownAlbum } from "@/hooks/useSearchRun";
 import { useCoverArt } from "@/hooks/useCoverArt";
-import { ResultFocus, useFocusResult } from "@/hooks/useFocusResult";
 import { FindCovers } from "../common/FindCovers";
 import { searchTarget } from "@/lib/searchTarget";
 import { resultPath } from "@/lib/routes";
@@ -54,8 +53,6 @@ interface ReleaseListProps {
   isSearching: boolean;
   /** Shown at the end of the toolbar, e.g. the Filters button below lg. */
   toolbarAction?: React.ReactNode;
-  /** A result to open and scroll to (from the People view). */
-  focus?: ResultFocus;
 }
 
 const quietButton =
@@ -68,7 +65,6 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
   onSearchFrom,
   isSearching,
   toolbarAction,
-  focus,
 }) => {
   const { searches, updateFilterState } = useCache();
   const likes = useLikes();
@@ -136,13 +132,6 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
   // Art for rows on screen first, then the rest of the list.
   const coverKeys = useMemo(() => sorted.map((r) => r.key), [sorted]);
   const shownKeys = coverKeys.slice(0, visible);
-  const highlighted = useFocusResult(
-    focus,
-    coverKeys,
-    PAGE_SIZE,
-    setVisible,
-    setOpenKey,
-  );
   const cover = useCoverArt(
     [...shownKeys, ...coverKeys.slice(visible)],
     searchId,
@@ -306,7 +295,6 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
                 people={people}
                 searchedAlbum={search.searchParams.album}
                 open={openKey === release.key}
-                highlighted={highlighted === release.key}
                 onToggle={() => {
                   if (openKey !== release.key) track("result_opened", position);
                   setOpenKey((key) =>

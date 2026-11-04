@@ -1,11 +1,9 @@
 import { Contributor, EnrichedRelease } from "@/api/types";
 import { SearchCache } from "@/contexts/cache/types";
-import { metaAlbum } from "./metaAlbum";
 import {
   axisYears,
   buildSwimlanes,
   laneSpan,
-  nearestResultTick,
   searchSwimlanes,
   stackSwimlanes,
   topLanes,
@@ -61,11 +59,12 @@ const input = {
   releases,
   results: [
     { key: "master:10", activeContributors: [1] },
-    // 12 is a result through the drummer only.
+    // 12 is chosen through the drummer only.
     { key: "master:12", activeContributors: [1] },
+    { key: "master:15", activeContributors: [3] },
     { key: "master:16", activeContributors: [2] },
   ],
-  albums: [{ key: "master:99", title: "Searched", year: 1985, accent: true }],
+  albums: [{ key: "master:99", title: "Searched", year: 1985 }],
 };
 
 describe("buildSwimlanes", () => {
@@ -114,14 +113,22 @@ describe("buildSwimlanes", () => {
   it("spans the years drawn and the album lines", () => {
     expect([lanes.from, lanes.to]).toEqual([1971, 2001]);
     expect(lanes.albums).toEqual([
-      { key: "master:99", title: "Searched", year: 1985, accent: true },
+      { key: "master:99", title: "Searched", year: 1985 },
     ]);
     const short = buildSwimlanes({
       ...input,
       people: [],
-      albums: [{ key: "a", title: "A", year: 2000, accent: true }],
+      albums: [{ key: "a", title: "A", year: 2000 }],
     });
     expect([short.from, short.to]).toEqual([1998, 2002]);
+  });
+
+  it("leaves out people linking none of the albums chosen", () => {
+    const fewer = buildSwimlanes({
+      ...input,
+      results: [{ key: "master:16", activeContributors: [2] }],
+    });
+    expect(fewer.lanes.map((l) => l.id)).toEqual([2]);
   });
 
   it("is the same for the same input", () => {
@@ -137,10 +144,8 @@ describe("lane helpers", () => {
     expect(topLanes(lanes, 5)).toBe(lanes);
   });
 
-  it("picks the nearest solid tick within reach", () => {
+  it("spans a lane's years", () => {
     const drums = lanes.lanes.find((l) => l.id === 1)!;
-    expect(nearestResultTick(drums, 1983, 3)?.year).toBe(1985);
-    expect(nearestResultTick(drums, 1978, 3)).toBeNull();
     expect(laneSpan(drums)).toBe("1971–1985");
   });
 
@@ -172,7 +177,7 @@ describe("searchSwimlanes and stackSwimlanes", () => {
     const lanes = searchSwimlanes(s, new Set([1]), input.results);
     expect(lanes.lanes.map((l) => l.id)).toEqual([1]);
     expect(lanes.albums).toEqual([
-      { key: "master:12", title: "Album 12", year: 1985, accent: true },
+      { key: "master:12", title: "Album 12", year: 1985 },
     ]);
   });
 
@@ -181,16 +186,16 @@ describe("searchSwimlanes and stackSwimlanes", () => {
     // b lists album 16 itself (2001); a lists it nowhere, and lists album
     // 12 with a different year than b does: each album's own search wins.
     const b = search(16, [producer], [release(16, "2001", [2]), release(12, "1990", [2])]);
-    const meta = metaAlbum([a, b]);
     const counted = new Map([
       ["master:12", new Set([1, 2])],
       ["master:16", new Set([2])],
     ]);
-    const lanes = stackSwimlanes(meta, counted, input.results, "master:12");
+    const lanes = stackSwimlanes([a, b], counted, input.results);
     expect(lanes.lanes.map((l) => l.id)).toEqual([1, 2]);
-    expect(lanes.albums.map((m) => [m.key, m.year, m.accent])).toEqual([
-      ["master:12", 1985, true],
-      ["master:16", 2001, false],
+    // Every stack album alike.
+    expect(lanes.albums).toEqual([
+      { key: "master:12", title: "Album 12", year: 1985 },
+      { key: "master:16", title: "Album 16", year: 2001 },
     ]);
     // Album 12 is on the producer's discography through the second search.
     const producerLane = lanes.lanes.find((l) => l.id === 2)!;

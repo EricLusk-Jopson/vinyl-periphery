@@ -1,6 +1,5 @@
-import { Contributor } from "@/api/types";
+import { Contributor, EnrichedRelease } from "@/api/types";
 import { SearchCache } from "@/contexts/cache/types";
-import { metaAlbum } from "./metaAlbum";
 import {
   shareScale,
   shareTransitMap,
@@ -10,52 +9,32 @@ import {
   offsetPath,
   TRANSIT_LINES,
   TransitOrientation,
+  TransitStop,
+  searchTransit,
+  stackTransit,
 } from "./transitMap";
 
-const person = (id: number): Contributor => ({
-  id,
-  name: `Person ${id}`,
-  roles: ["Drums"],
-  sources: ["credits"],
-  resourceUrl: "",
-});
-
 /**
- * `n` stack albums, two to a step after the start, with long titles;
- * person p is on every album k where (k + p) % 3 !== 0, so many people
- * share many stations.
+ * `n` stations, two to a column after the first, with long titles; person
+ * p is on every station k where (k + p) % 3 !== 0, so many people share
+ * many stations.
  */
-const stack = (n: number, people = 9) => {
-  const searches = Array.from({ length: n }, (_, k) => {
-    const on = Array.from({ length: people }, (_, p) => p + 1).filter(
-      (p) => (k + p) % 3 !== 0,
-    );
-    return {
-      searchId: `s-${k}`,
-      searchParams: {
-        artist: `The Long Artist Name ${k}`,
-        album: `A Fairly Long Album Title ${k}`,
-      },
-      target: { type: "master", id: 100 + k, key: `master:${100 + k}` },
-      contributors: Object.fromEntries(on.map((p) => [p, person(p)])),
-      roles: {},
-      releases: {},
-      filterState: {},
-      thumb: "",
-      savedAt: k,
-    } as unknown as SearchCache;
-  });
-  const levels = new Map(
-    searches.map((s, k) => [s.searchId, Math.ceil(k / 2)]),
-  );
-  const meta = metaAlbum(searches);
-  const counted = new Map(
-    meta.members.map((m) => [
-      m.key,
-      new Set(Object.keys(m.search.contributors).map(Number)),
-    ]),
-  );
-  return { meta, levels, counted };
+const stack = (n: number, people = 9, columns = (k: number) => Math.ceil(k / 2)) => {
+  const stops: TransitStop[] = Array.from({ length: n }, (_, k) => ({
+    key: `master:${100 + k}`,
+    title: `A Fairly Long Album Title ${k}`,
+    detail: `The Long Artist Name ${k}`,
+    column: 1990 + columns(k),
+    marked: k === 0,
+  }));
+  const folks = Array.from({ length: people }, (_, p) => ({
+    id: p + 1,
+    name: `Person ${p + 1}`,
+    stations: stops
+      .filter((_, k) => (k + p + 1) % 3 !== 0)
+      .map((s) => s.key),
+  }));
+  return { stops, people: folks };
 };
 
 const orientations: TransitOrientation[] = ["horizontal", "vertical"];
@@ -100,13 +79,7 @@ describe("layoutTransitMap", () => {
 
   it("never runs a line over a station it doesn't stop at", () => {
     // A chain, one album a step: lines skipping albums must bend round.
-    const chain = (n: number) => {
-      const base = stack(n);
-      const levels = new Map(
-        base.meta.members.map((m, k) => [m.search.searchId, k]),
-      );
-      return { ...base, levels };
-    };
+    const chain = (n: number) => stack(n, 9, (k) => k);
     for (const orientation of orientations) {
       for (const input of [chain(6), chain(8), stack(8)]) {
         const map = layoutTransitMap({ ...input, orientation });
@@ -194,15 +167,94 @@ describe("octilinear and offsetPath", () => {
 describe("shareTransitMap", () => {
   it("fits the square better than the wide layout, labels apart", () => {
     // A chain of 8, one album a step: a long strip left to right.
-    const base = stack(8);
-    const levels = new Map(
-      base.meta.members.map((m, k) => [m.search.searchId, k]),
-    );
-    const input = { ...base, levels };
+    const input = stack(8, 9, (k) => k);
     const wide = layoutTransitMap({ ...input, orientation: "horizontal" });
     const shared = shareTransitMap(input);
     expect(labelsCollide(shared)).toBe(false);
     expect(shareScale(shared)).toBeGreaterThan(shareScale(wide));
     expect(shareTransitMap(input)).toEqual(shared);
+  });
+});
+
+describe("searchTransit and stackTransit", () => {
+  const person = (id: number, name: string): Contributor => ({
+    id,
+    name,
+    roles: ["Drums"],
+    sources: ["credits"],
+    resourceUrl: "",
+  });
+  const release = (id: number, year: string): EnrichedRelease => ({
+    id,
+    type: "master",
+    key: `master:${id}`,
+    title: `Album ${id}`,
+    artist: "Someone",
+    year,
+    thumb: "",
+    resource_url: "",
+    contributorIds: [],
+  });
+  const search = (id: number, people: Contributor[], releases: EnrichedRelease[]) =>
+    ({
+      searchId: `s-${id}`,
+      searchParams: { artist: `Artist ${id}`, album: `Album ${id}` },
+      target: { type: "master", id, key: `master:${id}` },
+      contributors: Object.fromEntries(people.map((p) => [p.id, p])),
+      releases: Object.fromEntries(releases.map((r) => [r.key, r])),
+    }) as unknown as SearchCache;
+  const shown = [
+    { ...release(20, "2004"), activeContributors: [1, 2] },
+    { ...release(21, "0"), activeContributors: [2] },
+  ];
+
+  it("draws one search's album and chosen results by year, its people as lines", () => {
+    const s = search(10, [person(1, "Jim Keltner"), person(2, "Ry Cooder (2)")], [
+      release(10, "1999"),
+    ]);
+    const input = searchTransit(s, shown, new Set([1, 2]));
+    expect(input.stops).toEqual([
+      { key: "master:10", title: "Album 10", detail: "Artist 10 · 1999", column: 1999, marked: true },
+      { key: "master:20", title: "Album 20", detail: "Someone · 2004", column: 2004, marked: false },
+      // Undated: after the rest.
+      { key: "master:21", title: "Album 21", detail: "Someone", column: 9999, marked: false },
+    ]);
+    expect(input.people).toEqual([
+      { id: 1, name: "Jim Keltner", stations: ["master:10", "master:20"] },
+      { id: 2, name: "Ry Cooder", stations: ["master:10", "master:20", "master:21"] },
+    ]);
+    const map = layoutTransitMap({ ...input, orientation: "horizontal" });
+    expect(map.lines.map((l) => l.name)).toEqual(["Ry Cooder", "Jim Keltner"]);
+    // Time runs left to right; the searched album is marked.
+    expect(map.stations[0].x).toBeLessThan(map.stations[1].x);
+    expect(map.stations.map((s) => s.marked)).toEqual([true, false, false]);
+  });
+
+  it("draws a stack's albums and chosen results, people through both", () => {
+    const a = search(10, [person(1, "Jim Keltner"), person(2, "Ry Cooder")], [release(10, "1999")]);
+    const b = search(11, [person(2, "Ry Cooder")], [release(11, "2001"), release(10, "1998")]);
+    const counted = new Map([
+      ["master:10", new Set([1, 2])],
+      ["master:11", new Set([2])],
+    ]);
+    const input = stackTransit([a, b], counted, shown);
+    expect(input.stops.map((s) => [s.key, s.column, s.marked])).toEqual([
+      // Each stack album's year as its own search lists it.
+      ["master:10", 1999, true],
+      ["master:11", 2001, true],
+      ["master:20", 2004, false],
+      ["master:21", 9999, false],
+    ]);
+    expect(input.people.find((p) => p.id === 2)?.stations).toEqual([
+      "master:10",
+      "master:11",
+      "master:20",
+      "master:21",
+    ]);
+  });
+
+  it("draws nothing for nothing", () => {
+    const map = layoutTransitMap({ stops: [], people: [], orientation: "vertical" });
+    expect(map).toMatchObject({ stations: [], lines: [], width: 0, height: 0 });
   });
 });

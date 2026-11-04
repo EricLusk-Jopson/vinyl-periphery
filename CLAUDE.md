@@ -30,7 +30,7 @@ ranks albums by how many of those people worked on them.
     at most; built by `buildPayload` in `frontend/src/lib/share.ts`): a
     map, laid out by the client,
     a list of top results, swimlanes (`lanes`) or a transit map
-    (`transit`). For one search, the
+    (`transit`), all of the same chosen albums. For one search, the
     map and the list draw its top results
     as filtered and sorted on the page, with a line saying how they were
     chosen; the map groups people around the circle by role category
@@ -147,29 +147,30 @@ ranks albums by how many of those people worked on them.
     `Contributor.discography` records how much of each person's
     discography was read (`capped`: the page cap cut their oldest items).
     The visuals' plan is `features/new-visuals.md`.
-  - Swimlanes (`src/lib/swimlanes.ts`, `components/people/`): a People
-    view on Results (`?view=people`) and a People tab on a stack page.
-    A lane per person who counts under the filters, ticks by year (solid:
-    current results they link; faint: their other items), a line at the
-    searched album's year (one per stack album, the start's in the
-    accent). Lanes sort by primary group, then first year; 12 shown, then
-    "Show all". Undated items are counted, not drawn; lanes the page cap
-    cut short are hatched before their first year. Tapping a lane picks
-    the nearest results year; its results open in the list
-    (`useFocusResult`). A name toggles "must include". Share: "People" in
-    the search's sheet (`lanes` payload, top 8 lanes).
-  - Transit map (`src/lib/transitMap.ts`, `components/transit/`): a Map
-    tab on stack pages (`?view=map`). Stations are the stack's albums
-    (those switched on in its filters); lines are people counted on 2+
-    of them (6 drawn, the rest listed). x from the step, y from order
-    within it; 0/45/90° legs; a leg that would cross a station it doesn't
-    stop at bends round it on its own rail; lines sharing a leg run side
-    by side by person id; labels take the first clear spot, and the map
-    spreads out until none overlap. Left to right where it fits at 80%,
-    else top to bottom. Line colours are the `line-1`..`line-6` tokens
-    (placeholders, never red). Share: "Transit" in a stack's sheet
-    (`transit` payload; `shareTransitMap` picks the layout that draws
-    biggest in the square).
+  - Swimlanes and transit maps are share images only, beside the map
+    and the list: the share sheet's Show offers Map, Results, People and
+    Transit for a search, and Map, People and Transit for a stack. Every
+    layout draws the same albums: the page's filters, then the sheet's
+    count and edits (`planShare`). No covers on either.
+    - People (`src/lib/swimlanes.ts`, `lanes` payload): a lane per person
+      who counts and links an album chosen, top 8 by albums; ticks by
+      year, tall for the chosen albums and short for their other
+      releases, the same colour. A red line, labelled, at the searched
+      album's year, or at every stack album's, all alike. Lanes sort by
+      primary group, then first year; undated items are counted, not
+      drawn; lanes the page cap cut short are dashed before their first
+      year.
+    - Transit (`src/lib/transitMap.ts`, `transit` payload): the searched
+      album (or the stack's albums, those switched on) and the albums
+      chosen are stations, by year (`searchTransit`, `stackTransit`); the
+      people who count on two or more are lines (6 drawn). The searched
+      or stacked albums are ringed in red. 0/45/90° legs; a leg that would
+      cross a station it doesn't stop at bends round it on its own rail;
+      lines sharing a leg run side by side by person id; labels take the
+      first clear spot, and the map spreads out until none overlap.
+      `shareTransitMap` picks the orientation and spacing that draws
+      biggest in the square. Line colours are placeholders in
+      `render.js`, never red.
   - `src/lib/filters.ts`: chip state, "must include" (`filterState.required`,
     optional because older saved searches lack it), active filter count.
     "Only liked albums" is `filterState.likedOnly` (also optional). A new
@@ -202,8 +203,7 @@ ranks albums by how many of those people worked on them.
     hangs the new search on the member sharing the most people. Share
     draws the filtered results.
   - Routes (React Router): `/` home, `/library`,
-    `/library/stack/:stackId` (Albums tab; `?view=results`, `people` or
-    `map` for the others), and
+    `/library/stack/:stackId` (Albums tab; `?view=results` for Results), and
     `/results?artist=…&album=…`, plus `&master=N` or `&release=N` when the
     Discogs album is known. A results page's back link goes where it was
     opened from (a stack or the library); otherwise to the stack its search

@@ -265,16 +265,19 @@ describe("buildPayload and the draft", () => {
     expect(draftChange(null, committed)).toBe("same");
   });
 
+  // People with roles, so they count under the filters.
+  const withPeople = (): ShareData => ({
+    ...data(),
+    search: (() => {
+      const s = base();
+      s.contributors[1].roles = ["Drums"];
+      s.contributors[2].roles = ["Producer"];
+      return s;
+    })(),
+  });
+
   it("draws the People layout as swimlanes, with no covers to find", () => {
-    const people = {
-      ...data(),
-      search: (() => {
-        const s = base();
-        s.contributors[1].roles = ["Drums"];
-        s.contributors[2].roles = ["Producer"];
-        return s;
-      })(),
-    };
+    const people = withPeople();
     const draft = { ...defaultDraft(), chosen: "lanes" as const };
     const plan = planShare(draft, people);
     expect(plan.layout).toBe("lanes");
@@ -287,11 +290,44 @@ describe("buildPayload and the draft", () => {
     expect(payload.n[0].c).toBe(8);
     expect(payload.n[0].s.reduce((sum, [, n]) => sum + n, 0)).toBe(8);
     expect(payload.y).toEqual([2000, 2007]);
-    expect(payload.d).toBe("2 people");
+    // The same albums as the map and list: chosen the same way.
+    expect(payload.d).toBe("Top 8 by Shared · 2 people");
+    // Fewer albums chosen: fewer tall marks.
+    const six = buildPayload(
+      { ...draft, counts: { ...draft.counts, lanes: 6 } },
+      people,
+    );
+    if (six.l !== "lanes") throw new Error();
+    expect(six.n[0].s.reduce((sum, [, n]) => sum + n, 0)).toBe(6);
+    expect(six.d).toBe("Top 6 by Shared · 2 people");
     // Covers off changes nothing on swimlanes.
     expect(
       buildPayload({ ...draft, view: { ...draft.view, covers: false } }, people),
     ).toEqual(payload);
+  });
+
+  it("draws one search's chosen albums as a transit map", () => {
+    const draft = {
+      ...defaultDraft(),
+      chosen: "transit" as const,
+      counts: { ...defaultDraft().counts, transit: 4 },
+    };
+    const plan = planShare(draft, withPeople());
+    expect(plan.layout).toBe("transit");
+    expect(plan.transitReady).toBe(true);
+    expect(plan.wanted).toEqual([]);
+    const payload = buildPayload(draft, withPeople(), plan);
+    if (payload.l !== "transit") throw new Error();
+    // The searched album and the 4 chosen, the album marked.
+    expect(payload.s).toHaveLength(5);
+    expect(payload.s.filter((st) => st.m === 1).map((st) => st.t)).toEqual([
+      "Unmap",
+    ]);
+    expect(payload.n.map((n) => n.n).sort()).toEqual([
+      "Brian Joseph",
+      "Justin Vernon",
+    ]);
+    expect(payload.d).toBe("Top 4 by Shared · 2 people as lines");
   });
 
   it("ignores a change that doesn't alter the image", () => {
@@ -474,83 +510,105 @@ describe("withView", () => {
   });
 });
 
-describe("transit share", () => {
-  const transit = {
-    orientation: "horizontal" as const,
-    width: 400,
-    height: 120,
-    stations: [
-      {
-        key: "master:1",
-        title: "Unmap",
-        artist: "Volcano Choir",
-        searchId: "a",
-        step: 0,
-        x: 20,
-        y: 40,
-        lines: [0, 1],
-        radius: 12,
-        label: {
-          x: 0,
-          y: 60,
-          w: 90,
-          h: 35,
-          align: "start" as const,
-          title: "Unmap",
-          artist: "Volcano Choir",
+describe("stack People and Transit", () => {
+  const withReleases = (
+    s: SearchCache,
+    rows: Array<[number, string, number[]]>,
+  ): SearchCache => ({
+    ...s,
+    releases: Object.fromEntries(
+      rows.map(([id, year, contributorIds]) => [
+        `master:${id}`,
+        {
+          id,
+          type: "master",
+          key: `master:${id}`,
+          title: `Album ${id}`,
+          artist: "Someone",
+          year,
+          contributorIds,
         },
-      },
+      ]),
+    ) as unknown as SearchCache["releases"],
+  });
+  const a = withReleases(
+    search(1, "Unmap", [
+      [1, "Justin Vernon"],
+      [2, "Brian Joseph"],
+    ]),
+    [
+      [1, "2000", [1, 2]],
+      [5, "2004", [1]],
+      [6, "2008", [2]],
     ],
-    lines: [
-      {
-        id: 7,
-        name: "Justin Vernon",
-        colour: 0,
-        stations: [0],
-        legs: [
-          [
-            { x: 20, y: 40 },
-            { x: 380, y: 40 },
-          ],
-        ],
-      },
-    ],
-    others: [{ id: 9, name: "Brian Joseph", stations: 2 }],
-  };
+  );
+  const b = withReleases(search(2, "Bon Iver", [[1, "Justin Vernon"]]), [
+    [2, "2011", [1]],
+    [5, "2004", [1]],
+  ]);
+  const scored = (id: number, year: string, people: number[]) =>
+    ({
+      key: `master:${id}`,
+      title: `Album ${id}`,
+      artist: "Someone",
+      year,
+      contributorIds: people,
+      activeContributors: people,
+    }) as unknown as ScoredRelease;
+  const data = (): ShareData => ({
+    kind: "stack",
+    search: a,
+    centre: { key: "master:1", title: "Unmap", artist: "Volcano Choir" },
+    members: [a, b],
+    levels: new Map([
+      [a.searchId, 0],
+      [b.searchId, 1],
+    ]),
+    results: [scored(5, "2004", [1]), scored(6, "2008", [2])],
+    counted: new Map([
+      ["master:1", new Set([1, 2])],
+      ["master:2", new Set([1])],
+    ]),
+    likes: {},
+    hidden: {},
+    coverFor: () => null,
+  });
 
-  it("draws the stack's transit map when chosen, with no covers to find", () => {
-    const s = search(1, "Unmap");
-    const data: ShareData = {
-      kind: "stack",
-      search: s,
-      centre: { key: "master:1", title: "Unmap", artist: "Volcano Choir" },
-      members: [s],
-      levels: new Map(),
-      results: [],
-      transit,
-      likes: {},
-      hidden: {},
-      coverFor: () => null,
-    };
+  it("draws every stack album as a line on the swimlanes, alike", () => {
+    const draft = { ...defaultDraft(), chosen: "lanes" as const };
+    const payload = buildPayload(draft, data());
+    if (payload.l !== "lanes") throw new Error();
+    expect(payload.k).toEqual([
+      { t: "Unmap", y: 2000 },
+      { t: "Bon Iver", y: 2011 },
+    ]);
+    expect(payload.c.t).toBe("Unmap");
+    expect(payload.d).toBe(
+      "2 albums stacked · 2 around them, by Shared · Likes first · 2 people",
+    );
+  });
+
+  it("draws the stack's albums and the chosen results as stations", () => {
     const draft = { ...defaultDraft(), chosen: "transit" as const };
-    const plan = planShare(draft, data);
+    const plan = planShare(draft, data());
     expect(plan.layout).toBe("transit");
-    expect(plan.transitReady).toBe(true);
-    expect(plan.wanted).toEqual([]);
-    const payload = buildPayload(draft, data, plan);
-    expect(payload).toMatchObject({
-      l: "transit",
-      c: { t: "Unmap", r: "Volcano Choir" },
-      w: 400,
-      h: 120,
-      s: [{ t: "Unmap", q: 12, k: [0, 1], b: [0, 60, 90, 35], a: "start" }],
-      n: [{ n: "Justin Vernon", c: 0, g: [[[20, 40], [380, 40]]] }],
-      o: 1,
-      d: "1 album · 1 person as lines · 1 more on two or more",
-    });
-    // No lines: the ring map instead.
-    const flat = planShare(draft, { ...data, transit: { ...transit, lines: [] } });
-    expect(flat.layout).toBe("map");
-    expect(flat.transitReady).toBe(false);
+    const payload = buildPayload(draft, data(), plan);
+    if (payload.l !== "transit") throw new Error();
+    expect(payload.s.map((st) => [st.t, st.m ?? 0])).toEqual([
+      ["Unmap", 1],
+      ["Bon Iver", 1],
+      ["Album 5", 0],
+      ["Album 6", 0],
+    ]);
+    // Justin Vernon: both stack albums and Album 5; Brian Joseph: Unmap
+    // and Album 6.
+    expect(payload.n.map((n) => n.n)).toEqual(["Justin Vernon", "Brian Joseph"]);
+  });
+
+  it("falls back to the map when nothing links two stations", () => {
+    const lonely = { ...data(), results: [], counted: new Map() };
+    const plan = planShare({ ...defaultDraft(), chosen: "transit" }, lonely);
+    expect(plan.transitReady).toBe(false);
+    expect(plan.layout).toBe("map");
   });
 });

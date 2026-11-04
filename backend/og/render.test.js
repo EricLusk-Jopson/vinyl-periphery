@@ -426,7 +426,7 @@ test("swimlanes parse, fit their box and render", async () => {
   assert.equal(lanes.lanes.length, 2);
   assert.deepEqual(lanes.lanes[0].faint, [[2001, 3]]);
   assert.equal(lanes.lanes[0].partial, true);
-  assert.deepEqual(lanes.albums, [{ t: "Virgins", year: 2013, accent: true }]);
+  assert.deepEqual(lanes.albums, [{ t: "Virgins", year: 2013 }]);
   assert.deepEqual(artIds(lanes), []);
   const { top, ...box } = { top: 224, width: 1080, height: 788 };
   const g = lanesGeometry(lanes, box);
@@ -438,6 +438,32 @@ test("swimlanes parse, fit their box and render", async () => {
   assert.equal(top, 224);
 });
 
+test("swimlanes label every album line alike, a row down when they'd touch", () => {
+  const stack = parsePayload({
+    v: 1,
+    l: "lanes",
+    c: { t: "Virgins", r: "Tim Hecker" },
+    y: [1990, 2020],
+    k: [{ t: "Virgins", y: 2013 }, { t: "Love Streams", y: 2016 }, { t: "Harmony in Ultraviolet", y: 1995 }],
+    n: [{ n: "Ben Frost", c: 2, s: [[2013, 1]], f: [] }],
+  });
+  const g = lanesGeometry(stack, { width: 1080, height: 788 });
+  assert.equal(g.labels.length, 3);
+  // Right of each line; 2016's would run off the edge, so it's left of
+  // its line, where it meets 2013's: a row down.
+  assert.deepEqual(g.labels.map((l) => l.row), [0, 1, 0]);
+  assert.ok(g.labels[0].x > g.x(2013));
+  assert.ok(g.labels[1].x + g.labels[1].w < g.x(2016));
+  assert.equal(g.top, 2 * 22 + 12);
+  // No two labels in a row overlap.
+  for (const a of g.labels) {
+    for (const b of g.labels) {
+      if (a === b || a.row !== b.row) continue;
+      assert.ok(a.x + a.w <= b.x || b.x + b.w <= a.x);
+    }
+  }
+});
+
 test("transit maps parse, fit and render", async () => {
   const transit = parsePayload({
     v: 1,
@@ -446,7 +472,7 @@ test("transit maps parse, fit and render", async () => {
     w: 700,
     h: 200,
     s: [
-      { t: "Virgins", r: "Tim Hecker", x: 20, y: 100, q: 12, k: [0, 1], b: [0, 118, 120, 35], a: "start" },
+      { t: "Virgins", r: "Tim Hecker", x: 20, y: 100, q: 12, k: [0, 1], b: [0, 118, 120, 35], a: "start", m: 1 },
       { t: "Aurora", r: "Ben Frost", x: 680, y: 100, q: 12, k: [0, 1], b: [580, 118, 120, 35], a: "end" },
       { t: "", x: 0, y: 0 },
     ],
@@ -458,6 +484,7 @@ test("transit maps parse, fit and render", async () => {
   });
   assert.equal(transit.layout, "transit");
   assert.equal(transit.stations.length, 2);
+  assert.deepEqual(transit.stations.map((s) => s.marked), [true, false]);
   // Colour clamped to the six there are; one-point legs dropped.
   assert.equal(transit.lines[1].colour, 5);
   assert.equal(transit.lines[1].legs.length, 1);

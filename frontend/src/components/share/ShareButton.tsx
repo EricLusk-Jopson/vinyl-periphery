@@ -40,7 +40,12 @@ import {
   StackOrder,
 } from "@/lib/share";
 import { filtersToInclude, ShareEdits } from "@/lib/shareSelection";
-import { committedShare, CommittedShare, shareDraft, keepShare } from "@/lib/shareDrafts";
+import {
+  committedShare,
+  CommittedShare,
+  shareDraft,
+  keepShare,
+} from "@/lib/shareDrafts";
 import { cn } from "@/lib/utils";
 import { dialogButton } from "../common/buttons";
 import {
@@ -399,7 +404,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   const mapReady = plan?.mapReady ?? false;
   const shown = plan?.shown ?? [];
   const shownCount = shown.length;
-  const countChoices = countOptions(layout, plan?.available ?? 0);
+  const countChoices = countOptions(layout, plan?.available ?? 0, plan?.cap);
   // Something to make: nothing yet, or the draft has changed since.
   const stale = !committed || change !== "same";
 
@@ -427,7 +432,13 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   const linesAvailable = useMemo(
     () =>
       data && plan
-        ? canDrawLines(buildPayload({ ...draft, view: { ...draft.view, lines: true } }, data, plan))
+        ? canDrawLines(
+            buildPayload(
+              { ...draft, view: { ...draft.view, lines: true } },
+              data,
+              plan,
+            ),
+          )
         : false,
     // Only whether there are links matters, not the art.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -527,7 +538,9 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
       ) : (
         <RefreshCw className="h-4 w-4" aria-hidden="true" />
       )}
-      {rendering || (!committed && !failed) ? "Making the image…" : "Regenerate"}
+      {rendering || (!committed && !failed)
+        ? "Making the image…"
+        : "Regenerate"}
     </button>
   ) : (
     <button
@@ -623,21 +636,31 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                     onChange={(chosen) => setDraft((d) => ({ ...d, chosen }))}
                   />
                 )}
-                {countChoices.length > 0 && (
-                  <Segmented
-                    label="Albums"
-                    value={String(shownCount)}
-                    options={countChoices.map((c) => ({
-                      id: String(c.count),
-                      label: c.label,
-                    }))}
-                    onChange={(value) =>
-                      setDraft((d) => ({
-                        ...d,
-                        counts: { ...d.counts, [layout]: Number(value) },
-                      }))
-                    }
-                  />
+                {(countChoices.length > 0 || plan?.cap !== undefined) && (
+                  <div className="flex flex-col gap-1.5">
+                    {countChoices.length > 0 && (
+                      <Segmented
+                        label="Albums"
+                        value={String(shownCount)}
+                        options={countChoices.map((c) => ({
+                          id: String(c.count),
+                          label: c.label,
+                        }))}
+                        onChange={(value) =>
+                          setDraft((d) => ({
+                            ...d,
+                            counts: { ...d.counts, [layout]: Number(value) },
+                          }))
+                        }
+                      />
+                    )}
+                    {plan?.cap !== undefined && (
+                      <p className="text-[13px] text-muted-foreground">
+                        Up to {plan.cap} for this stack, so covers stay big
+                        enough to read
+                      </p>
+                    )}
+                  </div>
                 )}
                 {!selection && (
                   <StackOrderControls

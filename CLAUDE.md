@@ -33,8 +33,17 @@ ranks albums by how many of those people worked on them.
     them. For a stack, the map is of album
     overlap, not people (`frontend/src/lib/stackMap.ts`): the stack's
     albums on a ring (a regular polygon with sides one step long, the
-    start at the top), and results at the average of the stack albums'
-    places, weighted by the people they share with each. A stack shares only as a map; its sheet
+    start at the top), and results placed by what they link
+    (`placeResults`): at the weighted mean angle of their stack albums
+    (weights: people shared), outside the ring beyond the one album they
+    link, or inside, nearer the middle the more they link. `relaxGraph`
+    then pushes covers apart (stack albums fixed) and keeps every line at
+    least `MIN_LINK` long. Covers scale with the ring (the smallest scale
+    whose result covers clear `COVER_FLOOR`, 64px at 1080, once fitted:
+    `fitToCanvas`), and the sheet offers no more results than fit above
+    that floor (`stackMapCapacity`, "Up to N for this stack"). Lines run
+    edge to edge: the stack's own links in the accent, results' muted
+    and thicker for more people shared (`w`). A stack shares only as a map; its sheet
     orders the results (sort, tiebreaker, likes first) and takes albums
     out or adds them, drawing from the Results tab's filtered results. Typing "no
     boilerplate" in the sheet's album search unlocks a switch that drops

@@ -21,6 +21,7 @@ import {
   layoutStackMap,
   orderStackResults,
   stackAsSearch,
+  stackMapCapacity,
   StackNode,
   stackResults,
 } from "./stackMap";
@@ -47,6 +48,11 @@ export interface ShareStackNode {
   m?: 1;
   /** Nodes it's linked to (0 is the centre, k is n[k - 1]), for lines. */
   e?: number[];
+  /**
+   * A result's line weights, one per `e`: 1, 2 or 3 for one, two, or three
+   * or more people shared.
+   */
+  w?: number[];
 }
 
 /** Art id: "g:<release-group mbid>", "r:<release mbid>", or "". */
@@ -130,9 +136,21 @@ export const SHARE_COUNTS: Record<
 export const countOptions = (
   layout: ShareLayout,
   available: number,
+  /** The most this share can draw (a crowded stack map), if fewer. */
+  cap = Infinity,
 ): Array<{ count: number; label: string }> => {
   const { options } = SHARE_COUNTS[layout];
-  const max = options[options.length - 1];
+  const largest = options[options.length - 1];
+  if (cap < Math.min(available, largest)) {
+    const choices = [
+      ...options
+        .filter((n) => n < cap)
+        .map((n) => ({ count: n, label: String(n) })),
+      { count: cap, label: String(cap) },
+    ];
+    return choices.length > 1 ? choices : [];
+  }
+  const max = largest;
   const below = options.filter((n) => n < available && n < max);
   const all =
     available <= max ? [{ count: available, label: `All ${available}` }] : [];
@@ -331,8 +349,8 @@ export const withView = (
       ...covers,
       ...bare,
       ...(lines ? { ln: 1 as const } : {}),
-      n: payload.n.map(({ e, ...node }) =>
-        lines && e ? { ...node, e } : node,
+      n: payload.n.map(({ e, w, ...node }) =>
+        lines && e ? { ...node, e, ...(w ? { w } : {}) } : node,
       ),
     };
   }
@@ -387,6 +405,9 @@ export const stackMapPayload = (
       s: thousandths(node.side),
       ...(node.member ? { m: 1 as const } : {}),
       e: node.links,
+      ...(node.weights
+        ? { w: node.weights.map((w) => Math.max(1, Math.min(3, w))) }
+        : {}),
     })),
     ...(caption ? { d: caption } : {}),
   };
@@ -526,6 +547,11 @@ export interface SharePlan {
   mapReady: boolean;
   /** Albums there are to draw: the list less removed ones, plus added. */
   available: number;
+  /**
+   * The most a stack map can draw with covers big enough to read, when
+   * that's fewer than there are to draw and than the largest count.
+   */
+  cap?: number;
   /** The search the album picker reads (a stack's as one search). */
   pickerSearch: SearchCache;
   /** Keys the picker counts as in the results. */
@@ -586,7 +612,19 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
     stackOrder.likesFirst,
   );
   const pickerSearch = stackAsSearch(data.search, data.members, list);
-  const shown = shareSelection(pickerSearch, ordered, draft.counts.map, edits);
+  const pick = (count: number) =>
+    shareSelection(pickerSearch, ordered, count, edits);
+  const largest = SHARE_COUNTS.map.options[SHARE_COUNTS.map.options.length - 1];
+  const most = Math.min(available(list, edits), largest);
+  const capacity = stackMapCapacity(
+    data.centre,
+    data.members,
+    data.levels,
+    data.likes,
+    (count) => pick(count).map((r) => r.key),
+    most,
+  );
+  const shown = pick(Math.min(draft.counts.map, capacity));
   const stackNodes = layoutStackMap(
     data.centre,
     data.members,
@@ -600,6 +638,7 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
     shown,
     mapReady: stackNodes.length > 1,
     available: available(list, edits),
+    ...(capacity < most ? { cap: capacity } : {}),
     pickerSearch,
     visibleKeys: new Set(list.map((r) => r.key)),
     stackNodes,

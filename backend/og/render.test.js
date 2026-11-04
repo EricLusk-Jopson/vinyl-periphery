@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { artIds, cardSizes, edgeToEdge, stackElement, fitTileText, initials, mapElement, mapGeometry, mapLayout, MAP_DOT, MAP_DOT_CLEAR, nameLines, renderPng, shorten, stackGeometry } from "./render.js";
+import { artIds, cardSizes, edgeToEdge, laneAxis, lanesGeometry, stackElement, fitTileText, initials, mapElement, mapGeometry, mapLayout, MAP_DOT, MAP_DOT_CLEAR, nameLines, renderPng, shorten, stackGeometry } from "./render.js";
 
 import { artSettled, fetchArt, loadArt } from "./art.js";
 import { IMAGE_SIZE, parsePayload } from "./payload.js";
@@ -403,4 +403,37 @@ test("stack maps draw no lines between the stack's own albums", () => {
   assert.equal(lines.length, 2);
   assert.deepEqual(lines.map((l) => l.strokeWidth).sort(), [1.5, 3.5]);
   assert.ok(lines.every((l) => l.stroke !== "#E0312A"));
+});
+
+test("swimlanes parse, fit their box and render", async () => {
+  const lanes = parsePayload({
+    v: 1,
+    l: "lanes",
+    c: { t: "Virgins", r: "Tim Hecker" },
+    y: [1995, 2020],
+    k: [{ t: "Virgins", y: 2013, m: 1 }, { t: "bad", y: 0 }],
+    n: [
+      { n: "Ben Frost", c: 12, s: [[2009, 2], [2013, 1]], f: [[2001, 3], [0, 1]], p: 1 },
+      { n: "Valgeir Sigurðsson", c: 3, s: [[2010, 1]], f: [] },
+      { n: "Nobody", c: 0, s: [], f: [] },
+    ],
+    u: 4,
+    d: "Top 2 of 9 people by results",
+  });
+  assert.equal(lanes.layout, "lanes");
+  assert.deepEqual([lanes.from, lanes.to], [1995, 2020]);
+  // Empty lanes and undated years dropped; the bad album mark too.
+  assert.equal(lanes.lanes.length, 2);
+  assert.deepEqual(lanes.lanes[0].faint, [[2001, 3]]);
+  assert.equal(lanes.lanes[0].partial, true);
+  assert.deepEqual(lanes.albums, [{ t: "Virgins", year: 2013, accent: true }]);
+  assert.deepEqual(artIds(lanes), []);
+  const { top, ...box } = { top: 224, width: 1080, height: 788 };
+  const g = lanesGeometry(lanes, box);
+  assert.equal(g.x(1995), g.left);
+  assert.equal(g.x(2020), g.right);
+  assert.ok(g.axisTop + 80 <= box.height);
+  assert.deepEqual(laneAxis(1995, 2020), [2000, 2010, 2020]);
+  assert.ok(isPng(await renderPng(lanes, IMAGE_SIZE, new Map())));
+  assert.equal(top, 224);
 });

@@ -1,7 +1,13 @@
 import { SearchCache } from "@/contexts/cache/types";
 import { Likes } from "@/services/likes";
 import { ALBUM_MAP_PEOPLE, layoutAlbumMap } from "./albumMap";
-import { requiredFilters } from "./filters";
+import { countedContributors, requiredFilters } from "./filters";
+import {
+  LANES_SHARED,
+  searchSwimlanes,
+  Swimlanes,
+  topLanes,
+} from "./swimlanes";
 import {
   resetFilterState,
   ScoredRelease,
@@ -33,7 +39,7 @@ import { defaultContributorDisplayPipeline } from "./transformers/contributorPro
  * body, so rendering never calls Discogs. Format: backend/og/payload.js.
  */
 
-export type ShareLayout = "map" | "card";
+export type ShareLayout = "map" | "card" | "lanes";
 
 /** A stack album or result on the stack map, as sent. */
 export interface ShareStackNode {
@@ -117,6 +123,27 @@ export type SharePayload =
       nb?: 1;
       /** Lines between linked albums (`e`). */
       ln?: 1;
+    }
+  | {
+      v: 1;
+      l: "lanes";
+      /** The searched album. */
+      c: ShareAlbum;
+      /** The years drawn. */
+      y: [number, number];
+      /** Album lines: the searched album's year, `m` for the accent. */
+      k: Array<{ t: string; y: number; m?: 1 }>;
+      /** Lanes, in order: name, results, result and other years. */
+      n: Array<{
+        n: string;
+        c: number;
+        s: Array<[number, number]>;
+        f: Array<[number, number]>;
+        p?: 1;
+      }>;
+      /** Undated items, not drawn. */
+      u?: number;
+      d?: string;
     };
 
 /** Rows on the results card by default (it takes up to ten). */
@@ -129,6 +156,8 @@ export const SHARE_COUNTS: Record<
 > = {
   map: { options: [6, 12, 18, 24], start: 12 },
   card: { options: [3, 5, 8, 10], start: 5 },
+  // Always the top LANES_SHARED people: nothing to choose.
+  lanes: { options: [LANES_SHARED], start: LANES_SHARED },
 };
 
 /**
@@ -169,9 +198,10 @@ export const countOptions = (
  * i.discogs.com image (its path; the renderer fetches only that host).
  */
 export const artIdFromCoverUrl = (url: string | null | undefined): ArtId => {
-  const discogs = /^https:\/\/i\.discogs\.com\/([A-Za-z0-9._~:=+,%/-]{1,512})$/.exec(
-    url ?? "",
-  );
+  const discogs =
+    /^https:\/\/i\.discogs\.com\/([A-Za-z0-9._~:=+,%/-]{1,512})$/.exec(
+      url ?? "",
+    );
   if (discogs && !discogs[1].includes("..") && !discogs[1].startsWith("/")) {
     return `d:${discogs[1]}`;
   }
@@ -353,6 +383,8 @@ export const withView = (
 ): SharePayload => {
   const covers = view.covers ? {} : { nc: 1 as const };
   if (payload.l === "card") return { ...payload, ...covers };
+  // Swimlanes have no covers, lines or boilerplate switch.
+  if (payload.l === "lanes") return payload;
   const lines = view.lines && canDrawLines(payload);
   const bare = view.boilerplate ? {} : { nb: 1 as const };
   if (payload.l === "stack") {
@@ -464,6 +496,7 @@ const withoutArt = (payload: SharePayload): SharePayload => {
   if (payload.l === "map") {
     return { ...payload, c: blank(payload.c), n: payload.n.map(blank) };
   }
+  if (payload.l === "lanes") return { ...payload, c: blank(payload.c) };
   return { ...payload, c: blank(payload.c), n: payload.n.map(blank) };
 };
 
@@ -514,7 +547,11 @@ export interface ShareDraft {
 
 export const defaultDraft = (): ShareDraft => ({
   chosen: "map",
-  counts: { map: SHARE_COUNTS.map.start, card: SHARE_COUNTS.card.start },
+  counts: {
+    map: SHARE_COUNTS.map.start,
+    card: SHARE_COUNTS.card.start,
+    lanes: SHARE_COUNTS.lanes.start,
+  },
   edits: NO_EDITS,
   view: DEFAULT_VIEW,
   stackOrder: { sort: "shared", then: null, likesFirst: true },
@@ -606,6 +643,10 @@ export interface SharePlan {
   stackNodes: StackNode[];
   /** The stack map's centre (the start, unless switched off). */
   centre?: MapCentre;
+  /** The swimlanes drawn, when that's the layout. */
+  lanes?: Swimlanes;
+  /** There are people with dated items to draw as swimlanes. */
+  lanesReady?: boolean;
   /** Albums to find covers for: everything the image may draw. */
   wanted: string[];
   /** The caption the image will carry. */
@@ -624,14 +665,41 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
     const mapShown = shareSelection(search, ranked, draft.counts.map, edits);
     const cardShown = shareSelection(search, ranked, draft.counts.card, edits);
     const mapReady = mapShown.length > 0;
-    const layout: ShareLayout = mapReady ? draft.chosen : "card";
+    const allLanes = searchSwimlanes(
+      search,
+      countedContributors(search),
+      ranked,
+    );
+    const lanes = topLanes(allLanes, LANES_SHARED);
+    const lanesReady = lanes.lanes.some((l) => l.ticks.length > 0);
+    const layout: ShareLayout =
+      draft.chosen === "lanes"
+        ? lanesReady
+          ? "lanes"
+          : "card"
+        : mapReady
+          ? draft.chosen
+          : "card";
     const shown = layout === "map" ? mapShown : cardShown;
-    const caption = [
-      selectionCaption(search, shown.length, selection.sort, selection.then),
-      editsCaption(edits),
-    ]
-      .filter(Boolean)
-      .join(" · ");
+    const caption =
+      layout === "lanes"
+        ? lanesCaption(
+            search,
+            lanes.lanes.length,
+            allLanes.lanes.length,
+            selection,
+          )
+        : [
+            selectionCaption(
+              search,
+              shown.length,
+              selection.sort,
+              selection.then,
+            ),
+            editsCaption(edits),
+          ]
+            .filter(Boolean)
+            .join(" · ");
     return {
       layout,
       edits,
@@ -641,9 +709,15 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
       pickerSearch: search,
       visibleKeys: new Set(ranked.map((r) => r.key)),
       stackNodes: [],
-      wanted: draft.view.covers
-        ? [search.target?.key ?? "", ...shown.map((r) => r.key)].filter(Boolean)
-        : [],
+      ...(layout === "lanes" ? { lanes } : {}),
+      lanesReady,
+      // The swimlanes draw no covers.
+      wanted:
+        draft.view.covers && layout !== "lanes"
+          ? [search.target?.key ?? "", ...shown.map((r) => r.key)].filter(
+              Boolean,
+            )
+          : [],
       caption,
     };
   }
@@ -728,20 +802,77 @@ export const buildPayload = (
           coverFor,
           plan.caption,
         )
-      : plan.layout === "map"
-        ? albumMapPayload(
-            data.search,
-            plan.shown,
-            data.likes,
-            coverFor,
-            plan.caption,
-          )
-        : cardPayload(
-            data.search,
-            plan.shown,
-            coverFor,
-            plan.caption,
-            plan.shown.length,
-          );
+      : plan.layout === "lanes" && plan.lanes
+        ? lanesPayload(data.search, plan.lanes, plan.caption)
+        : plan.layout === "map"
+          ? albumMapPayload(
+              data.search,
+              plan.shown,
+              data.likes,
+              coverFor,
+              plan.caption,
+            )
+          : cardPayload(
+              data.search,
+              plan.shown,
+              coverFor,
+              plan.caption,
+              plan.shown.length,
+            );
   return withView(drawn, draft.view);
 };
+
+/**
+ * How the swimlanes were chosen, in a line: "Top 8 of 23 people by results
+ * · 2+ shared · Liked only". Filters as `selectionCaption` names them.
+ */
+export const lanesCaption = (
+  search: SearchCache,
+  shown: number,
+  of: number,
+  selection: { sort: SortKey; then: SortKey | null },
+): string => {
+  const filters = selectionCaption(search, 0, selection.sort, selection.then)
+    .split(" · ")
+    .slice(1);
+  return [
+    shown < of
+      ? `Top ${shown} of ${of} people by results`
+      : `${shown} ${shown === 1 ? "person" : "people"}`,
+    ...filters,
+  ].join(" · ");
+};
+
+/** The swimlanes share image: the lanes as drawn, ticks by year. */
+export const lanesPayload = (
+  search: SearchCache,
+  lanes: Swimlanes,
+  caption?: string,
+): SharePayload => ({
+  v: 1,
+  l: "lanes",
+  c: {
+    t: search.searchParams.album,
+    r: search.searchParams.artist,
+    i: "",
+  },
+  y: [lanes.from, lanes.to],
+  k: lanes.albums.map((a) => ({
+    t: a.title,
+    y: a.year,
+    ...(a.accent ? { m: 1 as const } : {}),
+  })),
+  n: lanes.lanes.map((lane) => ({
+    n: lane.name,
+    c: lane.results,
+    s: lane.ticks
+      .filter((t) => t.results.length > 0)
+      .map((t) => [t.year, t.results.length] as [number, number]),
+    f: lane.ticks
+      .filter((t) => t.others > 0)
+      .map((t) => [t.year, t.others] as [number, number]),
+    ...(lane.partial ? { p: 1 as const } : {}),
+  })),
+  ...(lanes.undated > 0 ? { u: lanes.undated } : {}),
+  ...(caption ? { d: caption } : {}),
+});

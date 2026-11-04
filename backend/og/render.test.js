@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { artIds, cardSizes, edgeToEdge, laneAxis, lanesGeometry, stackElement, fitTileText, initials, mapElement, mapGeometry, mapLayout, MAP_DOT, MAP_DOT_CLEAR, nameLines, renderPng, shorten, stackGeometry } from "./render.js";
+import { artIds, cardSizes, edgeToEdge, transitGeometry, laneAxis, lanesGeometry, stackElement, fitTileText, initials, mapElement, mapGeometry, mapLayout, MAP_DOT, MAP_DOT_CLEAR, nameLines, renderPng, shorten, stackGeometry } from "./render.js";
 
 import { artSettled, fetchArt, loadArt } from "./art.js";
 import { IMAGE_SIZE, parsePayload } from "./payload.js";
@@ -436,4 +436,35 @@ test("swimlanes parse, fit their box and render", async () => {
   assert.deepEqual(laneAxis(1995, 2020), [2000, 2010, 2020]);
   assert.ok(isPng(await renderPng(lanes, IMAGE_SIZE, new Map())));
   assert.equal(top, 224);
+});
+
+test("transit maps parse, fit and render", async () => {
+  const transit = parsePayload({
+    v: 1,
+    l: "transit",
+    c: { t: "Virgins", r: "Tim Hecker" },
+    w: 700,
+    h: 200,
+    s: [
+      { t: "Virgins", r: "Tim Hecker", x: 20, y: 100, q: 12, k: [0, 1], b: [0, 118, 120, 35], a: "start" },
+      { t: "Aurora", r: "Ben Frost", x: 680, y: 100, q: 12, k: [0, 1], b: [580, 118, 120, 35], a: "end" },
+      { t: "", x: 0, y: 0 },
+    ],
+    n: [
+      { n: "Ben Frost", c: 0, g: [[[20, 96], [680, 96]]] },
+      { n: "Valgeir Sigurðsson", c: 9, g: [[[20, 104], [100, 160], [600, 160], [680, 104]], [[1, 2]]] },
+    ],
+    o: 3,
+  });
+  assert.equal(transit.layout, "transit");
+  assert.equal(transit.stations.length, 2);
+  // Colour clamped to the six there are; one-point legs dropped.
+  assert.equal(transit.lines[1].colour, 5);
+  assert.equal(transit.lines[1].legs.length, 1);
+  assert.deepEqual(artIds(transit), []);
+  const g = transitGeometry(transit, { width: 1080, height: 788 });
+  assert.ok(g.scale > 1 && g.scale <= 1.6);
+  assert.ok(g.top + transit.height * g.scale <= g.legendTop);
+  assert.ok(isPng(await renderPng(transit, IMAGE_SIZE, new Map())));
+  assert.equal(parsePayload({ v: 1, l: "transit", c: { t: "x" }, w: 0, h: 10, s: [{ t: "a" }] }), null);
 });

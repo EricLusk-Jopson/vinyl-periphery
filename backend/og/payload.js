@@ -15,6 +15,13 @@
 //            f: [year, count][] (their other items), p?: 1 when the page
 //            cap cut their oldest items }
 //   u      = undated items, not drawn
+//   { v: 1, l: "transit", c: Album, w, h, s: Station[], n: Line[],  transit map
+//     o?, d? }
+//   Station = { t, r, x, y: its place, q: radius, k: colours of its lines,
+//            b: [x, y, w, h] its label's box, a: "start" | "middle" | "end" }
+//   Line   = { n: name, c: colour 0-5, g: legs, each [x, y][] }
+//   o      = people on 2+ albums not drawn as lines
+//   Places in layout units (w x h); the renderer scales them to fit.
 //   Node   = Album & { x, y, s: place and cover side in thousandths of
 //            a step, y up; m?: 1 for the stack's own albums;
 //            e?: linked nodes, 0 the centre and k for n[k - 1];
@@ -47,6 +54,8 @@ export const MAX_RESULTS = 10;
 export const MAX_MAP_ALBUMS = 24;
 export const MAX_MAP_PEOPLE = 16;
 export const MAX_LANES = 8;
+export const MAX_TRANSIT_STATIONS = 12;
+export const MAX_TRANSIT_LINES = 6;
 const MAX_LANE_YEARS = 150;
 const MAX_TITLE = 80;
 const MAX_ARTIST = 60;
@@ -207,6 +216,53 @@ export function parsePayload(raw) {
       albums,
       lanes,
       undated: Math.max(0, Math.min(99999, Math.floor(Number(raw.u) || 0))),
+      caption: text(raw.d, MAX_CAPTION),
+      covers: false,
+      bare: false,
+    };
+  }
+
+  if (raw.l === "transit") {
+    const centre = album(raw.c);
+    if (!centre.t) return null;
+    const unit = (value) => Math.max(0, Math.min(5000, Math.round(Number(value) * 10) / 10 || 0));
+    const width = unit(raw.w);
+    const height = unit(raw.h);
+    if (!(width > 0 && height > 0)) return null;
+    const colour = (value) => Math.max(0, Math.min(MAX_TRANSIT_LINES - 1, Math.floor(Number(value) || 0)));
+    const stations = list(raw.s, MAX_TRANSIT_STATIONS)
+      .map((s) => {
+        const box = Array.isArray(s?.b) ? s.b.slice(0, 4).map(unit) : [0, 0, 0, 0];
+        return {
+          t: text(s?.t, MAX_TITLE),
+          r: text(s?.r, MAX_ARTIST),
+          x: unit(s?.x),
+          y: unit(s?.y),
+          radius: Math.max(3, Math.min(40, unit(s?.q) || 7)),
+          lines: list(s?.k, MAX_TRANSIT_LINES).map(colour),
+          label: { x: box[0], y: box[1], w: box[2], h: box[3] },
+          align: ["start", "middle", "end"].includes(s?.a) ? s.a : "middle",
+        };
+      })
+      .filter((s) => s.t);
+    const lines = list(raw.n, MAX_TRANSIT_LINES)
+      .map((n) => ({
+        name: text(n?.n, MAX_NAME),
+        colour: colour(n?.c),
+        legs: list(n?.g, 16)
+          .map((leg) => list(leg, 12).filter(Array.isArray).map(([x, y]) => [unit(x), unit(y)]))
+          .filter((leg) => leg.length >= 2),
+      }))
+      .filter((n) => n.name && n.legs.length > 0);
+    if (stations.length === 0) return null;
+    return {
+      layout: "transit",
+      centre,
+      width,
+      height,
+      stations,
+      lines,
+      others: Math.max(0, Math.min(999, Math.floor(Number(raw.o) || 0))),
       caption: text(raw.d, MAX_CAPTION),
       covers: false,
       bare: false,

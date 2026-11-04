@@ -13,12 +13,12 @@ export const libraryPath = (): string => LIBRARY_PATH;
 export const STACK_ROUTE = `${LIBRARY_PATH}/stack/:stackId`;
 
 /**
- * A stack page's tabs: its albums (the default), its merged results, or
- * their people by year.
+ * A stack page's tabs: its albums (the default), its merged results,
+ * their people by year, or a transit map.
  */
-export type StackView = "results" | "albums" | "people";
+export type StackView = "results" | "albums" | "people" | "map";
 
-const STACK_VIEWS: StackView[] = ["results", "albums", "people"];
+const STACK_VIEWS: StackView[] = ["results", "albums", "people", "map"];
 
 /**
  * One saved stack's page, on a tab. Stack ids contain spaces and hyphens.

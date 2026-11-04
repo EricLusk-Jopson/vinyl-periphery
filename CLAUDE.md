@@ -29,7 +29,8 @@ ranks albums by how many of those people worked on them.
     (`@vercel/og`) from a JSON payload body (`backend/og/payload.js`, 32 KB
     at most; built by `buildPayload` in `frontend/src/lib/share.ts`): a
     map, laid out by the client,
-    a list of top results, or swimlanes (`lanes`). For one search, the
+    a list of top results, swimlanes (`lanes`) or a transit map
+    (`transit`). For one search, the
     map and the list draw its top results
     as filtered and sorted on the page, with a line saying how they were
     chosen; the map groups people around the circle by role category
@@ -157,6 +158,18 @@ ranks albums by how many of those people worked on them.
     the nearest results year; its results open in the list
     (`useFocusResult`). A name toggles "must include". Share: "People" in
     the search's sheet (`lanes` payload, top 8 lanes).
+  - Transit map (`src/lib/transitMap.ts`, `components/transit/`): a Map
+    tab on stack pages (`?view=map`). Stations are the stack's albums
+    (those switched on in its filters); lines are people counted on 2+
+    of them (6 drawn, the rest listed). x from the step, y from order
+    within it; 0/45/90° legs; a leg that would cross a station it doesn't
+    stop at bends round it on its own rail; lines sharing a leg run side
+    by side by person id; labels take the first clear spot, and the map
+    spreads out until none overlap. Left to right where it fits at 80%,
+    else top to bottom. Line colours are the `line-1`..`line-6` tokens
+    (placeholders, never red). Share: "Transit" in a stack's sheet
+    (`transit` payload; `shareTransitMap` picks the layout that draws
+    biggest in the square).
   - `src/lib/filters.ts`: chip state, "must include" (`filterState.required`,
     optional because older saved searches lack it), active filter count.
     "Only liked albums" is `filterState.likedOnly` (also optional). A new
@@ -189,7 +202,8 @@ ranks albums by how many of those people worked on them.
     hangs the new search on the member sharing the most people. Share
     draws the filtered results.
   - Routes (React Router): `/` home, `/library`,
-    `/library/stack/:stackId` (Albums tab; `?view=results` for Results), and
+    `/library/stack/:stackId` (Albums tab; `?view=results`, `people` or
+    `map` for the others), and
     `/results?artist=…&album=…`, plus `&master=N` or `&release=N` when the
     Discogs album is known. A results page's back link goes where it was
     opened from (a stack or the library); otherwise to the stack its search

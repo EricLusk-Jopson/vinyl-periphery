@@ -48,6 +48,7 @@ export const EVENTS = new Set([
   "covers_found",
   "results_view_changed",
   "swimlane_tick_opened",
+  "transit_station_opened",
   "chip_details",
   "results_searched",
   "result_picked",

@@ -22,6 +22,7 @@ Never write a hex value in a component.
 | `primary-text` | `#FF6257` | Red text on dark (eyebrows, strong scores, links) |
 | `primary-dark` | `#B3261F` | Pressed state of primary buttons |
 | `ring` | `#E0312A` | Focus outline |
+| `line-1` to `line-6` | `#2DBFAE` `#F6AE2D` `#5AA2F2` `#A884E8` `#4EC076` `#CF86CF` | Transit map lines (placeholders until the palette is set). Never red: red marks connection |
 
 Rules:
 

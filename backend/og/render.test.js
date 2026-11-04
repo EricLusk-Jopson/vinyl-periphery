@@ -495,3 +495,28 @@ test("transit maps parse, fit and render", async () => {
   assert.ok(isPng(await renderPng(transit, IMAGE_SIZE, new Map())));
   assert.equal(parsePayload({ v: 1, l: "transit", c: { t: "x" }, w: 0, h: 10, s: [{ t: "a" }] }), null);
 });
+
+test("numbered transit maps list their stations beside the map", async () => {
+  const station = (t, n, x, extra = {}) => ({ t, r: `Artist · ${2000 + n}`, x, y: 100, q: 13, k: [0], b: [x - 13, 87, 26, 26], a: "middle", n, ...extra });
+  const raw = {
+    v: 1,
+    l: "transit",
+    c: { t: "Virgins", r: "Tim Hecker" },
+    w: 400,
+    h: 200,
+    s: [station("Virgins", 2, 300, { m: 1 }), station("Aurora", 1, 20)],
+    n: [{ n: "Ben Frost", c: 0, g: [[[20, 100], [300, 100]]] }],
+    sl: 1,
+  };
+  const map = parsePayload(raw);
+  assert.equal(map.legend, true);
+  assert.deepEqual(map.stations.map((s) => s.number), [2, 1]);
+  const g = transitGeometry(map, { width: 1080, height: 788 });
+  // The map keeps clear of the list's column.
+  assert.ok(g.left + map.width * g.scale <= g.list.left);
+  assert.equal(g.list.twoLine, true);
+  assert.ok(isPng(await renderPng(map, IMAGE_SIZE, new Map())));
+  // A station without a number: labels, not a legend.
+  const unnumbered = parsePayload({ ...raw, s: [station("Virgins", 0, 300), station("Aurora", 1, 20)] });
+  assert.equal(unnumbered.legend, false);
+});

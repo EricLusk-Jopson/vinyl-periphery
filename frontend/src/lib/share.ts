@@ -175,11 +175,15 @@ export type SharePayload =
         a: "start" | "middle" | "end";
         /** The searched album, or one of the stack's: marked. */
         m?: 1;
+        /** Its number, when titles are in the legend (`sl`). */
+        n?: number;
       }>;
       /** Lines: name, colour, legs of [x, y] points. */
       n: Array<{ n: string; c: number; g: Array<Array<[number, number]>> }>;
       /** People on 2+ albums not drawn as lines. */
       o?: number;
+      /** Stations numbered, their titles listed beside the map. */
+      sl?: 1;
       d?: string;
     };
 
@@ -988,6 +992,7 @@ export const transitPayload = (
     b: [s.label.x, s.label.y, s.label.w, s.label.h],
     a: s.label.align,
     ...(s.marked ? { m: 1 as const } : {}),
+    ...(map.legend ? { n: s.number } : {}),
   })),
   n: map.lines.map((l) => ({
     n: l.name,
@@ -995,5 +1000,6 @@ export const transitPayload = (
     g: l.legs.map((leg) => leg.map((p) => [p.x, p.y] as [number, number])),
   })),
   ...(map.others.length > 0 ? { o: map.others.length } : {}),
+  ...(map.legend ? { sl: 1 as const } : {}),
   ...(caption ? { d: caption } : {}),
 });

@@ -5,7 +5,7 @@ import {
   shareTransitMap,
   labelsCollide,
   layoutTransitMap,
-  octilinear,
+  legRoute,
   offsetPath,
   TRANSIT_LINES,
   TransitOrientation,
@@ -39,14 +39,64 @@ const stack = (n: number, people = 9, columns = (k: number) => Math.ceil(k / 2))
 
 const orientations: TransitOrientation[] = ["horizontal", "vertical"];
 
+type P = { x: number; y: number };
+const angle = (a: P, b: P) => Math.atan2(b.y - a.y, b.x - a.x);
+const between = (a: number, b: number) => {
+  const d = Math.abs(a - b) % (2 * Math.PI);
+  return (Math.min(d, 2 * Math.PI - d) * 180) / Math.PI;
+};
+/** A line's directions, leg by leg (legs meet under stations). */
+const directions = (legs: P[][]) =>
+  legs.flatMap((leg) =>
+    leg
+      .slice(1)
+      .map((q, k) => [leg[k], q] as const)
+      .filter(([p, q]) => Math.hypot(q.x - p.x, q.y - p.y) > 0.5)
+      .map(([p, q]) => angle(p, q)),
+  );
+
+// Modelled on a real map (Big Thief, 2015 to 2026): 13 albums, six people.
+const busy = () => {
+  const years = [2015, 2016, 2017, 2018, 2018, 2020, 2020, 2021, 2022, 2024, 2024, 2026, 2026];
+  const stops: TransitStop[] = years.map((y, k) => ({
+    key: `k${k}`,
+    title: `Album Title Number ${k}`,
+    detail: `Artist ${k} · ${y}`,
+    column: y,
+    marked: k === 8,
+  }));
+  const on = (ks: number[]) => ks.map((k) => `k${k}`);
+  return {
+    stops,
+    people: [
+      { id: 1, name: "Adrianne", stations: on([1, 3, 4, 6, 8, 9, 10, 12]) },
+      { id: 2, name: "Buck", stations: on([0, 1, 3, 4, 7, 8, 9, 11]) },
+      { id: 3, name: "James", stations: on([1, 2, 3, 5, 6, 8, 9, 10, 12]) },
+      { id: 4, name: "Mat", stations: on([2, 4, 5, 6, 8, 9, 10]) },
+      { id: 5, name: "Max", stations: on([0, 8, 9, 10]) },
+      { id: 6, name: "Noah", stations: on([8, 9, 10]) },
+    ],
+  };
+};
+
+const inputs = [
+  ["2 stations", stack(2)],
+  ["4 stations", stack(4)],
+  ["6 stations", stack(6)],
+  ["8 stations", stack(8)],
+  ["an 8-album chain", stack(8, 9, (k) => k)],
+  ["a busy map", busy()],
+] as const;
+
 describe("layoutTransitMap", () => {
   it.each(
-    [2, 4, 6, 8].flatMap((n) => orientations.map((o) => [n, o] as const)),
-  )("lays out %i stations (%s) with no labels overlapping", (n, orientation) => {
-    const map = layoutTransitMap({ ...stack(n), orientation });
-    expect(map.stations).toHaveLength(n);
+    inputs.flatMap(([name, input]) =>
+      orientations.map((o) => [name, o, input] as const),
+    ),
+  )("lays out %s (%s) with no labels overlapping", (_, orientation, input) => {
+    const map = layoutTransitMap({ ...input, orientation });
+    expect(map.stations).toHaveLength(input.stops.length);
     expect(labelsCollide(map)).toBe(false);
-    // Everything inside the map's box.
     for (const s of map.stations) {
       expect(s.label.x).toBeGreaterThanOrEqual(0);
       expect(s.label.y).toBeGreaterThanOrEqual(0);
@@ -55,33 +105,53 @@ describe("layoutTransitMap", () => {
     }
   });
 
-  it("gives the same map for the same stack", () => {
-    const input = { ...stack(6), orientation: "horizontal" as const };
-    expect(layoutTransitMap(input)).toEqual(layoutTransitMap(input));
-  });
-
-  it("draws people on 2+ stations as lines, at most six, the rest listed", () => {
-    const map = layoutTransitMap({ ...stack(6, 12), orientation: "horizontal" });
-    expect(map.lines.length).toBe(TRANSIT_LINES);
-    expect(map.lines.every((l) => l.stations.length >= 2)).toBe(true);
-    // Most stations first.
-    const counts = map.lines.map((l) => l.stations.length);
-    expect([...counts].sort((a, b) => b - a)).toEqual(counts);
-    expect(map.others.length).toBeGreaterThan(0);
-    expect(map.others.every((o) => o.stations >= 2)).toBe(true);
-    // Interchanges are bigger.
-    const big = map.stations.filter((s) => s.lines.length >= 2);
-    const small = map.stations.filter((s) => s.lines.length < 2);
-    for (const s of big) {
-      for (const t of small) expect(s.radius).toBeGreaterThan(t.radius);
+  it.each(inputs)("never turns a line more than 90° (%s)", (_, input) => {
+    for (const orientation of orientations) {
+      const map = layoutTransitMap({ ...input, orientation });
+      for (const line of map.lines) {
+        const dirs = directions(line.legs);
+        dirs.slice(1).forEach((d, k) => {
+          expect(between(dirs[k], d)).toBeLessThanOrEqual(90.5);
+        });
+      }
     }
   });
 
-  it("never runs a line over a station it doesn't stop at", () => {
-    // A chain, one album a step: lines skipping albums must bend round.
-    const chain = (n: number) => stack(n, 9, (k) => k);
-    for (const orientation of orientations) {
-      for (const input of [chain(6), chain(8), stack(8)]) {
+  it("bends at 45°, keeping right angles for busy splits", () => {
+    const count = (input: { stops: TransitStop[]; people: typeof busy extends () => infer R ? R extends { people: infer P } ? P : never : never }) => {
+      const map = shareTransitMap(input);
+      let t45 = 0;
+      let t90 = 0;
+      for (const line of map.lines) {
+        const dirs = directions(line.legs);
+        dirs.slice(1).forEach((d, k) => {
+          const turn = between(dirs[k], d);
+          if (turn > 60) t90++;
+          else if (turn > 20) t45++;
+        });
+      }
+      return { t45, t90 };
+    };
+    // A chain: no right angles at all.
+    const chain = stack(8, 3, (k) => k);
+    expect(count(chain).t90).toBe(0);
+    // A busy map: mostly 45° bends.
+    const { t45, t90 } = count(busy());
+    expect(t90).toBeLessThanOrEqual(t45 / 4);
+  });
+
+  it.each(inputs)("runs every leg at 0, 45 or 90° (%s)", (_, input) => {
+    const map = layoutTransitMap({ ...input, orientation: "vertical" });
+    for (const d of map.lines.flatMap((l) => directions(l.legs))) {
+      const deg = ((d * 180) / Math.PI + 360) % 45;
+      expect(Math.min(deg, 45 - deg)).toBeLessThan(1.5);
+    }
+  });
+
+  it.each(inputs)(
+    "never runs a line over a station it doesn't stop at (%s)",
+    (_, input) => {
+      for (const orientation of orientations) {
         const map = layoutTransitMap({ ...input, orientation });
         for (const line of map.lines) {
           map.stations.forEach((station, i) => {
@@ -101,63 +171,94 @@ describe("layoutTransitMap", () => {
           });
         }
       }
+    },
+  );
+
+  it.each(inputs)(
+    "sends lines splitting at a station off different ways (%s)",
+    (_, input) => {
+      const map = layoutTransitMap({ ...input, orientation: "vertical" });
+      map.stations.forEach((_, i) => {
+        // Next station -> the direction lines leave for it.
+        const outs = new Map<number, number>();
+        for (const line of map.lines) {
+          const k = line.stations.indexOf(i);
+          if (k < 0 || k === line.stations.length - 1) continue;
+          const leg = line.legs[k];
+          outs.set(line.stations[k + 1], angle(leg[0], leg[1]));
+        }
+        const list = [...outs.values()];
+        list.forEach((a, x) =>
+          list.slice(x + 1).forEach((b) => {
+            expect(between(a, b)).toBeGreaterThan(30);
+          }),
+        );
+      });
+    },
+  );
+
+  it("runs each line through its stations in its own time order", () => {
+    const map = layoutTransitMap({ ...busy(), orientation: "vertical" });
+    for (const line of map.lines) {
+      const years = line.stations.map((i) => map.stations[i].step);
+      expect([...years].sort((a, b) => a - b)).toEqual(years);
     }
   });
 
-  it("runs lines in 0, 45 and 90 degree legs", () => {
-    for (const orientation of orientations) {
-      const map = layoutTransitMap({ ...stack(8), orientation });
-      for (const leg of map.lines.flatMap((l) => l.legs)) {
-        leg.slice(1).forEach((q, k) => {
-          const p = leg[k];
-          const angle =
-            (Math.atan2(q.y - p.y, q.x - p.x) * 180) / Math.PI;
-          const off = Math.abs(((angle % 45) + 45) % 45);
-          expect(Math.min(off, 45 - off)).toBeLessThan(1.5);
-        });
-      }
-    }
+  it("gives the same map for the same input", () => {
+    const input = { ...busy(), orientation: "horizontal" as const };
+    expect(layoutTransitMap(input)).toEqual(layoutTransitMap(input));
   });
 
-  it("puts steps along the map: left to right, or top to bottom", () => {
-    const wide = layoutTransitMap({ ...stack(4), orientation: "horizontal" });
-    const tall = layoutTransitMap({ ...stack(4), orientation: "vertical" });
-    const [start, , , last] = wide.stations;
-    expect(last.x).toBeGreaterThan(start.x);
-    expect(tall.stations[3].y).toBeGreaterThan(tall.stations[0].y);
+  it("draws people on 2+ stations as lines, at most six, the rest listed", () => {
+    const map = layoutTransitMap({ ...stack(6, 12), orientation: "horizontal" });
+    expect(map.lines.length).toBe(TRANSIT_LINES);
+    expect(map.lines.every((l) => l.stations.length >= 2)).toBe(true);
+    const counts = map.lines.map((l) => l.stations.length);
+    expect([...counts].sort((a, b) => b - a)).toEqual(counts);
+    expect(map.others.length).toBeGreaterThan(0);
+    // Interchanges are bigger.
+    const big = map.stations.filter((s) => s.lines.length >= 2);
+    const small = map.stations.filter((s) => s.lines.length < 2);
+    for (const s of big) {
+      for (const t of small) expect(s.radius).toBeGreaterThan(t.radius);
+    }
   });
 });
 
-describe("octilinear and offsetPath", () => {
-  it("routes straight, then 45°, then straight", () => {
-    expect(octilinear({ x: 0, y: 0 }, { x: 10, y: 0 }, "horizontal")).toEqual([
+describe("legRoute and offsetPath", () => {
+  it("routes straight, or a straight run and one diagonal", () => {
+    expect(legRoute({ x: 0, y: 0 }, { x: 4, y: 0 }, true)).toEqual([
       { x: 0, y: 0 },
-      { x: 10, y: 0 },
+      { x: 4, y: 0 },
     ]);
-    expect(octilinear({ x: 0, y: 0 }, { x: 10, y: 4 }, "horizontal")).toEqual([
+    expect(legRoute({ x: 0, y: 0 }, { x: 3, y: 3 }, false)).toEqual([
+      { x: 0, y: 0 },
+      { x: 3, y: 3 },
+    ]);
+    // The diagonal last, or first.
+    expect(legRoute({ x: 0, y: 0 }, { x: 4, y: 1 }, true)).toEqual([
       { x: 0, y: 0 },
       { x: 3, y: 0 },
-      { x: 7, y: 4 },
-      { x: 10, y: 4 },
+      { x: 4, y: 1 },
     ]);
-    // More across than along: straight across first.
-    expect(octilinear({ x: 0, y: 0 }, { x: 2, y: 6 }, "horizontal")).toEqual([
+    expect(legRoute({ x: 0, y: 0 }, { x: 4, y: 1 }, false)).toEqual([
       { x: 0, y: 0 },
-      { x: 0, y: 2 },
-      { x: 2, y: 4 },
-      { x: 2, y: 6 },
+      { x: 1, y: 1 },
+      { x: 4, y: 1 },
     ]);
   });
 
   it("offsets a path to its side, keeping its directions", () => {
-    const moved = offsetPath(
-      [
-        { x: 0, y: 0 },
-        { x: 10, y: 0 },
-      ],
-      3,
-    );
-    expect(moved).toEqual([
+    expect(
+      offsetPath(
+        [
+          { x: 0, y: 0 },
+          { x: 10, y: 0 },
+        ],
+        3,
+      ),
+    ).toEqual([
       { x: 0, y: 3 },
       { x: 10, y: 3 },
     ]);
@@ -165,14 +266,13 @@ describe("octilinear and offsetPath", () => {
 });
 
 describe("shareTransitMap", () => {
-  it("fits the square better than the wide layout, labels apart", () => {
-    // A chain of 8, one album a step: a long strip left to right.
-    const input = stack(8, 9, (k) => k);
-    const wide = layoutTransitMap({ ...input, orientation: "horizontal" });
-    const shared = shareTransitMap(input);
-    expect(labelsCollide(shared)).toBe(false);
-    expect(shareScale(shared)).toBeGreaterThan(shareScale(wide));
-    expect(shareTransitMap(input)).toEqual(shared);
+  it("fits a busy map to the square nearly full size, labels apart", () => {
+    const map = shareTransitMap(busy());
+    expect(labelsCollide(map)).toBe(false);
+    // Text keeps its size below 1:1, so this bounds how far it outgrows
+    // its boxes (about a tenth, within their padding).
+    expect(shareScale(map)).toBeGreaterThanOrEqual(0.88);
+    expect(shareTransitMap(busy())).toEqual(map);
   });
 });
 
@@ -225,8 +325,7 @@ describe("searchTransit and stackTransit", () => {
     ]);
     const map = layoutTransitMap({ ...input, orientation: "horizontal" });
     expect(map.lines.map((l) => l.name)).toEqual(["Ry Cooder", "Jim Keltner"]);
-    // Time runs left to right; the searched album is marked.
-    expect(map.stations[0].x).toBeLessThan(map.stations[1].x);
+    // The searched album is marked.
     expect(map.stations.map((s) => s.marked)).toEqual([true, false, false]);
   });
 

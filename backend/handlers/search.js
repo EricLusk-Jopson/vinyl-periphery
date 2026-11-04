@@ -28,6 +28,7 @@ export const createSearchHandler = (getClient) => async (req, res) => {
 
   try {
     const { data, rateLimitRemaining } = await client.searchRelease(album, band);
+    console.log("Search:", { rateLimitRemaining });
     if (rateLimitRemaining) {
       res.setHeader("X-Ratelimit-Remaining", rateLimitRemaining);
     }

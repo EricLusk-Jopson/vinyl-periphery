@@ -325,3 +325,14 @@ test("stack maps render lines by weight", async () => {
   assert.deepEqual(stack.albums[1].weights, [3, 1]);
   assert.ok(isPng(await renderPng(stack, IMAGE_SIZE, new Map())));
 });
+
+test("fetches Discogs art from i.discogs.com only, without redirects", async () => {
+  const seen = [];
+  const fake = async (url, options) => {
+    seen.push([url, options.redirect]);
+    return new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { "content-type": "image/jpeg" } });
+  };
+  const url = await fetchArt("d:abc/def.jpeg", fake);
+  assert.match(url, /^data:image\/jpeg;base64,/);
+  assert.deepEqual(seen, [["https://i.discogs.com/abc/def.jpeg", "error"]]);
+});

@@ -5,6 +5,7 @@ import { SearchCache } from "@/contexts/cache/types";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { KnownAlbum } from "@/hooks/useSearchRun";
 import { useCoverArt } from "@/hooks/useCoverArt";
+import { FindCovers } from "../common/FindCovers";
 import { useLikes } from "@/hooks/useLikes";
 import { useHidden } from "@/hooks/useHidden";
 import { useToast } from "@/hooks/use-toast";
@@ -184,6 +185,7 @@ export const StackResults: React.FC<StackResultsProps> = ({
 
   const total = results.length;
   const shown = results.slice(0, visible);
+  const shownKeys = shown.map((r) => r.key);
   const current =
     STACK_SORT_OPTIONS.find((o) => o.value === sort) ?? STACK_SORT_OPTIONS[0];
   const active = stackFilterCount(filters);
@@ -379,6 +381,8 @@ export const StackResults: React.FC<StackResultsProps> = ({
             <div className="lg:hidden">{filterSheet}</div>
           </div>
         </div>
+
+        <FindCovers keys={shownKeys} where="stack" />
 
         {total > 0 ? (
           <ul className="lg:border-t">

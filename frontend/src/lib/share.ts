@@ -55,7 +55,10 @@ export interface ShareStackNode {
   w?: number[];
 }
 
-/** Art id: "g:<release-group mbid>", "r:<release mbid>", or "". */
+/**
+ * Art id: "g:<release-group mbid>", "r:<release mbid>", "d:<i.discogs.com
+ * path>", or "".
+ */
 type ArtId = string;
 
 interface ShareAlbum {
@@ -161,8 +164,17 @@ export const countOptions = (
   return choices.length > 1 ? choices : [];
 };
 
-/** The art id in a Cover Art Archive URL, or "". */
+/**
+ * The art id in a cover URL, or "": a Cover Art Archive URL, or an
+ * i.discogs.com image (its path; the renderer fetches only that host).
+ */
 export const artIdFromCoverUrl = (url: string | null | undefined): ArtId => {
+  const discogs = /^https:\/\/i\.discogs\.com\/([A-Za-z0-9._~:=+,%/-]{1,512})$/.exec(
+    url ?? "",
+  );
+  if (discogs && !discogs[1].includes("..") && !discogs[1].startsWith("/")) {
+    return `d:${discogs[1]}`;
+  }
   const match =
     /^https:\/\/coverartarchive\.org\/(release-group|release)\/([0-9a-f-]{36})\//i.exec(
       url ?? "",

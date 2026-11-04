@@ -21,7 +21,33 @@ export interface CoverEntry {
   mbid: string | null;
   kind: CoverKind;
   checkedAt: number;
+  /**
+   * A cover from Discogs (`/api/art`), asked for by the user when the
+   * Cover Art Archive had none: its URLs, or nulls for none there either.
+   * Missing until asked.
+   */
+  discogs?: DiscogsCover;
 }
+
+/** Where a cover came from: the Cover Art Archive or Discogs. */
+export type CoverSource = "caa" | "discogs";
+
+export interface DiscogsCover {
+  source: "discogs";
+  /** Full size (share images), or null for no image on Discogs. */
+  url: string | null;
+  /** Small, for rows. */
+  thumb: string | null;
+  checkedAt: number;
+}
+
+/** Whether Discogs can be asked (again): never asked, or a miss gone stale. */
+export const needsDiscogsCheck = (
+  entry: Pick<CoverEntry, "discogs"> | undefined,
+  now = Date.now(),
+): boolean =>
+  !entry?.discogs ||
+  (entry.discogs.url === null && now - entry.discogs.checkedAt >= MISS_RECHECK_MS);
 
 /** Whether an entry is missing or a miss old enough to check again. */
 export const needsCheck = (

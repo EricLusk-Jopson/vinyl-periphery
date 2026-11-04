@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { coverResolver } from "@/api/coverArt";
 import { titleInitials, usableImageUrl } from "@/lib/searches";
 import { cn } from "@/lib/utils";
 
@@ -49,7 +50,12 @@ export const AlbumCover: React.FC<AlbumCoverProps> = ({
           alt=""
           loading="lazy"
           onLoad={() => setLoadedUrl(url)}
-          onError={() => setFailedUrl(url)}
+          onError={() => {
+            setFailedUrl(url);
+            // A Cover Art Archive image that won't load counts as missing,
+            // so "Find missing covers" can ask Discogs for it.
+            coverResolver.reportBroken(url);
+          }}
           className={cn(
             "relative h-full w-full object-cover transition-opacity duration-200",
             loadedUrl === url ? "opacity-100" : "opacity-0",

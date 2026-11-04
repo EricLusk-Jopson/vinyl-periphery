@@ -107,6 +107,8 @@ To test locally, put both Vinyl Periphery variables in `.env` and run
 | `share_completed` | The share sheet finished or the image downloaded | `layout`, `method`: share or download (link: from before Copy link was removed) |
 | `share_regenerated` | Regenerate is pressed in the share sheet (not the first image, made on open) | `layout`: map or card; `stack` (from a stack page) |
 | `share_more_filters` | "More filters" in the share sheet: the sheet closes and the page's filters open | `stack` (from a stack page) |
+| `covers_requested` | "Find missing covers" is pressed: covers MusicBrainz doesn't have, asked of Discogs | `missing` (albums asked for), `where`: sheet (share sheet), results or stack (a Results list) |
+| `covers_found` | A "Find missing covers" run ends (done, cancelled, or stopped by Discogs) | `found` (covers found), `none` (albums Discogs has no image for), `busy`: true when Discogs (or the server, keeping room for search) said not now |
 | `chip_details` | A contributor or role chip's details open (who did what) | `kind`: contributor or role, `via`: hover (a mouse resting a second), hold (a press held a second) or key (context menu key, Shift+F10 or right click) |
 | `results_searched` | The results search (Find an album) is used, once typing pauses | `results` (albums listed), `hidden` (of those, how many the filters hide), `length` (characters typed; the text isn't sent) |
 | `result_picked` | An album is picked in the results search and put on top | `filtered`: true when the filters hid it and were reset to show it (after confirming) |

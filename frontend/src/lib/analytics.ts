@@ -35,6 +35,8 @@ export type AnalyticsEvent =
   | "share_completed"
   | "share_regenerated"
   | "share_more_filters"
+  | "covers_requested"
+  | "covers_found"
   | "chip_details"
   | "results_searched"
   | "result_picked";

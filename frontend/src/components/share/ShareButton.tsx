@@ -71,6 +71,7 @@ import {
   SelectValue,
 } from "../ui/select";
 import { ShareAlbums } from "./ShareAlbums";
+import { FindCovers } from "../common/FindCovers";
 import { StackAlbumList } from "../library/StackAlbumList";
 import { Switch } from "../filters/Switch";
 
@@ -313,7 +314,8 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   const [bareUnlocked, setBareUnlocked] = useState(readBareUnlocked);
   const [busy, setBusy] = useState(false);
 
-  const coverFor = (key: string) => coverResolver.get(key);
+  // Full size for the image (Discogs covers have a small and a large).
+  const coverFor = (key: string) => coverResolver.large(key);
   const data = useMemo<ShareData | null>(() => {
     if (!open) return null;
     const common = { likes, hidden, coverFor };
@@ -805,6 +807,9 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
               {/* Desktop: the action under the preview. Narrower sheets
                   keep it in a footer that stays in reach (below). */}
               <div className="hidden lg:flex">{action}</div>
+              {/* Covers MusicBrainz doesn't have, from Discogs: they
+                  mark the draft changed as they arrive. */}
+              {open && <FindCovers keys={wanted} where="sheet" />}
             </div>
 
             {/* The page's own filters: changing one here changes the page. */}

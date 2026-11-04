@@ -415,8 +415,8 @@ export const stackMapPayload = (
       x: thousandths(node.x - middle.x),
       y: thousandths(node.y - middle.y),
       s: thousandths(node.side),
-      ...(node.member ? { m: 1 as const } : {}),
-      e: node.links,
+      // Lines run from results only: none between the stack's own albums.
+      ...(node.member ? { m: 1 as const } : { e: node.links }),
       ...(node.weights
         ? { w: node.weights.map((w) => Math.max(1, Math.min(3, w))) }
         : {}),

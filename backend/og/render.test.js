@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { artIds, cardSizes, edgeToEdge, fitTileText, initials, mapGeometry, mapLayout, nameLines, renderPng, shorten, stackGeometry } from "./render.js";
+import { artIds, cardSizes, edgeToEdge, stackElement, fitTileText, initials, mapGeometry, mapLayout, nameLines, renderPng, shorten, stackGeometry } from "./render.js";
 
 import { artSettled, fetchArt, loadArt } from "./art.js";
 import { IMAGE_SIZE, parsePayload } from "./payload.js";
@@ -335,4 +335,30 @@ test("fetches Discogs art from i.discogs.com only, without redirects", async () 
   const url = await fetchArt("d:abc/def.jpeg", fake);
   assert.match(url, /^data:image\/jpeg;base64,/);
   assert.deepEqual(seen, [["https://i.discogs.com/abc/def.jpeg", "error"]]);
+});
+
+test("stack maps draw no lines between the stack's own albums", () => {
+  const stack = parsePayload({
+    v: 1,
+    l: "stack",
+    c: { t: "Start", s: 500 },
+    n: [
+      // An older payload: a stack album with a link of its own.
+      { t: "Next", x: 0, y: -1000, s: 400, m: 1, e: [0] },
+      { t: "Result", x: 900, y: -500, s: 260, e: [0, 1], w: [3, 1] },
+    ],
+    ln: 1,
+  });
+  const lines = [];
+  const walk = (node) => {
+    if (!node || typeof node !== "object") return;
+    if (node.type === "line") lines.push(node.props);
+    const kids = node.props?.children;
+    (Array.isArray(kids) ? kids : [kids]).forEach(walk);
+  };
+  walk(stackElement(stack, IMAGE_SIZE, new Map()));
+  // The result's two lines only, muted, by weight.
+  assert.equal(lines.length, 2);
+  assert.deepEqual(lines.map((l) => l.strokeWidth).sort(), [1.5, 3.5]);
+  assert.ok(lines.every((l) => l.stroke !== "#E0312A"));
 });

@@ -49,8 +49,9 @@ ranks albums by how many of those people worked on them.
     whose result covers clear `COVER_FLOOR`, 64px at 1080, once fitted:
     `fitToCanvas`), and the sheet offers no more results than fit above
     that floor (`stackMapCapacity`, "Up to N for this stack"). Lines run
-    edge to edge: the stack's own links in the accent, results' muted
-    and thicker for more people shared (`w`). A stack shares only as a map; its sheet
+    edge to edge from results to the stack albums they link, muted and
+    thicker for more people shared (`w`); none between the stack's own
+    albums. A stack shares only as a map; its sheet
     orders the results (sort, tiebreaker, likes first) and takes albums
     out or adds them, drawing from the Results tab's filtered results. Typing "no
     boilerplate" in the sheet's album search unlocks a switch that drops

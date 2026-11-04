@@ -18,7 +18,22 @@ import { useToast } from "@/hooks/use-toast";
 import { useLikes } from "@/hooks/useLikes";
 import { useHidden } from "@/hooks/useHidden";
 import { useCoverArt } from "@/hooks/useCoverArt";
-import { track } from "@/lib/analytics";
+import { track, trackStackFilter } from "@/lib/analytics";
+import { activeFilterCount } from "@/lib/filters";
+import { requestFilters } from "@/lib/filterRequest";
+import {
+  SEARCH_TOGGLES,
+  setToggle,
+  STACK_TOGGLES,
+  toggleOn,
+} from "@/lib/filterToggles";
+import { MetaAlbum } from "@/lib/metaAlbum";
+import {
+  setStates,
+  stackAlbumChips,
+  StackFilterState,
+  stackFilterCount,
+} from "@/lib/stackFilters";
 import {
   ScoredRelease,
   SORT_OPTIONS,
@@ -56,6 +71,7 @@ import {
   SelectValue,
 } from "../ui/select";
 import { ShareAlbums } from "./ShareAlbums";
+import { StackAlbumList } from "../library/StackAlbumList";
 import { Switch } from "../filters/Switch";
 
 const BARE_KEY = "vinyl-periphery-no-boilerplate";
@@ -102,6 +118,15 @@ interface ShareButtonProps {
    * "search:<id>" or "stack:<stackId>".
    */
   draftKey: string;
+  /**
+   * A stack's Results tab filters, which the sheet's switches and album
+   * list change (the same state the page uses).
+   */
+  stackFilters?: {
+    filters: StackFilterState;
+    update: (updates: Partial<StackFilterState>) => void;
+    meta: MetaAlbum;
+  };
   /** Button style: compact icon on phones (results header) or labelled. */
   compact?: boolean;
 }
@@ -249,9 +274,12 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   map,
   selection,
   draftKey,
+  stackFilters,
   compact = false,
 }) => {
-  const { updateFilterState } = useCache();
+  const { updateFilterState, searches } = useCache();
+  // The search as the cache has it now, for its filter switches.
+  const liveSearch = searches[search.searchId] ?? search;
   const { releases } = useFilteredAndScoredReleases(search.searchId);
   const { toast } = useToast();
   const wide = useMediaQuery("(min-width: 768px)");
@@ -305,8 +333,11 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
           members: map.members,
           levels: map.levels ?? new Map(),
           results: map.results,
+          albumsOff: Object.entries(stackFilters?.filters.albums ?? {})
+            .filter(([, on]) => !on)
+            .map(([key]) => key),
         };
-  }, [open, likes, hidden, selection, search, releases, map]);
+  }, [open, likes, hidden, selection, search, releases, map, stackFilters]);
   const plan = useMemo(
     () => (data ? planShare(draft, data) : null),
     [draft, data],
@@ -524,6 +555,26 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   }, []);
   const useShareSheet = canShareFiles && coarse;
 
+  // The stack's albums, to switch on and off for the map.
+  const stackAlbums = useMemo(
+    () =>
+      stackFilters && !selection
+        ? stackAlbumChips(stackFilters.meta, stackFilters.filters)
+        : [],
+    [stackFilters, selection],
+  );
+  const activeFilters = selection
+    ? activeFilterCount(liveSearch)
+    : stackFilters
+      ? stackFilterCount(stackFilters.filters)
+      : 0;
+  // Closes the sheet, then opens the page's filters (the draft stays).
+  const moreFilters = () => {
+    track("share_more_filters", { stack: !selection });
+    setOpen(false);
+    setTimeout(requestFilters, 0);
+  };
+
   // The one action: Regenerate while the draft differs from the image,
   // then Share or Download for the image on screen.
   const action = stale ? (
@@ -698,7 +749,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
               </div>
             }
 
-            <div className="flex flex-col gap-4 lg:col-start-1 lg:row-span-2 lg:row-start-1">
+            <div className="flex flex-col gap-4 lg:col-start-1 lg:row-span-3 lg:row-start-1">
               <div
                 className={cn(
                   "relative mx-auto aspect-square w-full max-w-[360px] overflow-hidden rounded-lg border bg-surface",
@@ -756,8 +807,91 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
               <div className="hidden lg:flex">{action}</div>
             </div>
 
+            {/* The page's own filters: changing one here changes the page. */}
+            <div className="flex flex-col gap-1.5 lg:col-start-2 lg:row-start-2">
+              <span className="font-mono text-xs uppercase tracking-[1px] text-muted-foreground">
+                Filters
+              </span>
+              <div className="flex flex-col">
+                {selection && liveSearch
+                  ? SEARCH_TOGGLES.filter((t) => t.inSheet).map((t) => {
+                      const on = toggleOn(liveSearch.filterState, t.key);
+                      return (
+                        <Switch
+                          key={t.key}
+                          label={t.label(liveSearch.searchParams.artist)}
+                          checked={on}
+                          onChange={() => {
+                            track("filter_changed", {
+                              filter: t.event,
+                              on: !on,
+                              from: "share",
+                            });
+                            updateFilterState(
+                              liveSearch.searchId,
+                              setToggle(t.key, !on),
+                            );
+                          }}
+                        />
+                      );
+                    })
+                  : stackFilters &&
+                    STACK_TOGGLES.filter((t) => t.inSheet).map((t) => {
+                      const on = toggleOn(stackFilters.filters, t.key);
+                      return (
+                        <Switch
+                          key={t.key}
+                          label={t.label("")}
+                          checked={on}
+                          onChange={() => {
+                            trackStackFilter(t.event, !on, { from: "share" });
+                            stackFilters.update(setToggle(t.key, !on));
+                          }}
+                        />
+                      );
+                    })}
+              </div>
+              {stackAlbums.length > 1 && stackFilters && (
+                <div className="mt-3 flex flex-col gap-2">
+                  <span className="text-sm font-medium text-foreground">
+                    Albums on the map
+                  </span>
+                  <StackAlbumList
+                    albums={stackAlbums}
+                    onToggle={(album) => {
+                      trackStackFilter("album", !album.included, {
+                        from: "share",
+                      });
+                      stackFilters.update({
+                        albums: setStates(
+                          stackFilters.filters.albums,
+                          [album.key],
+                          !album.included,
+                        ),
+                      });
+                    }}
+                  />
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={moreFilters}
+                className={cn(
+                  "inline-flex min-h-11 items-center gap-2 self-start rounded-md text-sm font-medium text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground",
+                  focusRing,
+                )}
+              >
+                More filters
+                {activeFilters > 0 && (
+                  <span className="font-mono text-xs no-underline">
+                    · {activeFilters} active
+                  </span>
+                )}
+              </button>
+            </div>
+
             {(selection || mapReady) && (
-              <div className="lg:col-start-2 lg:row-start-2">
+              <div className="lg:col-start-2 lg:row-start-3">
                 <ShareAlbums
                   hidden={hidden}
                   search={plan?.pickerSearch ?? search}

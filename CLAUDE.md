@@ -68,7 +68,8 @@ ranks albums by how many of those people worked on them.
     `COVER_WAIT_MS`), then on Regenerate, or when Show picks another
     layout once there is one. Controls come in one order for every layout
     and page, as numbered steps: 1 Picture (Show), 2 Albums (one count for
-    every layout, `ShareDraft.count`, 4 to 12, and a "From this page" box
+    every layout, `ShareDraft.count`, 4 to 24: the map draws up to 24,
+    the others the top 12 of them, `LAYOUT_MOST`; and a "From this page" box
     with the page's own sort, `PageSort`, and filter switches), 3 People
     (one count for People and Transit, `ShareDraft.people`, 3 to 12; a
     note on who the map and list draw), 4 Look (how it's drawn), 5

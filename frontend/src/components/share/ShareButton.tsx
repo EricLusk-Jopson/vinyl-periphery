@@ -51,6 +51,7 @@ import {
   countOptions,
   peopleOptions,
   defaultDraft,
+  LAYOUT_MOST,
   canDrawLines,
   draftChange,
   NO_BOILERPLATE,
@@ -541,7 +542,14 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   const layoutChoices = (selection ? LAYOUTS : STACK_LAYOUTS).filter(
     (o) => layoutReady[o.id],
   );
-  const countChoices = countOptions(plan?.available ?? 0, plan?.cap);
+  const countChoices = countOptions(
+    plan?.available ?? 0,
+    plan?.cap,
+    LAYOUT_MOST[layout],
+  );
+  // The count is above what this picture draws: it draws the top of them.
+  const countAbove =
+    draft.count > LAYOUT_MOST[layout] && shownCount === LAYOUT_MOST[layout];
   const peopleChoices = peopleOptions(plan?.peopleAvailable ?? 0);
   // Back to the defaults for everything the sheet keeps (the picture
   // stays); the page's sort and filters are the page's, not reset here.
@@ -894,7 +902,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
               <Step
                 n={2}
                 title="Albums"
-                note={`The top of ${selection ? "this page's" : "the Results tab's"} list, in its order and through its filters. Every picture draws the same albums; hidden albums never go in.`}
+                note={`The top of ${selection ? "this page's" : "the Results tab's"} list, in its order and through its filters. Every picture draws the same albums: the map up to 24, the others the top 12. Hidden albums never go in.`}
               >
                 {countChoices.length > 0 && (
                   <Segmented
@@ -908,6 +916,13 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                       setDraft((d) => ({ ...d, count: Number(value) }))
                     }
                   />
+                )}
+                {countAbove && (
+                  <p className="text-[13px] text-muted-foreground">
+                    This picture draws up to {LAYOUT_MOST[layout]}: the top{" "}
+                    {LAYOUT_MOST[layout]} of your {draft.count}. The map draws
+                    all {draft.count}.
+                  </p>
                 )}
                 {plan?.cap !== undefined && (
                   <p className="text-[13px] text-muted-foreground">

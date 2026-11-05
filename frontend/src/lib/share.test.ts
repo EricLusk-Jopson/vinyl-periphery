@@ -345,6 +345,25 @@ describe("buildPayload and the draft", () => {
     expect(draftChange(buildPayload(people, data()), committed)).toBe("same");
   });
 
+  it("draws up to 24 on the map, the top 12 of them elsewhere", () => {
+    const many = Array.from({ length: 30 }, (_, i) => ({
+      key: `master:${100 + i}`,
+      title: `Album ${100 + i}`,
+      artist: "Someone",
+      year: String(1990 + i),
+      contributorIds: [1],
+      activeContributors: [1],
+      score: 1,
+      confidence: 1,
+    })) as unknown as ScoredRelease[];
+    const d = { ...data(), releases: many } as ShareData;
+    const draft = { ...defaultDraft(), count: 24 };
+    const keys = (chosen: ShareDraft["chosen"]) =>
+      planShare({ ...draft, chosen }, d).shown.map((r) => r.key);
+    expect(keys("map")).toHaveLength(24);
+    expect(keys("card")).toEqual(keys("map").slice(0, 12));
+  });
+
   it("draws the same albums whichever the layout", () => {
     const draft = { ...defaultDraft(), count: 4 };
     const keys = (chosen: ShareDraft["chosen"]) =>
@@ -455,8 +474,14 @@ describe("peopleOptions", () => {
 describe("countOptions", () => {
   const labels = (o: { label: string }[]) => o.map((c) => c.label);
 
-  it("offers every count when there are plenty of albums", () => {
-    expect(labels(countOptions(40))).toEqual(["4", "6", "8", "10", "12"]);
+  it("offers up to 24 for the map and 12 for the others", () => {
+    expect(labels(countOptions(40))).toEqual(["4", "6", "8", "12", "18", "24"]);
+    expect(labels(countOptions(40, Infinity, 12))).toEqual([
+      "4",
+      "6",
+      "8",
+      "12",
+    ]);
   });
 
   it("ends with All when fewer albums match than the largest count", () => {
@@ -466,7 +491,12 @@ describe("countOptions", () => {
       { count: 8, label: "8" },
       { count: 9, label: "All 9" },
     ]);
-    expect(labels(countOptions(12))).toEqual(["4", "6", "8", "10", "All 12"]);
+    expect(labels(countOptions(12, Infinity, 12))).toEqual([
+      "4",
+      "6",
+      "8",
+      "All 12",
+    ]);
     expect(labels(countOptions(5))).toEqual(["4", "All 5"]);
   });
 

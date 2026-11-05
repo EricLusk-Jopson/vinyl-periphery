@@ -192,9 +192,19 @@ export const SHARE_RESULTS = 8;
 
 /**
  * How many albums an image draws: one count for every layout, so
- * switching between them keeps the same albums.
+ * switching between them keeps the same albums. The map looks best full
+ * and takes up to 24; the others draw the top 12 of the same list
+ * (`LAYOUT_MOST`).
  */
-export const SHARE_COUNT = { options: [4, 6, 8, 10, 12], start: 8 };
+export const SHARE_COUNT = { options: [4, 6, 8, 12, 18, 24], start: 8 };
+
+/** The most albums each layout draws: the top of the one count. */
+export const LAYOUT_MOST: Record<ShareLayout, number> = {
+  map: 24,
+  card: 12,
+  lanes: 12,
+  transit: 12,
+};
 
 /**
  * The counts to offer when `available` albums match: those below it, then
@@ -205,8 +215,10 @@ export const countOptions = (
   available: number,
   /** The most this share can draw (a crowded stack map), if fewer. */
   cap = Infinity,
+  /** The most the layout draws (`LAYOUT_MOST`). */
+  most = LAYOUT_MOST.map,
 ): Array<{ count: number; label: string }> => {
-  const { options } = SHARE_COUNT;
+  const options = SHARE_COUNT.options.filter((n) => n <= most);
   const largest = options[options.length - 1];
   if (cap < Math.min(available, largest)) {
     const choices = [
@@ -811,11 +823,18 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
       data.hidden,
     );
     const counted = countedContributors(search);
-    // Every layout draws the same albums: the top of the list, edited.
-    const chosen = shareSelection(search, ranked, draft.count, edits);
-    const mapReady = chosen.length > 0;
-    const allLanes = searchSwimlanes(search, counted, chosen);
-    const transitInput = searchTransit(search, chosen, counted);
+    // Every layout draws the same albums: the top of the list, edited,
+    // as many as the count says up to what the layout takes.
+    const pickFor = (l: ShareLayout) =>
+      shareSelection(
+        search,
+        ranked,
+        Math.min(draft.count, LAYOUT_MOST[l]),
+        edits,
+      );
+    const mapReady = pickFor("map").length > 0;
+    const allLanes = searchSwimlanes(search, counted, pickFor("lanes"));
+    const transitInput = searchTransit(search, pickFor("transit"), counted);
     const lanesReady = allLanes.lanes.length > 0;
     const transitReady = transitInput.people.some(
       (p) => p.stations.length >= 2,
@@ -831,7 +850,7 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
       : mapReady
         ? "map"
         : "card";
-    const shown = chosen;
+    const shown = pickFor(layout);
     const lanes =
       layout === "lanes" ? topLanes(allLanes, draft.people) : undefined;
     const transit =
@@ -921,21 +940,20 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
     most,
   );
   // The same albums for every layout: as many as asked, up to what the
-  // map can draw with covers big enough to read.
-  const chosen = pick(Math.min(draft.count, capacity));
-  const allLanes = stackSwimlanes(members, counted, chosen);
-  const transitInput = stackTransit(members, counted, chosen);
+  // map can draw with covers big enough to read and what the layout takes.
+  const pickFor = (l: ShareLayout) =>
+    pick(Math.min(draft.count, capacity, LAYOUT_MOST[l]));
+  const allLanes = stackSwimlanes(members, counted, pickFor("lanes"));
+  const transitInput = stackTransit(members, counted, pickFor("transit"));
   const lanesReady = allLanes.lanes.length > 0;
-  const transitReady = transitInput.people.some(
-    (p) => p.stations.length >= 2,
-  );
+  const transitReady = transitInput.people.some((p) => p.stations.length >= 2);
   const layout: ShareLayout =
     draft.chosen === "lanes" && lanesReady
       ? "lanes"
       : draft.chosen === "transit" && transitReady
         ? "transit"
         : "map";
-  const shown = chosen;
+  const shown = pickFor(layout);
   const stackNodes =
     layout === "map"
       ? layoutStackMap(
@@ -1014,7 +1032,7 @@ export const buildPayload = (
   const { coverFor } = data;
   const header =
     data.kind === "stack"
-      ? plan.centre ?? data.centre
+      ? (plan.centre ?? data.centre)
       : {
           key: data.search.target?.key ?? "",
           title: data.search.searchParams.album,

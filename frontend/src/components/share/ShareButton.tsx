@@ -432,6 +432,17 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, payload, committed, rendering, failed]);
+  // A new layout picked: made straight away, with no Regenerate, once its
+  // payload is ready (covers looked up).
+  const remakeOnLayout = useRef(false);
+  useEffect(() => {
+    if (!remakeOnLayout.current || !open || !payload) return;
+    remakeOnLayout.current = false;
+    if (draftChange(payload, committed?.encoded ?? null) !== "same") {
+      void regenerate(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, payload]);
   useEffect(() => {
     if (!open) setFailed(false);
   }, [open]);
@@ -717,7 +728,10 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                     label="Show"
                     value={layout}
                     options={layoutChoices}
-                    onChange={(chosen) => setDraft((d) => ({ ...d, chosen }))}
+                    onChange={(chosen) => {
+                      remakeOnLayout.current = true;
+                      setDraft((d) => ({ ...d, chosen }));
+                    }}
                   />
                 )}
                 {(countChoices.length > 0 || plan?.cap !== undefined) && (
@@ -771,6 +785,13 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                       }
                       checked={draft.view.lines}
                       onChange={(lines) => setView({ lines })}
+                    />
+                  )}
+                  {layout === "transit" && plan?.transit && (
+                    <Switch
+                      label="Station titles in a legend"
+                      checked={plan.transit.legend}
+                      onChange={(legend) => setView({ legend })}
                     />
                   )}
                   {bareUnlocked && layout === "map" && (

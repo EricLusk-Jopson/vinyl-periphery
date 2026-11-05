@@ -402,6 +402,12 @@ export interface ShareView {
    * image. Offered once unlocked (see `NO_BOILERPLATE`).
    */
   boilerplate: boolean;
+  /**
+   * Transit maps: station titles in a legend (true) or beside the
+   * stations (false). Unset, whichever fits: beside them when they fit at
+   * full size.
+   */
+  legend?: boolean;
 }
 
 export const DEFAULT_VIEW: ShareView = {
@@ -754,7 +760,9 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
     const shown = pick(layout);
     const lanes = layout === "lanes" ? lanesFor(shown) : undefined;
     const transit =
-      layout === "transit" ? shareTransitMap(transitFor(shown)) : undefined;
+      layout === "transit"
+        ? shareTransitMap(transitFor(shown), draft.view.legend)
+        : undefined;
     const caption = [
       selectionCaption(search, shown.length, selection.sort, selection.then),
       editsCaption(edits),
@@ -856,7 +864,9 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
       : [];
   const lanes = layout === "lanes" ? lanesFor(shown) : undefined;
   const transit =
-    layout === "transit" ? shareTransitMap(transitFor(shown)) : undefined;
+    layout === "transit"
+      ? shareTransitMap(transitFor(shown), draft.view.legend)
+      : undefined;
   const stacked = new Set(members.map(albumKeyOf)).size;
   return {
     layout,

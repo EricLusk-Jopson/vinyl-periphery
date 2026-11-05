@@ -65,7 +65,7 @@ ranks albums by how many of those people worked on them.
     vendored in `backend/og/fonts` (SIL OFL).
     The sheet's controls edit a draft (`ShareDraft`); the image is made
     once on open (after covers, up to `COVER_WAIT_MS`) and then only on
-    Regenerate. The preview is that image's blob, which is also the file
+    Regenerate, or when Show picks another layout. The preview is that image's blob, which is also the file
     shared or downloaded, with no link. While the draft's payload differs
     from the image's (`draftChange`: covers found since, or anything
     else), the preview dims and the action is Regenerate. Drafts and the
@@ -182,7 +182,9 @@ ranks albums by how many of those people worked on them.
       stations only when that fits at full size with no line through
       them; otherwise stations are numbered (in time order) and their
       titles listed in a column beside the map (`legend`, payload `sl`),
-      in whichever flow draws bigger there. Layouts are cached by input.
+      in whichever flow draws bigger there. The sheet's "Station titles
+      in a legend" switch overrides that (`ShareView.legend`; unset,
+      whichever fits). Layouts are cached by input.
       Line colours are placeholders in `render.js`, never red.
   - `src/lib/filters.ts`: chip state, "must include" (`filterState.required`,
     optional because older saved searches lack it), active filter count.

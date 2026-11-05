@@ -63,7 +63,7 @@ import {
   keepShare,
 } from "@/lib/shareDrafts";
 import { cn } from "@/lib/utils";
-import { dialogButton } from "../common/buttons";
+import { dialogButton, pageAction } from "../common/buttons";
 import {
   Select,
   SelectContent,
@@ -134,8 +134,6 @@ interface ShareButtonProps {
     update: (updates: Partial<StackFilterState>) => void;
     meta: MetaAlbum;
   };
-  /** Button style: compact icon on phones (results header) or labelled. */
-  compact?: boolean;
 }
 
 /** A stack's layouts: the ring of album overlap, people, a transit map. */
@@ -291,7 +289,6 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   selection,
   draftKey,
   stackFilters,
-  compact = false,
 }) => {
   const { updateFilterState, searches } = useCache();
   // The search as the cache has it now, for its filter switches.
@@ -660,25 +657,10 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Share"
-        className={cn(
-          "inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg text-[15px] font-medium text-foreground transition-colors hover:bg-secondary disabled:opacity-60",
-          focusRing,
-          compact
-            ? "w-11 md:w-auto md:border md:border-border-strong md:px-4"
-            : "border border-border-strong px-4",
-        )}
+        className={pageAction}
       >
-        <Share2
-          className="h-5 w-5 text-muted-foreground md:h-4 md:w-4"
-          aria-hidden="true"
-        />
-        <span
-          className={compact ? "hidden md:inline" : undefined}
-          aria-hidden="true"
-        >
-          Share
-        </span>
+        <Share2 className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+        Share
       </button>
 
       <Sheet open={open} onOpenChange={setOpen}>

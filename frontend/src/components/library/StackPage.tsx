@@ -1,13 +1,15 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
-  Link,
   Navigate,
   useLocation,
   useNavigate,
   useParams,
 } from "react-router-dom";
-import { ArrowLeft, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { LayersOff } from "../common/icons";
+import { pageAction } from "../common/buttons";
+import { PageBack } from "../layout/PageBack";
+import { PageHero } from "../layout/PageHero";
 import { SearchParams } from "@/api/types";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { SearchCache } from "@/contexts/cache/types";
@@ -269,155 +271,146 @@ export const StackPage: React.FC<StackPageProps> = ({
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1200px] px-4 pb-24 pt-4 md:px-6 md:pt-8">
-      <Link
-        to={libraryPath()}
-        className={cn(
-          "-ml-2 inline-flex h-11 items-center gap-2 rounded-lg px-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
-          focusRing,
-        )}
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Back to library
-      </Link>
-
-      <header className="mt-3 flex flex-wrap items-center gap-4 md:mt-5 md:gap-6">
-        <StackRootCover
-          root={root}
-          className="h-16 w-16 rounded-[3px] text-sm md:h-24 md:w-24 md:rounded md:text-base"
-        />
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <p className="font-mono text-xs uppercase tracking-[2px] text-primary-text md:text-[13px]">
-            Stack
-          </p>
-          <h1 className="break-words font-display text-[30px] font-normal leading-none tracking-[0.3px] md:text-[48px] md:tracking-[0.5px]">
-            {stackLabel(stack)}
-          </h1>
-          <p className="text-[13px] text-muted-foreground md:text-base">
+    <>
+      <PageBack />
+      <PageHero
+        cover={
+          <StackRootCover
+            root={root}
+            className="h-16 w-16 rounded-[3px] text-[13px] md:h-[88px] md:w-[88px] md:rounded md:text-base lg:h-28 lg:w-28"
+          />
+        }
+        eyebrow="Stack"
+        title={stackLabel(stack)}
+        meta={
+          <>
             {root.artist} · {members.length} searches
             {ghosts.length > 0 && ` · ${ghosts.length} deleted`}
-          </p>
-        </div>
-        <div className="flex w-full flex-wrap gap-2 md:w-auto">
-          <ShareButton
-            search={root.search ?? sorted[0]}
-            map={{
-              centre: {
-                key: root.targetKey,
-                title: root.title,
-                artist: root.artist,
-                thumb: root.thumb,
-              },
-              members,
-              levels,
-              results,
-              counted,
-            }}
-            draftKey={`stack:${stackId}`}
-            stackFilters={{
-              filters: stackFilters.filters,
-              update: stackFilters.update,
-              meta,
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => setConfirming(true)}
-            className={cn(
-              "inline-flex h-11 items-center gap-2 rounded-lg border border-border-strong px-4 text-sm font-medium text-foreground hover:bg-secondary",
-              focusRing,
-            )}
-          >
-            <LayersOff className="h-4 w-4" aria-hidden="true" />
-            Destack
-          </button>
-        </div>
-      </header>
-
-      <Tabs value={view} onValueChange={changeView} className="mt-6 md:mt-8">
-        <TabsList aria-label="Stack view">
-          <TabsTrigger value="albums">Albums</TabsTrigger>
-          <TabsTrigger value="results">Results</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="results" className="pt-6 lg:pt-8">
-          {stackFilters.loaded && (
-            <StackResults
-              stackId={stackId}
-              meta={meta}
-              levels={levels}
-              stackFilters={stackFilters}
-              order={order}
-              results={results}
-              of={albumsOn(meta, stackFilters.filters)}
-              onSearchFrom={onSearchStep}
-              isSearching={isSearching}
+          </>
+        }
+        actions={
+          <>
+            <ShareButton
+              search={root.search ?? sorted[0]}
+              map={{
+                centre: {
+                  key: root.targetKey,
+                  title: root.title,
+                  artist: root.artist,
+                  thumb: root.thumb,
+                },
+                members,
+                levels,
+                results,
+                counted,
+              }}
+              draftKey={`stack:${stackId}`}
+              stackFilters={{
+                filters: stackFilters.filters,
+                update: stackFilters.update,
+                meta,
+              }}
             />
-          )}
-        </TabsContent>
-
-        <TabsContent
-          value="albums"
-          className="flex flex-col gap-6 pt-6 md:gap-8"
-        >
-          {sections.map(([depth, entries]) => (
-            <section
-              key={depth}
-              aria-labelledby={`${headingId}-step-${depth}`}
-              className="flex flex-col gap-2.5 md:gap-3"
+            <button
+              type="button"
+              onClick={() => setConfirming(true)}
+              className={pageAction}
             >
-              <h2
-                id={`${headingId}-step-${depth}`}
-                className="font-mono text-xs uppercase tracking-[1px] text-muted-foreground"
+              <LayersOff
+                className="h-4 w-4 text-muted-foreground"
+                aria-hidden="true"
+              />
+              Destack
+            </button>
+          </>
+        }
+      />
+      <div className="mx-auto w-full max-w-[1280px] px-4 pb-24 md:px-6">
+        <Tabs value={view} onValueChange={changeView} className="mt-4 md:mt-6">
+          <TabsList aria-label="Stack view">
+            <TabsTrigger value="albums">Albums</TabsTrigger>
+            <TabsTrigger value="results">Results</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="results" className="pt-6 lg:pt-8">
+            {stackFilters.loaded && (
+              <StackResults
+                stackId={stackId}
+                meta={meta}
+                levels={levels}
+                stackFilters={stackFilters}
+                order={order}
+                results={results}
+                of={albumsOn(meta, stackFilters.filters)}
+                onSearchFrom={onSearchStep}
+                isSearching={isSearching}
+              />
+            )}
+          </TabsContent>
+
+          <TabsContent
+            value="albums"
+            className="flex flex-col gap-6 pt-6 md:gap-8"
+          >
+            {sections.map(([depth, entries]) => (
+              <section
+                key={depth}
+                aria-labelledby={`${headingId}-step-${depth}`}
+                className="flex flex-col gap-2.5 md:gap-3"
               >
-                {stepLabel(depth)}
-              </h2>
-              <ul className={LIBRARY_GRID}>
-                {entries.map((entry) => {
-                  if (entry.kind === "ghost") {
+                <h2
+                  id={`${headingId}-step-${depth}`}
+                  className="font-mono text-xs uppercase tracking-[1px] text-muted-foreground"
+                >
+                  {stepLabel(depth)}
+                </h2>
+                <ul className={LIBRARY_GRID}>
+                  {entries.map((entry) => {
+                    if (entry.kind === "ghost") {
+                      return (
+                        <GhostCard
+                          key={`ghost-${entry.ghost.step.searchId}`}
+                          ghost={entry.ghost}
+                          parents={parents.get(entry.ghost.step.searchId) ?? []}
+                          onSearch={() => searchGhost(entry.ghost)}
+                          disabled={isSearching}
+                        />
+                      );
+                    }
+                    const links = parents.get(entry.search.searchId) ?? [];
                     return (
-                      <GhostCard
-                        key={`ghost-${entry.ghost.step.searchId}`}
-                        ghost={entry.ghost}
-                        parents={parents.get(entry.ghost.step.searchId) ?? []}
-                        onSearch={() => searchGhost(entry.ghost)}
-                        disabled={isSearching}
+                      <LibraryCard
+                        key={entry.search.searchId}
+                        search={entry.search}
+                        from={{ from: "stack", stackId }}
+                        note={linkLineText(links) || undefined}
+                        noteLabel={linkLineLabel(links) || undefined}
+                        onDelete={() => remove(entry.search.searchId)}
+                        onStack={() => setStacking(entry.search)}
                       />
                     );
-                  }
-                  const links = parents.get(entry.search.searchId) ?? [];
-                  return (
-                    <LibraryCard
-                      key={entry.search.searchId}
-                      search={entry.search}
-                      from={{ from: "stack", stackId }}
-                      note={linkLineText(links) || undefined}
-                      noteLabel={linkLineLabel(links) || undefined}
-                      onDelete={() => remove(entry.search.searchId)}
-                      onStack={() => setStacking(entry.search)}
-                    />
-                  );
-                })}
-              </ul>
-            </section>
-          ))}
-        </TabsContent>
-      </Tabs>
+                  })}
+                </ul>
+              </section>
+            ))}
+          </TabsContent>
+        </Tabs>
 
-      <StackConfirm
-        stack={confirming ? stack : null}
-        onClose={() => setConfirming(false)}
-        onDone={() => navigate(libraryPath())}
-      />
-
-      {stacking && (
-        <StackDrawer
-          search={searches[stacking.searchId] ?? stacking}
-          from="library"
-          open
-          onOpenChange={(open) => !open && setStacking(null)}
+        <StackConfirm
+          stack={confirming ? stack : null}
+          onClose={() => setConfirming(false)}
+          onDone={() => navigate(libraryPath())}
         />
-      )}
-    </div>
+
+        {stacking && (
+          <StackDrawer
+            search={searches[stacking.searchId] ?? stacking}
+            from="library"
+            open
+            onOpenChange={(open) => !open && setStacking(null)}
+          />
+        )}
+      </div>
+    </>
   );
 };

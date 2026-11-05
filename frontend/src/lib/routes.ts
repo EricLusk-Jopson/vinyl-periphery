@@ -103,6 +103,19 @@ export const backLink = (
   return { to: libraryPath(), label: "Back to library" };
 };
 
+/**
+ * The back link of a page below the top level, or null: a stack page goes
+ * to the library; a results page goes where `backLink` says.
+ */
+export const pageBackKind = (
+  pathname: string,
+): "results" | "stack" | null =>
+  pathname === RESULTS_PATH
+    ? "results"
+    : /^\/library\/stack\/[^/]+$/.test(pathname)
+      ? "stack"
+      : null;
+
 /** Where the user is now, as the state for a result opened from here. */
 export const fromLocation = (location: string): ResultFrom => {
   const pathname = location.split("?")[0];

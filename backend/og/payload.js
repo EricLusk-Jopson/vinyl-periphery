@@ -54,10 +54,10 @@
 /** Largest body /api/og takes, as JSON text. */
 export const MAX_PAYLOAD_BYTES = 32 * 1024;
 /** Rows on the results card: up to five full size, then smaller. */
-export const MAX_RESULTS = 10;
+export const MAX_RESULTS = 12;
 export const MAX_MAP_ALBUMS = 24;
 export const MAX_MAP_PEOPLE = 16;
-export const MAX_LANES = 8;
+export const MAX_LANES = 12;
 // A stack's albums and up to 12 results, or one album and its results.
 export const MAX_TRANSIT_STATIONS = 32;
 export const MAX_TRANSIT_LINES = 12;

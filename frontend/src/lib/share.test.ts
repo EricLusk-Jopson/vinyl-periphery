@@ -8,7 +8,8 @@ import {
   stackCaption,
   albumMapPayload,
   countOptions,
-  lineOptions,
+  peopleOptions,
+  ShareDraft,
   canDrawLines,
   withView,
   selectionCaption,
@@ -75,7 +76,7 @@ describe("cardPayload", () => {
       a: { t: "Unmap", r: "Unmap Artist", i: `g:${MBID}` },
     });
     if (payload.l !== "card") throw new Error();
-    expect(payload.x).toHaveLength(5);
+    expect(payload.x).toHaveLength(8);
     expect(payload.x[0]).toEqual({
       t: "Album 0",
       r: "Someone",
@@ -202,8 +203,7 @@ describe("buildPayload and the draft", () => {
   });
 
   it("draws the chosen layout and count, captioned, as the view says", () => {
-    const draft = { ...defaultDraft(), chosen: "card" as const };
-    draft.counts = { ...draft.counts, card: 3 };
+    const draft = { ...defaultDraft(), chosen: "card" as const, count: 3 };
     const payload = buildPayload(draft, data());
     if (payload.l !== "card") throw new Error();
     expect(payload.x).toHaveLength(3);
@@ -222,8 +222,7 @@ describe("buildPayload and the draft", () => {
   });
 
   it("plans what the controls need: shown, available, covers to find", () => {
-    const draft = defaultDraft();
-    draft.counts = { ...draft.counts, map: 6 };
+    const draft = { ...defaultDraft(), count: 6 };
     const plan = planShare(draft, data({ "master:11": { at: 0 } }));
     expect(plan.layout).toBe("map");
     expect(plan.shown).toHaveLength(6);
@@ -253,7 +252,7 @@ describe("buildPayload and the draft", () => {
     art = { "master:11": cover("release-group") };
     expect(draftChange(buildPayload(draft, data()), committed)).toBe("covers");
     // A control changed.
-    const fewer = { ...draft, counts: { ...draft.counts, map: 6 } };
+    const fewer = { ...draft, count: 6 };
     expect(draftChange(buildPayload(fewer, data()), committed)).toBe(
       "changed",
     );
@@ -295,7 +294,7 @@ describe("buildPayload and the draft", () => {
     expect(payload.d).toBe("Top 8 by Shared · 2 people");
     // Fewer albums chosen: fewer tall marks.
     const six = buildPayload(
-      { ...draft, counts: { ...draft.counts, lanes: 6 } },
+      { ...draft, count: 6 },
       people,
     );
     if (six.l !== "lanes") throw new Error();
@@ -311,7 +310,7 @@ describe("buildPayload and the draft", () => {
     const draft = {
       ...defaultDraft(),
       chosen: "transit" as const,
-      counts: { ...defaultDraft().counts, transit: 4 },
+      count: 4,
     };
     const plan = planShare(draft, withPeople());
     expect(plan.layout).toBe("transit");
@@ -329,9 +328,9 @@ describe("buildPayload and the draft", () => {
       "Justin Vernon",
     ]);
     expect(payload.d).toBe("Top 4 by Shared · 2 people as lines");
-    expect(plan.transitPeople).toBe(2);
-    // The Lines count: one person drawn, the other counted.
-    const one = { ...draft, transitLines: 1 };
+    expect(plan.peopleAvailable).toBe(2);
+    // The People count: one person drawn, the other counted.
+    const one = { ...draft, people: 1 };
     const fewer = buildPayload(one, withPeople(), planShare(one, withPeople()));
     if (fewer.l !== "transit") throw new Error();
     expect(fewer.n).toHaveLength(1);
@@ -341,9 +340,19 @@ describe("buildPayload and the draft", () => {
   it("ignores a change that doesn't alter the image", () => {
     const draft = defaultDraft();
     const committed = serialisePayload(buildPayload(draft, data()));
-    // The card's count changes nothing while the map is shown.
-    const card = { ...draft, counts: { ...draft.counts, card: 3 } };
-    expect(draftChange(buildPayload(card, data()), committed)).toBe("same");
+    // The people count changes nothing while the map is shown.
+    const people = { ...draft, people: 3 };
+    expect(draftChange(buildPayload(people, data()), committed)).toBe("same");
+  });
+
+  it("draws the same albums whichever the layout", () => {
+    const draft = { ...defaultDraft(), count: 4 };
+    const keys = (chosen: ShareDraft["chosen"]) =>
+      planShare({ ...draft, chosen }, withPeople()).shown.map((r) => r.key);
+    expect(keys("card")).toHaveLength(4);
+    expect(keys("map")).toEqual(keys("card"));
+    expect(keys("lanes")).toEqual(keys("card"));
+    expect(keys("transit")).toEqual(keys("card"));
   });
 });
 
@@ -428,18 +437,18 @@ describe("albumMapPayload", () => {
   });
 });
 
-describe("lineOptions", () => {
+describe("peopleOptions", () => {
   const labels = (o: { label: string }[]) => o.map((c) => c.label);
 
-  it("offers up to twelve lines, ending with All when fewer people", () => {
-    expect(labels(lineOptions(20))).toEqual(["3", "6", "9", "12"]);
-    expect(labels(lineOptions(12))).toEqual(["3", "6", "9", "All 12"]);
-    expect(labels(lineOptions(7))).toEqual(["3", "6", "All 7"]);
+  it("offers up to twelve people, ending with All when fewer", () => {
+    expect(labels(peopleOptions(20))).toEqual(["3", "6", "9", "12"]);
+    expect(labels(peopleOptions(12))).toEqual(["3", "6", "9", "All 12"]);
+    expect(labels(peopleOptions(7))).toEqual(["3", "6", "All 7"]);
   });
 
   it("offers nothing with three people or fewer", () => {
-    expect(lineOptions(3)).toEqual([]);
-    expect(lineOptions(0)).toEqual([]);
+    expect(peopleOptions(3)).toEqual([]);
+    expect(peopleOptions(0)).toEqual([]);
   });
 });
 
@@ -447,29 +456,28 @@ describe("countOptions", () => {
   const labels = (o: { label: string }[]) => o.map((c) => c.label);
 
   it("offers every count when there are plenty of albums", () => {
-    expect(labels(countOptions("map", 40))).toEqual(["6", "12", "18", "24"]);
-    expect(labels(countOptions("card", 30))).toEqual(["3", "5", "8", "10"]);
+    expect(labels(countOptions(40))).toEqual(["4", "6", "8", "10", "12"]);
   });
 
   it("ends with All when fewer albums match than the largest count", () => {
-    expect(countOptions("map", 15)).toEqual([
+    expect(countOptions(9)).toEqual([
+      { count: 4, label: "4" },
       { count: 6, label: "6" },
-      { count: 12, label: "12" },
-      { count: 15, label: "All 15" },
+      { count: 8, label: "8" },
+      { count: 9, label: "All 9" },
     ]);
-    expect(labels(countOptions("map", 24))).toEqual([
-      "6",
-      "12",
-      "18",
-      "All 24",
-    ]);
-    expect(labels(countOptions("card", 4))).toEqual(["3", "All 4"]);
+    expect(labels(countOptions(12))).toEqual(["4", "6", "8", "10", "All 12"]);
+    expect(labels(countOptions(5))).toEqual(["4", "All 5"]);
+  });
+
+  it("stops at what a crowded stack map can draw", () => {
+    expect(labels(countOptions(40, 9))).toEqual(["4", "6", "8", "9"]);
   });
 
   it("offers nothing when there's nothing to choose", () => {
-    expect(countOptions("card", 3)).toEqual([]);
-    expect(countOptions("map", 1)).toEqual([]);
-    expect(countOptions("map", 0)).toEqual([]);
+    expect(countOptions(4)).toEqual([]);
+    expect(countOptions(1)).toEqual([]);
+    expect(countOptions(0)).toEqual([]);
   });
 });
 

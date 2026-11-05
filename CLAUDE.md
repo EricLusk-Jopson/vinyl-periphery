@@ -185,7 +185,7 @@ ranks albums by how many of those people worked on them.
       in whichever flow draws bigger there. The sheet's "Station titles
       in a legend" switch overrides that (`ShareView.legend`; unset,
       whichever fits). Layouts are cached by input.
-      Line colours are placeholders in `render.js`, never red.
+      Line colours are `LINE_COLOURS` in `render.js`: six apart in every pair, never red.
   - `src/lib/filters.ts`: chip state, "must include" (`filterState.required`,
     optional because older saved searches lack it), active filter count.
     "Only liked albums" is `filterState.likedOnly` (also optional). A new

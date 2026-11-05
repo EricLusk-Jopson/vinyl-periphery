@@ -343,8 +343,6 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
             .filter(([, on]) => !on)
             .map(([key]) => key),
         };
-    // coverFor reads the resolver.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     open,
     likes,

@@ -9,6 +9,8 @@ import { pageAction } from "../common/buttons";
 import { SearchCover } from "../search/SearchCover";
 import { StackDrawer } from "../library/StackDrawer";
 import { ShareButton } from "../share/ShareButton";
+import { PageSort } from "@/lib/share";
+import { SORT_OPTIONS, SortKey, tiebreakOptions } from "@/lib/results";
 import { ResultsSort } from "@/hooks/useResultsSort";
 import { isInStack } from "@/lib/stacks";
 import { libraryPath } from "@/lib/routes";
@@ -44,6 +46,20 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search, order }) => {
   // What Share draws: the top albums in the list's order.
   const selection = useMemo(
     () => ({ sort: order.sort, then: order.then }),
+    [order.sort, order.then],
+  );
+  // The same sort, as the sheet shows and changes it.
+  const pageSort = useMemo<PageSort>(
+    () => ({
+      sort: order.sort,
+      then: order.then,
+      options: SORT_OPTIONS,
+      tiebreaks: tiebreakOptions(order.sort),
+      setSort: (sort) => order.setSort(sort as SortKey),
+      setThen: (then) => order.setThen(then as SortKey | null),
+    }),
+    // The setters are stable state setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [order.sort, order.then],
   );
   const { toast } = useToast();
@@ -104,6 +120,7 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search, order }) => {
               search={search}
               map={map}
               selection={selection}
+              order={pageSort}
               draftKey={`search:${search.searchId}`}
             />
             <button

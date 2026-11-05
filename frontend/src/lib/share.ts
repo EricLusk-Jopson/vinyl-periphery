@@ -548,10 +548,14 @@ export const stackSelectionCaption = (
   around: number,
   order?: { sort: SortKey; then: SortKey | null; likesFirst: boolean },
   edits?: string,
+  /** The page's order, named ("Links, then Popular"), over `order`'s. */
+  pageOrder?: string,
 ): string => {
   const by =
     order && around > 0
-      ? `, by ${sortName(order.sort)}${order.then ? `, then ${sortName(order.then)}` : ""}`
+      ? pageOrder
+        ? `, by ${pageOrder}`
+        : `, by ${sortName(order.sort)}${order.then ? `, then ${sortName(order.then)}` : ""}`
       : "";
   return [
     `${stacked} ${stacked === 1 ? "album" : "albums"} stacked`,
@@ -672,6 +676,12 @@ export type ShareData = {
       /** The results as the Results tab filters them, or every result. */
       results?: ScoredRelease[];
       /**
+       * The Results tab's order, named ("Links, then Popular"): `results`
+       * are drawn in it (likes first when the draft says), not re-sorted
+       * by the draft's own sort.
+       */
+      pageOrder?: string;
+      /**
        * Stack albums switched off in the filters (by album key): left off
        * the ring, with their links, as on the Results tab.
        */
@@ -757,6 +767,33 @@ export interface SharePlan {
 /** People on two or more stations: drawn as lines, or counted. */
 const peopleOn = (transit?: TransitMap) =>
   transit ? transit.lines.length + transit.others.length : undefined;
+
+/** A sort the page offers: menu label and the short name on the button. */
+export interface SortOption {
+  value: string;
+  label: string;
+  short: string;
+}
+
+/** The page's sort, as the sheet shows and changes it. */
+export interface PageSort {
+  sort: string;
+  then: string | null;
+  options: SortOption[];
+  /** Tiebreakers for `sort`. */
+  tiebreaks: SortOption[];
+  setSort: (sort: string) => void;
+  setThen: (then: string | null) => void;
+}
+
+/** "Links, then Popular": the page's sort, as the caption names it. */
+export const pageSortName = (order: PageSort): string => {
+  const sort = order.options.find((o) => o.value === order.sort)?.short;
+  const then = order.tiebreaks.find((o) => o.value === order.then)?.short;
+  return [sort ?? order.sort, then ? `then ${then}` : ""]
+    .filter(Boolean)
+    .join(", ");
+};
 
 /** What a draft draws from `data`. Pure. */
 export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
@@ -846,13 +883,20 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
     data.hidden,
   );
   const { stackOrder } = draft;
-  const ordered = orderStackResults(
-    list,
-    stackOrder.sort,
-    stackOrder.then,
-    data.likes,
-    stackOrder.likesFirst,
-  );
+  const ordered = data.pageOrder
+    ? stackOrder.likesFirst
+      ? [
+          ...list.filter((r) => data.likes[r.key]),
+          ...list.filter((r) => !data.likes[r.key]),
+        ]
+      : list
+    : orderStackResults(
+        list,
+        stackOrder.sort,
+        stackOrder.then,
+        data.likes,
+        stackOrder.likesFirst,
+      );
   const pickerSearch = stackAsSearch(data.search, members, list);
   const pick = (count: number) =>
     shareSelection(pickerSearch, ordered, count, edits);
@@ -941,6 +985,7 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
         shown.length,
         stackOrder,
         editsCaption(edits),
+        data.pageOrder,
       ),
       lanes ? peopleCount(lanes.lanes.length, "") : "",
       transit ? peopleCount(transit.lines.length, " as lines") : "",

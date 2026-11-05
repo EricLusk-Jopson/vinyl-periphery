@@ -597,6 +597,18 @@ describe("stack People and Transit", () => {
     coverFor: () => null,
   });
 
+  it("draws the Results tab's albums in the page's order", () => {
+    const page = {
+      ...data(),
+      results: [scored(6, "2008", [2]), scored(5, "2004", [1])],
+      pageOrder: "Links, then Popular",
+    } as ShareData;
+    const plan = planShare(defaultDraft(), page);
+    // Not re-sorted by the draft's own sort.
+    expect(plan.shown.map((r) => r.key)).toEqual(["master:6", "master:5"]);
+    expect(plan.caption).toContain("by Links, then Popular");
+  });
+
   it("draws every stack album as a line on the swimlanes, alike", () => {
     const draft = { ...defaultDraft(), chosen: "lanes" as const };
     const payload = buildPayload(draft, data());

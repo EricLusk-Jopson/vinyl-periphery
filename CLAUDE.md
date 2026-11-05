@@ -54,18 +54,23 @@ ranks albums by how many of those people worked on them.
     that floor (`stackMapCapacity`, "Up to N for this stack"). Lines run
     edge to edge from results to the stack albums they link, muted and
     thicker for more people shared (`w`); none between the stack's own
-    albums. A stack shares only as a map; its sheet
-    orders the results (sort, tiebreaker, likes first) and takes albums
-    out or adds them, drawing from the Results tab's filtered results. Typing "no
+    albums. A stack's sheet draws the Results tab's filtered results in
+    that tab's order (likes first if switched) and takes albums out or
+    adds them. Typing "no
     boilerplate" in the sheet's album search unlocks a switch that drops
     the header and site so the graph fills the image (`nb`).
     Never calls the Discogs API; only cover images (Cover Art Archive, and
     `i.discogs.com` for `d:<path>` art, rebuilt on that host only), with
     initials when they don't load. Fonts are
     vendored in `backend/og/fonts` (SIL OFL).
-    The sheet's controls edit a draft (`ShareDraft`); the image is made
-    once on open (after covers, up to `COVER_WAIT_MS`) and then only on
-    Regenerate, or when Show picks another layout. The preview is that image's blob, which is also the file
+    The sheet's controls edit a draft (`ShareDraft`); nothing is made on
+    open: the image is made on Make image (after covers, up to
+    `COVER_WAIT_MS`), then on Regenerate, or when Show picks another
+    layout once there is one. Controls come in one order for every layout
+    and page: Show, Albums, Lines (transit), Image (how it's drawn), then
+    a "From this page" box with the page's own sort (`PageSort`) and
+    filter switches, then the albums in the image. A stack's image keeps
+    its Results tab's order (`pageOrder`), liked albums first if switched. The preview is that image's blob, which is also the file
     shared or downloaded, with no link. While the draft's payload differs
     from the image's (`draftChange`: covers found since, or anything
     else), the preview dims and the action is Regenerate. Drafts and the

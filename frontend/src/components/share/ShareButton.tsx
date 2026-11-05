@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Download, Loader2, RefreshCw, Share2 } from "lucide-react";
+import { Download, ImageIcon, Loader2, RefreshCw, Share2 } from "lucide-react";
 import { coverResolver } from "@/api/coverArt";
 import { renderShareImage } from "@/api/shareImage";
 import {
@@ -34,12 +34,7 @@ import {
   StackFilterState,
   stackFilterCount,
 } from "@/lib/stackFilters";
-import {
-  ScoredRelease,
-  SORT_OPTIONS,
-  SortKey,
-  tiebreakOptions,
-} from "@/lib/results";
+import { ScoredRelease, SortKey } from "@/lib/results";
 import {
   buildPayload,
   MapCentre,
@@ -53,7 +48,8 @@ import {
   NO_BOILERPLATE,
   planShare,
   serialisePayload,
-  StackOrder,
+  PageSort,
+  pageSortName,
 } from "@/lib/share";
 import { filtersToInclude, ShareEdits } from "@/lib/shareSelection";
 import {
@@ -120,6 +116,11 @@ interface ShareButtonProps {
    * say how they were chosen. Without it, the map is the stack's.
    */
   selection?: { sort: SortKey; then: SortKey | null };
+  /**
+   * The page's sort, which the image draws in: shown and changed in the
+   * sheet's "From this page" section (changing it changes the page).
+   */
+  order: PageSort;
   /**
    * Names this share's draft, kept in memory while the page is open:
    * "search:<id>" or "stack:<stackId>".
@@ -193,86 +194,72 @@ const Segmented = <T extends string>({
   </div>
 );
 
-/**
- * The order of a stack's results: a sort, a tiebreaker, and whether
- * liked albums come first (then: stack albums, likes, the rest).
- */
-const StackOrderControls: React.FC<{
-  order: StackOrder;
-  onChange: (order: StackOrder) => void;
-}> = ({ order, onChange }) => {
+/** The page's sort and tiebreaker, as on the page itself. */
+const PageSortControls: React.FC<{ order: PageSort }> = ({ order }) => {
   const id = useId();
-  const tiebreaks = tiebreakOptions(order.sort);
-  const then = tiebreaks.some((o) => o.value === order.then)
+  const then = order.tiebreaks.some((o) => o.value === order.then)
     ? order.then
     : null;
   return (
-    <div className="flex flex-col gap-1.5">
-      <span className="font-mono text-xs uppercase tracking-[1px] text-muted-foreground">
-        Order
-      </span>
-      <div className="grid grid-cols-2 gap-2">
-        <label htmlFor={`${id}-sort`} className="sr-only">
-          Sort by
-        </label>
-        <Select
-          value={order.sort}
-          onValueChange={(value) =>
-            onChange({ ...order, sort: value as SortKey })
-          }
-        >
-          <SelectTrigger id={`${id}-sort`}>
-            <SelectValue>
-              {SORT_OPTIONS.find((o) => o.value === order.sort)?.short}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {SORT_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {o.value === "shared"
-                  ? "Most people shared with the stack"
-                  : o.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <label htmlFor={`${id}-then`} className="sr-only">
-          then
-        </label>
-        <Select
-          value={then ?? "none"}
-          onValueChange={(value) =>
-            onChange({
-              ...order,
-              then: value === "none" ? null : (value as SortKey),
-            })
-          }
-        >
-          <SelectTrigger id={`${id}-then`} aria-label="then">
-            <SelectValue>
-              {then
-                ? `then ${tiebreaks.find((o) => o.value === then)?.short}`
-                : "No tiebreaker"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent align="end">
-            <SelectItem value="none">No tiebreaker</SelectItem>
-            {tiebreaks.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {o.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <Switch
-        label="Likes first"
-        checked={order.likesFirst}
-        onChange={(likesFirst) => onChange({ ...order, likesFirst })}
-      />
+    <div className="grid grid-cols-2 gap-2">
+      <label htmlFor={`${id}-sort`} className="sr-only">
+        Sort by
+      </label>
+      <Select value={order.sort} onValueChange={order.setSort}>
+        <SelectTrigger id={`${id}-sort`}>
+          <SelectValue>
+            {order.options.find((o) => o.value === order.sort)?.short}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {order.options.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <label htmlFor={`${id}-then`} className="sr-only">
+        then
+      </label>
+      <Select
+        value={then ?? "none"}
+        onValueChange={(value) =>
+          order.setThen(value === "none" ? null : value)
+        }
+      >
+        <SelectTrigger id={`${id}-then`} aria-label="then">
+          <SelectValue>
+            {then
+              ? `then ${order.tiebreaks.find((o) => o.value === then)?.short}`
+              : "No tiebreaker"}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent align="end">
+          <SelectItem value="none">No tiebreaker</SelectItem>
+          {order.tiebreaks.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 };
+
+/** A section heading in the sheet, with an optional line under it. */
+const SectionHeading: React.FC<{ title: string; note?: string }> = ({
+  title,
+  note,
+}) => (
+  <div className="flex flex-col gap-1">
+    <span className="font-mono text-xs uppercase tracking-[1px] text-muted-foreground">
+      {title}
+    </span>
+    {note && <p className="text-[13px] text-muted-foreground">{note}</p>}
+  </div>
+);
 
 /**
  * Share: a square, watermarked image: a map of the stack (or this
@@ -287,6 +274,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   search,
   map,
   selection,
+  order,
   draftKey,
   stackFilters,
 }) => {
@@ -328,6 +316,8 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
 
   // Full size for the image (Discogs covers have a small and a large).
   const coverFor = (key: string) => coverResolver.large(key);
+  // The page's order, by name: the stack image draws in it.
+  const pageOrder = pageSortName(order);
   const data = useMemo<ShareData | null>(() => {
     if (!open) return null;
     const common = { likes, hidden, coverFor };
@@ -348,11 +338,24 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
           levels: map.levels ?? new Map(),
           results: map.results,
           counted: map.counted,
+          pageOrder,
           albumsOff: Object.entries(stackFilters?.filters.albums ?? {})
             .filter(([, on]) => !on)
             .map(([key]) => key),
         };
-  }, [open, likes, hidden, selection, search, releases, map, stackFilters]);
+    // coverFor reads the resolver.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    open,
+    likes,
+    hidden,
+    selection,
+    search,
+    releases,
+    map,
+    stackFilters,
+    pageOrder,
+  ]);
   const plan = useMemo(
     () => (data ? planShare(draft, data) : null),
     [draft, data],
@@ -385,15 +388,12 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   const [rendering, setRendering] = useState(false);
   const [failed, setFailed] = useState(false);
   useEffect(() => () => request.current?.abort(), []);
-  const regenerate = async (auto = false) => {
+  const regenerate = async () => {
     if (!payload || !plan) return;
     request.current?.abort();
     const controller = new AbortController();
     request.current = controller;
     setRendering(true);
-    if (!auto) {
-      track("share_regenerated", { layout: plan.layout, stack: !selection });
-    }
     const encoded = serialisePayload(payload);
     try {
       const blob = await renderShareImage(payload, controller.signal);
@@ -423,13 +423,29 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
       }
     }
   };
-  // The first image: once, when the sheet opens and covers are ready.
+  // Nothing is made on open: the image is made when asked (Make image,
+  // then Regenerate). Asked before covers are found, it's made once
+  // they are (or COVER_WAIT_MS has passed).
+  const [wanted_, setWanted] = useState(false);
+  const make = () => {
+    track("share_regenerated", {
+      layout: plan?.layout ?? draft.chosen,
+      stack: !selection,
+      ...(committed ? {} : { first: true }),
+    });
+    if (payload) void regenerate();
+    else setWanted(true);
+  };
   useEffect(() => {
-    if (open && payload && !committed && !rendering && !failed) {
-      void regenerate(true);
+    if (wanted_ && payload) {
+      setWanted(false);
+      void regenerate();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, payload, committed, rendering, failed]);
+  }, [wanted_, payload]);
+  useEffect(() => {
+    if (!open) setWanted(false);
+  }, [open]);
   // A new layout picked: made straight away, with no Regenerate, once its
   // payload is ready (covers looked up).
   const remakeOnLayout = useRef(false);
@@ -437,7 +453,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     if (!remakeOnLayout.current || !open || !payload) return;
     remakeOnLayout.current = false;
     if (draftChange(payload, committed?.encoded ?? null) !== "same") {
-      void regenerate(true);
+      void regenerate();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, payload]);
@@ -612,23 +628,30 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     setTimeout(requestFilters, 0);
   };
 
-  // The one action: Regenerate while the draft differs from the image,
-  // then Share or Download for the image on screen.
+  // The one action: Make image until there is one, Regenerate while the
+  // draft differs from it, then Share or Download for the image on screen.
+  const making = rendering || wanted_;
   const action = stale ? (
     <button
       type="button"
-      onClick={() => void regenerate()}
-      disabled={rendering || !payload}
+      onClick={make}
+      disabled={making || !plan}
       className={cn(dialogButton.primary, "w-full gap-2")}
     >
-      {rendering || (!committed && !failed) ? (
+      {making ? (
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-      ) : (
+      ) : committed ? (
         <RefreshCw className="h-4 w-4" aria-hidden="true" />
+      ) : (
+        <ImageIcon className="h-4 w-4" aria-hidden="true" />
       )}
-      {rendering || (!committed && !failed)
-        ? "Making the image…"
-        : "Regenerate"}
+      {making
+        ? payload
+          ? "Making the image…"
+          : "Finding covers…"
+        : committed
+          ? "Regenerate"
+          : "Make image"}
     </button>
   ) : (
     <button
@@ -679,14 +702,16 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
             </SheetTitle>
             <SheetDescription className="text-left text-sm text-muted-foreground">
               {layout === "transit"
-                ? `A transit map of the albums chosen below, by year: ${selection ? `${search.searchParams.album} and its results` : "the stack's albums and its results"} are stations, and people credited on two or more are lines.`
+                ? `A transit map: ${selection ? `${search.searchParams.album} and the albums chosen` : "the stack's albums and the albums chosen"} are stations, and people credited on two or more are lines.`
                 : layout === "lanes"
-                  ? `The people on the albums chosen below, across their careers: tall marks are those albums, and the red ${selection ? `line is ${search.searchParams.album}` : "lines are the stack's albums"}.`
-                  : selection
-                    ? `The top albums connected to ${search.searchParams.album}, as your filters and sort show them. Take albums out or add others below.`
-                    : layout === "map"
-                      ? `A map of the stack from ${map.centre.title}: each step one unit from the album it came from, and its results nearest the albums they share people with. Choose their order, take albums out or add others below.`
-                      : `An image of what connects to ${search.searchParams.album}.`}
+                  ? `The people on the albums chosen, across their careers: tall marks are those albums, and the red ${selection ? `line is ${search.searchParams.album}` : "lines are the stack's albums"}.`
+                  : layout === "card"
+                    ? `A list of the top albums connected to ${search.searchParams.album}.`
+                    : selection
+                      ? `A map of ${search.searchParams.album}'s people and the top albums they share.`
+                      : `A map of the stack: its albums on a ring, and the albums chosen nearest the ones they share people with.`}{" "}
+              The albums come from this page, as its sort and filters show them;
+              change those under From this page.
               {!mapReady &&
                 layout !== "lanes" &&
                 layout !== "transit" &&
@@ -759,65 +784,98 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                       }
                     />
                   )}
-                {!selection && (
-                  <StackOrderControls
-                    order={draft.stackOrder}
-                    onChange={(stackOrder) =>
-                      setDraft((d) => ({ ...d, stackOrder }))
-                    }
-                  />
-                )}
-                <div className="flex flex-col">
-                  {layout !== "lanes" && layout !== "transit" && (
-                    <Switch
-                      label="Album covers"
-                      checked={draft.view.covers}
-                      onChange={(covers) => setView({ covers })}
-                    />
-                  )}
-                  {linesAvailable && (
-                    <Switch
-                      label={
-                        selection
-                          ? "Lines from people to albums"
-                          : "Lines between linked albums"
-                      }
-                      checked={draft.view.lines}
-                      onChange={(lines) => setView({ lines })}
-                    />
-                  )}
-                  {layout === "transit" && plan?.transit && (
-                    <Switch
-                      label="Station titles in a legend"
-                      checked={plan.transit.legend}
-                      onChange={(legend) => setView({ legend })}
-                    />
-                  )}
-                  {bareUnlocked && layout === "map" && (
-                    <Switch
-                      label="Title and watermark"
-                      checked={draft.view.boilerplate}
-                      onChange={(boilerplate) => setView({ boilerplate })}
-                    />
-                  )}
+                <div className="flex flex-col gap-1.5">
+                  <SectionHeading title="Image" />
+                  <div className="flex flex-col">
+                    {!selection && (
+                      <Switch
+                        label="Liked albums first"
+                        checked={draft.stackOrder.likesFirst}
+                        onChange={(likesFirst) =>
+                          setDraft((d) => ({
+                            ...d,
+                            stackOrder: { ...d.stackOrder, likesFirst },
+                          }))
+                        }
+                      />
+                    )}
+                    {layout !== "lanes" && layout !== "transit" && (
+                      <Switch
+                        label="Album covers"
+                        checked={draft.view.covers}
+                        onChange={(covers) => setView({ covers })}
+                      />
+                    )}
+                    {linesAvailable && (
+                      <Switch
+                        label={
+                          selection
+                            ? "Lines from people to albums"
+                            : "Lines between linked albums"
+                        }
+                        checked={draft.view.lines}
+                        onChange={(lines) => setView({ lines })}
+                      />
+                    )}
+                    {layout === "transit" && plan?.transit && (
+                      <Switch
+                        label="Station titles in a legend"
+                        checked={plan.transit.legend}
+                        onChange={(legend) => setView({ legend })}
+                      />
+                    )}
+                    {bareUnlocked && layout === "map" && (
+                      <Switch
+                        label="Title and watermark"
+                        checked={draft.view.boilerplate}
+                        onChange={(boilerplate) => setView({ boilerplate })}
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
             }
 
-            <div className="flex flex-col gap-4 lg:col-start-1 lg:row-span-3 lg:row-start-1">
+            <div className="order-first flex flex-col gap-4 lg:order-none lg:col-start-1 lg:row-span-3 lg:row-start-1">
               <div
                 className={cn(
-                  "relative mx-auto aspect-square w-full max-w-[360px] overflow-hidden rounded-lg border bg-surface",
-                  "lg:max-w-none",
+                  "relative mx-auto w-full max-w-[360px] overflow-hidden rounded-lg border bg-surface",
+                  "lg:aspect-square lg:max-w-none",
+                  // Nothing made yet: a short box on phones, so the
+                  // choices aren't pushed below the fold.
+                  preview ? "aspect-square" : "h-32 lg:h-auto",
                 )}
               >
                 {!preview && (
-                  <span className="absolute inset-0 flex items-center justify-center font-mono text-xs text-muted-foreground">
-                    {failed
-                      ? "Couldn't make the image"
-                      : payload
-                        ? "Making the image…"
-                        : "Finding covers…"}
+                  <span
+                    className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-8 text-center"
+                    role="status"
+                  >
+                    {making ? (
+                      <>
+                        <Loader2
+                          className="h-6 w-6 animate-spin text-muted-foreground"
+                          aria-hidden="true"
+                        />
+                        <span className="text-sm text-muted-foreground">
+                          {payload ? "Making the image…" : "Finding covers…"}
+                        </span>
+                      </>
+                    ) : failed ? (
+                      <span className="text-sm text-muted-foreground">
+                        Couldn't make the image. Try again.
+                      </span>
+                    ) : (
+                      <>
+                        <ImageIcon
+                          className="h-6 w-6 text-muted-foreground"
+                          aria-hidden="true"
+                        />
+                        <span className="text-sm text-muted-foreground">
+                          Choose what to draw, then make the image.
+                        </span>
+                      </>
+                    )}
                   </span>
                 )}
                 {preview && (
@@ -865,11 +923,17 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
               {open && <FindCovers keys={wanted} where="sheet" />}
             </div>
 
-            {/* The page's own filters: changing one here changes the page. */}
-            <div className="flex flex-col gap-1.5 lg:col-start-2 lg:row-start-2">
-              <span className="font-mono text-xs uppercase tracking-[1px] text-muted-foreground">
-                Filters
-              </span>
+            {/* The page's own sort and filters: changing one here changes
+                the page, and the page's changes show here. */}
+            <section
+              aria-label="From this page"
+              className="flex flex-col gap-2 rounded-lg border p-4 lg:col-start-2 lg:row-start-2"
+            >
+              <SectionHeading
+                title="From this page"
+                note={`The image draws ${selection ? "this page's" : "the Results tab's"} albums in its order, through its filters. Changing them here changes the page too.`}
+              />
+              <PageSortControls order={order} />
               <div className="flex flex-col">
                 {selection && liveSearch
                   ? SEARCH_TOGGLES.filter((t) => t.inSheet).map((t) => {
@@ -946,7 +1010,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                   </span>
                 )}
               </button>
-            </div>
+            </section>
 
             {(selection || mapReady) && (
               <div className="lg:col-start-2 lg:row-start-3">

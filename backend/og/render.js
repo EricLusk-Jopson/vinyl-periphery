@@ -11,9 +11,13 @@ import { MAP_SIZES, MAX_RESULTS } from "./payload.js";
 
 // Mirrors docs/redesign/tokens.md. Satori has no CSS variables, so the
 // renderer spells the values out here, once.
-// Transit map line colours: placeholders until the palette is set. Never
-// red, which marks the searched and stacked albums.
-const LINE_COLOURS = ["#2DBFAE", "#F6AE2D", "#5AA2F2", "#A884E8", "#4EC076", "#CF86CF"];
+// Transit map line colours: blue, yellow, magenta, green, pale cyan,
+// orange. Any two can meet in a bundle, so every pair is far apart in
+// OKLab (at least 16 x100 for normal vision), and none is near red, which
+// marks the searched and stacked albums. Neighbours in this order (lines
+// with the most stations first) are also apart for red-green
+// colourblindness; the legend names every line too.
+const LINE_COLOURS = ["#2F6FF0", "#FFE14D", "#E27BF0", "#1FA84A", "#A8F0FA", "#FF9A1A"];
 
 const C = {
   background: "#0C0C0D",

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { artIds, cardSizes, edgeToEdge, stackElement, fitTileText, initials, mapElement, mapGeometry, mapLayout, MAP_DOT, MAP_DOT_CLEAR, nameLines, renderPng, shorten, stackGeometry } from "./render.js";
+import { artIds, cardSizes, edgeToEdge, transitGeometry, laneAxis, lanesGeometry, stackElement, fitTileText, initials, mapElement, mapGeometry, mapLayout, MAP_DOT, MAP_DOT_CLEAR, nameLines, renderPng, shorten, stackGeometry } from "./render.js";
 
 import { artSettled, fetchArt, loadArt } from "./art.js";
 import { IMAGE_SIZE, parsePayload } from "./payload.js";
@@ -403,4 +403,120 @@ test("stack maps draw no lines between the stack's own albums", () => {
   assert.equal(lines.length, 2);
   assert.deepEqual(lines.map((l) => l.strokeWidth).sort(), [1.5, 3.5]);
   assert.ok(lines.every((l) => l.stroke !== "#E0312A"));
+});
+
+test("swimlanes parse, fit their box and render", async () => {
+  const lanes = parsePayload({
+    v: 1,
+    l: "lanes",
+    c: { t: "Virgins", r: "Tim Hecker" },
+    y: [1995, 2020],
+    k: [{ t: "Virgins", y: 2013, m: 1 }, { t: "bad", y: 0 }],
+    n: [
+      { n: "Ben Frost", c: 12, s: [[2009, 2], [2013, 1]], f: [[2001, 3], [0, 1]], p: 1 },
+      { n: "Valgeir Sigurðsson", c: 3, s: [[2010, 1]], f: [] },
+      { n: "Nobody", c: 0, s: [], f: [] },
+    ],
+    u: 4,
+    d: "Top 2 of 9 people by results",
+  });
+  assert.equal(lanes.layout, "lanes");
+  assert.deepEqual([lanes.from, lanes.to], [1995, 2020]);
+  // Empty lanes and undated years dropped; the bad album mark too.
+  assert.equal(lanes.lanes.length, 2);
+  assert.deepEqual(lanes.lanes[0].faint, [[2001, 3]]);
+  assert.equal(lanes.lanes[0].partial, true);
+  assert.deepEqual(lanes.albums, [{ t: "Virgins", year: 2013 }]);
+  assert.deepEqual(artIds(lanes), []);
+  const { top, ...box } = { top: 224, width: 1080, height: 788 };
+  const g = lanesGeometry(lanes, box);
+  assert.equal(g.x(1995), g.left);
+  assert.equal(g.x(2020), g.right);
+  assert.ok(g.axisTop + 80 <= box.height);
+  assert.deepEqual(laneAxis(1995, 2020), [2000, 2010, 2020]);
+  assert.ok(isPng(await renderPng(lanes, IMAGE_SIZE, new Map())));
+  assert.equal(top, 224);
+});
+
+test("swimlanes label every album line alike, a row down when they'd touch", () => {
+  const stack = parsePayload({
+    v: 1,
+    l: "lanes",
+    c: { t: "Virgins", r: "Tim Hecker" },
+    y: [1990, 2020],
+    k: [{ t: "Virgins", y: 2013 }, { t: "Love Streams", y: 2016 }, { t: "Harmony in Ultraviolet", y: 1995 }],
+    n: [{ n: "Ben Frost", c: 2, s: [[2013, 1]], f: [] }],
+  });
+  const g = lanesGeometry(stack, { width: 1080, height: 788 });
+  assert.equal(g.labels.length, 3);
+  // Right of each line; 2016's would run off the edge, so it's left of
+  // its line, where it meets 2013's: a row down.
+  assert.deepEqual(g.labels.map((l) => l.row), [0, 1, 0]);
+  assert.ok(g.labels[0].x > g.x(2013));
+  assert.ok(g.labels[1].x + g.labels[1].w < g.x(2016));
+  assert.equal(g.top, 2 * 22 + 12);
+  // No two labels in a row overlap.
+  for (const a of g.labels) {
+    for (const b of g.labels) {
+      if (a === b || a.row !== b.row) continue;
+      assert.ok(a.x + a.w <= b.x || b.x + b.w <= a.x);
+    }
+  }
+});
+
+test("transit maps parse, fit and render", async () => {
+  const transit = parsePayload({
+    v: 1,
+    l: "transit",
+    c: { t: "Virgins", r: "Tim Hecker" },
+    w: 700,
+    h: 200,
+    s: [
+      { t: "Virgins", r: "Tim Hecker", x: 20, y: 100, q: 12, k: [0, 1], b: [0, 118, 120, 35], a: "start", m: 1 },
+      { t: "Aurora", r: "Ben Frost", x: 680, y: 100, q: 12, k: [0, 1], b: [580, 118, 120, 35], a: "end" },
+      { t: "", x: 0, y: 0 },
+    ],
+    n: [
+      { n: "Ben Frost", c: 0, g: [[[20, 96], [680, 96]]] },
+      { n: "Valgeir Sigurðsson", c: 9, g: [[[20, 104], [100, 160], [600, 160], [680, 104]], [[1, 2]]] },
+    ],
+    o: 3,
+  });
+  assert.equal(transit.layout, "transit");
+  assert.equal(transit.stations.length, 2);
+  assert.deepEqual(transit.stations.map((s) => s.marked), [true, false]);
+  // Colour clamped to the six there are; one-point legs dropped.
+  assert.equal(transit.lines[1].colour, 5);
+  assert.equal(transit.lines[1].legs.length, 1);
+  assert.deepEqual(artIds(transit), []);
+  const g = transitGeometry(transit, { width: 1080, height: 788 });
+  assert.ok(g.scale > 1 && g.scale <= 1.6);
+  assert.ok(g.top + transit.height * g.scale <= g.legendTop);
+  assert.ok(isPng(await renderPng(transit, IMAGE_SIZE, new Map())));
+  assert.equal(parsePayload({ v: 1, l: "transit", c: { t: "x" }, w: 0, h: 10, s: [{ t: "a" }] }), null);
+});
+
+test("numbered transit maps list their stations beside the map", async () => {
+  const station = (t, n, x, extra = {}) => ({ t, r: `Artist · ${2000 + n}`, x, y: 100, q: 13, k: [0], b: [x - 13, 87, 26, 26], a: "middle", n, ...extra });
+  const raw = {
+    v: 1,
+    l: "transit",
+    c: { t: "Virgins", r: "Tim Hecker" },
+    w: 400,
+    h: 200,
+    s: [station("Virgins", 2, 300, { m: 1 }), station("Aurora", 1, 20)],
+    n: [{ n: "Ben Frost", c: 0, g: [[[20, 100], [300, 100]]] }],
+    sl: 1,
+  };
+  const map = parsePayload(raw);
+  assert.equal(map.legend, true);
+  assert.deepEqual(map.stations.map((s) => s.number), [2, 1]);
+  const g = transitGeometry(map, { width: 1080, height: 788 });
+  // The map keeps clear of the list's column.
+  assert.ok(g.left + map.width * g.scale <= g.list.left);
+  assert.equal(g.list.twoLine, true);
+  assert.ok(isPng(await renderPng(map, IMAGE_SIZE, new Map())));
+  // A station without a number: labels, not a legend.
+  const unnumbered = parsePayload({ ...raw, s: [station("Virgins", 0, 300), station("Aurora", 1, 20)] });
+  assert.equal(unnumbered.legend, false);
 });

@@ -45,6 +45,7 @@ import { useStackSort } from "@/hooks/useStackSort";
 import { metaAlbum } from "@/lib/metaAlbum";
 import {
   albumsOn,
+  countedByAlbum,
   filteredStackResults,
   sortStackResults,
 } from "@/lib/stackFilters";
@@ -199,6 +200,12 @@ export const StackPage: React.FC<StackPageProps> = ({
     [view, navigate, stackId],
   );
 
+  // Who counts on each stack album, for the People and Transit images.
+  const counted = useMemo(
+    () => countedByAlbum(meta, stackFilters.filters),
+    [meta, stackFilters.filters],
+  );
+
   const reported = useRef(false);
   useEffect(() => {
     if (reported.current || members.length === 0) return;
@@ -304,6 +311,7 @@ export const StackPage: React.FC<StackPageProps> = ({
               members,
               levels,
               results,
+              counted,
             }}
             draftKey={`stack:${stackId}`}
             stackFilters={{

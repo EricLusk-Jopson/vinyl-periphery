@@ -8,6 +8,24 @@
 //   { v: 1, l: "card", a: Album, x: Result[], d? }             periphery card
 //   { v: 1, l: "map",  c: Album, n: Placed[], p: Person[], d? } map
 //   { v: 1, l: "stack", c: Album & { s }, n: Node[], d? }       stack map
+//   { v: 1, l: "lanes", c: Album, y: [from, to], k: Mark[],     swimlanes
+//     n: Lane[], u?, d? }
+//   Mark   = { t: album title, y: year }: the searched album, or each
+//            stack album, drawn alike
+//   Lane   = { n: name, c: results, s: [year, count][] (results),
+//            f: [year, count][] (their other items), p?: 1 when the page
+//            cap cut their oldest items }
+//   u      = undated items, not drawn
+//   { v: 1, l: "transit", c: Album, w, h, s: Station[], n: Line[],  transit map
+//     o?, d? }
+//   Station = { t, r, x, y: its place, q: radius, k: colours of its lines,
+//            b: [x, y, w, h] its label's box, a: "start" | "middle" | "end",
+//            m?: 1 for the searched album or a stack's,
+//            n?: its number in the station list }
+//   sl: 1  = stations numbered and listed beside the map, not labelled
+//   Line   = { n: name, c: colour 0-5, g: legs, each [x, y][] }
+//   o      = people on 2+ albums not drawn as lines
+//   Places in layout units (w x h); the renderer scales them to fit.
 //   Node   = Album & { x, y, s: place and cover side in thousandths of
 //            a step, y up; m?: 1 for the stack's own albums;
 //            e?: linked nodes, 0 the centre and k for n[k - 1];
@@ -39,6 +57,11 @@ export const MAX_PAYLOAD_BYTES = 32 * 1024;
 export const MAX_RESULTS = 10;
 export const MAX_MAP_ALBUMS = 24;
 export const MAX_MAP_PEOPLE = 16;
+export const MAX_LANES = 8;
+// A stack's albums and up to 12 results, or one album and its results.
+export const MAX_TRANSIT_STATIONS = 32;
+export const MAX_TRANSIT_LINES = 6;
+const MAX_LANE_YEARS = 150;
 const MAX_TITLE = 80;
 const MAX_ARTIST = 60;
 const MAX_NAME = 40;
@@ -160,6 +183,99 @@ export function parsePayload(raw) {
           bare: raw.nb === 1,
         }
       : null;
+  }
+
+  if (raw.l === "lanes") {
+    const centre = album(raw.c);
+    if (!centre.t) return null;
+    const year = (value) => {
+      const n = Math.round(Number(value));
+      return Number.isFinite(n) && n >= 1800 && n <= 2100 ? n : null;
+    };
+    const ticks = (value) =>
+      list(value, MAX_LANE_YEARS)
+        .map((t) => [year(Array.isArray(t) ? t[0] : null), Math.max(1, Math.min(99, Math.round(Number(Array.isArray(t) ? t[1] : 1) || 1)))])
+        .filter(([y]) => y !== null);
+    const lanes = list(raw.n, MAX_LANES)
+      .map((n) => ({
+        name: text(n?.n, MAX_NAME),
+        results: Math.max(0, Math.min(99999, Math.floor(Number(n?.c) || 0))),
+        solid: ticks(n?.s),
+        faint: ticks(n?.f),
+        partial: n?.p === 1,
+      }))
+      .filter((n) => n.name && n.solid.length + n.faint.length > 0);
+    const albums = list(raw.k, 12)
+      .map((k) => ({ t: text(k?.t, MAX_TITLE), year: year(k?.y) }))
+      .filter((k) => k.year !== null);
+    const years = [...lanes.flatMap((l) => [...l.solid, ...l.faint].map(([y]) => y)), ...albums.map((a) => a.year)];
+    const range = Array.isArray(raw.y) ? raw.y.map(year) : [];
+    const from = range[0] ?? Math.min(...years);
+    const to = range[1] ?? Math.max(...years);
+    if (lanes.length === 0 || !(from < to)) return null;
+    return {
+      layout: "lanes",
+      centre,
+      from,
+      to,
+      albums,
+      lanes,
+      undated: Math.max(0, Math.min(99999, Math.floor(Number(raw.u) || 0))),
+      caption: text(raw.d, MAX_CAPTION),
+      covers: false,
+      bare: false,
+    };
+  }
+
+  if (raw.l === "transit") {
+    const centre = album(raw.c);
+    if (!centre.t) return null;
+    const unit = (value) => Math.max(0, Math.min(5000, Math.round(Number(value) * 10) / 10 || 0));
+    const width = unit(raw.w);
+    const height = unit(raw.h);
+    if (!(width > 0 && height > 0)) return null;
+    const colour = (value) => Math.max(0, Math.min(MAX_TRANSIT_LINES - 1, Math.floor(Number(value) || 0)));
+    const stations = list(raw.s, MAX_TRANSIT_STATIONS)
+      .map((s) => {
+        const box = Array.isArray(s?.b) ? s.b.slice(0, 4).map(unit) : [0, 0, 0, 0];
+        return {
+          t: text(s?.t, MAX_TITLE),
+          r: text(s?.r, MAX_ARTIST),
+          x: unit(s?.x),
+          y: unit(s?.y),
+          radius: Math.max(3, Math.min(40, unit(s?.q) || 7)),
+          lines: list(s?.k, MAX_TRANSIT_LINES).map(colour),
+          label: { x: box[0], y: box[1], w: box[2], h: box[3] },
+          align: ["start", "middle", "end"].includes(s?.a) ? s.a : "middle",
+          marked: s?.m === 1,
+          number: Math.max(0, Math.min(99, Math.floor(Number(s?.n) || 0))),
+        };
+      })
+      .filter((s) => s.t);
+    const lines = list(raw.n, MAX_TRANSIT_LINES)
+      .map((n) => ({
+        name: text(n?.n, MAX_NAME),
+        colour: colour(n?.c),
+        legs: list(n?.g, 16)
+          .map((leg) => list(leg, 12).filter(Array.isArray).map(([x, y]) => [unit(x), unit(y)]))
+          .filter((leg) => leg.length >= 2),
+      }))
+      .filter((n) => n.name && n.legs.length > 0);
+    if (stations.length === 0) return null;
+    return {
+      layout: "transit",
+      centre,
+      width,
+      height,
+      stations,
+      lines,
+      others: Math.max(0, Math.min(999, Math.floor(Number(raw.o) || 0))),
+      // Numbered stations, titles in a list beside the map.
+      legend: raw.sl === 1 && stations.every((s) => s.number > 0),
+      caption: text(raw.d, MAX_CAPTION),
+      covers: false,
+      bare: false,
+    };
   }
 
   if (raw.l === "stack") {

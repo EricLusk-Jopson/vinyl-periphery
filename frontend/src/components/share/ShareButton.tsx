@@ -107,6 +107,11 @@ interface ShareButtonProps {
      * Without it, every result of its searches.
      */
     results?: ScoredRelease[];
+    /**
+     * Stack album key -> who counts there under the stack's filters, for
+     * the People and Transit images.
+     */
+    counted?: Map<string, Set<number>>;
   };
   /**
    * For one search: the results' order. Both layouts then draw its top
@@ -132,9 +137,18 @@ interface ShareButtonProps {
   compact?: boolean;
 }
 
+/** A stack's layouts: the ring of album overlap, people, a transit map. */
+const STACK_LAYOUTS: { id: ShareLayout; label: string }[] = [
+  { id: "map", label: "Map" },
+  { id: "lanes", label: "People" },
+  { id: "transit", label: "Transit" },
+];
+
 const LAYOUTS: { id: ShareLayout; label: string }[] = [
   { id: "map", label: "Map" },
   { id: "card", label: "Results" },
+  { id: "lanes", label: "People" },
+  { id: "transit", label: "Transit" },
 ];
 
 /** A segmented choice, as radios. */
@@ -335,6 +349,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
           members: map.members,
           levels: map.levels ?? new Map(),
           results: map.results,
+          counted: map.counted,
           albumsOff: Object.entries(stackFilters?.filters.albums ?? {})
             .filter(([, on]) => !on)
             .map(([key]) => key),
@@ -417,6 +432,17 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, payload, committed, rendering, failed]);
+  // A new layout picked: made straight away, with no Regenerate, once its
+  // payload is ready (covers looked up).
+  const remakeOnLayout = useRef(false);
+  useEffect(() => {
+    if (!remakeOnLayout.current || !open || !payload) return;
+    remakeOnLayout.current = false;
+    if (draftChange(payload, committed?.encoded ?? null) !== "same") {
+      void regenerate(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, payload]);
   useEffect(() => {
     if (!open) setFailed(false);
   }, [open]);
@@ -437,6 +463,16 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   const mapReady = plan?.mapReady ?? false;
   const shown = plan?.shown ?? [];
   const shownCount = shown.length;
+  // The layouts there's something to draw for.
+  const layoutReady: Record<ShareLayout, boolean> = {
+    map: mapReady,
+    card: true,
+    lanes: Boolean(plan?.lanesReady),
+    transit: Boolean(plan?.transitReady),
+  };
+  const layoutChoices = (selection ? LAYOUTS : STACK_LAYOUTS).filter(
+    (o) => layoutReady[o.id],
+  );
   const countChoices = countOptions(layout, plan?.available ?? 0, plan?.cap);
   // Something to make: nothing yet, or the draft has changed since.
   const stale = !committed || change !== "same";
@@ -658,12 +694,18 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
               Share
             </SheetTitle>
             <SheetDescription className="text-left text-sm text-muted-foreground">
-              {selection
-                ? `The top albums connected to ${search.searchParams.album}, as your filters and sort show them. Take albums out or add others below.`
-                : layout === "map"
-                  ? `A map of the stack from ${map.centre.title}: each step one unit from the album it came from, and its results nearest the albums they share people with. Choose their order, take albums out or add others below.`
-                  : `An image of what connects to ${search.searchParams.album}.`}
+              {layout === "transit"
+                ? `A transit map of the albums chosen below, by year: ${selection ? `${search.searchParams.album} and its results` : "the stack's albums and its results"} are stations, and people credited on two or more are lines.`
+                : layout === "lanes"
+                  ? `The people on the albums chosen below, across their careers: tall marks are those albums, and the red ${selection ? `line is ${search.searchParams.album}` : "lines are the stack's albums"}.`
+                  : selection
+                    ? `The top albums connected to ${search.searchParams.album}, as your filters and sort show them. Take albums out or add others below.`
+                    : layout === "map"
+                      ? `A map of the stack from ${map.centre.title}: each step one unit from the album it came from, and its results nearest the albums they share people with. Choose their order, take albums out or add others below.`
+                      : `An image of what connects to ${search.searchParams.album}.`}
               {!mapReady &&
+                layout !== "lanes" &&
+                layout !== "transit" &&
                 (selection
                   ? " No albums match these filters."
                   : " Stack another album to share a map.")}
@@ -681,12 +723,15 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
           >
             {
               <div className="flex flex-col gap-4 lg:col-start-2 lg:row-start-1">
-                {selection && mapReady && (
+                {layoutChoices.length > 1 && (
                   <Segmented
                     label="Show"
                     value={layout}
-                    options={LAYOUTS}
-                    onChange={(chosen) => setDraft((d) => ({ ...d, chosen }))}
+                    options={layoutChoices}
+                    onChange={(chosen) => {
+                      remakeOnLayout.current = true;
+                      setDraft((d) => ({ ...d, chosen }));
+                    }}
                   />
                 )}
                 {(countChoices.length > 0 || plan?.cap !== undefined) && (
@@ -724,11 +769,13 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                   />
                 )}
                 <div className="flex flex-col">
-                  <Switch
-                    label="Album covers"
-                    checked={draft.view.covers}
-                    onChange={(covers) => setView({ covers })}
-                  />
+                  {layout !== "lanes" && layout !== "transit" && (
+                    <Switch
+                      label="Album covers"
+                      checked={draft.view.covers}
+                      onChange={(covers) => setView({ covers })}
+                    />
+                  )}
                   {linesAvailable && (
                     <Switch
                       label={
@@ -738,6 +785,13 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                       }
                       checked={draft.view.lines}
                       onChange={(lines) => setView({ lines })}
+                    />
+                  )}
+                  {layout === "transit" && plan?.transit && (
+                    <Switch
+                      label="Station titles in a legend"
+                      checked={plan.transit.legend}
+                      onChange={(legend) => setView({ legend })}
                     />
                   )}
                   {bareUnlocked && layout === "map" && (

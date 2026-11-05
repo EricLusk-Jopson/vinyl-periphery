@@ -11,6 +11,10 @@ import { MAP_SIZES, MAX_RESULTS } from "./payload.js";
 
 // Mirrors docs/redesign/tokens.md. Satori has no CSS variables, so the
 // renderer spells the values out here, once.
+// Transit map line colours: placeholders until the palette is set. Never
+// red, which marks the searched and stacked albums.
+const LINE_COLOURS = ["#2DBFAE", "#F6AE2D", "#5AA2F2", "#A884E8", "#4EC076", "#CF86CF"];
+
 const C = {
   background: "#0C0C0D",
   surface: "#141416",
@@ -840,6 +844,411 @@ export function stackElement(payload, size, art) {
   );
 }
 
+/** Swimlanes' frame inside the graph box: names left, tracks right. */
+const LANES = { name: 300, gap: 24, labelRow: 22, axis: 34, legend: 34, maxRow: 96 };
+/** Album labels over the lanes: mono 16px, about this wide a character. */
+const LANE_LABEL = { size: 16, char: 9.7, chars: 30, gap: 14 };
+
+/** Decade marks for the axis: every 10 years, or 5 on a short range. */
+export const laneAxis = (from, to) => {
+  const step = to - from <= 20 ? 5 : 10;
+  const marks = [];
+  for (let y = Math.ceil(from / step) * step; y <= to; y += step) marks.push(y);
+  return marks;
+};
+
+/**
+ * The swimlanes' geometry in pixels: the tracks' x range, each lane's row,
+ * and a year's x.
+ */
+export function lanesGeometry(payload, { width, height }) {
+  const left = MAP_FRAME.pad + LANES.name + LANES.gap;
+  const right = width - MAP_FRAME.pad;
+  const x = (year) => left + ((right - left) * (year - payload.from)) / Math.max(1, payload.to - payload.from);
+  // Every album line is labelled alike, just right of its line (left of
+  // it only at the right edge); labels that would touch go a row down.
+  const rows = [];
+  const labels = payload.albums.map((album) => {
+    const text = `${shorten(album.t, LANE_LABEL.chars)} · ${album.year}`;
+    const w = text.length * LANE_LABEL.char;
+    const at = x(album.year);
+    return { text, w, x: at + 8 + w > width - 8 ? at - 8 - w : at + 8, row: 0 };
+  });
+  // Left to right, each in the first row it fits.
+  for (const label of [...labels].sort((a, b) => a.x - b.x)) {
+    let row = rows.findIndex((end) => label.x >= end);
+    if (row < 0) row = rows.length;
+    rows[row] = label.x + label.w + LANE_LABEL.gap;
+    label.row = row;
+  }
+  const top = Math.max(1, rows.length) * LANES.labelRow + 12;
+  const lanes = Math.max(1, payload.lanes.length);
+  const row = Math.min(LANES.maxRow, (height - top - LANES.axis - LANES.legend) / lanes);
+  return {
+    left,
+    right,
+    row,
+    x,
+    top,
+    labels: labels.map((l) => ({ ...l, y: l.row * LANES.labelRow })),
+    laneTop: (i) => top + i * row,
+    axisTop: top + lanes * row + 8,
+  };
+}
+
+/** Swimlanes: a lane per person, ticks by year, the album's year marked. */
+export function lanesElement(payload, size) {
+  const { top, ...box } = mapBox(payload, size);
+  const g = lanesGeometry(payload, box);
+  const mid = (i) => g.laneTop(i) + g.row / 2;
+  const tick = Math.min(30, g.row * 0.34);
+  const lines = [];
+  payload.lanes.forEach((lane, i) => {
+    const years = [...lane.solid, ...lane.faint].map(([y]) => y);
+    const first = Math.min(...years);
+    const last = Math.max(...years);
+    // Before a cut-short lane's first year: not read, dashed.
+    if (lane.partial && first > payload.from) {
+      lines.push({ x1: g.left, x2: g.x(first), y1: mid(i), y2: mid(i), stroke: C.border, strokeWidth: 6, strokeDasharray: "3 5" });
+    }
+    lines.push({ x1: g.x(first), x2: g.x(last), y1: mid(i), y2: mid(i), stroke: C.border, strokeWidth: 2 });
+    // Their other releases: short marks, the same colour as the tall.
+    for (const [year] of lane.faint) {
+      lines.push({ x1: g.x(year), x2: g.x(year), y1: mid(i) - tick * 0.5, y2: mid(i) + tick * 0.5, stroke: C.muted, strokeWidth: 2 });
+    }
+  });
+  // The album lines, all alike, over the short marks and under the tall.
+  for (const album of payload.albums) {
+    lines.push({
+      x1: g.x(album.year),
+      x2: g.x(album.year),
+      y1: g.top - 6,
+      y2: g.laneTop(payload.lanes.length),
+      stroke: C.primary,
+      strokeWidth: 3,
+    });
+  }
+  payload.lanes.forEach((lane, i) => {
+    for (const [year, count] of lane.solid) {
+      const reach = tick + Math.min(10, 3 * count);
+      lines.push({ x1: g.x(year), x2: g.x(year), y1: mid(i) - reach, y2: mid(i) + reach, stroke: C.muted, strokeWidth: 3 });
+    }
+  });
+  const text = (style, ...children) => h("div", { position: "absolute", ...style }, ...children);
+  const mono = { fontFamily: "IBM Plex Mono", fontSize: 16, color: C.faint };
+
+  return h(
+    "div",
+    {
+      position: "relative",
+      width: size.width,
+      height: size.height,
+      background: C.background,
+      color: C.foreground,
+      fontFamily: "IBM Plex Sans",
+    },
+    h(
+      "div",
+      { position: "absolute", left: 0, top, width: box.width, height: box.height },
+      {
+        type: "svg",
+        props: {
+          width: box.width,
+          height: box.height,
+          viewBox: `0 0 ${box.width} ${box.height}`,
+          style: { position: "absolute", left: 0, top: 0 },
+          children: lines.map((l) => ({
+            type: "line",
+            props: {
+              ...l,
+              x1: Math.round(l.x1),
+              x2: Math.round(l.x2),
+              y1: Math.round(l.y1),
+              y2: Math.round(l.y2),
+            },
+          })),
+        },
+      },
+      ...g.labels.map((label) =>
+        text(
+          {
+            top: Math.round(label.y),
+            left: Math.round(label.x),
+            ...mono,
+            fontSize: LANE_LABEL.size,
+            color: C.primaryText,
+            whiteSpace: "nowrap",
+          },
+          label.text,
+        ),
+      ),
+      ...payload.lanes.map((lane, i) =>
+        text(
+          {
+            left: MAP_FRAME.pad,
+            top: Math.round(g.laneTop(i)),
+            width: LANES.name,
+            height: Math.round(g.row),
+            flexDirection: "column",
+            justifyContent: "center",
+          },
+          h("div", { fontSize: g.row < 60 ? 19 : 22, fontWeight: 600, lineHeight: 1.2 }, shorten(lane.name, 24)),
+          h(
+            "div",
+            { ...mono, fontSize: 15 },
+            `${lane.results} ${lane.results === 1 ? "album" : "albums"} here${lane.partial ? " · oldest not read" : ""}`,
+          ),
+        ),
+      ),
+      ...laneAxis(payload.from, payload.to).map((year) =>
+        text({ top: Math.round(g.axisTop), left: Math.round(g.x(year) - 24), width: 48, justifyContent: "center", ...mono }, String(year)),
+      ),
+      text(
+        { top: Math.round(g.axisTop + LANES.axis), left: MAP_FRAME.pad, ...mono, gap: 28 },
+        h("div", {}, "Tall: the albums chosen"),
+        h("div", {}, "Short: their other releases"),
+        payload.undated > 0 && h("div", {}, `${payload.undated} undated, not shown`),
+      ),
+    ),
+    mapHeader("People around", payload, size),
+    mapFooter(size),
+  );
+}
+
+/** Room under a transit map for its legend. */
+const TRANSIT_LEGEND = { row: 34, columns: 2 };
+/**
+ * A numbered transit map's station list, on the right (keep the width in
+ * step with TRANSIT_SHARE_BOX.stationList in frontend/src/lib/transitMap.ts).
+ */
+const STATION_LIST = { width: 340, gap: 24, row: 42, compactRow: 27 };
+
+/** The transit map fitted to the box over its legend: scale and offset. */
+export function transitGeometry(payload, { width, height }) {
+  const rows = Math.ceil(payload.lines.length / TRANSIT_LEGEND.columns) + (payload.others ? 1 : 0);
+  const legend = rows * TRANSIT_LEGEND.row + 12;
+  // A numbered map leaves a column on the right for its station list.
+  const list = payload.legend ? STATION_LIST.width : 0;
+  const room = { w: width - 2 * MAP_FRAME.pad - list, h: height - legend };
+  const scale = Math.min(room.w / payload.width, room.h / payload.height, 1.6);
+  // The station list: two lines an entry, or one where there are many.
+  const entries = payload.legend ? payload.stations.length : 0;
+  const twoLine = entries * STATION_LIST.row <= room.h;
+  return {
+    scale,
+    left: MAP_FRAME.pad + (room.w - payload.width * scale) / 2,
+    top: (room.h - payload.height * scale) / 2,
+    legendTop: height - legend + 12,
+    list: {
+      left: width - MAP_FRAME.pad - list + STATION_LIST.gap,
+      width: list - STATION_LIST.gap,
+      row: twoLine ? STATION_LIST.row : STATION_LIST.compactRow,
+      twoLine,
+      top: Math.max(0, (room.h - entries * (twoLine ? STATION_LIST.row : STATION_LIST.compactRow)) / 2),
+    },
+  };
+}
+
+/** A stack as a transit map: albums as stations, people as lines. */
+export function transitElement(payload, size) {
+  const { top, ...box } = mapBox(payload, size);
+  const g = transitGeometry(payload, box);
+  const at = (x, y) => [g.left + x * g.scale, g.top + y * g.scale];
+  const legs = payload.lines.flatMap((line) =>
+    line.legs.map((leg) => ({
+      colour: LINE_COLOURS[line.colour],
+      d: leg
+        .map(([x, y], i) => {
+          const [px, py] = at(x, y);
+          return `${i === 0 ? "M" : "L"}${px.toFixed(1)} ${py.toFixed(1)}`;
+        })
+        .join(" "),
+    })),
+  );
+  const titleSize = Math.max(14, Math.round(15 * g.scale));
+  const artistSize = Math.max(12, Math.round(12 * g.scale));
+  return h(
+    "div",
+    {
+      position: "relative",
+      width: size.width,
+      height: size.height,
+      background: C.background,
+      color: C.foreground,
+      fontFamily: "IBM Plex Sans",
+    },
+    h(
+      "div",
+      { position: "absolute", left: 0, top, width: box.width, height: box.height },
+      {
+        type: "svg",
+        props: {
+          width: box.width,
+          height: box.height,
+          viewBox: `0 0 ${box.width} ${box.height}`,
+          style: { position: "absolute", left: 0, top: 0 },
+          children: [
+            ...legs.map((leg) => ({
+              type: "path",
+              props: {
+                d: leg.d,
+                fill: "none",
+                stroke: leg.colour,
+                strokeWidth: Math.max(4, 5 * g.scale),
+                strokeLinecap: "round",
+                strokeLinejoin: "round",
+              },
+            })),
+            ...payload.stations.map((s) => {
+              const [cx, cy] = at(s.x, s.y);
+              const single = s.lines.length === 1 ? LINE_COLOURS[s.lines[0]] : null;
+              return {
+                type: "circle",
+                props: {
+                  cx: Math.round(cx),
+                  cy: Math.round(cy),
+                  // Scaled with the map, so stations keep the room the
+                  // layout gave them.
+                  r: Math.max(payload.legend ? 11 : 4, Math.round(s.radius * g.scale)),
+                  // Numbered stations stay dark inside, for their number.
+                  fill: single && !s.marked && !payload.legend ? single : C.background,
+                  // The searched album (or the stack's): ringed in red.
+                  stroke: s.marked
+                    ? C.primary
+                    : single
+                      ? payload.legend
+                        ? single
+                        : C.background
+                      : s.lines.length
+                        ? C.foreground
+                        : C.faint,
+                  strokeWidth: s.marked || s.lines.length >= 2 ? 4 : 3,
+                },
+              };
+            }),
+          ],
+        },
+      },
+      // Numbered: the number in each station, the titles in a list.
+      ...(payload.legend
+        ? payload.stations.map((s) => {
+            const [cx, cy] = at(s.x, s.y);
+            const r = Math.max(11, s.radius * g.scale);
+            return h(
+              "div",
+              {
+                position: "absolute",
+                left: Math.round(cx - r),
+                top: Math.round(cy - r),
+                width: Math.round(2 * r),
+                height: Math.round(2 * r),
+                alignItems: "center",
+                justifyContent: "center",
+                fontFamily: "IBM Plex Mono",
+                fontSize: r < 13 ? 12 : 13,
+                fontWeight: 400,
+                color: C.foreground,
+              },
+              String(s.number),
+            );
+          })
+        : []),
+      payload.legend &&
+        h(
+          "div",
+          {
+            position: "absolute",
+            left: Math.round(g.list.left),
+            top: Math.round(g.list.top),
+            width: Math.round(g.list.width),
+            flexDirection: "column",
+          },
+          ...[...payload.stations]
+            .sort((a, b) => a.number - b.number)
+            .map((s) =>
+              h(
+                "div",
+                { height: g.list.row, alignItems: "flex-start", gap: 10 },
+                h(
+                  "div",
+                  {
+                    width: 26,
+                    flexShrink: 0,
+                    justifyContent: "flex-end",
+                    fontFamily: "IBM Plex Mono",
+                    fontSize: 15,
+                    lineHeight: 1.3,
+                    color: s.marked ? C.primaryText : C.muted,
+                  },
+                  String(s.number),
+                ),
+                g.list.twoLine
+                  ? h(
+                      "div",
+                      { flexDirection: "column", minWidth: 0 },
+                      h("div", { fontSize: 16, fontWeight: 600, lineHeight: 1.3, whiteSpace: "nowrap" }, shorten(s.t, 30)),
+                      s.r && h("div", { fontFamily: "IBM Plex Mono", fontSize: 13, color: C.faint, whiteSpace: "nowrap" }, shorten(s.r, 36)),
+                    )
+                  : h(
+                      "div",
+                      { fontSize: 15, lineHeight: 1.3, whiteSpace: "nowrap" },
+                      shorten(`${s.t}${s.r ? ` · ${s.r.split(" · ").pop()}` : ""}`, 34),
+                    ),
+              ),
+            ),
+        ),
+      ...(payload.legend ? [] : payload.stations).map((s) => {
+        const [x, y] = at(s.label.x, s.label.y);
+        const w = s.label.w * g.scale;
+        const align = s.align === "middle" ? "center" : s.align === "end" ? "flex-end" : "flex-start";
+        // Text a little wider than its box at larger scale: centred on it.
+        const extra = 40;
+        const left = s.align === "middle" ? x - extra / 2 : s.align === "end" ? x - extra : x;
+        return h(
+          "div",
+          {
+            position: "absolute",
+            left: Math.round(left),
+            top: Math.round(y),
+            width: Math.round(w + extra),
+            flexDirection: "column",
+            alignItems: align,
+          },
+          h("div", { fontSize: titleSize, fontWeight: 600, lineHeight: 1.25, whiteSpace: "nowrap" }, s.t),
+          s.r && h("div", { fontFamily: "IBM Plex Mono", fontSize: artistSize, color: C.faint, whiteSpace: "nowrap" }, s.r),
+        );
+      }),
+      h(
+        "div",
+        {
+          position: "absolute",
+          left: MAP_FRAME.pad,
+          top: Math.round(g.legendTop),
+          width: box.width - 2 * MAP_FRAME.pad,
+          flexWrap: "wrap",
+          rowGap: 8,
+        },
+        ...payload.lines.map((line) =>
+          h(
+            "div",
+            { width: "50%", alignItems: "center", gap: 12, height: TRANSIT_LEGEND.row - 8 },
+            h("div", { width: 30, height: 6, borderRadius: 3, background: LINE_COLOURS[line.colour] }),
+            h("div", { fontSize: 19, color: C.foreground }, shorten(line.name, 32)),
+          ),
+        ),
+        payload.others > 0 &&
+          h(
+            "div",
+            { width: "100%", fontFamily: "IBM Plex Mono", fontSize: 16, color: C.faint, height: TRANSIT_LEGEND.row - 8, alignItems: "center" },
+            `+ ${payload.others} more on two or more albums`,
+          ),
+      ),
+    ),
+    mapHeader("Transit map from", payload, size),
+    mapFooter(size),
+  );
+}
+
 /** The art ids a payload shows. */
 export const artIds = (payload) =>
   payload.covers === false
@@ -856,6 +1265,10 @@ export async function renderPng(payload, size, art) {
   const element =
     payload.layout === "card"
       ? cardElement(payload, size, art)
+      : payload.layout === "lanes"
+        ? lanesElement(payload, size)
+      : payload.layout === "transit"
+        ? transitElement(payload, size)
       : payload.layout === "stack"
         ? stackElement(payload, size, art)
         : mapElement(payload, size, art);

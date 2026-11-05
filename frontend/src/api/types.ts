@@ -58,6 +58,19 @@ export interface Contributor {
   roles: string[];
   sources: ContributorSource[];
   resourceUrl: string;
+  /**
+   * How much of their discography the search read: items Discogs lists,
+   * and whether the page cap (MAX_DISCOGRAPHY_PAGES, newest first) stopped
+   * short, losing their oldest items. Missing on searches from before it
+   * was kept, and when no page could be read.
+   */
+  discography?: DiscographyCoverage;
+}
+
+export interface DiscographyCoverage {
+  items: number;
+  pages: number;
+  capped: boolean;
 }
 
 export interface ContributorSet {

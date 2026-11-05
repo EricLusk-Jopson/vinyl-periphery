@@ -1,7 +1,21 @@
 import { SearchCache } from "@/contexts/cache/types";
 import { Likes } from "@/services/likes";
 import { ALBUM_MAP_PEOPLE, layoutAlbumMap } from "./albumMap";
-import { requiredFilters } from "./filters";
+import { countedContributors, requiredFilters } from "./filters";
+import { albumKeyOf } from "./credits";
+import {
+  searchTransit,
+  shareTransitMap,
+  stackTransit,
+  TransitMap,
+} from "./transitMap";
+import {
+  LANES_SHARED,
+  searchSwimlanes,
+  stackSwimlanes,
+  Swimlanes,
+  topLanes,
+} from "./swimlanes";
 import {
   resetFilterState,
   ScoredRelease,
@@ -33,7 +47,7 @@ import { defaultContributorDisplayPipeline } from "./transformers/contributorPro
  * body, so rendering never calls Discogs. Format: backend/og/payload.js.
  */
 
-export type ShareLayout = "map" | "card";
+export type ShareLayout = "map" | "card" | "lanes" | "transit";
 
 /** A stack album or result on the stack map, as sent. */
 export interface ShareStackNode {
@@ -117,6 +131,60 @@ export type SharePayload =
       nb?: 1;
       /** Lines between linked albums (`e`). */
       ln?: 1;
+    }
+  | {
+      v: 1;
+      l: "lanes";
+      /** The searched album, or the stack's start. */
+      c: ShareAlbum;
+      /** The years drawn. */
+      y: [number, number];
+      /** Album lines: the searched album's year, or each stack album's. */
+      k: Array<{ t: string; y: number }>;
+      /** Lanes, in order: name, results, result and other years. */
+      n: Array<{
+        n: string;
+        c: number;
+        s: Array<[number, number]>;
+        f: Array<[number, number]>;
+        p?: 1;
+      }>;
+      /** Undated items, not drawn. */
+      u?: number;
+      d?: string;
+    }
+  | {
+      v: 1;
+      l: "transit";
+      /** The stack's start. */
+      c: ShareAlbum;
+      /** The map's box, in layout units (see `transitMap.ts`). */
+      w: number;
+      h: number;
+      s: Array<{
+        t: string;
+        r: string;
+        x: number;
+        y: number;
+        /** Radius. */
+        q: number;
+        /** Colours of its lines. */
+        k: number[];
+        /** Label box: x, y, w, h. */
+        b: [number, number, number, number];
+        a: "start" | "middle" | "end";
+        /** The searched album, or one of the stack's: marked. */
+        m?: 1;
+        /** Its number, when titles are in the legend (`sl`). */
+        n?: number;
+      }>;
+      /** Lines: name, colour, legs of [x, y] points. */
+      n: Array<{ n: string; c: number; g: Array<Array<[number, number]>> }>;
+      /** People on 2+ albums not drawn as lines. */
+      o?: number;
+      /** Stations numbered, their titles listed beside the map. */
+      sl?: 1;
+      d?: string;
     };
 
 /** Rows on the results card by default (it takes up to ten). */
@@ -129,6 +197,10 @@ export const SHARE_COUNTS: Record<
 > = {
   map: { options: [6, 12, 18, 24], start: 12 },
   card: { options: [3, 5, 8, 10], start: 5 },
+  // Always the top LANES_SHARED people: nothing to choose.
+  lanes: { options: [6, 12, 18, 24], start: 12 },
+  // Stations need room for their labels.
+  transit: { options: [4, 6, 9, 12], start: 6 },
 };
 
 /**
@@ -169,9 +241,10 @@ export const countOptions = (
  * i.discogs.com image (its path; the renderer fetches only that host).
  */
 export const artIdFromCoverUrl = (url: string | null | undefined): ArtId => {
-  const discogs = /^https:\/\/i\.discogs\.com\/([A-Za-z0-9._~:=+,%/-]{1,512})$/.exec(
-    url ?? "",
-  );
+  const discogs =
+    /^https:\/\/i\.discogs\.com\/([A-Za-z0-9._~:=+,%/-]{1,512})$/.exec(
+      url ?? "",
+    );
   if (discogs && !discogs[1].includes("..") && !discogs[1].startsWith("/")) {
     return `d:${discogs[1]}`;
   }
@@ -329,6 +402,12 @@ export interface ShareView {
    * image. Offered once unlocked (see `NO_BOILERPLATE`).
    */
   boilerplate: boolean;
+  /**
+   * Transit maps: station titles in a legend (true) or beside the
+   * stations (false). Unset, whichever fits: beside them when they fit at
+   * full size.
+   */
+  legend?: boolean;
 }
 
 export const DEFAULT_VIEW: ShareView = {
@@ -353,6 +432,8 @@ export const withView = (
 ): SharePayload => {
   const covers = view.covers ? {} : { nc: 1 as const };
   if (payload.l === "card") return { ...payload, ...covers };
+  // Swimlanes and transit maps have no covers, lines or boilerplate switch.
+  if (payload.l === "lanes" || payload.l === "transit") return payload;
   const lines = view.lines && canDrawLines(payload);
   const bare = view.boilerplate ? {} : { nb: 1 as const };
   if (payload.l === "stack") {
@@ -432,7 +513,16 @@ export const stackCaption = (
   edits?: string,
 ): string => {
   const stacked = nodes.filter((n) => n.member).length;
-  const around = nodes.length - stacked;
+  return stackSelectionCaption(stacked, nodes.length - stacked, order, edits);
+};
+
+/** How a stack's albums were chosen, for any of its images. */
+export const stackSelectionCaption = (
+  stacked: number,
+  around: number,
+  order?: { sort: SortKey; then: SortKey | null; likesFirst: boolean },
+  edits?: string,
+): string => {
   const by =
     order && around > 0
       ? `, by ${sortName(order.sort)}${order.then ? `, then ${sortName(order.then)}` : ""}`
@@ -463,6 +553,9 @@ const withoutArt = (payload: SharePayload): SharePayload => {
   }
   if (payload.l === "map") {
     return { ...payload, c: blank(payload.c), n: payload.n.map(blank) };
+  }
+  if (payload.l === "lanes" || payload.l === "transit") {
+    return { ...payload, c: blank(payload.c) };
   }
   return { ...payload, c: blank(payload.c), n: payload.n.map(blank) };
 };
@@ -514,7 +607,12 @@ export interface ShareDraft {
 
 export const defaultDraft = (): ShareDraft => ({
   chosen: "map",
-  counts: { map: SHARE_COUNTS.map.start, card: SHARE_COUNTS.card.start },
+  counts: {
+    map: SHARE_COUNTS.map.start,
+    card: SHARE_COUNTS.card.start,
+    lanes: SHARE_COUNTS.lanes.start,
+    transit: SHARE_COUNTS.transit.start,
+  },
   edits: NO_EDITS,
   view: DEFAULT_VIEW,
   stackOrder: { sort: "shared", then: null, likesFirst: true },
@@ -550,6 +648,12 @@ export type ShareData = {
        * the ring, with their links, as on the Results tab.
        */
       albumsOff?: string[];
+      /**
+       * Stack album key -> people who count there under the stack's
+       * filters (`countedByAlbum`), for swimlanes and transit maps.
+       * Without it, everyone credited.
+       */
+      counted?: Map<string, Set<number>>;
     }
 );
 
@@ -606,6 +710,14 @@ export interface SharePlan {
   stackNodes: StackNode[];
   /** The stack map's centre (the start, unless switched off). */
   centre?: MapCentre;
+  /** The swimlanes drawn, when that's the layout. */
+  lanes?: Swimlanes;
+  /** The transit map drawn, when that's the layout. */
+  transit?: TransitMap;
+  /** The albums chosen have people to draw as swimlanes. */
+  lanesReady?: boolean;
+  /** The albums chosen have people on two or more to draw as lines. */
+  transitReady?: boolean;
   /** Albums to find covers for: everything the image may draw. */
   wanted: string[];
   /** The caption the image will carry. */
@@ -621,14 +733,41 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
       sortReleases(data.releases, selection.sort, selection.then),
       data.hidden,
     );
-    const mapShown = shareSelection(search, ranked, draft.counts.map, edits);
-    const cardShown = shareSelection(search, ranked, draft.counts.card, edits);
-    const mapReady = mapShown.length > 0;
-    const layout: ShareLayout = mapReady ? draft.chosen : "card";
-    const shown = layout === "map" ? mapShown : cardShown;
+    const counted = countedContributors(search);
+    // Every layout draws the albums chosen: the top of the list, edited.
+    const pick = (layout: ShareLayout) =>
+      shareSelection(search, ranked, draft.counts[layout], edits);
+    const mapReady = pick("map").length > 0;
+    const lanesFor = (shown: ScoredRelease[]) =>
+      topLanes(searchSwimlanes(search, counted, shown), LANES_SHARED);
+    const transitFor = (shown: ScoredRelease[]) =>
+      searchTransit(search, shown, counted);
+    const lanesReady = lanesFor(pick("lanes")).lanes.length > 0;
+    const transitReady = transitFor(pick("transit")).people.some(
+      (p) => p.stations.length >= 2,
+    );
+    const ready: Record<ShareLayout, boolean> = {
+      map: mapReady,
+      card: true,
+      lanes: lanesReady,
+      transit: transitReady,
+    };
+    const layout: ShareLayout = ready[draft.chosen]
+      ? draft.chosen
+      : mapReady
+        ? "map"
+        : "card";
+    const shown = pick(layout);
+    const lanes = layout === "lanes" ? lanesFor(shown) : undefined;
+    const transit =
+      layout === "transit"
+        ? shareTransitMap(transitFor(shown), draft.view.legend)
+        : undefined;
     const caption = [
       selectionCaption(search, shown.length, selection.sort, selection.then),
       editsCaption(edits),
+      lanes ? peopleCount(lanes.lanes.length, "") : "",
+      transit ? peopleCount(transit.lines.length, " as lines") : "",
     ]
       .filter(Boolean)
       .join(" · ");
@@ -637,13 +776,21 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
       edits,
       shown,
       mapReady,
+      lanesReady,
+      transitReady,
       available: available(ranked, edits),
       pickerSearch: search,
       visibleKeys: new Set(ranked.map((r) => r.key)),
       stackNodes: [],
-      wanted: draft.view.covers
-        ? [search.target?.key ?? "", ...shown.map((r) => r.key)].filter(Boolean)
-        : [],
+      ...(lanes ? { lanes } : {}),
+      ...(transit ? { transit } : {}),
+      // Swimlanes and transit maps draw no covers.
+      wanted:
+        draft.view.covers && (layout === "map" || layout === "card")
+          ? [search.target?.key ?? "", ...shown.map((r) => r.key)].filter(
+              Boolean,
+            )
+          : [],
       caption,
     };
   }
@@ -668,6 +815,15 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
   const pickerSearch = stackAsSearch(data.search, members, list);
   const pick = (count: number) =>
     shareSelection(pickerSearch, ordered, count, edits);
+  // Who counts on each stack album: the page's, or everyone credited.
+  const counted =
+    data.counted ??
+    new Map(
+      members.map((m) => [
+        albumKeyOf(m),
+        new Set(Object.keys(m.contributors ?? {}).map(Number)),
+      ]),
+    );
   const largest = SHARE_COUNTS.map.options[SHARE_COUNTS.map.options.length - 1];
   const most = Math.min(available(list, edits), largest);
   const capacity = stackMapCapacity(
@@ -678,31 +834,77 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
     (count) => pick(count).map((r) => r.key),
     most,
   );
-  const shown = pick(Math.min(draft.counts.map, capacity));
-  const stackNodes = layoutStackMap(
-    centre,
-    members,
-    data.levels,
-    data.likes,
-    shown.map((r) => r.key),
+  const lanesFor = (shown: ScoredRelease[]) =>
+    topLanes(stackSwimlanes(members, counted, shown), LANES_SHARED);
+  const transitFor = (shown: ScoredRelease[]) =>
+    stackTransit(members, counted, shown);
+  const lanesReady = lanesFor(pick(draft.counts.lanes)).lanes.length > 0;
+  const transitReady = transitFor(pick(draft.counts.transit)).people.some(
+    (p) => p.stations.length >= 2,
   );
+  const layout: ShareLayout =
+    draft.chosen === "lanes" && lanesReady
+      ? "lanes"
+      : draft.chosen === "transit" && transitReady
+        ? "transit"
+        : "map";
+  const shown =
+    layout === "map"
+      ? pick(Math.min(draft.counts.map, capacity))
+      : pick(draft.counts[layout]);
+  const stackNodes =
+    layout === "map"
+      ? layoutStackMap(
+          centre,
+          members,
+          data.levels,
+          data.likes,
+          shown.map((r) => r.key),
+        )
+      : [];
+  const lanes = layout === "lanes" ? lanesFor(shown) : undefined;
+  const transit =
+    layout === "transit"
+      ? shareTransitMap(transitFor(shown), draft.view.legend)
+      : undefined;
+  const stacked = new Set(members.map(albumKeyOf)).size;
   return {
-    layout: "map",
+    layout,
+    lanesReady,
+    transitReady,
     edits,
     shown,
-    mapReady: stackNodes.length > 1,
+    mapReady: stacked > 1 || shown.length > 0,
     available: available(list, edits),
-    ...(capacity < most ? { cap: capacity } : {}),
+    ...(layout === "map" && capacity < most ? { cap: capacity } : {}),
     pickerSearch,
     visibleKeys: new Set(list.map((r) => r.key)),
     stackNodes,
     centre,
-    wanted: draft.view.covers
-      ? [centre.key, ...stackNodes.slice(1).map((n) => n.key)]
-      : [],
-    caption: stackCaption(stackNodes, stackOrder, editsCaption(edits)),
+    ...(lanes ? { lanes } : {}),
+    ...(transit ? { transit } : {}),
+    wanted:
+      draft.view.covers && layout === "map"
+        ? [centre.key, ...stackNodes.slice(1).map((n) => n.key)]
+        : [],
+    caption: [
+      stackSelectionCaption(
+        stacked,
+        shown.length,
+        stackOrder,
+        editsCaption(edits),
+      ),
+      lanes ? peopleCount(lanes.lanes.length, "") : "",
+      transit ? peopleCount(transit.lines.length, " as lines") : "",
+    ]
+      .filter(Boolean)
+      .join(" · "),
   };
 };
+
+/** "8 people", "1 person as lines". */
+const peopleCount = (n: number, suffix: string) =>
+  `${n} ${n === 1 ? "person" : "people"}${suffix}`;
 
 const available = (pool: ScoredRelease[], edits: ShareEdits) =>
   new Set([
@@ -720,28 +922,94 @@ export const buildPayload = (
   plan: SharePlan = planShare(draft, data),
 ): SharePayload => {
   const { coverFor } = data;
-  const drawn =
+  const header =
     data.kind === "stack"
-      ? stackMapPayload(
-          plan.centre ?? data.centre,
-          plan.stackNodes,
-          coverFor,
-          plan.caption,
-        )
-      : plan.layout === "map"
-        ? albumMapPayload(
-            data.search,
-            plan.shown,
-            data.likes,
-            coverFor,
-            plan.caption,
-          )
-        : cardPayload(
-            data.search,
-            plan.shown,
-            coverFor,
-            plan.caption,
-            plan.shown.length,
-          );
+      ? plan.centre ?? data.centre
+      : {
+          key: data.search.target?.key ?? "",
+          title: data.search.searchParams.album,
+          artist: data.search.searchParams.artist,
+        };
+  const drawn =
+    plan.layout === "transit" && plan.transit
+      ? transitPayload(header, plan.transit, plan.caption)
+      : plan.layout === "lanes" && plan.lanes
+        ? lanesPayload(header, plan.lanes, plan.caption)
+        : data.kind === "stack"
+          ? stackMapPayload(header, plan.stackNodes, coverFor, plan.caption)
+          : plan.layout === "map"
+            ? albumMapPayload(
+                data.search,
+                plan.shown,
+                data.likes,
+                coverFor,
+                plan.caption,
+              )
+            : cardPayload(
+                data.search,
+                plan.shown,
+                coverFor,
+                plan.caption,
+                plan.shown.length,
+              );
   return withView(drawn, draft.view);
 };
+
+/** The swimlanes share image: the lanes as drawn, ticks by year. */
+export const lanesPayload = (
+  album: MapCentre,
+  lanes: Swimlanes,
+  caption?: string,
+): SharePayload => ({
+  v: 1,
+  l: "lanes",
+  c: { t: album.title, r: album.artist, i: "" },
+  y: [lanes.from, lanes.to],
+  k: lanes.albums.map((a) => ({ t: a.title, y: a.year })),
+  n: lanes.lanes.map((lane) => ({
+    n: lane.name,
+    c: lane.results,
+    s: lane.ticks
+      .filter((t) => t.results.length > 0)
+      .map((t) => [t.year, t.results.length] as [number, number]),
+    f: lane.ticks
+      .filter((t) => t.others > 0)
+      .map((t) => [t.year, t.others] as [number, number]),
+    ...(lane.partial ? { p: 1 as const } : {}),
+  })),
+  ...(lanes.undated > 0 ? { u: lanes.undated } : {}),
+  ...(caption ? { d: caption } : {}),
+});
+
+/** The transit map share image, as `shareTransitMap` laid it out. */
+export const transitPayload = (
+  centre: MapCentre,
+  map: TransitMap,
+  caption?: string,
+): SharePayload => ({
+  v: 1,
+  l: "transit",
+  c: { t: centre.title, r: centre.artist, i: "" },
+  w: map.width,
+  h: map.height,
+  s: map.stations.map((s) => ({
+    t: s.label.title,
+    r: s.label.artist,
+    x: s.x,
+    y: s.y,
+    q: s.radius,
+    k: s.lines,
+    b: [s.label.x, s.label.y, s.label.w, s.label.h],
+    a: s.label.align,
+    ...(s.marked ? { m: 1 as const } : {}),
+    ...(map.legend ? { n: s.number } : {}),
+  })),
+  n: map.lines.map((l) => ({
+    n: l.name,
+    c: l.colour,
+    g: l.legs.map((leg) => leg.map((p) => [p.x, p.y] as [number, number])),
+  })),
+  ...(map.others.length > 0 ? { o: map.others.length } : {}),
+  ...(map.legend ? { sl: 1 as const } : {}),
+  ...(caption ? { d: caption } : {}),
+});

@@ -253,10 +253,17 @@ export async function listContributorReleases(
     }
 
     if (pagesRead > 0) {
-      callbacks?.onContributorChecked?.(contributor.name, totalItems, {
+      const read = {
         pages: pagesRead,
         capped: pagesToRead < Math.ceil(totalItems / DISCOGRAPHY_PAGE_SIZE),
-      });
+      };
+      // Kept on the contributor, so the swimlanes can mark a lane that
+      // lost its oldest items.
+      contributorSet.contributors[contributor.id] = {
+        ...contributor,
+        discography: { items: totalItems, ...read },
+      };
+      callbacks?.onContributorChecked?.(contributor.name, totalItems, read);
     }
     currentContributor++;
   }

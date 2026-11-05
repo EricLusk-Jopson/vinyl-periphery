@@ -29,7 +29,9 @@ ranks albums by how many of those people worked on them.
     (`@vercel/og`) from a JSON payload body (`backend/og/payload.js`, 32 KB
     at most; built by `buildPayload` in `frontend/src/lib/share.ts`): a
     map, laid out by the client,
-    or a list of top results. For one search, both draw its top results
+    a list of top results, swimlanes (`lanes`) or a transit map
+    (`transit`), all of the same chosen albums. For one search, the
+    map and the list draw its top results
     as filtered and sorted on the page, with a line saying how they were
     chosen; the map groups people around the circle by role category
     (`frontend/src/lib/albumMap.ts`). The share sheet can take albums out
@@ -63,7 +65,7 @@ ranks albums by how many of those people worked on them.
     vendored in `backend/og/fonts` (SIL OFL).
     The sheet's controls edit a draft (`ShareDraft`); the image is made
     once on open (after covers, up to `COVER_WAIT_MS`) and then only on
-    Regenerate. The preview is that image's blob, which is also the file
+    Regenerate, or when Show picks another layout. The preview is that image's blob, which is also the file
     shared or downloaded, with no link. While the draft's payload differs
     from the image's (`draftChange`: covers found since, or anything
     else), the preview dims and the action is Regenerate. Drafts and the
@@ -137,6 +139,53 @@ ranks albums by how many of those people worked on them.
     `src/services/hidden.ts`, `useHidden`): hidden albums leave the
     results unless "Show hidden albums" (`filterState.showHidden`) is on,
     and never go into a share image.
+  - `src/lib/roleGroups.ts`: five coarse role groups (band, session and
+    guests, production, engineering and mastering, art and design, plus
+    other) on top of the Discogs headings, for the visuals. "Band" is the
+    main artist and members (`Contributor.sources`), not a role string.
+    `primaryGroup` picks band > production > engineering > session > art.
+    `Contributor.discography` records how much of each person's
+    discography was read (`capped`: the page cap cut their oldest items).
+    The visuals' plan is `features/new-visuals.md`.
+  - Swimlanes and transit maps are share images only, beside the map
+    and the list: the share sheet's Show offers Map, Results, People and
+    Transit for a search, and Map, People and Transit for a stack. Every
+    layout draws the same albums: the page's filters, then the sheet's
+    count and edits (`planShare`). No covers on either.
+    - People (`src/lib/swimlanes.ts`, `lanes` payload): a lane per person
+      who counts and links an album chosen, top 8 by albums; ticks by
+      year, tall for the chosen albums and short for their other
+      releases, the same colour. A red line, labelled, at the searched
+      album's year, or at every stack album's, all alike. Lanes sort by
+      primary group, then first year; undated items are counted, not
+      drawn; lanes the page cap cut short are dashed before their first
+      year.
+    - Transit (`src/lib/transitMap.ts`, `transit` payload): the searched
+      album (or the stack's albums, those switched on) and the albums
+      chosen are stations (`searchTransit`, `stackTransit`); the people who
+      count on two or more are lines (6 drawn), each running through its
+      stations in its own year order. No time axis: stations go where the
+      lines read best, found by a seeded simulated annealing on a grid
+      (`SCORE`): no turn over 90° anywhere; bends at 45°, right angles
+      only where a station splits many ways; lines like running straight,
+      less the longer they have; lines splitting at a station (or joining
+      from different stations) go clearly different ways; never over a
+      station a line skips, few crossings or touches, no legs along other
+      legs, stations apart, compact, a mild overall flow. Legs are
+      straight or one run and one diagonal; lines sharing a leg run side
+      by side (`bundleOrder`): a line joining a bundle keeps the side it
+      came from, a line starting there goes outside, on the side it later
+      leaves by, and no pair swaps along a stretch they share. The searched or stacked albums are ringed in
+      red. `shareTransitMap` searches both flows roughly, refines the one
+      that scores better, and draws it at the grid size that fits the
+      square best with no labels colliding. Labels sit beside the
+      stations only when that fits at full size with no line through
+      them; otherwise stations are numbered (in time order) and their
+      titles listed in a column beside the map (`legend`, payload `sl`),
+      in whichever flow draws bigger there. The sheet's "Station titles
+      in a legend" switch overrides that (`ShareView.legend`; unset,
+      whichever fits). Layouts are cached by input.
+      Line colours are placeholders in `render.js`, never red.
   - `src/lib/filters.ts`: chip state, "must include" (`filterState.required`,
     optional because older saved searches lack it), active filter count.
     "Only liked albums" is `filterState.likedOnly` (also optional). A new

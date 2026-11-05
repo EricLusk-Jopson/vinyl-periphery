@@ -47,6 +47,7 @@ import {
   ShareDraft,
   ShareLayout,
   countOptions,
+  lineOptions,
   canDrawLines,
   draftChange,
   NO_BOILERPLATE,
@@ -474,6 +475,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     (o) => layoutReady[o.id],
   );
   const countChoices = countOptions(layout, plan?.available ?? 0, plan?.cap);
+  const lineChoices = lineOptions(plan?.transitPeople ?? 0);
   // Something to make: nothing yet, or the draft has changed since.
   const stale = !committed || change !== "same";
 
@@ -760,6 +762,21 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                     )}
                   </div>
                 )}
+                {layout === "transit" &&
+                  plan?.transit &&
+                  lineChoices.length > 0 && (
+                    <Segmented
+                      label="Lines"
+                      value={String(plan.transit.lines.length)}
+                      options={lineChoices.map((c) => ({
+                        id: String(c.count),
+                        label: c.label,
+                      }))}
+                      onChange={(value) =>
+                        setDraft((d) => ({ ...d, transitLines: Number(value) }))
+                      }
+                    />
+                  )}
                 {!selection && (
                   <StackOrderControls
                     order={draft.stackOrder}

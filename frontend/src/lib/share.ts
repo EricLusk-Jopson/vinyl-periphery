@@ -6,6 +6,8 @@ import { albumKeyOf } from "./credits";
 import {
   searchTransit,
   shareTransitMap,
+  MAX_LINES,
+  TRANSIT_LINES,
   stackTransit,
   TransitMap,
 } from "./transitMap";
@@ -232,6 +234,30 @@ export const countOptions = (
   const choices = [
     ...below.map((n) => ({ count: n, label: String(n) })),
     ...(available > max ? [{ count: max, label: String(max) }] : all),
+  ];
+  return choices.length > 1 ? choices : [];
+};
+
+/** How many people a transit map can draw as lines. */
+export const LINE_COUNTS = [3, 6, 9, MAX_LINES];
+
+/**
+ * The line counts to offer when `available` people are on two or more of
+ * the albums chosen: those below it, then "All" when it's under the
+ * largest. Nothing to choose with three or fewer.
+ */
+export const lineOptions = (
+  available: number,
+): Array<{ count: number; label: string }> => {
+  const largest = LINE_COUNTS[LINE_COUNTS.length - 1];
+  const choices = [
+    ...LINE_COUNTS.filter((n) => n < available && n < largest).map((n) => ({
+      count: n,
+      label: String(n),
+    })),
+    available > largest
+      ? { count: largest, label: String(largest) }
+      : { count: available, label: `All ${available}` },
   ];
   return choices.length > 1 ? choices : [];
 };
@@ -603,6 +629,8 @@ export interface ShareDraft {
   view: ShareView;
   /** A stack's results: their order, and whether liked ones come first. */
   stackOrder: StackOrder;
+  /** Most people a transit map draws as lines (TRANSIT_LINES unset). */
+  transitLines?: number;
 }
 
 export const defaultDraft = (): ShareDraft => ({
@@ -718,11 +746,17 @@ export interface SharePlan {
   lanesReady?: boolean;
   /** The albums chosen have people on two or more to draw as lines. */
   transitReady?: boolean;
+  /** People on two or more of the albums chosen: lines there could be. */
+  transitPeople?: number;
   /** Albums to find covers for: everything the image may draw. */
   wanted: string[];
   /** The caption the image will carry. */
   caption?: string;
 }
+
+/** People on two or more stations: drawn as lines, or counted. */
+const peopleOn = (transit?: TransitMap) =>
+  transit ? transit.lines.length + transit.others.length : undefined;
 
 /** What a draft draws from `data`. Pure. */
 export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
@@ -761,7 +795,13 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
     const lanes = layout === "lanes" ? lanesFor(shown) : undefined;
     const transit =
       layout === "transit"
-        ? shareTransitMap(transitFor(shown), draft.view.legend)
+        ? shareTransitMap(
+            {
+              ...transitFor(shown),
+              lines: draft.transitLines ?? TRANSIT_LINES,
+            },
+            draft.view.legend,
+          )
         : undefined;
     const caption = [
       selectionCaption(search, shown.length, selection.sort, selection.then),
@@ -778,6 +818,7 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
       mapReady,
       lanesReady,
       transitReady,
+      transitPeople: peopleOn(transit),
       available: available(ranked, edits),
       pickerSearch: search,
       visibleKeys: new Set(ranked.map((r) => r.key)),
@@ -865,13 +906,20 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
   const lanes = layout === "lanes" ? lanesFor(shown) : undefined;
   const transit =
     layout === "transit"
-      ? shareTransitMap(transitFor(shown), draft.view.legend)
+      ? shareTransitMap(
+            {
+              ...transitFor(shown),
+              lines: draft.transitLines ?? TRANSIT_LINES,
+            },
+            draft.view.legend,
+          )
       : undefined;
   const stacked = new Set(members.map(albumKeyOf)).size;
   return {
     layout,
     lanesReady,
     transitReady,
+    transitPeople: peopleOn(transit),
     edits,
     shown,
     mapReady: stacked > 1 || shown.length > 0,

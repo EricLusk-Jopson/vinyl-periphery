@@ -1169,6 +1169,11 @@ export const shareScale = (map: TransitMap): number => {
  */
 export const shareTransitMap = (
   input: Omit<TransitInput, "orientation">,
+  /**
+   * Titles in a legend (true) or beside the stations (false); unset,
+   * whichever fits.
+   */
+  legend?: boolean,
 ): TransitMap => {
   if (input.stops.length === 0) {
     return layoutTransitMap({ ...input, orientation: "vertical" });
@@ -1199,8 +1204,12 @@ export const shareTransitMap = (
   // Labels beside the stations when they fit at full size; otherwise
   // numbered stations and their titles in a legend, so the labels never
   // crowd the map or shrink it.
-  const labelled = fit(false);
-  if (labelled && shareScale(labelled) >= 1 && labelLineHits(labelled) === 0) {
+  const labelled = legend === true ? null : fit(false);
+  if (
+    labelled &&
+    (legend === false ||
+      (shareScale(labelled) >= 1 && labelLineHits(labelled) === 0))
+  ) {
     return labelled;
   }
   // A legend takes a column of the width: whichever flow draws bigger

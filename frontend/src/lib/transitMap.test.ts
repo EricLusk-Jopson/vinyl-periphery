@@ -414,6 +414,15 @@ describe("shareTransitMap", () => {
     expect(labelsCollide(map)).toBe(false);
     expect(shareTransitMap(busy())).toEqual(map);
   });
+
+  it("puts titles in a legend or beside the stations when asked", () => {
+    const listed = shareTransitMap(stack(4, 3), true);
+    expect(listed.legend).toBe(true);
+    expect(listed.stations.every((s) => s.number > 0)).toBe(true);
+    const labelled = shareTransitMap(busy(), false);
+    expect(labelled.legend).toBe(false);
+    expect(labelsCollide(labelled)).toBe(false);
+  });
 });
 
 describe("searchTransit and stackTransit", () => {

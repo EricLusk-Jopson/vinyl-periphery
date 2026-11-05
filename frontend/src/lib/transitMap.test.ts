@@ -5,6 +5,7 @@ import {
   shareTransitMap,
   labelsCollide,
   layoutTransitMap,
+  bundleOrder,
   legRoute,
   offsetPath,
   TRANSIT_LINES,
@@ -222,6 +223,128 @@ describe("layoutTransitMap", () => {
     const small = map.stations.filter((s) => s.lines.length < 2);
     for (const s of big) {
       for (const t of small) expect(s.radius).toBeGreaterThan(t.radius);
+    }
+  });
+});
+
+describe("bundleOrder", () => {
+  /**
+   * A trunk s0 -> s1 -> s2 -> s3 running right (y down, as drawn), and
+   * lines joining it at s1 from above (s4) and from below (s5).
+   */
+  const network = (joiners: Array<{ id: number; from: number }>) => {
+    const at = [
+      { x: 0, y: 0 },
+      { x: 2, y: 0 },
+      { x: 4, y: 0 },
+      { x: 6, y: 0 },
+      { x: 0, y: -2 },
+      { x: 0, y: 2 },
+    ];
+    const lines = [
+      { id: 5, name: "Trunk A", stations: [0, 1, 2, 3] },
+      { id: 6, name: "Trunk B", stations: [0, 1, 2, 3] },
+      ...joiners.map((j) => ({
+        id: j.id,
+        name: `Joins from ${j.from}`,
+        stations: [j.from, 1, 2, 3],
+      })),
+    ];
+    const legs: Array<{ a: number; b: number }> = [];
+    const runs = lines.map((line) =>
+      line.stations.slice(1).map((to, k) => {
+        const from = line.stations[k];
+        let leg = legs.findIndex(
+          (g) => (g.a === from && g.b === to) || (g.a === to && g.b === from),
+        );
+        if (leg < 0) {
+          leg = legs.length;
+          legs.push({ a: from, b: to });
+        }
+        return { leg, forward: legs[leg].a === from };
+      }),
+    );
+    const net = {
+      stations: at.map((_, k) => ({ key: `s${k}`, title: "", artist: "", marked: false, rank: k })),
+      lines,
+      others: [],
+      legs,
+      runs,
+    };
+    const st = { at, late: legs.map(() => true) };
+    const order = bundleOrder(net as never, st as never);
+    const leg = (a: number, b: number) =>
+      legs.findIndex((g) => g.a === a && g.b === b);
+    return { order, leg, lines };
+  };
+
+  it("keeps a line joining from one side on that side, outside the bundle", () => {
+    // Running right with y down, the positive offset side is down (+y).
+    const { order, leg, lines } = network([
+      { id: 1, from: 4 },
+      { id: 9, from: 5 },
+    ]);
+    const ids = (k: number) => order[k].map((l) => lines[l].id);
+    // From above: first (the negative side); from below: last. The trunk
+    // keeps its order between them.
+    expect(ids(leg(1, 2))).toEqual([1, 5, 6, 9]);
+  });
+
+  it("never reorders a bundle coming out of a station", () => {
+    const { order, leg, lines } = network([
+      { id: 1, from: 4 },
+      { id: 9, from: 5 },
+    ]);
+    const ids = (k: number) => order[k].map((l) => lines[l].id);
+    expect(ids(leg(2, 3))).toEqual(ids(leg(1, 2)));
+    // The trunk pair's order on its first leg is the same as further on.
+    expect(ids(leg(0, 1))).toEqual([5, 6]);
+  });
+
+  it("puts a joiner on the side it came from, whatever its id", () => {
+    // The same, ids the other way round: the order follows the sides.
+    const { order, leg, lines } = network([
+      { id: 9, from: 4 },
+      { id: 1, from: 5 },
+    ]);
+    expect(order[leg(1, 2)].map((l) => lines[l].id)).toEqual([9, 5, 6, 1]);
+  });
+});
+
+describe("drawn bundles", () => {
+  /** Which side of line A line B runs on, leg by leg, where they share one. */
+  const sides = (map: ReturnType<typeof layoutTransitMap>) => {
+    const out: Array<{ pair: string; k: number; side: number }> = [];
+    map.lines.forEach((a, i) =>
+      map.lines.forEach((b, j) => {
+        if (j <= i) return;
+        a.stations.slice(1).forEach((to, k) => {
+          const from = a.stations[k];
+          const kb = b.stations.findIndex(
+            (s, n) =>
+              n < b.stations.length - 1 &&
+              ((s === from && b.stations[n + 1] === to) ||
+                (s === to && b.stations[n + 1] === from)),
+          );
+          if (kb < 0) return;
+          const la = a.legs[k];
+          const lb = b.stations[kb] === from ? b.legs[kb] : [...b.legs[kb]].reverse();
+          const d = { x: la[1].x - la[0].x, y: la[1].y - la[0].y };
+          const m = { x: lb[0].x - la[0].x, y: lb[0].y - la[0].y };
+          out.push({ pair: `${i}-${j}`, k, side: Math.sign(d.x * m.y - d.y * m.x) });
+        });
+      }),
+    );
+    return out;
+  };
+
+  it.each(inputs)("keeps each pair of lines on one side of each other along a shared stretch (%s)", (_, input) => {
+    const map = layoutTransitMap({ ...input, orientation: "vertical" });
+    const all = sides(map);
+    for (const s of all) {
+      // The next leg of the same pair, if they share it too.
+      const next = all.find((t) => t.pair === s.pair && t.k === s.k + 1);
+      if (next) expect(next.side).toBe(s.side);
     }
   });
 });

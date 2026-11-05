@@ -679,6 +679,234 @@ const remember = (signature: string, found: { state: GridState; cost: number }) 
   while (searched.size > SEARCHED_KEPT) searched.delete(searched.keys().next().value!);
 };
 
+/** Where `to` lies from `from`, as an angle from `along` (radians, -π..π),
+ * positive on the side a positive offset goes (see `offsetPath`). */
+const sideAngle = (along: Point, toward: Point) =>
+  Math.atan2(
+    along.x * toward.y - along.y * toward.x,
+    along.x * toward.x + along.y * toward.y,
+  );
+
+const minus = (a: Point, b: Point): Point => ({ x: a.x - b.x, y: a.y - b.y });
+
+/**
+ * The order of the lines on each leg, from the negative side to the
+ * positive (the side a positive offset goes, in the leg's own a -> b
+ * direction).
+ *
+ * Two lines sharing a stretch of legs keep one order along all of it, so
+ * nothing reorders coming out of a station. Which side each takes is
+ * decided where they joined: the one that came from further to one side
+ * runs on that side (a line joining a bundle from the right stays on the
+ * right, so new lines go on the outside). Lines that set off together are
+ * ordered by where they part: the one turning further to one side runs on
+ * that side. Lines alike at both ends keep their person id order.
+ */
+export const bundleOrder = (net: Network, st: GridState): number[][] => {
+  // Each line's legs, by leg: where in the line, and which way it runs it.
+  const at = net.runs.map((runs) => {
+    const map = new Map<number, { index: number; forward: boolean }>();
+    runs.forEach((r, index) => map.set(r.leg, { index, forward: r.forward }));
+    return map;
+  });
+  /** The leg from station `from` to `to` (on line `l`), as a route. */
+  const route = (from: number, to: number) => {
+    const leg = net.legs.findIndex(
+      (g) => (g.a === from && g.b === to) || (g.a === to && g.b === from),
+    );
+    const r = legRoute(st.at[net.legs[leg].a], st.at[net.legs[leg].b], st.late[leg]);
+    return net.legs[leg].a === from ? r : [...r].reverse();
+  };
+  /** The first step of the route from `from` to `to`. */
+  const first = (from: number, to: number) => {
+    const r = route(from, to);
+    return minus(r[1], r[0]);
+  };
+  /**
+   * The side (+1 or -1, positive as for offsets, in the line's own
+   * direction) a line starting at `leg` will leave the bundle by: where it
+   * first parts from lines it runs with, the way it turns there against
+   * theirs (a line that stops there goes the other way to them). +1 when
+   * it never parts.
+   */
+  const starterSide = (l: number, leg: number): number => {
+    const runs = net.runs[l];
+    const stations = net.lines[l].stations;
+    for (let k = at[l].get(leg)!.index; k < runs.length; k++) {
+      const t = stations[k + 1];
+      const next = stations[k + 2];
+      const others = net.lines
+        .map((_, o) => o)
+        .filter((o) => o !== l && at[o].has(runs[k].leg));
+      // Where the others go next from t (in the line's direction).
+      const leaving = others
+        .map((o) => {
+          const here = at[o].get(runs[k].leg)!;
+          const s = net.lines[o].stations;
+          const same = here.forward === runs[k].forward;
+          return same ? s[here.index + 2] : s[here.index - 1];
+        })
+        .filter((n) => n !== next);
+      if (leaving.length === 0) continue;
+      const leg = runs[k];
+      const r = legRoute(
+        st.at[net.legs[leg.leg].a],
+        st.at[net.legs[leg.leg].b],
+        st.late[leg.leg],
+      );
+      const route = leg.forward ? r : [...r].reverse();
+      const arriving = minus(route[route.length - 1], route[route.length - 2]);
+      const turn = (n: number | undefined) =>
+        n === undefined ? 0 : sideAngle(arriving, first(t, n));
+      const theirs =
+        leaving.reduce((sum, n) => sum + turn(n), 0) / leaving.length;
+      const mine = turn(next);
+      if (Math.abs(mine - theirs) > 1e-6) return Math.sign(mine - theirs);
+    }
+    return 1;
+  };
+
+  /**
+   * How far toward the positive side line `l2` lies from `l1` on `leg`,
+   * in the leg's own direction: > 0 positive, < 0 negative.
+   */
+  const compare = (
+    leg: number,
+    l1: number,
+    l2: number,
+  ): { side: number; stretch: string } => {
+    const p1 = at[l1].get(leg)!;
+    const p2 = at[l2].get(leg)!;
+    const s1 = net.lines[l1].stations;
+    const s2 = net.lines[l2].stations;
+    const same = p1.forward === p2.forward;
+    // l2's station k steps along l1's direction from where they share.
+    const l2Leg = (k: number) => (same ? p2.index + k : p2.index - k);
+    let back = 0;
+    while (
+      p1.index - back - 1 >= 0 &&
+      net.runs[l2][l2Leg(-back - 1)]?.leg === net.runs[l1][p1.index - back - 1].leg
+    ) {
+      back++;
+    }
+    let ahead = 0;
+    while (
+      p1.index + ahead + 1 < net.runs[l1].length &&
+      net.runs[l2][l2Leg(ahead + 1)]?.leg === net.runs[l1][p1.index + ahead + 1].leg
+    ) {
+      ahead++;
+    }
+    const start = s1[p1.index - back];
+    const end = s1[p1.index + ahead + 1];
+    // Each line's station before the stretch and after it, in l1's
+    // direction (or none, where it starts or ends there).
+    const before1 = s1[p1.index - back - 1];
+    const after1 = s1[p1.index + ahead + 2];
+    const before2 = same ? s2[p2.index - back - 1] : s2[p2.index + back + 2];
+    const after2 = same ? s2[p2.index + ahead + 2] : s2[p2.index - ahead - 1];
+    // Where they joined: the side each came from, seen along the stretch.
+    // From straight behind is 0; from further round to the positive side,
+    // more (up to π); to the negative side, less.
+    const along = first(start, s1[p1.index - back + 1]);
+    const cameFrom = (before: number | undefined) => {
+      if (before === undefined) return 0;
+      const t = sideAngle(along, first(start, before));
+      return t > 0 ? Math.PI - t : -Math.PI - t;
+    };
+    let side = cameFrom(before2) - cameFrom(before1);
+    // One starts here, the other runs through from straight behind: the
+    // new line goes outside, on the side it will leave the bundle by.
+    if (Math.abs(side) < 1e-6 && (before1 === undefined) !== (before2 === undefined)) {
+      const starter = before1 === undefined ? l1 : l2;
+      // In l1's direction along the stretch.
+      const s = starterSide(starter, leg) * (at[starter].get(leg)!.forward === p1.forward ? 1 : -1);
+      side = starter === l2 ? 0.5 * s : -0.5 * s;
+    }
+    if (Math.abs(side) < 1e-6) {
+      // Where they part: the side each turns to, seen along the stretch.
+      const last = route(s1[p1.index + ahead], end);
+      const arriving = minus(last[last.length - 1], last[last.length - 2]);
+      const goesTo = (after: number | undefined) =>
+        after === undefined ? 0 : sideAngle(arriving, first(end, after));
+      side = goesTo(after2) - goesTo(after1);
+    }
+    // Alike at both ends: by person id, the weakest call of all.
+    if (Math.abs(side) < 1e-6) {
+      side = 1e-3 * Math.sign(net.lines[l2].id - net.lines[l1].id);
+    }
+    // The stretch, the same from either line and any leg of it.
+    const legs = net.runs[l1]
+      .slice(p1.index - back, p1.index + ahead + 1)
+      .map((r) => r.leg);
+    const stretch = `${Math.min(l1, l2)}:${Math.max(l1, l2)}:${Math.min(...legs)}`;
+    // In the leg's own direction.
+    return { side: p1.forward ? side : -side, stretch };
+  };
+
+  // Each pair's call on each leg, from the lower line to the higher.
+  const onLeg = net.legs.map((_, leg) =>
+    net.lines.map((_, l) => l).filter((l) => at[l].has(leg)),
+  );
+  const calls = onLeg.map((on, leg) => {
+    const map = new Map<string, { side: number; stretch: string }>();
+    on.forEach((a, i) =>
+      on.slice(i + 1).forEach((b) => map.set(`${a}:${b}`, compare(leg, a, b))),
+    );
+    return map;
+  });
+  // Calls flipped to break cycles, by stretch: flipped for all its legs.
+  const flipped = new Set<string>();
+  /** Whether line `b` runs on the positive side of `a` on `leg`. */
+  const positive = (leg: number, a: number, b: number) => {
+    const call = calls[leg].get(a < b ? `${a}:${b}` : `${b}:${a}`)!;
+    const side = flipped.has(call.stretch) ? -call.side : call.side;
+    return a < b ? side > 0 : side < 0;
+  };
+  /** A cycle of three on a leg (any cycle holds one), or null. */
+  const cycleOn = (leg: number): number[] | null => {
+    const on = onLeg[leg];
+    for (const a of on) {
+      for (const b of on) {
+        if (b === a || !positive(leg, a, b)) continue;
+        for (const c of on) {
+          if (c === a || c === b) continue;
+          if (positive(leg, b, c) && positive(leg, c, a)) return [a, b, c];
+        }
+      }
+    }
+    return null;
+  };
+  // Break every cycle at its weakest call, for that call's whole stretch,
+  // so the order stays the same along it. Bounded: each flip settles a
+  // weaker call than it leaves.
+  for (let pass = 0; pass < 4 * net.legs.length + 4; pass++) {
+    let changed = false;
+    for (let leg = 0; leg < net.legs.length; leg++) {
+      const cycle = cycleOn(leg);
+      if (!cycle) continue;
+      const pairs = [
+        [cycle[0], cycle[1]],
+        [cycle[1], cycle[2]],
+        [cycle[2], cycle[0]],
+      ].map(([a, b]) => calls[leg].get(a < b ? `${a}:${b}` : `${b}:${a}`)!);
+      const weakest = [...pairs].sort(
+        (x, y) => Math.abs(x.side) - Math.abs(y.side) || x.stretch.localeCompare(y.stretch),
+      )[0];
+      if (flipped.has(weakest.stretch)) flipped.delete(weakest.stretch);
+      else flipped.add(weakest.stretch);
+      changed = true;
+    }
+    if (!changed) break;
+  }
+  // No cycles: each leg's lines by how many they run positive of.
+  return onLeg.map((on, leg) =>
+    [...on].sort((a, b) => {
+      const wins = (x: number) => on.filter((y) => y !== x && positive(leg, y, x)).length;
+      return wins(a) - wins(b) || a - b;
+    }),
+  );
+};
+
 /**
  * The grid layout drawn at `cell` pixels a step, with its labels: beside
  * the stations, or (`legend`) as numbers in them, the titles in a legend.
@@ -692,12 +920,10 @@ const drawAt = (
 ): TransitMap => {
   const px = (p: Point): Point => ({ x: p.x * cell, y: p.y * cell });
   const points = st.at.map(px);
-  // Lines sharing a leg, by person id: their slot side by side.
-  const bundles = net.legs.map((_, leg) =>
-    net.runs
-      .map((runs, l) => (runs.some((r) => r.leg === leg) ? net.lines[l].id : -1))
-      .filter((id) => id >= 0)
-      .sort((a, b) => a - b),
+  // Lines sharing a leg, side by side in the order that keeps each one
+  // on the side it joined from (see `bundleOrder`).
+  const bundles = bundleOrder(net, st).map((order) =>
+    order.map((l) => net.lines[l].id),
   );
   const spreadAt = new Map<number, number>();
   const lines: TransitLine[] = net.lines.map((line, colour) => ({

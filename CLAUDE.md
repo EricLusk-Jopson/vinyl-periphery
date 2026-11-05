@@ -173,7 +173,9 @@ ranks albums by how many of those people worked on them.
       station a line skips, few crossings or touches, no legs along other
       legs, stations apart, compact, a mild overall flow. Legs are
       straight or one run and one diagonal; lines sharing a leg run side
-      by side by person id. The searched or stacked albums are ringed in
+      by side (`bundleOrder`): a line joining a bundle keeps the side it
+      came from, a line starting there goes outside, on the side it later
+      leaves by, and no pair swaps along a stretch they share. The searched or stacked albums are ringed in
       red. `shareTransitMap` searches both flows roughly, refines the one
       that scores better, and draws it at the grid size that fits the
       square best with no labels colliding. Labels sit beside the

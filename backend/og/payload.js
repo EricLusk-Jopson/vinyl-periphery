@@ -23,7 +23,7 @@
 //            m?: 1 for the searched album or a stack's,
 //            n?: its number in the station list }
 //   sl: 1  = stations numbered and listed beside the map, not labelled
-//   Line   = { n: name, c: colour 0-5, g: legs, each [x, y][] }
+//   Line   = { n: name, c: colour 0-11, g: legs, each [x, y][] }
 //   o      = people on 2+ albums not drawn as lines
 //   Places in layout units (w x h); the renderer scales them to fit.
 //   Node   = Album & { x, y, s: place and cover side in thousandths of
@@ -60,7 +60,7 @@ export const MAX_MAP_PEOPLE = 16;
 export const MAX_LANES = 8;
 // A stack's albums and up to 12 results, or one album and its results.
 export const MAX_TRANSIT_STATIONS = 32;
-export const MAX_TRANSIT_LINES = 6;
+export const MAX_TRANSIT_LINES = 12;
 const MAX_LANE_YEARS = 150;
 const MAX_TITLE = 80;
 const MAX_ARTIST = 60;

@@ -17,7 +17,12 @@ import { MAP_SIZES, MAX_RESULTS } from "./payload.js";
 // marks the searched and stacked albums. Neighbours in this order (lines
 // with the most stations first) are also apart for red-green
 // colourblindness; the legend names every line too.
-const LINE_COLOURS = ["#2F6FF0", "#FFE14D", "#E27BF0", "#1FA84A", "#A8F0FA", "#FF9A1A"];
+const LINE_COLOURS = [
+  "#2F6FF0", "#FFE14D", "#E27BF0", "#1FA84A", "#A8F0FA", "#FF9A1A",
+  // Past six (the sheet's Lines count): purple, pink, lime, slate,
+  // periwinkle, sage. All twelve stay at least 15.9 apart pairwise.
+  "#A143EA", "#FBBAE2", "#44ED51", "#538697", "#84A9F7", "#A2BE99",
+];
 
 const C = {
   background: "#0C0C0D",
@@ -1019,8 +1024,12 @@ export function lanesElement(payload, size) {
   );
 }
 
-/** Room under a transit map for its legend. */
-const TRANSIT_LEGEND = { row: 34, columns: 2 };
+/**
+ * Room under a transit map for its legend: two columns, or three past six
+ * lines (keep in step with legendColumns in frontend/src/lib/transitMap.ts).
+ */
+const TRANSIT_LEGEND = { row: 34 };
+const legendColumns = (lines) => (lines > 6 ? 3 : 2);
 /**
  * A numbered transit map's station list, on the right (keep the width in
  * step with TRANSIT_SHARE_BOX.stationList in frontend/src/lib/transitMap.ts).
@@ -1029,7 +1038,7 @@ const STATION_LIST = { width: 340, gap: 24, row: 42, compactRow: 27 };
 
 /** The transit map fitted to the box over its legend: scale and offset. */
 export function transitGeometry(payload, { width, height }) {
-  const rows = Math.ceil(payload.lines.length / TRANSIT_LEGEND.columns) + (payload.others ? 1 : 0);
+  const rows = Math.ceil(payload.lines.length / legendColumns(payload.lines.length)) + (payload.others ? 1 : 0);
   const legend = rows * TRANSIT_LEGEND.row + 12;
   // A numbered map leaves a column on the right for its station list.
   const list = payload.legend ? STATION_LIST.width : 0;
@@ -1232,14 +1241,15 @@ export function transitElement(payload, size) {
           flexWrap: "wrap",
           rowGap: 8,
         },
-        ...payload.lines.map((line) =>
-          h(
+        ...payload.lines.map((line) => {
+          const three = legendColumns(payload.lines.length) === 3;
+          return h(
             "div",
-            { width: "50%", alignItems: "center", gap: 12, height: TRANSIT_LEGEND.row - 8 },
+            { width: three ? "33.33%" : "50%", alignItems: "center", gap: 12, height: TRANSIT_LEGEND.row - 8 },
             h("div", { width: 30, height: 6, borderRadius: 3, background: LINE_COLOURS[line.colour] }),
-            h("div", { fontSize: 19, color: C.foreground }, shorten(line.name, 32)),
-          ),
-        ),
+            h("div", { fontSize: 19, color: C.foreground }, shorten(line.name, three ? 22 : 32)),
+          );
+        }),
         payload.others > 0 &&
           h(
             "div",

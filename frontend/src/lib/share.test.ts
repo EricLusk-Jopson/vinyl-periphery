@@ -8,6 +8,7 @@ import {
   stackCaption,
   albumMapPayload,
   countOptions,
+  lineOptions,
   canDrawLines,
   withView,
   selectionCaption,
@@ -328,6 +329,13 @@ describe("buildPayload and the draft", () => {
       "Justin Vernon",
     ]);
     expect(payload.d).toBe("Top 4 by Shared · 2 people as lines");
+    expect(plan.transitPeople).toBe(2);
+    // The Lines count: one person drawn, the other counted.
+    const one = { ...draft, transitLines: 1 };
+    const fewer = buildPayload(one, withPeople(), planShare(one, withPeople()));
+    if (fewer.l !== "transit") throw new Error();
+    expect(fewer.n).toHaveLength(1);
+    expect(fewer.o).toBe(1);
   });
 
   it("ignores a change that doesn't alter the image", () => {
@@ -417,6 +425,21 @@ describe("albumMapPayload", () => {
       "Justin Vernon",
     ]);
     expect(payload.d).toBe("Top 2 by Shared");
+  });
+});
+
+describe("lineOptions", () => {
+  const labels = (o: { label: string }[]) => o.map((c) => c.label);
+
+  it("offers up to twelve lines, ending with All when fewer people", () => {
+    expect(labels(lineOptions(20))).toEqual(["3", "6", "9", "12"]);
+    expect(labels(lineOptions(12))).toEqual(["3", "6", "9", "All 12"]);
+    expect(labels(lineOptions(7))).toEqual(["3", "6", "All 7"]);
+  });
+
+  it("offers nothing with three people or fewer", () => {
+    expect(lineOptions(3)).toEqual([]);
+    expect(lineOptions(0)).toEqual([]);
   });
 });
 

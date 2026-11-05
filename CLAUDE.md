@@ -163,7 +163,8 @@ ranks albums by how many of those people worked on them.
     - Transit (`src/lib/transitMap.ts`, `transit` payload): the searched
       album (or the stack's albums, those switched on) and the albums
       chosen are stations (`searchTransit`, `stackTransit`); the people who
-      count on two or more are lines (6 drawn), each running through its
+      count on two or more are lines (6 drawn unless the sheet's Lines
+      count says 3 to 12: `ShareDraft.transitLines`, `lineOptions`), each running through its
       stations in its own year order. No time axis: stations go where the
       lines read best, found by a seeded simulated annealing on a grid
       (`SCORE`): no turn over 90° anywhere; bends at 45°, right angles
@@ -185,7 +186,8 @@ ranks albums by how many of those people worked on them.
       in whichever flow draws bigger there. The sheet's "Station titles
       in a legend" switch overrides that (`ShareView.legend`; unset,
       whichever fits). Layouts are cached by input.
-      Line colours are `LINE_COLOURS` in `render.js`: six apart in every pair, never red.
+      Line colours are `LINE_COLOURS` in `render.js`: twelve, apart in every pair, never red;
+      past six lines the legend under the map has three columns (`legendColumns`).
   - `src/lib/filters.ts`: chip state, "must include" (`filterState.required`,
     optional because older saved searches lack it), active filter count.
     "Only liked albums" is `filterState.likedOnly` (also optional). A new

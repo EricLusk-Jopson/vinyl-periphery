@@ -33,6 +33,8 @@ import { defaultContributorDisplayPipeline } from "./transformers/contributorPro
 
 /** Lines drawn; the rest are listed under the map. */
 export const TRANSIT_LINES = 6;
+/** The most lines a map can draw (one colour each, `LINE_COLOURS`). */
+export const MAX_LINES = 12;
 
 /** Which way the map flows overall: down, or to the right. */
 export type TransitOrientation = "horizontal" | "vertical";
@@ -91,7 +93,7 @@ export interface TransitLine {
   /** The person's Discogs id. */
   id: number;
   name: string;
-  /** Colour slot, 0 to TRANSIT_LINES - 1. */
+  /** Colour slot, 0 to MAX_LINES - 1. */
   colour: number;
   /** Station indices in the line's own order (by year). */
   stations: number[];
@@ -184,6 +186,8 @@ export interface TransitPerson {
 export interface TransitInput {
   stops: TransitStop[];
   people: TransitPerson[];
+  /** Most people drawn as lines (the rest are counted); TRANSIT_LINES unset. */
+  lines?: number;
   /** Which way the map flows overall. */
   orientation: TransitOrientation;
 }
@@ -317,7 +321,8 @@ const networkOf = (input: Omit<TransitInput, "orientation">): Network => {
         a.name.localeCompare(b.name) ||
         a.id - b.id,
     );
-  const lines = onStations.slice(0, TRANSIT_LINES);
+  const most = Math.max(1, Math.min(MAX_LINES, input.lines ?? TRANSIT_LINES));
+  const lines = onStations.slice(0, most);
   const legs: Network["legs"] = [];
   const legAt = new Map<string, number>();
   const runs = lines.map((line) =>
@@ -341,7 +346,7 @@ const networkOf = (input: Omit<TransitInput, "orientation">): Network => {
       rank: rank.get(s.k)!,
     })),
     lines,
-    others: onStations.slice(TRANSIT_LINES).map((p) => ({
+    others: onStations.slice(most).map((p) => ({
       id: p.id,
       name: p.name,
       stations: p.stations.length,
@@ -1148,9 +1153,13 @@ export const TRANSIT_SHARE_BOX = {
 };
 
 /** How big a map draws in the share box: its scale, at most 1.6. */
+/** Line legend columns under the map: three past six lines (render.js too). */
+export const legendColumns = (lines: number): number => (lines > 6 ? 3 : 2);
+
 export const shareScale = (map: TransitMap): number => {
   const rows =
-    Math.ceil(map.lines.length / 2) + (map.others.length > 0 ? 1 : 0);
+    Math.ceil(map.lines.length / legendColumns(map.lines.length)) +
+    (map.others.length > 0 ? 1 : 0);
   const height = TRANSIT_SHARE_BOX.height - rows * TRANSIT_SHARE_BOX.legendRow - 12;
   // A legend map shares the width with its column of station titles.
   const width = map.legend

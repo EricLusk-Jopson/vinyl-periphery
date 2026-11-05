@@ -9,6 +9,7 @@ import {
   legRoute,
   offsetPath,
   TRANSIT_LINES,
+  MAX_LINES,
   TransitOrientation,
   TransitStop,
   searchTransit,
@@ -218,6 +219,17 @@ describe("layoutTransitMap", () => {
     const counts = map.lines.map((l) => l.stations.length);
     expect([...counts].sort((a, b) => b - a)).toEqual(counts);
     expect(map.others.length).toBeGreaterThan(0);
+    // Asked for more, up to twelve, with a colour each.
+    const more = layoutTransitMap({
+      ...stack(6, 14),
+      lines: 20,
+      orientation: "horizontal",
+    });
+    expect(more.lines.length).toBe(MAX_LINES);
+    expect(more.lines.map((l) => l.colour)).toEqual(
+      Array.from({ length: MAX_LINES }, (_, i) => i),
+    );
+    expect(more.others.length).toBe(2);
     // Interchanges are bigger.
     const big = map.stations.filter((s) => s.lines.length >= 2);
     const small = map.stations.filter((s) => s.lines.length < 2);

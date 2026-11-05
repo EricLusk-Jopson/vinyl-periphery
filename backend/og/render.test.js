@@ -478,15 +478,15 @@ test("transit maps parse, fit and render", async () => {
     ],
     n: [
       { n: "Ben Frost", c: 0, g: [[[20, 96], [680, 96]]] },
-      { n: "Valgeir Sigurðsson", c: 9, g: [[[20, 104], [100, 160], [600, 160], [680, 104]], [[1, 2]]] },
+      { n: "Valgeir Sigurðsson", c: 15, g: [[[20, 104], [100, 160], [600, 160], [680, 104]], [[1, 2]]] },
     ],
     o: 3,
   });
   assert.equal(transit.layout, "transit");
   assert.equal(transit.stations.length, 2);
   assert.deepEqual(transit.stations.map((s) => s.marked), [true, false]);
-  // Colour clamped to the six there are; one-point legs dropped.
-  assert.equal(transit.lines[1].colour, 5);
+  // Colour clamped to the twelve there are; one-point legs dropped.
+  assert.equal(transit.lines[1].colour, 11);
   assert.equal(transit.lines[1].legs.length, 1);
   assert.deepEqual(artIds(transit), []);
   const g = transitGeometry(transit, { width: 1080, height: 788 });
@@ -494,6 +494,30 @@ test("transit maps parse, fit and render", async () => {
   assert.ok(g.top + transit.height * g.scale <= g.legendTop);
   assert.ok(isPng(await renderPng(transit, IMAGE_SIZE, new Map())));
   assert.equal(parsePayload({ v: 1, l: "transit", c: { t: "x" }, w: 0, h: 10, s: [{ t: "a" }] }), null);
+});
+
+test("transit maps take twelve lines, their legend in three columns", async () => {
+  const station = (t, x) => ({ t, r: "A", x, y: 100, q: 12, k: [0], b: [x, 118, 120, 35], a: "start" });
+  const lines = (count) =>
+    parsePayload({
+      v: 1,
+      l: "transit",
+      c: { t: "One" },
+      w: 700,
+      h: 200,
+      s: [station("One", 20), station("Two", 560)],
+      n: Array.from({ length: 14 }, (_, i) => i)
+        .slice(0, count)
+        .map((i) => ({ n: `Person ${i}`, c: i, g: [[[20, 100], [680, 100]]] })),
+    });
+  const twelve = lines(14);
+  assert.equal(twelve.lines.length, 12);
+  assert.deepEqual(twelve.lines.map((l) => l.colour), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+  // Twelve take four legend rows (three columns), six take three (two).
+  const legendRows = (map) => (788 - transitGeometry(map, { width: 1080, height: 788 }).legendTop) / 34;
+  assert.equal(legendRows(twelve), 4);
+  assert.equal(legendRows(lines(6)), 3);
+  assert.ok(isPng(await renderPng(twelve, IMAGE_SIZE, new Map())));
 });
 
 test("numbered transit maps list their stations beside the map", async () => {

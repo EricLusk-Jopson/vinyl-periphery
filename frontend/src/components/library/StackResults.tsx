@@ -2,6 +2,8 @@ import React, { useEffect, useId, useMemo, useState } from "react";
 import { ChevronLeft, SlidersHorizontal } from "lucide-react";
 import { SearchParams } from "@/api/types";
 import { SearchCache } from "@/contexts/cache/types";
+import { StackDrawer } from "./StackDrawer";
+import { outsideStack } from "@/lib/stacks";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { KnownAlbum } from "@/hooks/useSearchRun";
 import { useCoverArt } from "@/hooks/useCoverArt";
@@ -49,6 +51,7 @@ import {
   SheetTrigger,
 } from "../ui/sheet";
 import { ToastAction } from "../ui/toast";
+import { SearchFromHint } from "../results/SearchFromHint";
 import { ReleaseRow } from "../results/ReleaseRow";
 import { SearchCover } from "../search/SearchCover";
 import { StackFilterPanel } from "./StackFilterPanel";
@@ -148,6 +151,8 @@ export const StackResults: React.FC<StackResultsProps> = ({
   isSearching,
 }) => {
   const { searches } = useCache();
+  // A search already in the library, being moved into this stack.
+  const [stacking, setStacking] = useState<SearchCache | null>(null);
   const likes = useLikes();
   const hidden = useHidden();
   const { toast } = useToast();
@@ -382,6 +387,12 @@ export const StackResults: React.FC<StackResultsProps> = ({
           </div>
         </div>
 
+        <SearchFromHint
+          note={
+            "Searches its credits (about a minute) and adds it to this stack."
+          }
+        />
+
         <FindCovers keys={shownKeys} where="stack" />
 
         {total > 0 ? (
@@ -421,9 +432,13 @@ export const StackResults: React.FC<StackResultsProps> = ({
                           state: { from: "stack", stackId },
                           onOpen: () =>
                             track("search_jumped", { from: "result" }),
+                          ...(outsideStack(found, stackId)
+                            ? { onStack: () => setStacking(found) }
+                            : {}),
                         }
                       : undefined
                   }
+                  searchNote="Searches its credits (about a minute) and adds it to this stack."
                   open={openKey === release.key}
                   onToggle={() => {
                     if (openKey !== release.key) {
@@ -509,6 +524,14 @@ export const StackResults: React.FC<StackResultsProps> = ({
           </div>
         )}
       </section>
+      {stacking && (
+        <StackDrawer
+          search={searches[stacking.searchId] ?? stacking}
+          open
+          onOpenChange={(open) => !open && setStacking(null)}
+          from="library"
+        />
+      )}
     </div>
   );
 };

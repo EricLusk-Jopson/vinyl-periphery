@@ -125,10 +125,12 @@ ranks albums by how many of those people worked on them.
   - `src/lib/lineage.ts`: how each search was reached (`SearchCache.lineage`).
     Searches from a result row continue their parent's trail; everything
     else is a root, so searching from a result row adds to that row's stack.
-    Every row has that action as a button (`ReleaseRow`, route icon), with
-    a line above the list saying what it does (`SearchFromHint`,
-    `searchFromNote`); an album already searched outside this stack offers
-    "Stack it…" (the Stack drawer, `outsideStack`).
+    That action is "Search from this album" in the open row's footer and
+    in every row's "⋯" menu (`AlbumMark`); a one-time tip in the first row
+    opened says what it does (`useTip`, `src/services/tips.ts`,
+    `searchFromNote`), and Home's "How it works" has it as step 4. An album
+    already searched shows "Open your search" instead, and "Stack it…" (the
+    Stack drawer, `outsideStack`) when that search is outside this stack.
     Stored as snapshots, never derived. Its `stackId` says which stack a
     search is in; its steps are only a fallback for
     placing it (see `stackLayout`).
@@ -144,9 +146,10 @@ ranks albums by how many of those people worked on them.
     `type` and a `key` (`"master:N"` / `"release:N"`); `SearchCache.releases`
     is keyed by `key`. Searches stored before keys existed are migrated as
     they load (`migrateSearch`).
-  - Likes and hides: each result row ends in one slot (`AlbumMark`): "⋯"
-    opens Like and Hide; a liked album shows a filled heart there, a
-    hidden one a crossed-out eye, and tapping either undoes it. A hidden
+  - Likes and hides: each result row ends in one slot (`AlbumMark`): "⋯",
+    a filled heart when liked or a crossed-out eye when hidden; it always
+    opens the row's menu (Search from this album, Like or Unlike, Hide or
+    Show again). A hidden
     album isn't liked. A like belongs to the album (its
     result key), so it shows in every search; kept in localStorage by
     `src/services/likes.ts` (`useLikes`). Liked albums fill in the share

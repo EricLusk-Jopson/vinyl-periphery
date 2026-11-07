@@ -304,11 +304,9 @@ describe("searchFromNote", () => {
   it("says a search from a result joins the stack, or starts one", () => {
     const searches = all2(root, child, single);
     const saved = new Set([root.searchId, child.searchId, single.searchId]);
-    expect(searchFromNote(child, searches, saved)).toMatch(
-      /adds it to .* \+ 1\.$/,
-    );
+    expect(searchFromNote(child, searches, saved)).toMatch(/joins .* \+ 1$/);
     expect(searchFromNote(single, searches, saved)).toMatch(
-      new RegExp(`starts a stack with ${single.searchParams.album}\\.$`),
+      new RegExp(`starts a stack with ${single.searchParams.album}$`),
     );
     expect(outsideStack(single, stackIdOf(child))).toBe(true);
     expect(outsideStack(root, stackIdOf(child))).toBe(false);

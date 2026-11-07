@@ -3,9 +3,8 @@ import { Link } from "react-router-dom";
 import {
   ArrowRight,
   ArrowUpRight,
-  Layers,
+  Lightbulb,
   Loader2,
-  Route,
   RotateCw,
   Users,
 } from "lucide-react";
@@ -25,7 +24,6 @@ import {
 import { cn } from "@/lib/utils";
 import { AlbumCover } from "../search/AlbumCover";
 import { AlbumMark } from "./AlbumMark";
-import { pageAction } from "../common/buttons";
 
 const MAX_DOTS = 4;
 
@@ -47,17 +45,14 @@ interface ReleaseRowProps {
     to: string;
     state: unknown;
     onOpen: () => void;
-    /**
-     * Puts that search in this page's stack (the Stack drawer), when it
-     * isn't in it already.
-     */
+    /** Puts that search in this page's stack (the Stack drawer). */
     onStack?: () => void;
   };
   /**
-   * What searching from this album does: "Adds it to Unmap + 2", or
-   * "Starts a stack with Unmap". Shown under the button.
+   * A one-time tip in the open row on searching from a result, until the
+   * user dismisses it.
    */
-  searchNote?: string;
+  tip?: { text: string; onDismiss: () => void };
   /** Called when the Discogs link is followed. */
   onOpenDiscogs?: () => void;
   /** A search is under way; true for this row if it started it. */
@@ -104,7 +99,7 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
   onToggle,
   onSearchFrom,
   existing,
-  searchNote,
+  tip,
   onOpenDiscogs,
   searching,
   searchingFromHere,
@@ -248,47 +243,16 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
             )}
           </span>
         </button>
-        {/* Searching from a result is how stacks grow: a button on every
-            row, not only in the open panel. */}
-        {existing ? (
-          <Link
-            to={existing.to}
-            state={existing.state}
-            onClick={existing.onOpen}
-            aria-label={`Open your search for ${release.title}`}
-            title="Open your search"
-            className={cn(
-              "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
-              focusRing,
-            )}
-          >
-            <ArrowRight className="h-5 w-5" aria-hidden="true" />
-          </Link>
-        ) : (
-          <button
-            type="button"
-            onClick={onSearchFrom}
-            disabled={searching}
-            aria-label={`Search from ${release.title}`}
-            title={searchNote ?? "Search from this album"}
-            className={cn(
-              "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60",
-              focusRing,
-            )}
-          >
-            {searchingFromHere ? (
-              <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-            ) : (
-              <Route className="h-5 w-5" aria-hidden="true" />
-            )}
-          </button>
-        )}
         <AlbumMark
           title={release.title}
           liked={liked}
           hidden={hidden}
           onLike={onLike}
           onHide={onHide}
+          onSearchFrom={onSearchFrom}
+          searching={searching}
+          searchingFromHere={searchingFromHere}
+          existing={existing}
         />
       </div>
 
@@ -369,67 +333,31 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
             </div>
           </>
         )}
-        <div className="flex flex-col gap-1.5">
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
-            {existing ? (
-              <>
-                <Link
-                  to={existing.to}
-                  state={existing.state}
-                  onClick={existing.onOpen}
-                  className={pageAction}
-                >
-                  Open your search
-                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Link>
-                {existing.onStack && (
-                  <button
-                    type="button"
-                    onClick={existing.onStack}
-                    className={pageAction}
-                  >
-                    <Layers
-                      className="h-4 w-4 text-muted-foreground"
-                      aria-hidden="true"
-                    />
-                    Stack it…
-                  </button>
-                )}
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={onSearchFrom}
-                disabled={searching}
-                className={pageAction}
-              >
-                {searchingFromHere ? (
-                  <Loader2
-                    className="h-4 w-4 animate-spin"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <Route
-                    className="h-4 w-4 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                )}
-                {searchingFromHere
-                  ? "Finding the album"
-                  : "Search from this album"}
-              </button>
-            )}
-          </div>
-          {!existing && searchNote && (
-            <p className="text-[13px] text-muted-foreground">{searchNote}</p>
-          )}
-          {existing && (
-            <p className="text-[13px] text-muted-foreground">
-              {existing.onStack
-                ? "Already in your library, outside this stack. Stack it to link the two."
-                : "Already in your library."}
+        {open && tip && !existing && (
+          <div
+            role="note"
+            className="flex items-start gap-3 rounded-lg border bg-surface px-3 py-2.5"
+          >
+            <Lightbulb
+              className="mt-0.5 h-4 w-4 shrink-0 text-primary-text"
+              aria-hidden="true"
+            />
+            <p className="flex-1 text-[13px] text-muted-foreground">
+              {tip.text}
             </p>
-          )}
+            <button
+              type="button"
+              onClick={tip.onDismiss}
+              className={cn(
+                "-my-2 inline-flex min-h-11 shrink-0 items-center rounded-sm px-1 text-[13px] font-medium text-foreground transition-colors hover:text-primary-text",
+                focusRing,
+              )}
+            >
+              Got it
+            </button>
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
           {discogsUrl && (
             <a
               href={discogsUrl}
@@ -437,7 +365,7 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
               target="_blank"
               rel="noopener noreferrer"
               className={cn(
-                "inline-flex min-h-11 items-center gap-1 self-start rounded-sm text-primary-text transition-colors hover:text-foreground",
+                "inline-flex min-h-11 items-center gap-1 rounded-sm text-primary-text transition-colors hover:text-foreground",
                 focusRing,
               )}
             >
@@ -445,6 +373,50 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
               <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
               <span className="sr-only">(opens in a new tab)</span>
             </a>
+          )}
+          {existing ? (
+            <Link
+              to={existing.to}
+              state={existing.state}
+              onClick={existing.onOpen}
+              className={cn(
+                "inline-flex min-h-11 items-center gap-2 rounded-sm text-foreground transition-colors hover:text-primary-text",
+                focusRing,
+              )}
+            >
+              Open your search
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          ) : null}
+          {existing?.onStack && (
+            <button
+              type="button"
+              onClick={existing.onStack}
+              className={cn(
+                "inline-flex min-h-11 items-center gap-2 rounded-sm text-foreground transition-colors hover:text-primary-text",
+                focusRing,
+              )}
+            >
+              Stack it…
+            </button>
+          )}
+          {!existing && (
+            <button
+              type="button"
+              onClick={onSearchFrom}
+              disabled={searching}
+              className={cn(
+                "inline-flex min-h-11 items-center gap-2 rounded-sm text-foreground transition-colors hover:text-primary-text disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:text-foreground",
+                focusRing,
+              )}
+            >
+              {searchingFromHere && (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              )}
+              {searchingFromHere
+                ? "Finding the album"
+                : "Search from this album"}
+            </button>
           )}
         </div>
       </div>

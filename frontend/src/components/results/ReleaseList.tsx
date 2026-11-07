@@ -40,7 +40,7 @@ import {
   SelectValue,
 } from "../ui/select";
 import { ReleaseRow } from "./ReleaseRow";
-import { SearchFromHint } from "./SearchFromHint";
+import { useTip } from "@/hooks/useTip";
 import { StackDrawer } from "../library/StackDrawer";
 import { outsideStack, searchFromNote, stackIdOf } from "@/lib/stacks";
 import { ResultSearch } from "./ResultSearch";
@@ -70,6 +70,8 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
   toolbarAction,
 }) => {
   const { searches, updateFilterState, savedSearchIds } = useCache();
+  // Once, in the first row opened: how stacks grow.
+  const tip = useTip("search-from-result");
   // A search already in the library, being moved into this stack.
   const [stacking, setStacking] = useState<SearchCache | null>(null);
   const likes = useLikes();
@@ -152,6 +154,7 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
 
   // What searching from a row does: joins this search's stack, or starts one.
   const searchNote = searchFromNote(search, searches, savedSearchIds);
+  const tipText = `Search from this album, here or in any row’s ⋯ menu, to follow its credits: ${searchNote}.`;
   const thisStack = stackIdOf(search);
 
   const searchFrom = (release: ScoredRelease) => {
@@ -262,8 +265,6 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
         </div>
       </div>
 
-      <SearchFromHint note={searchNote} />
-
       <FindCovers keys={shownKeys} where="results" />
 
       {sort === "popular" &&
@@ -306,7 +307,11 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
                       }
                     : undefined;
                 })()}
-                searchNote={searchNote}
+                tip={
+                  tip.show
+                    ? { text: tipText, onDismiss: tip.dismiss }
+                    : undefined
+                }
                 people={people}
                 searchedAlbum={search.searchParams.album}
                 open={openKey === release.key}

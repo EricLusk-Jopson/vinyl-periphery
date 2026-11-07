@@ -3,6 +3,7 @@ import { ChevronLeft, SlidersHorizontal } from "lucide-react";
 import { SearchParams } from "@/api/types";
 import { SearchCache } from "@/contexts/cache/types";
 import { StackDrawer } from "./StackDrawer";
+import { useTip } from "@/hooks/useTip";
 import { outsideStack } from "@/lib/stacks";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { KnownAlbum } from "@/hooks/useSearchRun";
@@ -51,7 +52,6 @@ import {
   SheetTrigger,
 } from "../ui/sheet";
 import { ToastAction } from "../ui/toast";
-import { SearchFromHint } from "../results/SearchFromHint";
 import { ReleaseRow } from "../results/ReleaseRow";
 import { SearchCover } from "../search/SearchCover";
 import { StackFilterPanel } from "./StackFilterPanel";
@@ -153,6 +153,9 @@ export const StackResults: React.FC<StackResultsProps> = ({
   const { searches } = useCache();
   // A search already in the library, being moved into this stack.
   const [stacking, setStacking] = useState<SearchCache | null>(null);
+  // Once, in the first row opened: how stacks grow.
+  const tip = useTip("search-from-result");
+  const tipText = `Search from this album, here or in any row’s ⋯ menu, to follow its credits: a new search (about a minute) that joins this stack.`;
   const likes = useLikes();
   const hidden = useHidden();
   const { toast } = useToast();
@@ -387,12 +390,6 @@ export const StackResults: React.FC<StackResultsProps> = ({
           </div>
         </div>
 
-        <SearchFromHint
-          note={
-            "Searches its credits (about a minute) and adds it to this stack."
-          }
-        />
-
         <FindCovers keys={shownKeys} where="stack" />
 
         {total > 0 ? (
@@ -438,7 +435,11 @@ export const StackResults: React.FC<StackResultsProps> = ({
                         }
                       : undefined
                   }
-                  searchNote="Searches its credits (about a minute) and adds it to this stack."
+                  tip={
+                    tip.show
+                      ? { text: tipText, onDismiss: tip.dismiss }
+                      : undefined
+                  }
                   open={openKey === release.key}
                   onToggle={() => {
                     if (openKey !== release.key) {

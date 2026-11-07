@@ -97,6 +97,12 @@ ranks albums by how many of those people worked on them.
 - `frontend/`: React 18, TypeScript, Vite, Tailwind 3, shadcn/ui (Radix),
   TanStack Query.
   - `src/api/`: Discogs calls and the search pipeline (as mutations).
+    A main artist's page lists every member the band has ever had, so
+    members count only when the album's credits name them (they're marked
+    as band, `member` source, with their credited roles); only an album
+    with no credits on any release read gets them all as "Band Member", a
+    fallback (`addBandMembers`). Older saved searches are cleaned the same
+    way as they load (`withoutUncreditedMembers` in `migrateSearch`).
     `releaseCredits.ts` reads what each person did on a result album, fetched
     when its row is first opened (`useReleaseCredits`), queued 2.5s apart,
     and kept in localStorage by `src/services/creditsCache.ts`. When the

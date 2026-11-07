@@ -224,7 +224,12 @@ ranks albums by how many of those people worked on them.
     `/results?artist=…&album=…`, plus `&master=N` or `&release=N` when the
     Discogs album is known. A results page's back link goes where it was
     opened from (a stack or the library); otherwise to the stack its search
-    is in, or the library (`useResultsBack`). A results URL names the album, not a cached
+    is in, or the library (`useResultsBack`). Every page below the top
+    level has its back link in one place per width (`usePageBack`): the
+    header's chevron on phones, `PageBack` above the title from md. Results
+    and stack pages share their top (`PageHero`) and its actions, labelled
+    and outlined at every width (`pageAction`), in a row under the title on
+    phones. A results URL names the album, not a cached
     search, so it works on any device: without the search cached, the page
     offers to run it. Each search has a `target` (`src/lib/searchTarget.ts`):
     the first search result's master, or the clicked row's master or

@@ -21,3 +21,13 @@ export const iconButton = cn(
   "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-secondary disabled:opacity-60",
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring",
 );
+
+/**
+ * A page's own actions (Share, Stack, Delete, Destack): labelled and
+ * outlined at every width, in a row under the title on phones and beside
+ * it from md (`PageHero`).
+ */
+export const pageAction = cn(
+  "inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-border-strong px-4 text-[15px] font-medium text-foreground transition-colors hover:bg-secondary disabled:opacity-60",
+  focusRing,
+);

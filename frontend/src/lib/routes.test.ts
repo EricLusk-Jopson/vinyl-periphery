@@ -1,6 +1,7 @@
 import {
   legacyShareTarget,
   backLink,
+  pageBackKind,
   fromLocation,
   libraryPath,
   legacyResultParams,
@@ -163,5 +164,14 @@ describe("legacyShareTarget", () => {
     expect(legacyShareTarget("?to=https%3A%2F%2Fevil.example")).toBe("/");
     expect(legacyShareTarget("?to=%2F%2Fevil.example%2Fresults%3F")).toBe("/");
     expect(legacyShareTarget("")).toBe("/");
+  });
+});
+
+describe("pageBackKind", () => {
+  it("gives every page below the top level a back link", () => {
+    expect(pageBackKind("/results")).toBe("results");
+    expect(pageBackKind("/library/stack/s%201")).toBe("stack");
+    expect(pageBackKind("/library")).toBeNull();
+    expect(pageBackKind("/")).toBeNull();
   });
 });

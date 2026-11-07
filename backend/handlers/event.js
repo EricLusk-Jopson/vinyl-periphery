@@ -43,6 +43,7 @@ export const EVENTS = new Set([
   "share_created",
   "share_completed",
   "share_regenerated",
+  "share_reset",
   "share_more_filters",
   "covers_requested",
   "covers_found",

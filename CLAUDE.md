@@ -54,18 +54,29 @@ ranks albums by how many of those people worked on them.
     that floor (`stackMapCapacity`, "Up to N for this stack"). Lines run
     edge to edge from results to the stack albums they link, muted and
     thicker for more people shared (`w`); none between the stack's own
-    albums. A stack shares only as a map; its sheet
-    orders the results (sort, tiebreaker, likes first) and takes albums
-    out or adds them, drawing from the Results tab's filtered results. Typing "no
+    albums. A stack's sheet draws the Results tab's filtered results in
+    that tab's order (likes first if switched) and takes albums out or
+    adds them. Typing "no
     boilerplate" in the sheet's album search unlocks a switch that drops
     the header and site so the graph fills the image (`nb`).
     Never calls the Discogs API; only cover images (Cover Art Archive, and
     `i.discogs.com` for `d:<path>` art, rebuilt on that host only), with
     initials when they don't load. Fonts are
     vendored in `backend/og/fonts` (SIL OFL).
-    The sheet's controls edit a draft (`ShareDraft`); the image is made
-    once on open (after covers, up to `COVER_WAIT_MS`) and then only on
-    Regenerate, or when Show picks another layout. The preview is that image's blob, which is also the file
+    The sheet's controls edit a draft (`ShareDraft`); nothing is made on
+    open: the image is made on Make image (after covers, up to
+    `COVER_WAIT_MS`), then on Regenerate, or when Show picks another
+    layout once there is one. Controls come in one order for every layout
+    and page, as numbered steps: 1 Picture (Show), 2 Albums (one count for
+    every layout, `ShareDraft.count`, 4 to 24: the map draws up to 24,
+    the others the top 12 of them, `LAYOUT_MOST`; and a "From this page" box
+    with the page's own sort, `PageSort`, and filter switches), 3 People
+    (one count for People and Transit, `ShareDraft.people`, 3 to 12; a
+    note on who the map and list draw), 4 Look (how it's drawn), 5
+    Fine-tune (the albums in the image). "Reset image settings" puts the
+    draft back to its defaults, keeping the picture and the page's own
+    settings (`share_reset`). A stack's image keeps
+    its Results tab's order (`pageOrder`), liked albums first if switched. The preview is that image's blob, which is also the file
     shared or downloaded, with no link. While the draft's payload differs
     from the image's (`draftChange`: covers found since, or anything
     else), the preview dims and the action is Regenerate. Drafts and the
@@ -114,6 +125,10 @@ ranks albums by how many of those people worked on them.
   - `src/lib/lineage.ts`: how each search was reached (`SearchCache.lineage`).
     Searches from a result row continue their parent's trail; everything
     else is a root, so searching from a result row adds to that row's stack.
+    Every row has that action as a button (`ReleaseRow`, route icon), with
+    a line above the list saying what it does (`SearchFromHint`,
+    `searchFromNote`); an album already searched outside this stack offers
+    "Stack it…" (the Stack drawer, `outsideStack`).
     Stored as snapshots, never derived. Its `stackId` says which stack a
     search is in; its steps are only a fallback for
     placing it (see `stackLayout`).
@@ -151,9 +166,11 @@ ranks albums by how many of those people worked on them.
     and the list: the share sheet's Show offers Map, Results, People and
     Transit for a search, and Map, People and Transit for a stack. Every
     layout draws the same albums: the page's filters, then the sheet's
-    count and edits (`planShare`). No covers on either.
+    one count and edits (`planShare`; a stack caps every layout at what
+    its map can draw). No covers on either.
     - People (`src/lib/swimlanes.ts`, `lanes` payload): a lane per person
-      who counts and links an album chosen, top 8 by albums; ticks by
+      who counts and links an album chosen, the top `ShareDraft.people`
+      by albums; ticks by
       year, tall for the chosen albums and short for their other
       releases, the same colour. A red line, labelled, at the searched
       album's year, or at every stack album's, all alike. Lanes sort by
@@ -163,8 +180,8 @@ ranks albums by how many of those people worked on them.
     - Transit (`src/lib/transitMap.ts`, `transit` payload): the searched
       album (or the stack's albums, those switched on) and the albums
       chosen are stations (`searchTransit`, `stackTransit`); the people who
-      count on two or more are lines (6 drawn unless the sheet's Lines
-      count says 3 to 12: `ShareDraft.transitLines`, `lineOptions`), each running through its
+      count on two or more are lines (as many as the sheet's People
+      count, 3 to 12: `ShareDraft.people`, `peopleOptions`), each running through its
       stations in its own year order. No time axis: stations go where the
       lines read best, found by a seeded simulated annealing on a grid
       (`SCORE`): no turn over 90° anywhere; bends at 45°, right angles
@@ -224,7 +241,12 @@ ranks albums by how many of those people worked on them.
     `/results?artist=…&album=…`, plus `&master=N` or `&release=N` when the
     Discogs album is known. A results page's back link goes where it was
     opened from (a stack or the library); otherwise to the stack its search
-    is in, or the library (`useResultsBack`). A results URL names the album, not a cached
+    is in, or the library (`useResultsBack`). Every page below the top
+    level has its back link in one place per width (`usePageBack`): the
+    header's chevron on phones, `PageBack` above the title from md. Results
+    and stack pages share their top (`PageHero`) and its actions, labelled
+    and outlined at every width (`pageAction`), in a row under the title on
+    phones. A results URL names the album, not a cached
     search, so it works on any device: without the search cached, the page
     offers to run it. Each search has a `target` (`src/lib/searchTarget.ts`):
     the first search result's master, or the clicked row's master or
@@ -233,6 +255,9 @@ ranks albums by how many of those people worked on them.
     live in `src/lib/routes.ts`.
 - `docs/redesign/`: the current UI redesign. Read `DESIGN.md` before any UI
   work.
+- `docs/user-flows.md`: every user flow (entry, steps, events, friction),
+  how stacks form, and ranked recommendations. Update it with any change to
+  a flow.
 - `features/`: proposals for features not built yet, one Markdown file each.
 
 ## Commands

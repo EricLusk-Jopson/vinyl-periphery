@@ -105,7 +105,8 @@ To test locally, put both Vinyl Periphery variables in `.env` and run
 | `library_searched` | The library search is used (once typing pauses) | `results`, `length` (characters typed; the text isn't sent) |
 | `share_created` | Share or Download is pressed (the image on screen is shared as a file, with no link) | `layout`: map, card, lanes (People) or transit; `stack` (shared from a stack page); `albums` (how many results it draws), `removed` and `added` (albums taken out of or added to the image in the share sheet); `bare`: true when the title and watermark were switched off |
 | `share_completed` | The share sheet finished or the image downloaded | `layout`, `method`: share or download (link: from before Copy link was removed) |
-| `share_regenerated` | Regenerate is pressed in the share sheet (not the first image, made on open) | `layout`: map or card; `stack` (from a stack page) |
+| `share_regenerated` | Make image or Regenerate is pressed in the share sheet (nothing is made on open) | `layout`: map, card, lanes or transit; `stack` (from a stack page); `first` (Make image: no image yet this session) |
+| `share_reset` | Reset image settings is pressed in the share sheet (the page's sort and filters are left alone) | `layout`; `stack` (from a stack page) |
 | `share_more_filters` | "More filters" in the share sheet: the sheet closes and the page's filters open | `stack` (from a stack page) |
 | `covers_requested` | "Find missing covers" is pressed: covers MusicBrainz doesn't have, asked of Discogs | `missing` (albums asked for), `where`: sheet (share sheet), results or stack (a Results list) |
 | `covers_found` | A "Find missing covers" run ends (done, cancelled, or stopped by Discogs) | `found` (covers found), `none` (albums Discogs has no image for), `busy`: true when Discogs (or the server, keeping room for search) said not now |

@@ -526,6 +526,27 @@ export const isInStack = (
   savedIds: Set<string>,
 ): boolean => savedInStack(searches, savedIds, stackIdOf(search)).length > 1;
 
+/**
+ * What searching from one of `search`'s results does, for the row: it
+ * joins the stack `search` is in, or starts one with it. Searches take
+ * about a minute.
+ */
+export const searchFromNote = (
+  search: SearchCache,
+  searches: Record<string, SearchCache>,
+  savedIds: Set<string>,
+): string => {
+  const stackId = stackIdOf(search);
+  const members = savedInStack(searches, savedIds, stackId);
+  return members.length > 1
+    ? `Searches its credits (about a minute) and adds it to ${stackLabel({ kind: "stack", stackId, members })}.`
+    : `Searches its credits (about a minute) and starts a stack with ${search.searchParams.album}.`;
+};
+
+/** Whether `found` is outside the stack with this id (to offer Stack it). */
+export const outsideStack = (found: SearchCache, stackId: string): boolean =>
+  stackIdOf(found) !== stackId;
+
 /** Saved searches whose album or artist matches, across stacks and singles. */
 export const searchLibrary = (
   saved: SearchCache[],

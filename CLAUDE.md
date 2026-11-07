@@ -125,6 +125,10 @@ ranks albums by how many of those people worked on them.
   - `src/lib/lineage.ts`: how each search was reached (`SearchCache.lineage`).
     Searches from a result row continue their parent's trail; everything
     else is a root, so searching from a result row adds to that row's stack.
+    Every row has that action as a button (`ReleaseRow`, route icon), with
+    a line above the list saying what it does (`SearchFromHint`,
+    `searchFromNote`); an album already searched outside this stack offers
+    "Stack it…" (the Stack drawer, `outsideStack`).
     Stored as snapshots, never derived. Its `stackId` says which stack a
     search is in; its steps are only a fallback for
     placing it (see `stackLayout`).
@@ -251,6 +255,9 @@ ranks albums by how many of those people worked on them.
     live in `src/lib/routes.ts`.
 - `docs/redesign/`: the current UI redesign. Read `DESIGN.md` before any UI
   work.
+- `docs/user-flows.md`: every user flow (entry, steps, events, friction),
+  how stacks form, and ranked recommendations. Update it with any change to
+  a flow.
 - `features/`: proposals for features not built yet, one Markdown file each.
 
 ## Commands

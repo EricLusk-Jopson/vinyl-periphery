@@ -17,6 +17,13 @@ import { KnownAlbum } from "@/hooks/useSearchRun";
 import { track } from "@/lib/analytics";
 import { libraryPath, stackPath, StackView, stackView } from "@/lib/routes";
 import { ShareButton } from "../share/ShareButton";
+import { PageSort } from "@/lib/share";
+import {
+  STACK_SORT_OPTIONS,
+  StackSortKey,
+  stackTiebreakOptions,
+} from "@/lib/stackFilters";
+import { SortKey } from "@/lib/results";
 import { targetFromKey } from "@/lib/searchTarget";
 import {
   GhostStep,
@@ -173,6 +180,20 @@ export const StackPage: React.FC<StackPageProps> = ({
   // The Results tab: the members read as one album, filtered and sorted.
   const stackFilters = useStackFilters(stackId);
   const order = useStackSort();
+  // The same sort, as the share sheet shows and changes it.
+  const pageSort = useMemo<PageSort>(
+    () => ({
+      sort: order.sort,
+      then: order.then,
+      options: STACK_SORT_OPTIONS,
+      tiebreaks: stackTiebreakOptions(order.sort),
+      setSort: (sort) => order.setSort(sort as StackSortKey),
+      setThen: (then) => order.setThen(then as SortKey | null),
+    }),
+    // The setters are stable state setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [order.sort, order.then],
+  );
   const likes = useLikes();
   const hidden = useHidden();
   const meta = useMemo(
@@ -304,6 +325,7 @@ export const StackPage: React.FC<StackPageProps> = ({
                 results,
                 counted,
               }}
+              order={pageSort}
               draftKey={`stack:${stackId}`}
               stackFilters={{
                 filters: stackFilters.filters,

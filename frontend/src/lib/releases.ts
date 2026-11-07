@@ -1,3 +1,4 @@
+import { BAND_MEMBER } from "@/api/contributorSet";
 import {
   creditsTarget,
   CreditsTarget,
@@ -319,7 +320,105 @@ export const migrateReleases = (
 /** A stored search with its releases migrated (see `migrateReleases`). */
 export const migrateSearch = (search: SearchCache): SearchCache => {
   const releases = migrateReleases(search.releases ?? {});
-  return releases === search.releases ? search : { ...search, releases };
+  return withoutUncreditedMembers(
+    releases === search.releases ? search : { ...search, releases },
+  );
+};
+
+/**
+ * A search as if run with band members only as a fallback (see
+ * `addBandMembers`). Searches run before that added every member the band
+ * ever had as a "Band Member", whether or not they were on the album, and
+ * counted their whole discographies. Where the album has credits (anyone
+ * from them), members the credits don't name go, with their links (and
+ * results only they linked); credited members lose the "Band Member" role.
+ * An album with no credits keeps its Band Members: the fallback. The same
+ * object when there's nothing to change.
+ */
+export const withoutUncreditedMembers = (search: SearchCache): SearchCache => {
+  const contributors = Object.values(search.contributors ?? {});
+  if (!contributors.some((c) => c.sources?.includes("credits"))) return search;
+  const drop = new Set(
+    contributors
+      .filter(
+        (c) =>
+          c.sources?.includes("member") &&
+          !c.sources.includes("credits") &&
+          !c.sources.includes("artist"),
+      )
+      .map((c) => c.id),
+  );
+  const relabel = contributors.filter(
+    (c) =>
+      !drop.has(c.id) &&
+      c.roles.includes(BAND_MEMBER) &&
+      c.roles.some((r) => r !== BAND_MEMBER),
+  );
+  if (drop.size === 0 && relabel.length === 0) return search;
+
+  const nextContributors: SearchCache["contributors"] = {};
+  for (const c of contributors) {
+    if (drop.has(c.id)) continue;
+    nextContributors[c.id] = c.roles.includes(BAND_MEMBER)
+      ? { ...c, roles: c.roles.filter((r) => r !== BAND_MEMBER) }
+      : c;
+  }
+  const without = <T>(record: Record<number, T> | undefined) =>
+    record &&
+    Object.fromEntries(
+      Object.entries(record).filter(([id]) => !drop.has(Number(id))),
+    );
+  const releases: SearchCache["releases"] = {};
+  for (const [key, release] of Object.entries(search.releases ?? {})) {
+    const ids = release.contributorIds.filter((id) => !drop.has(id));
+    // Results only uncredited members linked go; the searched album stays.
+    if (ids.length === 0 && key !== search.target?.key) continue;
+    releases[key] =
+      ids.length === release.contributorIds.length
+        ? release
+        : {
+            ...release,
+            contributorIds: ids,
+            ...(release.appearances
+              ? { appearances: without(release.appearances) }
+              : {}),
+            ...(release.contributions
+              ? { contributions: without(release.contributions) }
+              : {}),
+          };
+  }
+  // "Band Member" leaves the role chips once nobody has it.
+  const bandRoleLeft = Object.values(nextContributors).some((c) =>
+    c.roles.includes(BAND_MEMBER),
+  );
+  const withoutRole = (roles: Record<string, boolean>) => {
+    if (bandRoleLeft || !(BAND_MEMBER in roles)) return roles;
+    return Object.fromEntries(
+      Object.entries(roles).filter(([role]) => role !== BAND_MEMBER),
+    );
+  };
+  const required = search.filterState.required;
+  return {
+    ...search,
+    contributors: nextContributors,
+    roles: withoutRole(search.roles),
+    releases,
+    filterState: {
+      ...search.filterState,
+      contributors: without(search.filterState.contributors) ?? {},
+      roles: withoutRole(search.filterState.roles),
+      ...(required
+        ? {
+            required: {
+              contributors: required.contributors.filter((id) => !drop.has(id)),
+              roles: bandRoleLeft
+                ? required.roles
+                : required.roles.filter((r) => r !== BAND_MEMBER),
+            },
+          }
+        : {}),
+    },
+  };
 };
 
 /**

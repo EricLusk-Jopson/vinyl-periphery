@@ -48,6 +48,44 @@ export function addContributorToSet(
   }
 }
 
+/** The role a band's members get when the album has no credits at all. */
+export const BAND_MEMBER = "Band Member";
+
+/** Whether a release names anyone in its credits (release or track). */
+export const releaseHasCredits = (release: {
+  extraartists?: RawArtist[];
+  credits?: RawArtist[];
+  tracklist?: Array<{ extraartists?: RawArtist[] }>;
+}): boolean =>
+  [
+    ...(release.extraartists ?? []),
+    ...(release.credits ?? []),
+    ...(release.tracklist ?? []).flatMap((t) => t.extraartists ?? []),
+  ].some((a) => Boolean(a?.id));
+
+/**
+ * A band's members, from its artist page: everyone it has ever had, not
+ * only those on this album. With credits to go on, only members the
+ * credits name count: they're marked as band ("member" source) and keep
+ * their credited roles, with no "Band Member" role. With no credits on any
+ * release read, every member is added as a Band Member: a fallback, so an
+ * uncredited album still has its band.
+ */
+export function addBandMembers(
+  set: ContributorSetInternal,
+  members: RawArtist[],
+  credited: boolean
+): void {
+  for (const member of members) {
+    if (!member?.id) continue;
+    if (credited) {
+      set.contributors.get(member.id)?.sources.add("member");
+    } else {
+      addContributorToSet(set, member, "member", BAND_MEMBER);
+    }
+  }
+}
+
 export function getContributorConfidence(contributor: Contributor): number {
   let confidence = 0;
 

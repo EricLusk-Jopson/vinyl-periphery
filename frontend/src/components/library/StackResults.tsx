@@ -2,9 +2,10 @@ import React, { useEffect, useId, useMemo, useState } from "react";
 import { ChevronLeft, SlidersHorizontal } from "lucide-react";
 import { SearchParams } from "@/api/types";
 import { SearchCache } from "@/contexts/cache/types";
-import { StackDrawer } from "./StackDrawer";
 import { useTip } from "@/hooks/useTip";
-import { outsideStack } from "@/lib/stacks";
+import { outsideStack, searchFromNote } from "@/lib/stacks";
+import { memberFor } from "@/lib/stackRecords";
+import { useLibraryStacks } from "@/hooks/useLibraryStacks";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { KnownAlbum } from "@/hooks/useSearchRun";
 import { useCoverArt } from "@/hooks/useCoverArt";
@@ -150,12 +151,25 @@ export const StackResults: React.FC<StackResultsProps> = ({
   onSearchFrom,
   isSearching,
 }) => {
-  const { searches } = useCache();
-  // A search already in the library, being moved into this stack.
-  const [stacking, setStacking] = useState<SearchCache | null>(null);
-  // Once, in the first row opened: how stacks grow.
+  const { searches, updateStack } = useCache();
+  // This stack: albums already searched can be added straight in (a result
+  // of the stack links to it by definition).
+  const stack = useLibraryStacks().find((s) => s.stackId === stackId);
+  const addToStack = async (found: SearchCache) => {
+    if (!stack) return;
+    await updateStack({
+      ...stack.record,
+      members: [...stack.record.members, memberFor(found)],
+    });
+    track("stack_album_added", { from: "results" });
+    toast({
+      title: "Added to the stack",
+      description: `${found.searchParams.album} is in ${stack.record.name}.`,
+    });
+  };
+  // Once, in the first row opened: how to follow a result.
   const tip = useTip("search-from-result");
-  const tipText = `Search from this album, here or in any row’s ⋯ menu, to follow its credits: a new search (about a minute) that joins this stack.`;
+  const tipText = `Search from this album, here or in any row’s ⋯ menu, to follow its credits: ${searchFromNote()}.`;
   const likes = useLikes();
   const hidden = useHidden();
   const { toast } = useToast();
@@ -429,8 +443,11 @@ export const StackResults: React.FC<StackResultsProps> = ({
                           state: { from: "stack", stackId },
                           onOpen: () =>
                             track("search_jumped", { from: "result" }),
-                          ...(outsideStack(found, stackId)
-                            ? { onStack: () => setStacking(found) }
+                          ...(stack && outsideStack(found, stack)
+                            ? {
+                                onStack: () => void addToStack(found),
+                                stackAction: "Add to this stack",
+                              }
                             : {}),
                         }
                       : undefined
@@ -525,14 +542,6 @@ export const StackResults: React.FC<StackResultsProps> = ({
           </div>
         )}
       </section>
-      {stacking && (
-        <StackDrawer
-          search={searches[stacking.searchId] ?? stacking}
-          open
-          onOpenChange={(open) => !open && setStacking(null)}
-          from="library"
-        />
-      )}
     </div>
   );
 };

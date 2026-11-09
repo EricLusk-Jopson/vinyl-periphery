@@ -5,8 +5,7 @@ import {
   useNavigate,
   useParams,
 } from "react-router-dom";
-import { Search } from "lucide-react";
-import { LayersOff } from "../common/icons";
+import { Pencil, Search, Trash2 } from "lucide-react";
 import { pageAction } from "../common/buttons";
 import { PageBack } from "../layout/PageBack";
 import { PageHero } from "../layout/PageHero";
@@ -27,21 +26,19 @@ import { SortKey } from "@/lib/results";
 import { targetFromKey } from "@/lib/searchTarget";
 import {
   GhostStep,
-  LibraryStack,
   linkLineLabel,
   linkLineText,
-  savedInStack,
-  StackParent,
   stackLabel,
   stackLayout,
   stackMembersByDepth,
   stackRoot,
+  UNLINKED,
 } from "@/lib/stacks";
+import { useLibraryStacks } from "@/hooks/useLibraryStacks";
 import { cn } from "@/lib/utils";
 import { StackDrawer } from "./StackDrawer";
-import { StackConfirm } from "./StackConfirm";
-import { ToastAction } from "../ui/toast";
-import { useToast } from "@/hooks/use-toast";
+import { DeleteStackConfirm } from "./DeleteStackConfirm";
+import { StackEditor } from "./StackEditor";
 import { AlbumCover } from "../search/AlbumCover";
 import { LibraryCard } from "./LibraryCard";
 import { StackRootCover } from "./StackCard";
@@ -66,52 +63,49 @@ import { LIBRARY_GRID } from "./grid";
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
 
-const stepLabel = (depth: number) => (depth === 0 ? "Start" : `Step ${depth}`);
+const stepLabel = (depth: number) =>
+  depth === UNLINKED
+    ? "Not linked to the start"
+    : depth === 0
+      ? "Start"
+      : `Step ${depth}`;
 
 interface StackPageProps {
-  /** Searches a ghosted step again, rejoining this stack. */
+  /** Searches an album again (a deleted one, or from a result). */
   onSearchStep: (params: SearchParams, known?: KnownAlbum) => void;
   isSearching: boolean;
 }
 
-/** A deleted step: ghosted, with a way to search it again. */
+/**
+ * An album deleted from the library, still in the stack: ghosted, with a
+ * way to search it again (the new search takes its place in the stack).
+ */
 const GhostCard: React.FC<{
   ghost: GhostStep;
-  parents: StackParent[];
   onSearch: () => void;
   disabled: boolean;
-}> = ({ ghost, parents, onSearch, disabled }) => {
-  const note = linkLineText(parents);
-  const { step } = ghost;
-  const own = usableImageUrl(step.thumb);
-  const key = !own ? step.targetKey : "";
+}> = ({ ghost, onSearch, disabled }) => {
+  const { member } = ghost;
+  const own = usableImageUrl(member.thumb);
+  const key = !own ? member.targetKey : "";
   const cover = useCoverArt(key ? [key] : []);
   return (
     <li className="flex min-w-0 items-center gap-3 rounded-[10px] border border-dashed p-2.5 lg:gap-4 lg:p-3.5">
       <AlbumCover
         src={own || (key && cover(key)) || ""}
-        title={step.title}
+        title={member.title}
         className="h-12 w-12 rounded-[3px] text-xs opacity-60 lg:h-16 lg:w-16 lg:rounded lg:text-sm"
       />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5 md:gap-1">
         <span className="truncate text-[15px] font-semibold text-muted-foreground md:text-base">
-          {step.title}
+          {member.title}
         </span>
         <span className="truncate text-[13px] text-faint md:text-sm">
-          {step.artist}
+          {member.artist}
         </span>
-        <span className="font-mono text-xs text-faint">Deleted</span>
-        {note && (
-          <>
-            <span
-              className="line-clamp-2 break-words font-mono text-xs text-faint"
-              aria-hidden="true"
-            >
-              {note}
-            </span>
-            <span className="sr-only">{linkLineLabel(parents)}</span>
-          </>
-        )}
+        <span className="font-mono text-xs text-faint">
+          Deleted from your library
+        </span>
       </span>
       <button
         type="button"
@@ -124,18 +118,21 @@ const GhostCard: React.FC<{
       >
         <Search className="h-4 w-4" aria-hidden="true" />
         Search
-        <span className="sr-only"> {step.title} again</span>
+        <span className="sr-only"> {member.title} again</span>
       </button>
     </li>
   );
 };
 
 /**
- * /library/stack/:stackId — one stack, as a meta-album. The header sits
- * above two tabs: Albums (the default), its searches in a section per
- * step, each saying what links it to the step before, and Results
- * (`?view=results`), the stack's results together. Steps that were deleted show ghosted, with a Search action that
- * rejoins the stack.
+ * /library/stack/:stackId — one stack (a record: see lib/stackRecords),
+ * as a meta-album. The header has Share, Edit (name and albums) and
+ * Delete (the stack only: its albums stay). Two tabs: Albums (the
+ * default), a section per step from the start, each card saying what
+ * links it to the step before, then any not linked to the start and any
+ * deleted from the library (ghosted, with Search); and Results
+ * (`?view=results`), the stack's results together. Albums are added and
+ * taken out with Edit, or each card's Stacks drawer.
  */
 export const StackPage: React.FC<StackPageProps> = ({
   onSearchStep,
@@ -146,36 +143,38 @@ export const StackPage: React.FC<StackPageProps> = ({
   const location = useLocation();
   const view = stackView(location.search);
   const headingId = useId();
-  const {
-    searches,
-    savedSearchIds,
-    savedSearchesLoaded,
-    deleteSearch,
-    restoreSearch,
-  } = useCache();
-  const { toast } = useToast();
+  const { searches, savedSearchesLoaded } = useCache();
   const [confirming, setConfirming] = useState(false);
-  // The member whose Stack drawer is open.
+  const [editing, setEditing] = useState(false);
+  // The member whose Stacks drawer is open.
   const [stacking, setStacking] = useState<SearchCache | null>(null);
 
-  const members = useMemo(
-    () => savedInStack(searches, savedSearchIds, stackId),
-    [searches, savedSearchIds, stackId],
-  );
-  const stack: LibraryStack = { kind: "stack", stackId, members };
+  const stacks = useLibraryStacks();
+  const found = stacks.find((s) => s.stackId === stackId);
+  const stack = found ?? {
+    kind: "stack" as const,
+    stackId,
+    record: { id: stackId, name: "", members: [], createdAt: 0, updatedAt: 0 },
+    members: [],
+    missing: [],
+  };
+  const members = stack.members;
   const { levels, ghosts, parents } = useMemo(
-    () =>
-      members.length
-        ? stackLayout(stack)
-        : {
-            levels: new Map<string, number>(),
-            ghosts: [],
-            parents: new Map<string, StackParent[]>(),
-          },
-    // stack is built from members.
+    () => stackLayout(stack),
+    // stack is rebuilt from its record and the library.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [members],
+    [found],
   );
+  // The share map rings albums by step: unlinked ones go one step out.
+  const shareLevels = useMemo(() => {
+    const deepest = Math.max(0, ...levels.values());
+    return new Map(
+      Array.from(levels, ([id, level]) => [
+        id,
+        level === UNLINKED ? deepest + 1 : level,
+      ]),
+    );
+  }, [levels]);
 
   // The Results tab: the members read as one album, filtered and sorted.
   const stackFilters = useStackFilters(stackId);
@@ -237,23 +236,21 @@ export const StackPage: React.FC<StackPageProps> = ({
   }, [members.length, ghosts.length]);
 
   if (!savedSearchesLoaded) return null;
-  if (members.length === 0) return <Navigate to={libraryPath()} replace />;
+  if (!found) return <Navigate to={libraryPath()} replace />;
 
   const root = stackRoot(stack);
   const sorted = stackMembersByDepth(stack, levels);
 
-  // A section per step; deleted steps sit in theirs, after the searches.
-  type Entry =
-    | { kind: "member"; search: SearchCache }
-    | { kind: "ghost"; ghost: GhostStep };
-  const steps = new Map<number, Entry[]>();
-  const add = (depth: number, entry: Entry) =>
-    steps.set(depth, [...(steps.get(depth) ?? []), entry]);
+  // A section per step, then albums not linked to the start, then those
+  // deleted from the library.
+  const steps = new Map<number, SearchCache[]>();
   for (const search of sorted) {
-    add(levels.get(search.searchId) ?? 0, { kind: "member", search });
+    const depth = levels.get(search.searchId) ?? UNLINKED;
+    steps.set(depth, [...(steps.get(depth) ?? []), search]);
   }
-  for (const ghost of ghosts) add(ghost.depth, { kind: "ghost", ghost });
-  const sections = Array.from(steps).sort(([a], [b]) => a - b);
+  const sections = Array.from(steps).sort(([a], [b]) =>
+    a === UNLINKED ? 1 : b === UNLINKED ? -1 : a - b,
+  );
 
   const changeView = (next: string) => {
     const tab: StackView = next === "results" ? "results" : "albums";
@@ -262,33 +259,14 @@ export const StackPage: React.FC<StackPageProps> = ({
     navigate(stackPath(stackId, tab), { replace: true });
   };
 
+  // A deleted album searched again: the new search is found by its album,
+  // so it takes its place in the stack.
   const searchGhost = (ghost: GhostStep) => {
-    const target = targetFromKey(ghost.step.targetKey);
+    const target = targetFromKey(ghost.member.targetKey);
     onSearchStep(
-      { artist: ghost.step.artist, album: ghost.step.title },
-      target
-        ? { target, thumb: ghost.step.thumb, lineage: ghost.lineage }
-        : undefined,
+      { artist: ghost.member.artist, album: ghost.member.title },
+      target ? { target, thumb: ghost.member.thumb } : undefined,
     );
-  };
-
-  // No warning for one search: the toast can undo it.
-  const remove = async (searchId: string) => {
-    const search = searches[searchId];
-    await deleteSearch(searchId);
-    if (!search) return;
-    toast({
-      title: "Search deleted",
-      description: `${search.searchParams.album} by ${search.searchParams.artist}`,
-      action: (
-        <ToastAction
-          altText="Undo delete"
-          onClick={() => void restoreSearch(search)}
-        >
-          Undo
-        </ToastAction>
-      ),
-    });
   };
 
   return (
@@ -305,44 +283,58 @@ export const StackPage: React.FC<StackPageProps> = ({
         title={stackLabel(stack)}
         meta={
           <>
-            {root.artist} · {members.length} searches
+            {members.length} {members.length === 1 ? "album" : "albums"} · from{" "}
+            {root.title}
             {ghosts.length > 0 && ` · ${ghosts.length} deleted`}
           </>
         }
         actions={
           <>
-            <ShareButton
-              search={root.search ?? sorted[0]}
-              map={{
-                centre: {
-                  key: root.targetKey,
-                  title: root.title,
-                  artist: root.artist,
-                  thumb: root.thumb,
-                },
-                members,
-                levels,
-                results,
-                counted,
-              }}
-              order={pageSort}
-              draftKey={`stack:${stackId}`}
-              stackFilters={{
-                filters: stackFilters.filters,
-                update: stackFilters.update,
-                meta,
-              }}
-            />
+            {members.length > 0 && (
+              <ShareButton
+                search={root.search ?? sorted[0]}
+                map={{
+                  centre: {
+                    key: root.targetKey,
+                    title: root.title,
+                    artist: root.artist,
+                    thumb: root.thumb,
+                  },
+                  members,
+                  levels: shareLevels,
+                  results,
+                  counted,
+                }}
+                order={pageSort}
+                draftKey={`stack:${stackId}`}
+                stackFilters={{
+                  filters: stackFilters.filters,
+                  update: stackFilters.update,
+                  meta,
+                }}
+              />
+            )}
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className={pageAction}
+            >
+              <Pencil
+                className="h-4 w-4 text-muted-foreground"
+                aria-hidden="true"
+              />
+              Edit
+            </button>
             <button
               type="button"
               onClick={() => setConfirming(true)}
               className={pageAction}
             >
-              <LayersOff
+              <Trash2
                 className="h-4 w-4 text-muted-foreground"
                 aria-hidden="true"
               />
-              Destack
+              Delete stack
             </button>
           </>
         }
@@ -386,48 +378,73 @@ export const StackPage: React.FC<StackPageProps> = ({
                 >
                   {stepLabel(depth)}
                 </h2>
+                {depth === UNLINKED && (
+                  <p className="text-[13px] text-muted-foreground">
+                    Nothing links these to the start since an album was taken
+                    out. Add an album that links them, or take them out with
+                    Edit.
+                  </p>
+                )}
                 <ul className={LIBRARY_GRID}>
-                  {entries.map((entry) => {
-                    if (entry.kind === "ghost") {
-                      return (
-                        <GhostCard
-                          key={`ghost-${entry.ghost.step.searchId}`}
-                          ghost={entry.ghost}
-                          parents={parents.get(entry.ghost.step.searchId) ?? []}
-                          onSearch={() => searchGhost(entry.ghost)}
-                          disabled={isSearching}
-                        />
-                      );
-                    }
-                    const links = parents.get(entry.search.searchId) ?? [];
+                  {entries.map((search) => {
+                    const links = parents.get(search.searchId) ?? [];
                     return (
                       <LibraryCard
-                        key={entry.search.searchId}
-                        search={entry.search}
+                        key={search.searchId}
+                        search={search}
                         from={{ from: "stack", stackId }}
                         note={linkLineText(links) || undefined}
                         noteLabel={linkLineLabel(links) || undefined}
-                        onDelete={() => remove(entry.search.searchId)}
-                        onStack={() => setStacking(entry.search)}
+                        onStack={() => setStacking(search)}
                       />
                     );
                   })}
                 </ul>
               </section>
             ))}
+            {ghosts.length > 0 && (
+              <section
+                aria-labelledby={`${headingId}-deleted`}
+                className="flex flex-col gap-2.5 md:gap-3"
+              >
+                <h2
+                  id={`${headingId}-deleted`}
+                  className="font-mono text-xs uppercase tracking-[1px] text-muted-foreground"
+                >
+                  Deleted from your library
+                </h2>
+                <ul className={LIBRARY_GRID}>
+                  {ghosts.map((ghost) => (
+                    <GhostCard
+                      key={`ghost-${ghost.member.searchId}`}
+                      ghost={ghost}
+                      onSearch={() => searchGhost(ghost)}
+                      disabled={isSearching}
+                    />
+                  ))}
+                </ul>
+              </section>
+            )}
           </TabsContent>
         </Tabs>
 
-        <StackConfirm
+        <DeleteStackConfirm
           stack={confirming ? stack : null}
           onClose={() => setConfirming(false)}
           onDone={() => navigate(libraryPath())}
         />
+        {editing && (
+          <StackEditor
+            open
+            stack={stack}
+            onOpenChange={(open) => !open && setEditing(false)}
+          />
+        )}
 
         {stacking && (
           <StackDrawer
             search={searches[stacking.searchId] ?? stacking}
-            from="library"
+            from="stack"
             open
             onOpenChange={(open) => !open && setStacking(null)}
           />

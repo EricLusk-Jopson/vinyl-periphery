@@ -1,3 +1,4 @@
+import type { StackRecord } from "@/lib/stackRecords";
 import {
   SearchParams,
   SearchTarget,
@@ -129,8 +130,16 @@ export interface CacheContextValue extends CacheState {
   deleteSearch: (searchId: string) => Promise<void>;
   /** Writes a search again, e.g. with new lineage (see SaveOptions). */
   saveSearch: (searchId: string, options?: SaveOptions) => Promise<void>;
-  /** Every saved search in the stack back on its own. Returns how many. */
-  disbandStack: (stackId: string) => Promise<number>;
+  /** Every stack (records, newest first). */
+  stacks: StackRecord[];
+  /** A new stack of these albums, the first its start. */
+  createStack: (name: string, albums: SearchCache[]) => Promise<StackRecord>;
+  /** Writes a stack again: renamed, albums added or taken out. */
+  updateStack: (record: StackRecord) => Promise<void>;
+  /** Deletes a stack; its albums stay in the library. */
+  deleteStack: (id: string) => Promise<void>;
+  /** Puts a deleted stack back (undo). */
+  restoreStack: (record: StackRecord) => Promise<void>;
   /** Puts a deleted search back (undo). */
   restoreSearch: (search: SearchCache) => Promise<void>;
 }

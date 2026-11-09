@@ -47,6 +47,8 @@ interface ReleaseRowProps {
     onOpen: () => void;
     /** Puts that search in this page's stack (the Stack drawer). */
     onStack?: () => void;
+    /** The label for `onStack`: "Add to stacks…", "Add to this stack". */
+    stackAction?: string;
   };
   /**
    * A one-time tip in the open row on searching from a result, until the
@@ -397,7 +399,7 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
                 focusRing,
               )}
             >
-              Stack it…
+              {existing.stackAction ?? "Stack it…"}
             </button>
           )}
           {!existing && (

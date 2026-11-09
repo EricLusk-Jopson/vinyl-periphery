@@ -15,7 +15,8 @@ drawers open over them: Filters (phones), Share, Stack, Destack.
 1. **Search** an album (about a minute).
 2. **Read** its results: albums ranked by how many of its people worked on
    them.
-3. **Follow** one of them: search from a result, which joins a stack.
+3. **Follow** one of them: search from a result, then group albums
+   linked by their credits into named stacks.
 4. **Collect**: like, hide, filter; the library keeps everything.
 5. **Share** an image of what was found.
 
@@ -43,8 +44,8 @@ and #113.
 - **Friction:**
   - "How it works" now ends with "Follow the credits" (stacks), but says
     nothing of likes or sharing.
-  - The search is always a root: an album already in another search's
-    results gets no stack unless the user uses the Stack drawer (flow 7).
+  - A new search joins no stack; nothing yet suggests the stacks it could
+    join (recommendation 2).
 
 ## 2. Reading results
 
@@ -91,68 +92,62 @@ and #113.
 ## 5. Library
 
 - **Starts at:** Library in the header, "View library" on Home.
-- **Steps:** Stacks or All; search by album or artist; open a card (a
-  search's results, or a stack's page); a card's stack icon opens the Stack
-  drawer; delete with Undo.
-- **Events:** `library_view_toggled`, `library_searched`, `stack_opened`,
-  `page_view`.
-- **Friction:** the empty library says searches are kept but not how a
-  stack is made.
+- **Steps:** two tabs, **Stacks** (the default, with **New stack**) and
+  **Albums** (every search, newest first). One search box filters the tab
+  on screen: albums by title or artist, stacks by name or any album in
+  them. An album card notes the stack it's in ("In My trail", "In 3
+  stacks"), opens its results, and its Stacks button opens its Stacks
+  drawer (flow 7). A stack card opens the stack's page.
+- **Deleting:** albums are deleted only from their own results page (with
+  Undo); stacks only from their own page.
+- **Events:** `library_view_toggled` (`view`: stacks or albums),
+  `library_searched` (`tab`), `stack_opened`, `page_view`.
 
-## 6. Searching from a result (how stacks grow)
+## 6. Searching from a result
 
-- **Starts at:** any result row, on a search's Results page or a stack's
-  Results tab.
-- **Before this change:** open the row, then "Search from this album", a
-  text link after "View on Discogs". Nothing said it would join a stack or
-  take a minute. An album already searched showed "Open your search" only.
-- **Now:**
-  - "Search from this album" is back where it was, the text button in the
-    open row's footer, and is also the first item of every row's "⋯"
-    menu, which now opens on liked and hidden rows too (with Unlike and
-    Show again). A route button on every row (tried in #114) crowded the
-    row's right edge and was removed.
-  - The first row a user opens shows a one-time tip: search from this
-    album, here or in any row's ⋯ menu, to follow its credits: a new
-    search (about a minute) that joins this stack, or starts one. "Got it"
-    dismisses it for good.
-  - Home's "How it works" has a fourth step, "Follow the credits".
-  - An album already in the library shows "Open your search", and "Stack
-    it…" when that search is outside this stack (opens the Stack drawer).
-- **What happens:** the new search's lineage continues the parent's trail
-  (`childLineage`), so it joins the parent's stack. From a stack's Results
-  tab it hangs on the member sharing the most people. The search runs as
-  flow 1, from the known Discogs id, skipping `/api/search`.
-- **Events:** `search_started` with `source: "result"`, `search_jumped`
-  (`from: "result"`) when an already searched album is opened.
-- **Still open:** after the tip is dismissed, nothing on the page names the
-  stack a search will join until it's run.
+- **Starts at:** any result row: "Search from this album" in its footer or
+  its ⋯ menu.
+- **What happens:** a new search of that album (about a minute), straight
+  into the Albums tab. It joins no stack by itself: stacks are made and
+  filled on purpose (flows 7 and 8). The first row a user opens shows a
+  one-time tip saying so.
+- **Already searched:** the row offers "Open your search", and "Add to
+  stacks…" on a search's results (its Stacks drawer), or "Add to this
+  stack" on a stack's Results tab when it isn't in that stack yet (a
+  result of the stack always links to it).
+- **Events:** `search_started` (`source: "result"`), `search_jumped`,
+  `stack_album_added` (`from: "results"`).
 
-## 7. Putting a search into a stack by hand
+## 7. Making and filling stacks
 
-- **Starts at:** Stack on a results page header, a library card's stack
-  icon, or "Stack it…" on a result row (new).
-- **Steps:** the Stack drawer lists where the search could go: its current
-  stack, every stack that has it in a member's results (with what links
-  them), searches on their own it could start a stack with, and Standalone.
-  Switch moves it.
-- **Events:** `stack_saved`, `search_unstacked`.
-- **Friction:** the drawer only offers stacks whose albums have this one in
-  their results, which is right, but a user who wants to group two
-  unrelated searches can't, and isn't told why beyond one line.
+- **New stack:** from the Stacks tab, or "New stack with this album" in an
+  album's Stacks drawer. The stack editor asks for a name (the start's
+  title by default) and albums: pick any album to start, then add albums
+  that link to one already in. Albums that don't link yet are listed
+  greyed, saying "Not linked to the stack yet", with a note above the
+  list on the rule; adding others can link them. Make stack opens the
+  stack's page.
+- **An album's Stacks drawer** (results page header "Add to stack" / "In
+  N stacks", library and stack cards): every stack, those holding it with
+  Remove, those it links to with Add and what links them, and the rest
+  greyed with why. An album can be in any number of stacks.
+- **Taking an album out** (drawer or editor) that leaves others with no
+  link back to the start asks first ("This breaks the stack's links");
+  they stay, under "Not linked to the start", until linked again or taken
+  out.
+- **Events:** `stack_created`, `stack_album_added`, `stack_album_removed`.
 
 ## 8. A stack's page
 
-- **Albums tab:** the stack's searches by step from the start, each with a
-  link line (which album it came from, through whom); deleted steps appear
-  as ghosts with "Search again"; each card opens its results.
-- **Results tab:** the members read as one album, filtered (with member
-  albums as a filter) and sorted by links; searching from a result adds to
-  this stack (flow 6).
-- **Actions:** Share, Destack (takes the whole stack apart, with a
-  confirmation).
+- **Header:** Share, **Edit** (the stack editor: rename, add or take out
+  albums), **Delete stack** (confirm, then Undo; its albums stay).
+- **Albums tab:** the stack's albums by step from the start, each with a
+  link line (which album links it, through whom); then any not linked to
+  the start; then any deleted from the library (ghosted, with Search to
+  run them again, which puts them back in place).
+- **Results tab:** the albums read as one, filtered and sorted.
 - **Events:** `stack_view_changed`, `stack_filters_applied`,
-  `stack_disbanded`, plus the result events.
+  `stack_edited`, `stack_deleted`, plus the result events.
 - **Friction:** the Results tab has no "Find an album" search, unlike a
   search's results.
 
@@ -181,37 +176,30 @@ and #113.
 - **Friction:** no "continue where you left off" for an unfinished stack
   beyond Recent searches, which lists searches, not stacks.
 
-## Stack formation, evaluated
+## How stacks form
 
-How a stack forms today:
+Stacks are made on purpose, not as a side effect of searching:
 
-| Route | Joins a stack? | Discoverability |
-|---|---|---|
-| Search from a result row | Yes, the parent's | Was low (inside an open row); now a button on every row |
-| From a stack's Results tab | Yes, that stack, on the member sharing most | Same |
-| Typed search of an album already in a result list | No, a root | None until the Stack drawer |
-| Opening a result already searched | No | Now offers "Stack it…" |
-| Stack drawer (header, library card, row) | Yes, if a member's results have it | Medium: a header button |
-| A results link from another device | No, a root | None |
+| Route | What it does |
+|---|---|
+| Stacks tab, New stack | Name it, pick a start, add linked albums |
+| An album's Stacks drawer, New stack with this album | The same, starting from that album |
+| An album's Stacks drawer, Add | Into any stack it links to |
+| A stack's Results tab, "Add to this stack" | An album already searched, into this stack |
+| A stack's Edit | Rename, add, take out |
 
-Findings:
-
-- Stacks are a side effect of one action (searching from a row). That
-  keeps them meaningful (every link is real), but the action was hidden and
-  never explained.
-- A typed search never joins a stack even when it could; the Stack drawer
-  can fix it, but nothing suggests it. The fit is already computed
-  (`stacksThisFits`), so the results page could say "This album is in the
-  results of Stack Album 0 + 2. Stack it?" when a fit exists.
-- "Open your search" used to be a dead end for stacking; it now offers
-  "Stack it…".
+The rule is the same everywhere: an album joins only if it links to one
+already in the stack, and the interface greys out the rest and says why.
+Before DB v4, stacks were the searches sharing a lineage; those became
+named records once, keeping their ids (and filters).
 
 ## Recommendations, ranked
 
-1. **Done:** search from a result in the row's footer and its ⋯ menu,
-   explained once by a tip, with "Stack it…" for albums already searched.
-2. **Suggest a stack after a typed search** when `stacksThisFits` finds one
-   (a one-line banner under the header with Stack it and Dismiss).
+1. **Done:** stacks as named records with their own tab, editor and
+   delete; albums in any number of stacks; search from a result in the
+   row's footer and ⋯ menu, explained once by a tip.
+2. **Suggest stacks after a search** when `stackOptionsFor` finds stacks it
+   links to (a one-line banner under the header with Add and Dismiss).
 3. **Teach the loop on Home:** done for "How it works" (step 4, "Follow
    the credits"); the empty library could say the same.
 4. **"Find an album" on a stack's Results tab,** like a search's.

@@ -41,8 +41,8 @@ and #113.
   `search_not_found`, `search_failed`, `search_cancelled`,
   `example_filled`.
 - **Friction:**
-  - "How it works" describes searching and ranking but never mentions
-    stacks, likes or sharing, so the loop past step 2 isn't introduced.
+  - "How it works" now ends with "Follow the credits" (stacks), but says
+    nothing of likes or sharing.
   - The search is always a root: an album already in another search's
     results gets no stack unless the user uses the Stack drawer (flow 7).
 
@@ -58,7 +58,8 @@ and #113.
 - **Events:** `result_opened`, `result_credits`, `results_searched`,
   `result_picked`, `discogs_opened`.
 - **Friction:** a row's main tap opens credits, which is right, but it was
-  also the only way to reach "Search from this album" (fixed here, flow 6).
+  also the only way to reach "Search from this album" (now also in ⋯,
+  flow 6).
 
 ## 3. Filtering and sorting
 
@@ -77,8 +78,9 @@ and #113.
 
 ## 4. Likes and hides
 
-- **Starts at:** the "⋯" at the end of a row (Like, Hide); a heart or a
-  crossed-out eye takes the mark off.
+- **Starts at:** the "⋯" at the end of a row (Like, Hide). A liked or
+  hidden row shows a heart or a crossed-out eye there, which opens the
+  same menu with Unlike or Show again.
 - **Effect:** a like belongs to the album and shows in every search; hidden
   albums leave the results (unless "Show hidden albums") and never go into
   an image. A toast offers Undo on hide.
@@ -105,24 +107,26 @@ and #113.
   text link after "View on Discogs". Nothing said it would join a stack or
   take a minute. An album already searched showed "Open your search" only.
 - **Now:**
-  - Every row has a route button beside its "⋯": one tap searches from
-    that album. Its tooltip and the line above the list say what happens:
-    "searches its credits (about a minute) and adds it to Stack Album 0 +
-    2", or "starts a stack with …" for a search on its own.
-  - The open row leads with an outlined "Search from this album" button and
-    the same line under it.
-  - An album already in the library shows an arrow instead (open your
-    search), and the open row offers "Stack it…" when that search is
-    outside this stack, which opens the Stack drawer on it.
+  - "Search from this album" is back where it was, the text button in the
+    open row's footer, and is also the first item of every row's "⋯"
+    menu, which now opens on liked and hidden rows too (with Unlike and
+    Show again). A route button on every row (tried in #114) crowded the
+    row's right edge and was removed.
+  - The first row a user opens shows a one-time tip: search from this
+    album, here or in any row's ⋯ menu, to follow its credits: a new
+    search (about a minute) that joins this stack, or starts one. "Got it"
+    dismisses it for good.
+  - Home's "How it works" has a fourth step, "Follow the credits".
+  - An album already in the library shows "Open your search", and "Stack
+    it…" when that search is outside this stack (opens the Stack drawer).
 - **What happens:** the new search's lineage continues the parent's trail
   (`childLineage`), so it joins the parent's stack. From a stack's Results
   tab it hangs on the member sharing the most people. The search runs as
   flow 1, from the known Discogs id, skipping `/api/search`.
 - **Events:** `search_started` with `source: "result"`, `search_jumped`
   (`from: "result"`) when an already searched album is opened.
-- **Still open:** the button doesn't say which stack until hovered or read
-  above the list; a first-time user may still not know what a stack is
-  (see flow 1).
+- **Still open:** after the tip is dismissed, nothing on the page names the
+  stack a search will join until it's run.
 
 ## 7. Putting a search into a stack by hand
 
@@ -204,13 +208,12 @@ Findings:
 
 ## Recommendations, ranked
 
-1. **Done here:** search from a result on every row, explained, with
-   "Stack it…" for albums already searched.
+1. **Done:** search from a result in the row's footer and its ⋯ menu,
+   explained once by a tip, with "Stack it…" for albums already searched.
 2. **Suggest a stack after a typed search** when `stacksThisFits` finds one
    (a one-line banner under the header with Stack it and Dismiss).
-3. **Teach the loop on Home:** a fourth "How it works" step, "Follow the
-   credits", on searching from a result and stacks; and the empty library
-   says the same.
+3. **Teach the loop on Home:** done for "How it works" (step 4, "Follow
+   the credits"); the empty library could say the same.
 4. **"Find an album" on a stack's Results tab,** like a search's.
 5. **One tiebreaker rule:** offer it on phones on the page too, or not in
    the Share sheet.

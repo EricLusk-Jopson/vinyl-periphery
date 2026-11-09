@@ -48,6 +48,8 @@ interface AlbumMarkProps {
     state: unknown;
     onOpen: () => void;
     onStack?: () => void;
+    /** The label for `onStack`: "Add to stacks…", "Add to this stack". */
+    stackAction?: string;
   };
 }
 
@@ -155,7 +157,7 @@ export const AlbumMark: React.FC<AlbumMarkProps> = ({
                     className="h-4 w-4 text-muted-foreground"
                     aria-hidden="true"
                   />
-                  Stack it…
+                  {existing.stackAction ?? "Stack it…"}
                 </button>
               )}
             </>

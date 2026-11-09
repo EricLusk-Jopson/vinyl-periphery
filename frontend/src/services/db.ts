@@ -1,13 +1,17 @@
 // src/services/db.ts
 import { SearchCache } from "@/contexts/cache/types";
+import { StackRecord, stacksFromLineage } from "@/lib/stackRecords";
 
 const DB_NAME = "vinyl-periphery";
 // v2: index on lineage.stackId, for library stacks. Records from v1 have no
 // lineage and stay out of the index (roots).
 // v3: a store of each stack's Results tab filters, by stack id.
-const DB_VERSION = 3;
+// v4: stacks as records (`stacks`, by id), made in the upgrade from the
+// lineage stacks the searches had (`stacksFromLineage`).
+const DB_VERSION = 4;
 const STORE_NAME = "saved-searches";
 const STACK_FILTERS = "stack-filters";
+const STACKS = "stacks";
 
 interface StackFiltersRecord<T> {
   stackId: string;
@@ -31,6 +35,13 @@ class DatabaseService {
 
       request.onsuccess = () => {
         this.db = request.result;
+        // Another tab (or a newer version of the app) needs to upgrade or
+        // delete the database: let go, so it isn't blocked; the next call
+        // here opens it again.
+        this.db.onversionchange = () => {
+          this.db?.close();
+          this.db = null;
+        };
         resolve();
       };
 
@@ -56,6 +67,18 @@ class DatabaseService {
         }
         if (!db.objectStoreNames.contains(STACK_FILTERS)) {
           db.createObjectStore(STACK_FILTERS, { keyPath: "stackId" });
+        }
+        if (!db.objectStoreNames.contains(STACKS)) {
+          const stacks = db.createObjectStore(STACKS, { keyPath: "id" });
+          // The stacks the library had, by lineage, become records.
+          const all = store.getAll();
+          all.onsuccess = () => {
+            for (const record of stacksFromLineage(
+              all.result as SearchCache[],
+            )) {
+              stacks.put(record);
+            }
+          };
         }
       };
     });
@@ -185,6 +208,52 @@ class DatabaseService {
         store.transaction.onerror = () => reject(store.transaction.error);
         if (gone.length === 0) resolve(gone);
       };
+    });
+  }
+
+  /** Every stack, newest first. */
+  async getAllStacks(): Promise<StackRecord[]> {
+    await this.init();
+    if (!this.db) throw new Error("Database not initialized");
+    return new Promise((resolve, reject) => {
+      const request = this.db!.transaction(STACKS, "readonly")
+        .objectStore(STACKS)
+        .getAll();
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () =>
+        resolve(
+          (request.result as StackRecord[]).sort(
+            (a, b) => b.createdAt - a.createdAt,
+          ),
+        );
+    });
+  }
+
+  async putStack(record: StackRecord): Promise<void> {
+    await this.init();
+    if (!this.db) throw new Error("Database not initialized");
+    return new Promise((resolve, reject) => {
+      const request = this.db!.transaction(STACKS, "readwrite")
+        .objectStore(STACKS)
+        .put(record);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve();
+    });
+  }
+
+  /** Deletes a stack (its albums stay) and its Results filters. */
+  async deleteStack(id: string): Promise<void> {
+    await this.init();
+    if (!this.db) throw new Error("Database not initialized");
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(
+        [STACKS, STACK_FILTERS],
+        "readwrite",
+      );
+      transaction.objectStore(STACKS).delete(id);
+      transaction.objectStore(STACK_FILTERS).delete(id);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
     });
   }
 

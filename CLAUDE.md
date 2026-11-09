@@ -128,18 +128,16 @@ ranks albums by how many of those people worked on them.
     finishes and stays until deleted; filter changes are written as they
     settle. There's no session store or Save button. (`savedSearchIds`
     lists every search; the name is older than this.)
-  - `src/lib/lineage.ts`: how each search was reached (`SearchCache.lineage`).
-    Searches from a result row continue their parent's trail; everything
-    else is a root, so searching from a result row adds to that row's stack.
-    That action is "Search from this album" in the open row's footer and
-    in every row's "⋯" menu (`AlbumMark`); a one-time tip in the first row
-    opened says what it does (`useTip`, `src/services/tips.ts`,
-    `searchFromNote`), and Home's "How it works" has it as step 4. An album
-    already searched shows "Open your search" instead, and "Stack it…" (the
-    Stack drawer, `outsideStack`) when that search is outside this stack.
-    Stored as snapshots, never derived. Its `stackId` says which stack a
-    search is in; its steps are only a fallback for
-    placing it (see `stackLayout`).
+  - `src/lib/lineage.ts`: how each search was reached (`SearchCache.lineage`),
+    kept as history only: stacks no longer come from it (they did before
+    DB v4; `stacksFromLineage` turned those into records once). Every
+    search goes into the flat list of albums, whatever it was started
+    from. "Search from this album" is in the open row's footer and every
+    row's "⋯" menu (`AlbumMark`); a one-time tip in the first row opened
+    says what it does (`useTip`, `src/services/tips.ts`, `searchFromNote`).
+    An album already searched shows "Open your search" instead, and "Add
+    to stacks…" (its Stacks drawer) on a search's results, or "Add to this
+    stack" on a stack's Results tab when it isn't in it.
   - `src/lib/transformers/`: role and name cleanup, with Jest tests.
     `roleCategories.ts` puts roles under the headings of Discogs's credits
     list, which the Roles filter groups by (Vocals, Instruments, Featuring &
@@ -222,17 +220,27 @@ ranks albums by how many of those people worked on them.
     (`defaultRoleStates` in `lib/results.ts`); results start
     sorted Most shared, then Popular (`useResultsSort`).
   - `src/components/ui/`: shadcn primitives. Edit sparingly.
-  - `src/lib/stacks.ts`: searches grouped by `lineage.stackId` (two or more
-    make a stack), the stack's root, and the stacks a search fits
-    (`stacksThisFits`: a member has it in its results; the Stack drawer
-    offers them, each with what links it by role category:
-    `src/lib/linkSummary.ts`). A stack is a graph (`stackLayout`): albums link
-    when one is in the other's results, and each member's step is its
-    fewest links from the root; members nothing links fall back to their
-    trail, with its deleted steps ghosted. No stack entity is stored.
-    `stackLayout` also gives each member its parents (linked albums one
-    step closer to the start), which the stack page's Albums tab turns into
-    a link line per card (`linkLineText`).
+  - Stacks are records of their own (`src/lib/stackRecords.ts`, IndexedDB
+    `stacks`, DB v4): a name and its albums (`StackMember`: search id,
+    album key, title, artist, art), the first being the start. An album
+    can be in any number of stacks; a member resolves to its search by
+    album key, so a repeat run stays in. Every album added must link to
+    one already in (`canJoin`: one has the other among its results).
+    Taking one out that strands others (`strandedBy`: no link back to
+    the start) asks first (`useStackRemoval`); they stay, under "Not
+    linked to the start". Deleting a stack (its page, with Undo) never
+    deletes its albums; albums are deleted only from their own results
+    page, and a deleted album stays in its stacks ghosted, with Search to
+    run it again. The library has two tabs, Stacks (New stack) and Albums
+    (`LibraryPage`). `StackEditor` makes and edits a stack: name, albums
+    in order with Remove, and the library to add from, albums that don't
+    link yet greyed out with a note. An album's Stacks drawer
+    (`StackDrawer`: results page header, library and stack cards) lists
+    every stack with Remove, Add, or why it can't (`stackOptionsFor`), and
+    New stack with this album. `src/lib/stacks.ts` resolves records
+    against the library (`libraryStacks`, `useLibraryStacks`) and lays a
+    stack out (`stackLayout`: steps from the start by credit links,
+    `UNLINKED` apart, parents for each card's link line, `linkLineText`).
   - A stack's Results tab reads its searches as one album:
     `src/lib/metaAlbum.ts` (takes any set of searches: credits, people
     deduped with their albums, results merged less the members; the share
@@ -240,17 +248,15 @@ ranks albums by how many of those people worked on them.
     it by credit, with member albums as a filter too (off, or required in "must include"),
     and scores links (member albums linking a result with someone who
     counts) and shared; default sort links, then shared, then Popular.
-    Filters are stored per `stackId` in IndexedDB (`stack-filters`, DB v3,
-    `useStackFilters`), start with every chip on, and are deleted by the
-    cache once the stack is under two searches. Searching from a result
-    hangs the new search on the member sharing the most people. Share
-    draws the filtered results.
+    Filters are stored per stack id in IndexedDB (`stack-filters`, DB v3,
+    `useStackFilters`), start with every chip on, and go with the stack.
+    Share draws the filtered results.
   - Routes (React Router): `/` home, `/library`,
     `/library/stack/:stackId` (Albums tab; `?view=results` for Results), and
     `/results?artist=…&album=…`, plus `&master=N` or `&release=N` when the
     Discogs album is known. A results page's back link goes where it was
-    opened from (a stack or the library); otherwise to the stack its search
-    is in, or the library (`useResultsBack`). Every page below the top
+    opened from (a stack or the library); otherwise to its stack when it's
+    in exactly one, or the library (`useResultsBack`). Every page below the top
     level has its back link in one place per width (`usePageBack`): the
     header's chevron on phones, `PageBack` above the title from md. Results
     and stack pages share their top (`PageHero`) and its actions, labelled

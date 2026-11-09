@@ -12,7 +12,8 @@ import { ShareButton } from "../share/ShareButton";
 import { PageSort } from "@/lib/share";
 import { SORT_OPTIONS, SortKey, tiebreakOptions } from "@/lib/results";
 import { ResultsSort } from "@/hooks/useResultsSort";
-import { isInStack } from "@/lib/stacks";
+import { stacksWith } from "@/lib/stacks";
+import { useLibraryStacks } from "@/hooks/useLibraryStacks";
 import { libraryPath } from "@/lib/routes";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "../ui/toast";
@@ -29,7 +30,7 @@ interface AlbumHeaderProps {
  * is in the library, so there's nothing to save.
  */
 export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search, order }) => {
-  const { deleteSearch, restoreSearch, searches, savedSearchIds } = useCache();
+  const { deleteSearch, restoreSearch } = useCache();
   const navigate = useNavigate();
   // The share map: this album in the middle, its liked results around it.
   const map = useMemo(
@@ -65,7 +66,9 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search, order }) => {
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [stacking, setStacking] = useState(false);
-  const stacked = isInStack(search, searches, savedSearchIds);
+  // How many stacks hold this album (it can be in any number).
+  const inStacks = stacksWith(search, useLibraryStacks()).length;
+  const stacked = inStacks > 0;
   const { artist, album } = search.searchParams;
   const contributorCount = Object.keys(search.contributors).length;
 
@@ -127,7 +130,9 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search, order }) => {
               type="button"
               onClick={() => setStacking(true)}
               aria-label={
-                stacked ? "Stack: in a stack" : "Stack: add to a stack"
+                stacked
+                  ? `Stacks: in ${inStacks} ${inStacks === 1 ? "stack" : "stacks"}`
+                  : "Stacks: add to a stack"
               }
               className={pageAction}
             >
@@ -138,7 +143,11 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search, order }) => {
                 )}
                 aria-hidden="true"
               />
-              <span aria-hidden="true">{stacked ? "Stacked" : "Stack"}</span>
+              <span aria-hidden="true">
+                {stacked
+                  ? `In ${inStacks} ${inStacks === 1 ? "stack" : "stacks"}`
+                  : "Add to stack"}
+              </span>
             </button>
             <button
               type="button"

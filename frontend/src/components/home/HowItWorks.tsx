@@ -14,8 +14,8 @@ const STEPS = [
     body: "We return the credited contributors' discographies, ranked by overlap with your search. The more credits they share, the higher they rank. You can explore now music beyond marketing and algorithms.",
   },
   {
-    title: "Follow the credits",
-    body: "Found something intriguing? Open its \u22ef menu and choose Search from this album. Each search you follow joins a stack, so you can see how the albums connect, read them as one, and share the picture.",
+    title: "Follow the credits, build stacks",
+    body: "Found something intriguing? Open its \u22ef menu and choose Search from this album. Then group albums linked by their credits into stacks, a band's whole discography or a trail from a favourite, and read each stack as one.",
   },
 ];
 

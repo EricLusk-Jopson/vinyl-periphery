@@ -1,456 +1,150 @@
 import { SearchCache } from "@/contexts/cache/types";
-import { childLineage, rootLineage } from "./lineage";
+import { rootLineage } from "./lineage";
+import { memberFor, StackRecord } from "./stackRecords";
 import {
-  groupStacks,
-  searchLibrary,
-  stackGhosts,
-  stackLabel,
-  stackMembersByDepth,
-  stackRoot,
-  stacksThisFits,
   fitLinkText,
-  stackDepth,
-  stackLayout,
-  isInStack,
-  searchFromNote,
-  outsideStack,
-  stackIdOf,
-  LibraryStack,
+  libraryStack,
+  libraryStacks,
   linkLineLabel,
   linkLineText,
+  searchLibrary,
+  searchStacks,
   StackParent,
+  stackLabel,
+  stackLayout,
+  stackMembersByDepth,
+  stackOptionsFor,
+  stackRoot,
+  stacksWith,
+  UNLINKED,
 } from "./stacks";
 
-// Ids end in a timestamp, as real ones do.
-const make = (id: number, album: string, parent?: SearchCache, via = [1]) => {
-  const search = {
-    searchId: `A-${album}-${id}`,
-    searchParams: { artist: `${album} Artist`, album },
+/** An album whose results are these album ids, linked by person 1. */
+const album = (id: number, title: string, results: number[] = []) =>
+  ({
+    searchId: `${title}-${1000 + id}`,
+    searchParams: { artist: `${title} Artist`, album: title },
     target: { type: "master", id, key: `master:${id}` },
-    thumb: `https://art/${id}`,
-  } as SearchCache;
-  search.lineage = parent
-    ? childLineage(parent, via, parent.thumb)
-    : rootLineage(search.searchId);
-  return search;
-};
-
-const root = make(1, "Unmap");
-const child = make(2, "Bon Iver", root);
-const grandchild = make(3, "Hideaway", child, [2]);
-const single = make(4, "Loner");
-
-describe("groupStacks", () => {
-  it("groups two or more saved searches sharing a stack id", () => {
-    const entries = groupStacks([grandchild, single, root, child]);
-    expect(entries).toEqual([
-      {
-        kind: "stack",
-        stackId: root.searchId,
-        members: [grandchild, root, child],
-      },
-      { kind: "single", search: single },
-    ]);
-  });
-
-  it("shows a stack down to one member as a plain card, regrouping later", () => {
-    expect(groupStacks([grandchild, single])).toEqual([
-      { kind: "single", search: grandchild },
-      { kind: "single", search: single },
-    ]);
-    // Saving another member of the same trail regroups it.
-    expect(groupStacks([grandchild, child])[0].kind).toBe("stack");
-  });
-
-  it("treats searches without lineage, or saved on their own, as singles", () => {
-    const loose = { ...child, lineage: undefined };
-    expect(groupStacks([loose, root]).map((e) => e.kind)).toEqual([
-      "single",
-      "single",
-    ]);
-  });
-});
-
-describe("stackRoot and stackLabel", () => {
-  const stack: LibraryStack = {
-    kind: "stack",
-    stackId: root.searchId,
-    members: [root, child, grandchild],
-  };
-
-  it("uses the root search while it's saved", () => {
-    expect(stackRoot(stack)).toMatchObject({
-      title: "Unmap",
-      thumb: "https://art/1",
-      search: root,
-    });
-    expect(stackLabel(stack)).toBe("Unmap + 2");
-  });
-
-  it("keeps the root's name and art after the root is deleted", () => {
-    const withoutRoot = { ...stack, members: [child, grandchild] };
-    expect(stackRoot(withoutRoot)).toMatchObject({
-      searchId: root.searchId,
-      title: "Unmap",
-      thumb: "https://art/1",
-    });
-    expect(stackRoot(withoutRoot).search).toBeUndefined();
-    expect(stackLabel(withoutRoot)).toBe("Unmap + 2");
-  });
-});
-
-describe("stackMembersByDepth", () => {
-  const stack: LibraryStack = {
-    kind: "stack",
-    stackId: root.searchId,
-    members: [grandchild, root, child],
-  };
-
-  it("orders by step, then oldest first", () => {
-    expect(stackMembersByDepth(stack).map((s) => s.searchId)).toEqual([
-      root.searchId,
-      child.searchId,
-      grandchild.searchId,
-    ]);
-  });
-});
-
-describe("stackGhosts", () => {
-  it("lists unsaved ancestors with the lineage to rejoin the stack", () => {
-    const stack: LibraryStack = {
-      kind: "stack",
-      stackId: root.searchId,
-      members: [root, grandchild],
-    };
-    const ghosts = stackGhosts(stack);
-    expect(ghosts.map((g) => [g.step.title, g.depth])).toEqual([
-      ["Bon Iver", 1],
-    ]);
-    expect(ghosts[0].lineage).toEqual({
-      stackId: root.searchId,
-      depth: 1,
-      path: [grandchild.lineage!.path[0]],
-      via: [1],
-    });
-  });
-
-  it("doesn't ghost a step whose album is a saved member under a new id", () => {
-    const rerun = { ...child, searchId: "A-Bon Iver-99" };
-    const stack: LibraryStack = {
-      kind: "stack",
-      stackId: root.searchId,
-      members: [root, rerun, grandchild],
-    };
-    expect(stackGhosts(stack)).toEqual([]);
-  });
-});
-
-describe("searchLibrary", () => {
-  it("matches album or artist, ignoring case and accents", () => {
-    const saved = [root, child, single];
-    expect(
-      searchLibrary(saved, "bon").map((s) => s.searchParams.album),
-    ).toEqual(["Bon Iver"]);
-    expect(searchLibrary(saved, "LONER artist")).toEqual([single]);
-    expect(searchLibrary(saved, " ")).toEqual(saved);
-  });
-});
-
-describe("stacksThisFits", () => {
-  // `make` ids: album N is master:N. A member "finds" an album when its
-  // results hold that key.
-  const withResults = (
-    search: SearchCache,
-    results: Record<number, number[]>,
-  ): SearchCache => ({
-    ...search,
-    contributors: {
-      1: { id: 1, name: "Jim Keltner" },
-      2: { id: 2, name: "Steve Albini" },
-      3: { id: 3, name: "Phil Ek" },
-    } as unknown as SearchCache["contributors"],
+    thumb: "",
+    lineage: rootLineage(`${title}-${1000 + id}`),
+    contributors: { 1: { id: 1, name: "Steve Albini", roles: ["Engineer"] } },
     releases: Object.fromEntries(
-      Object.entries(results).map(([id, contributorIds]) => [
-        `master:${id}`,
-        { key: `master:${id}`, contributorIds },
+      results.map((r) => [
+        `master:${r}`,
+        { key: `master:${r}`, contributorIds: [1] },
       ]),
-    ) as unknown as SearchCache["releases"],
-  });
-  const stackRootSearch = withResults(root, { 9: [1] });
-  const stackChild = withResults(child, { 9: [1, 2] });
-  const otherRoot = withResults(make(5, "Other"), { 9: [3] });
-  const otherChild = make(6, "Other Child", otherRoot);
-  const manual = make(9, "Manual");
-  const all = (...list: SearchCache[]) =>
-    Object.fromEntries(list.map((s) => [s.searchId, s]));
+    ),
+  }) as unknown as SearchCache;
 
-  it("offers each saved stack whose members found this album, best first", () => {
-    const searches = all(
-      stackRootSearch,
-      stackChild,
-      otherRoot,
-      otherChild,
-      manual,
-    );
-    const saved = new Set([
-      stackRootSearch.searchId,
-      stackChild.searchId,
-      otherRoot.searchId,
-      otherChild.searchId,
-    ]);
-    const fits = stacksThisFits(manual, searches, saved);
-    expect(fits.map((f) => f.stack.stackId)).toEqual([
-      root.searchId,
-      otherRoot.searchId,
-    ]);
-    // The member nearest the start is the parent, even though the child
-    // shares more people: the album sits at step 1, beside the child.
-    expect(fits[0].parent.searchId).toBe(root.searchId);
-    expect(fits[0].via).toEqual([1]);
-    expect(fits[0].lineage).toMatchObject({
-      stackId: root.searchId,
-      depth: 1,
-      via: [1],
-    });
-    expect(fits[0].lineage.path.map((p) => p.searchId)).toEqual([
-      root.searchId,
-    ]);
-  });
+// Seed links B; B links C; D links nothing; E is deleted from the library.
+const seed = album(1, "Seed", [2]);
+const b = album(2, "B", [3]);
+const c = album(3, "C");
+const d = album(4, "D");
+const e = album(5, "E");
 
-  it("needs two saved members, and skips the search's own stack", () => {
-    const searches = all(stackRootSearch, stackChild, manual);
-    expect(
-      stacksThisFits(manual, searches, new Set([stackRootSearch.searchId])),
-    ).toEqual([]);
-    const ownChild = { ...manual, lineage: childLineage(root, [1], "") };
-    expect(
-      stacksThisFits(
-        ownChild,
-        all(stackRootSearch, stackChild, ownChild),
-        new Set([stackRootSearch.searchId, stackChild.searchId]),
-      ),
-    ).toEqual([]);
-  });
+const all = [seed, b, c, d];
+const searches = Object.fromEntries(all.map((s) => [s.searchId, s]));
+const saved = new Set(all.map((s) => s.searchId));
 
-  it("skips stacks already holding this album, and albums with no target", () => {
-    const repeat = {
-      ...make(9, "Manual again"),
-      lineage: childLineage(child, [1], ""),
-    };
-    const searches = all(stackRootSearch, stackChild, repeat, manual);
-    const saved = new Set([
-      stackRootSearch.searchId,
-      stackChild.searchId,
-      repeat.searchId,
-    ]);
-    expect(stacksThisFits(manual, searches, saved)).toEqual([]);
-    expect(
-      stacksThisFits(
-        { ...manual, target: undefined },
-        all(stackRootSearch, stackChild),
-        new Set([stackRootSearch.searchId, stackChild.searchId]),
-      ),
-    ).toEqual([]);
-  });
-
-  it("offers saved searches on their own only when asked, after stacks", () => {
-    const lone = withResults(make(7, "Lone"), { 9: [1, 2, 3] });
-    const searches = all(stackRootSearch, stackChild, lone, manual);
-    const saved = new Set([
-      stackRootSearch.searchId,
-      stackChild.searchId,
-      lone.searchId,
-    ]);
-    expect(stacksThisFits(manual, searches, saved).map((f) => f.kind)).toEqual([
-      "stack",
-    ]);
-    const fits = stacksThisFits(manual, searches, saved, { singles: true });
-    // Stacks first, even though the lone search shares more people.
-    expect(fits.map((f) => [f.kind, f.parent.searchId])).toEqual([
-      ["stack", root.searchId],
-      ["single", lone.searchId],
-    ]);
-    expect(fits[1].lineage).toMatchObject({
-      stackId: lone.searchId,
-      depth: 1,
-      via: [1, 2, 3],
-    });
-  });
-
-  it("never puts a search after one on its own trail below it", () => {
-    // Saved on its own, but reached from `manual`: it can't come first.
-    const below = withResults(
-      { ...make(8, "Below"), lineage: childLineage(manual, [1], "") },
-      { 9: [1] },
-    );
-    expect(
-      stacksThisFits(manual, all(below, manual), new Set([below.searchId]), {
-        singles: true,
-      }),
-    ).toEqual([]);
-  });
+const record = (
+  id: string,
+  members: SearchCache[],
+  name = "Mine",
+): StackRecord => ({
+  id,
+  name,
+  members: members.map((m) => memberFor(m, 1)),
+  createdAt: 1,
+  updatedAt: 1,
 });
 
-describe("isInStack", () => {
-  it("knows whether a saved search is grouped with others", () => {
-    const searches = all2(root, child, single);
-    const saved = new Set([root.searchId, child.searchId, single.searchId]);
-    expect(isInStack(child, searches, saved)).toBe(true);
-    expect(isInStack(single, searches, saved)).toBe(false);
+const resolve = (r: StackRecord) => libraryStacks([r], searches, saved)[0];
+
+describe("libraryStack", () => {
+  it("finds its albums in the library and lists the deleted ones", () => {
+    const stack = resolve(record("s", [seed, b, e]));
+    expect(stack.members).toEqual([seed, b]);
+    expect(stack.missing.map((m) => m.title)).toEqual(["E"]);
+    expect(stackLabel(stack)).toBe("Mine");
+  });
+
+  it("starts at its first album, or that album as last known", () => {
+    expect(stackRoot(resolve(record("s", [seed, b]))).search).toBe(seed);
+    const gone = stackRoot(resolve(record("s", [e, seed])));
+    expect(gone).toMatchObject({ title: "E", targetKey: "master:5" });
+    expect(gone.search).toBeUndefined();
+    expect(libraryStack(record("s", []), new Map()).members).toEqual([]);
   });
 });
-
-describe("searchFromNote", () => {
-  it("says a search from a result joins the stack, or starts one", () => {
-    const searches = all2(root, child, single);
-    const saved = new Set([root.searchId, child.searchId, single.searchId]);
-    expect(searchFromNote(child, searches, saved)).toMatch(/joins .* \+ 1$/);
-    expect(searchFromNote(single, searches, saved)).toMatch(
-      new RegExp(`starts a stack with ${single.searchParams.album}$`),
-    );
-    expect(outsideStack(single, stackIdOf(child))).toBe(true);
-    expect(outsideStack(root, stackIdOf(child))).toBe(false);
-  });
-});
-
-function all2(...list: SearchCache[]) {
-  return Object.fromEntries(list.map((s) => [s.searchId, s]));
-}
 
 describe("stackLayout", () => {
-  // Shaped like the New Sound stack: the start's results include albums
-  // that were reached through other steps.
-  const withKeys = (search: SearchCache, keys: number[]): SearchCache => ({
-    ...search,
-    releases: Object.fromEntries(
-      keys.map((id) => [
-        `master:${id}`,
-        { key: `master:${id}`, contributorIds: [1] },
-      ]),
-    ) as unknown as SearchCache["releases"],
-  });
-  const newSound = withKeys(make(10, "The New Sound"), [11, 12, 14]);
-  const believe = withKeys(make(11, "My New Band Believe", newSound), [13]);
-  const hellfire = make(12, "Hellfire", newSound);
-  const giantPalm = make(13, "Giant Palm", believe);
-  // Reached from Giant Palm, but in The New Sound's results too.
-  const schlagenheim = make(14, "Schlagenheim", giantPalm);
-  const stack = (...members: SearchCache[]): LibraryStack => ({
-    kind: "stack",
-    stackId: newSound.searchId,
-    members,
-  });
-
-  it("puts each member at its fewest links from the start", () => {
-    const { levels, ghosts } = stackLayout(
-      stack(newSound, believe, hellfire, giantPalm, schlagenheim),
-    );
+  it("steps albums from the start by their links, unlinked ones apart", () => {
+    // B was taken out of Seed, B, C: C has nothing linking it back.
+    const stack = resolve(record("s", [seed, c, d]));
+    const { levels, ghosts } = stackLayout(stack);
     expect(Object.fromEntries(levels)).toEqual({
-      [newSound.searchId]: 0,
-      [believe.searchId]: 1,
-      [hellfire.searchId]: 1,
-      [giantPalm.searchId]: 2,
-      [schlagenheim.searchId]: 1,
+      [seed.searchId]: 0,
+      [c.searchId]: UNLINKED,
+      [d.searchId]: UNLINKED,
     });
     expect(ghosts).toEqual([]);
   });
 
-  it("falls back to the trail, ghosting unsaved steps, when nothing links", () => {
-    // Giant Palm is only linked through Believe, which isn't saved.
-    const { levels, ghosts } = stackLayout(stack(newSound, giantPalm));
-    expect(levels.get(giantPalm.searchId)).toBe(2);
-    expect(ghosts.map((g) => [g.step.title, g.depth])).toEqual([
-      ["My New Band Believe", 1],
-    ]);
-  });
-
-  it("ghosts the start when it isn't saved, and links to it by album", () => {
-    const { levels, ghosts } = stackLayout(stack(hellfire, schlagenheim));
-    // Nothing saved links Schlagenheim (only the unsaved start had it in
-    // its results), so its trail's unsaved steps show.
-    expect(ghosts.map((g) => [g.step.title, g.depth])).toEqual([
-      ["The New Sound", 0],
-      ["My New Band Believe", 1],
-      ["Giant Palm", 2],
-    ]);
-    expect(levels.get(hellfire.searchId)).toBe(1);
-    expect(levels.get(schlagenheim.searchId)).toBe(3);
-  });
-
-  it("gives each member its parents: linked albums one step closer", () => {
-    const { parents } = stackLayout(
-      stack(newSound, believe, hellfire, giantPalm, schlagenheim),
-    );
-    expect(parents.get(newSound.searchId)).toEqual([]);
-    expect(parents.get(believe.searchId)).toEqual([
-      {
-        key: "master:10",
-        title: "The New Sound",
-        artist: "The New Sound Artist",
-        people: [1],
-        names: [],
-        ghost: false,
-        byTrail: false,
-      },
-    ]);
-    // Reached from Giant Palm, but linked straight from the start.
-    expect(parents.get(schlagenheim.searchId)?.map((p) => p.title)).toEqual([
-      "The New Sound",
-    ]);
-  });
-
-  it("lists several parents, the one sharing most people first", () => {
-    const named = (search: SearchCache): SearchCache =>
-      ({
-        ...search,
-        contributors: {
-          1: { id: 1, name: "Geordie Greep", roles: ["Guitar"] },
-          2: { id: 2, name: "Cameron Picton (2)", roles: ["Bass"] },
-          3: { id: 3, name: "Morgan Simpson", roles: ["Drums"] },
-        },
-      }) as unknown as SearchCache;
-    const hellfireLinked = {
-      ...hellfire,
-      releases: {
-        "master:13": { key: "master:13", contributorIds: [1, 2, 3] },
-      },
-    } as unknown as SearchCache;
-    const { parents } = stackLayout(
-      stack(newSound, believe, hellfireLinked, named(giantPalm)),
-    );
-    const giant = parents.get(giantPalm.searchId)!;
-    expect(giant.map((p) => [p.title, p.people])).toEqual([
-      ["Hellfire", [1, 2, 3]],
-      ["My New Band Believe", [1]],
-    ]);
-    expect(giant[0].names).toEqual([
-      "Geordie Greep",
-      "Cameron Picton",
-      "Morgan Simpson",
-    ]);
-  });
-
-  it("falls back to the trail step, marked deleted when it's a ghost", () => {
-    const { parents } = stackLayout(stack(newSound, giantPalm));
-    expect(parents.get(giantPalm.searchId)).toEqual([
+  it("gives each album the albums one step closer that link it", () => {
+    const stack = resolve(record("s", [seed, b, c, e]));
+    const { levels, parents, ghosts } = stackLayout(stack);
+    expect(levels.get(c.searchId)).toBe(2);
+    expect(parents.get(c.searchId)).toEqual([
       expect.objectContaining({
-        title: "My New Band Believe",
+        title: "B",
         people: [1],
-        ghost: true,
-        byTrail: true,
+        names: ["Steve Albini"],
       }),
     ]);
-    // The ghost itself links back to the start.
-    const ghost = stackLayout(stack(newSound, giantPalm)).ghosts[0];
+    expect(parents.get(seed.searchId)).toEqual([]);
+    expect(ghosts.map((g) => g.member.title)).toEqual(["E"]);
+    expect(stackMembersByDepth(stack).map((m) => m.searchParams.album)).toEqual(
+      ["Seed", "B", "C"],
+    );
+  });
+});
+
+describe("stackOptionsFor and stacksWith", () => {
+  const holding = resolve(record("a", [seed, b], "Holds B"));
+  const open = resolve(record("b", [b], "Takes C"));
+  const closed = resolve(record("c", [d], "No link"));
+
+  it("lists the stacks holding it, then those it links to, then the rest", () => {
+    const options = stackOptionsFor(c, [closed, open, holding]);
+    expect(options.map((o) => [o.stack.record.name, o.join.ok])).toEqual([
+      ["Takes C", true],
+      ["Holds B", true],
+      ["No link", false],
+    ]);
+    const forB = stackOptionsFor(b, [closed, open, holding]);
     expect(
-      parents.get(ghost.step.searchId)?.map((p) => [p.title, p.byTrail]),
-    ).toEqual([["The New Sound", false]]);
+      forB.filter((o) => o.join.member).map((o) => o.stack.record.name),
+    ).toEqual(["Takes C", "Holds B"]);
   });
 
-  it("reports the deepest step", () => {
-    expect(stackDepth(stack(newSound, believe, giantPalm, schlagenheim))).toBe(
-      2,
-    );
+  it("finds the stacks an album is in, by album", () => {
+    expect(
+      stacksWith(b, [holding, open, closed]).map((s) => s.stackId),
+    ).toEqual(["a", "b"]);
+    const rerun = { ...b, searchId: "B-9999" } as SearchCache;
+    expect(stacksWith(rerun, [holding]).length).toBe(1);
+  });
+});
+
+describe("searchLibrary and searchStacks", () => {
+  it("matches albums by title or artist, and stacks by name or album", () => {
+    expect(searchLibrary(all, "seed")).toEqual([seed]);
+    expect(searchLibrary(all, "")).toEqual(all);
+    const stacks = [resolve(record("s", [seed, b], "Trail"))];
+    expect(searchStacks(stacks, "trail")).toHaveLength(1);
+    expect(searchStacks(stacks, "B Artist")).toHaveLength(1);
+    expect(searchStacks(stacks, "nothing")).toHaveLength(0);
   });
 });
 

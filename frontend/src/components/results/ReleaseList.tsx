@@ -42,7 +42,7 @@ import {
 import { ReleaseRow } from "./ReleaseRow";
 import { useTip } from "@/hooks/useTip";
 import { StackDrawer } from "../library/StackDrawer";
-import { outsideStack, searchFromNote, stackIdOf } from "@/lib/stacks";
+import { searchFromNote } from "@/lib/stacks";
 import { ResultSearch } from "./ResultSearch";
 
 const PAGE_SIZE = 20;
@@ -69,7 +69,7 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
   isSearching,
   toolbarAction,
 }) => {
-  const { searches, updateFilterState, savedSearchIds } = useCache();
+  const { searches, updateFilterState } = useCache();
   // Once, in the first row opened: how stacks grow.
   const tip = useTip("search-from-result");
   // A search already in the library, being moved into this stack.
@@ -153,9 +153,8 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
   const hasAnyReleases = Object.keys(search.releases).length > 0;
 
   // What searching from a row does: joins this search's stack, or starts one.
-  const searchNote = searchFromNote(search, searches, savedSearchIds);
+  const searchNote = searchFromNote();
   const tipText = `Search from this album, here or in any row’s ⋯ menu, to follow its credits: ${searchNote}.`;
-  const thisStack = stackIdOf(search);
 
   const searchFrom = (release: ScoredRelease) => {
     setPendingKey(release.key);
@@ -301,9 +300,9 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
                         state: { from: "home" },
                         onOpen: () =>
                           track("search_jumped", { from: "result" }),
-                        ...(outsideStack(found, thisStack)
-                          ? { onStack: () => setStacking(found) }
-                          : {}),
+                        // Its stacks: add it to any it links to.
+                        onStack: () => setStacking(found),
+                        stackAction: "Add to stacks…",
                       }
                     : undefined;
                 })()}

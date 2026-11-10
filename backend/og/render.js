@@ -570,6 +570,14 @@ const mapBox = (payload, size) => {
 };
 
 /** A map's header: eyebrow, the centre album, and the caption (two lines at most). */
+/** Under a stack's title, what the picture is, from its start album. */
+const LABEL_NOUN = {
+  "Connections around": "Map from",
+  "Stacked from": "Map from",
+  "People around": "People from",
+  "Transit map from": "Transit map from",
+};
+
 const mapHeader = (label, payload, size) =>
   h(
     "div",
@@ -581,14 +589,19 @@ const mapHeader = (label, payload, size) =>
       flexDirection: "column",
       gap: 4,
     },
-    eyebrow(label, 0.7),
-    line(payload.centre.t, {
+    eyebrow(payload.title ? "Stack" : label, 0.7),
+    line(payload.title || payload.centre.t, {
       fontFamily: "Bebas Neue",
       fontSize: 56,
       lineHeight: 1,
       color: C.foreground,
     }),
-    line(payload.centre.r, { fontSize: 22, color: C.muted }),
+    line(
+      payload.title
+        ? `${LABEL_NOUN[label] ?? "From"} ${payload.centre.t}`
+        : payload.centre.r,
+      { fontSize: 22, color: C.muted },
+    ),
     payload.caption &&
       h(
         "div",

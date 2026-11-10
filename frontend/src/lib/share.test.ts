@@ -687,6 +687,16 @@ describe("stack People and Transit", () => {
     ).toBe("The 2 albums most linked to My trail, with some roles hidden.");
   });
 
+  it("titles a stack's image with the stack's name", () => {
+    const named = { ...data(), name: "My trail" } as ShareData;
+    for (const chosen of ["map", "lanes", "transit"] as const) {
+      const payload = buildPayload({ ...defaultDraft(), chosen }, named);
+      expect(payload.st).toBe("My trail");
+    }
+    // A search's image keeps the album's title.
+    expect(buildPayload(defaultDraft(), data()).st).toBeUndefined();
+  });
+
   it("draws every stack album as a line on the swimlanes, alike", () => {
     const draft = { ...defaultDraft(), chosen: "lanes" as const };
     const payload = buildPayload(draft, data());

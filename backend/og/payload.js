@@ -122,9 +122,16 @@ export function readBody(body) {
 
 /**
  * The payload, cleaned and clipped, or null when it's missing, malformed,
- * or has nothing to draw.
+ * or has nothing to draw. `st`, when given, is the image's title (a stack's
+ * name) in place of the centre album's.
  */
 export function parsePayload(raw) {
+  const parsed = parseLayout(raw);
+  const title = parsed ? text(raw.st, MAX_TITLE) : "";
+  return parsed && title ? { ...parsed, title } : parsed;
+}
+
+function parseLayout(raw) {
   if (!raw || typeof raw !== "object" || raw.v !== 1) return null;
 
   if (raw.l === "card") {

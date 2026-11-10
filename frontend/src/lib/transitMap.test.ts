@@ -518,3 +518,64 @@ describe("searchTransit and stackTransit", () => {
     expect(map).toMatchObject({ stations: [], lines: [], width: 0, height: 0 });
   });
 });
+
+describe("shared track", () => {
+  // Random maps (seeded) that once drew two legs on one track, one line
+  // hiding the other.
+  const random = (seed: number) => {
+    let x = seed;
+    const r = () => (x = (x * 16807) % 2147483647) / 2147483647;
+    const n = 6 + Math.floor(r() * 9);
+    const stops: TransitStop[] = Array.from({ length: n }, (_, k) => ({
+      key: `k${k}`,
+      title: `Album ${k}`,
+      detail: `Artist ${k}`,
+      column: 2000 + Math.floor(r() * 12),
+      marked: k < 1 + Math.floor(r() * 3),
+    }));
+    const people = Array.from({ length: 4 + Math.floor(r() * 9) }, (_, i) => {
+      const on = stops
+        .filter((s) => (s.marked && r() < 0.8) || r() < 0.3)
+        .map((s) => s.key);
+      return {
+        id: i + 1,
+        name: `P${i}`,
+        stations: on.length >= 2 ? on : stops.slice(0, 2).map((s) => s.key),
+      };
+    });
+    return { stops, people };
+  };
+  /** Pairs of segments, on different legs, drawn on top of each other. */
+  const hidden = (legs: P[][][]) => {
+    const segs = legs.flatMap((line, l) =>
+      line.flatMap((leg, k) =>
+        leg
+          .slice(1)
+          .map((q, i) => ({ p: leg[i], q, id: `${l}:${k}` }))
+          .filter(({ p, q }) => Math.hypot(q.x - p.x, q.y - p.y) > 1),
+      ),
+    );
+    let count = 0;
+    segs.forEach((s, a) =>
+      segs.slice(a + 1).forEach((t) => {
+        if (s.id === t.id) return;
+        const length = Math.hypot(s.q.x - s.p.x, s.q.y - s.p.y);
+        const u = { x: (s.q.x - s.p.x) / length, y: (s.q.y - s.p.y) / length };
+        const v = { x: t.q.x - t.p.x, y: t.q.y - t.p.y };
+        if (Math.abs(u.x * v.y - u.y * v.x) / Math.hypot(v.x, v.y) > 0.01) return;
+        const apart = Math.abs((t.p.x - s.p.x) * u.y - (t.p.y - s.p.y) * u.x);
+        if (apart > 2) return;
+        const b1 = (t.p.x - s.p.x) * u.x + (t.p.y - s.p.y) * u.y;
+        const b2 = (t.q.x - s.p.x) * u.x + (t.q.y - s.p.y) * u.y;
+        if (Math.min(length, Math.max(b1, b2)) - Math.max(0, Math.min(b1, b2)) > 6) count++;
+      }),
+    );
+    return count;
+  };
+
+  it.each([8, 14, 20])("draws legs sharing track side by side (map %i)", (seed) => {
+    const map = shareTransitMap(random(seed * 7919));
+    expect(map.lines.length).toBeGreaterThan(1);
+    expect(hidden(map.lines.map((l) => l.legs))).toBe(0);
+  });
+});

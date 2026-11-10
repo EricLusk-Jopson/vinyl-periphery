@@ -219,7 +219,11 @@ ranks albums by how many of those people worked on them.
       straight or one run and one diagonal; lines sharing a leg run side
       by side (`bundleOrder`): a line joining a bundle keeps the side it
       came from, a line starting there goes outside, on the side it later
-      leaves by, and no pair swaps along a stretch they share. The searched or stacked albums are ringed in
+      leaves by, and no pair swaps along a stretch they share. Legs
+      between different stations that still share track (the score makes
+      it rare, the grid can't always avoid it) are drawn as one bundle
+      there, each on the side it turns off to (`trackSlots`), so no line
+      hides another. The searched or stacked albums are ringed in
       red. `shareTransitMap` searches both flows roughly, refines the one
       that scores better, and draws it at the grid size that fits the
       square best with no labels colliding. Labels sit beside the
@@ -339,7 +343,10 @@ switch both run from `main`, so keep `backend/server.js` and
 
 - Contributor discographies are read 500 items a page, newest first
   (`discographyUrl`: `sort=year&sort_order=desc`), up to
-  `MAX_DISCOGRAPHY_PAGES` (4, so 2,000 items) per person. The few people
+  `MAX_DISCOGRAPHY_PAGES` (4, so 2,000 items) per person. The search reads
+  everyone's first page, then the further pages those announced
+  (`listContributorReleases`), so the progress counts calls and its time
+  left settles after the first pass. The few people
   past the cap lose their oldest credits (`discographies_capped` on
   `search_completed` counts them). Discogs's default order grouped items
   by role first, which cost the latest Appearance credits instead.

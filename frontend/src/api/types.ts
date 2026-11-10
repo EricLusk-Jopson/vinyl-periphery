@@ -181,12 +181,11 @@ export interface SearchStage {
   id: "initial" | "contributors" | "releases";
   label: string;
   current: number;
-  total: number;
   /**
-   * Calls still to come for the current item beyond the one under way:
-   * further discography pages, once the first page says how many.
+   * Items in the stage. For discographies, the calls known so far: it grows
+   * during the first pass as first pages announce further pages.
    */
-  extraCalls?: number;
+  total: number;
 }
 
 export interface MutationCallbacks {

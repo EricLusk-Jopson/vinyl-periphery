@@ -181,15 +181,17 @@ ranks albums by how many of those people worked on them.
       who counts and links one of the page's results (all of them, as
       filtered there: the album count doesn't apply), the top
       `ShareDraft.people` by albums plus those added and less those taken
-      out by hand (`chooseLanes`, `pickIds`, `ShareDraft.peoplePicks`); one
-      even mark per year for every album they worked on, between the
-      sheet's From and To years when set (`withinYears`,
-      `ShareDraft.years`), marks closer than `LANE_TICK_GAP` drawn as one;
-      no key. Its sheet steps are Picture,
+      out by hand (`chooseLanes`, `pickIds`, `ShareDraft.peoplePicks`); a
+      mark per year for every album they worked on, between the sheet's
+      From and To years when set (`withinYears`, `ShareDraft.years`),
+      1px taller per album that year (`LANE_TICK_PER_ALBUM`) up to most of
+      the row, marks closer than `LANE_TICK_GAP` drawn as one with their
+      counts summed (`laneMarks`); no key. Its sheet steps are Picture,
       Years, People (count, then who's drawn with Remove and a search to
       add anyone: `PeopleControls`) and Appearance: no page filters box and
-      no album fine-tune. A red line, labelled, at the searched
-      album's year, or at every stack album's, all alike. Lanes sort by
+      no album fine-tune. The searched album's year (or every stack
+      album's) is each person's own mark drawn red, labelled once above the
+      lanes; no line across them. Lanes sort by
       primary group, then first year; undated items are counted, not
       drawn; lanes the page cap cut short are dashed before their first
       year.

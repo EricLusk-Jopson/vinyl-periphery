@@ -857,6 +857,33 @@ export function stackElement(payload, size, art) {
 const LANES = { name: 300, gap: 24, labelRow: 22, axis: 34, legend: 0, maxRow: 96 };
 /** Marks closer than this (px) are drawn as one. */
 const LANE_TICK_GAP = 5;
+/** Each album in a year adds this much (px) to that year's mark. */
+const LANE_TICK_PER_ALBUM = 1;
+
+/**
+ * One lane's marks: a mark per year with albums, its count the albums that
+ * year; marks closer than LANE_TICK_GAP become one (counts summed, at the
+ * first year), red when any year in it is a searched or stacked album's.
+ */
+export const laneMarks = (lane, x, albumYears) => {
+  const counts = new Map();
+  for (const [year, n] of [...lane.solid, ...lane.faint]) {
+    counts.set(year, (counts.get(year) ?? 0) + n);
+  }
+  const marks = [];
+  for (const year of [...counts.keys()].sort((a, b) => a - b)) {
+    const count = counts.get(year);
+    const album = albumYears.has(year);
+    const last = marks[marks.length - 1];
+    if (last && x(year) - x(last.year) < LANE_TICK_GAP) {
+      last.count += count;
+      last.album = last.album || album;
+      continue;
+    }
+    marks.push({ year, count, album });
+  }
+  return marks;
+};
 /** Album labels over the lanes: mono 16px, about this wide a character. */
 const LANE_LABEL = { size: 16, char: 9.7, chars: 30, gap: 14 };
 
@@ -912,45 +939,37 @@ export function lanesElement(payload, size) {
   const { top, ...box } = mapBox(payload, size);
   const g = lanesGeometry(payload, box);
   const mid = (i) => g.laneTop(i) + g.row / 2;
-  const tick = Math.min(26, g.row * 0.3);
+  // A mark's height: 1px more per album that year, from a base, up to
+  // most of the row, so every row keeps its height.
+  const base = Math.min(18, g.row * 0.25);
+  const tallest = g.row * 0.8;
+  const height = (count) => Math.min(tallest, base + (count - 1) * LANE_TICK_PER_ALBUM);
+  const albumYears = new Set(payload.albums.map((a) => a.year));
   const lines = [];
-  // Every album each person worked on in the years drawn, one mark per
-  // year, all alike; marks closer than LANE_TICK_GAP are drawn as one.
-  const yearsOf = (lane) =>
-    Array.from(new Set([...lane.solid, ...lane.faint].map(([y]) => y))).sort((a, b) => a - b);
-  const thinned = (years) => {
-    const kept = [];
-    for (const year of years) {
-      if (kept.length && g.x(year) - g.x(kept[kept.length - 1]) < LANE_TICK_GAP) continue;
-      kept.push(year);
-    }
-    return kept;
-  };
+  const marks = payload.lanes.map((lane) => laneMarks(lane, g.x, albumYears));
   payload.lanes.forEach((lane, i) => {
-    const years = yearsOf(lane);
-    if (years.length === 0) return;
-    const first = years[0];
-    const last = years[years.length - 1];
+    if (marks[i].length === 0) return;
+    const first = marks[i][0].year;
+    const last = marks[i][marks[i].length - 1].year;
     // Before a cut-short lane's first year: not read, dashed.
     if (lane.partial && first > payload.from) {
       lines.push({ x1: g.left, x2: g.x(first), y1: mid(i), y2: mid(i), stroke: C.border, strokeWidth: 6, strokeDasharray: "3 5" });
     }
     lines.push({ x1: g.x(first), x2: g.x(last), y1: mid(i), y2: mid(i), stroke: C.border, strokeWidth: 2 });
   });
-  // The album lines, all alike, under the marks.
-  for (const album of payload.albums) {
-    lines.push({
-      x1: g.x(album.year),
-      x2: g.x(album.year),
-      y1: g.top - 6,
-      y2: g.laneTop(payload.lanes.length),
-      stroke: C.primary,
-      strokeWidth: 3,
-    });
-  }
+  // The searched album's year (or each stack album's) is the person's own
+  // mark in red, not a line across the lanes.
   payload.lanes.forEach((lane, i) => {
-    for (const year of thinned(yearsOf(lane))) {
-      lines.push({ x1: g.x(year), x2: g.x(year), y1: mid(i) - tick * 0.5, y2: mid(i) + tick * 0.5, stroke: C.muted, strokeWidth: 3 });
+    for (const mark of marks[i]) {
+      const half = height(mark.count) / 2;
+      lines.push({
+        x1: g.x(mark.year),
+        x2: g.x(mark.year),
+        y1: mid(i) - half,
+        y2: mid(i) + half,
+        stroke: mark.album ? C.primary : C.muted,
+        strokeWidth: 3,
+      });
     }
   });
   // How many albums each person has in the years drawn.

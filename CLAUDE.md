@@ -176,10 +176,16 @@ ranks albums by how many of those people worked on them.
     one count and edits (`planShare`; a stack caps every layout at what
     its map can draw). No covers on either.
     - People (`src/lib/swimlanes.ts`, `lanes` payload): a lane per person
-      who counts and links an album chosen, the top `ShareDraft.people`
-      by albums; ticks by
-      year, tall for the chosen albums and short for their other
-      releases, the same colour. A red line, labelled, at the searched
+      who counts and links one of the page's results (all of them, as
+      filtered there: the album count doesn't apply), the top
+      `ShareDraft.people` by albums plus those added and less those taken
+      out by hand (`chooseLanes`, `ShareDraft.lanePeople`); ticks by year,
+      tall for the results and short for their other releases, the same
+      colour, between the sheet's From and To years when set
+      (`withinYears`, `ShareDraft.years`). Its sheet steps are Picture,
+      Years, People (count, then who's drawn with Remove and a search to
+      add anyone: `PeopleControls`) and Appearance: no page filters box and
+      no album fine-tune. A red line, labelled, at the searched
       album's year, or at every stack album's, all alike. Lanes sort by
       primary group, then first year; undated items are counted, not
       drawn; lanes the page cap cut short are dashed before their first

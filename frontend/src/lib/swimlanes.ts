@@ -161,12 +161,88 @@ export const topLanes = (lanes: Swimlanes, limit: number): Swimlanes => {
     [...lanes.lanes]
       .sort(
         (a, b) =>
-          b.results - a.results || b.dated - a.dated || a.name.localeCompare(b.name),
+          b.results - a.results ||
+          b.dated - a.dated ||
+          a.name.localeCompare(b.name),
       )
       .slice(0, limit)
       .map((l) => l.id),
   );
   return { ...lanes, lanes: lanes.lanes.filter((l) => keep.has(l.id)) };
+};
+
+/** People added to or taken out of the People image by hand. */
+export interface LaneEdits {
+  added: number[];
+  removed: number[];
+}
+
+export const NO_LANE_EDITS: LaneEdits = { added: [], removed: [] };
+
+/** The years the People image covers; null for the data's own end. */
+export interface YearBounds {
+  from: number | null;
+  to: number | null;
+}
+
+export const ALL_YEARS: YearBounds = { from: null, to: null };
+
+/** Lanes by how much they link: most results, then most items, then name. */
+export const rankLanes = (lanes: Lane[]): Lane[] =>
+  [...lanes].sort(
+    (a, b) =>
+      b.results - a.results ||
+      b.dated - a.dated ||
+      a.name.localeCompare(b.name),
+  );
+
+/**
+ * The people to draw: everyone added by hand, then the most linked of the
+ * rest, less those taken out, up to `count` in all (more when more were
+ * added). Kept in the lanes' order.
+ */
+export const chooseLanes = (
+  all: Swimlanes,
+  count: number,
+  edits: LaneEdits,
+): Swimlanes => {
+  const removed = new Set(edits.removed);
+  const added = new Set(edits.added.filter((id) => !removed.has(id)));
+  const present = new Set(all.lanes.map((l) => l.id));
+  const keep = new Set([...added].filter((id) => present.has(id)));
+  for (const lane of rankLanes(all.lanes)) {
+    if (keep.size >= count) break;
+    if (!removed.has(lane.id)) keep.add(lane.id);
+  }
+  return { ...all, lanes: all.lanes.filter((l) => keep.has(l.id)) };
+};
+
+/**
+ * The lanes between two years: ticks and album lines outside them go, and
+ * the axis runs from `from` to `to` (each the data's own end when unset).
+ */
+export const withinYears = (lanes: Swimlanes, years: YearBounds): Swimlanes => {
+  const from = years.from ?? lanes.from;
+  const to = Math.max(from, years.to ?? lanes.to);
+  if (from === lanes.from && to === lanes.to) return lanes;
+  const inside = (y: number) => y >= from && y <= to;
+  return {
+    ...lanes,
+    from,
+    to,
+    albums: lanes.albums.filter((a) => inside(a.year)),
+    lanes: lanes.lanes.map((lane) => {
+      const ticks = lane.ticks.filter((t) => inside(t.year));
+      return {
+        ...lane,
+        ticks,
+        first: ticks[0]?.year ?? null,
+        // A lane cut short by the page cap only shows so when its real
+        // start falls inside the years drawn.
+        partial: lane.partial && (lane.first ?? from) >= from,
+      };
+    }),
+  };
 };
 
 /** One search's lanes: its counted people and their items. */

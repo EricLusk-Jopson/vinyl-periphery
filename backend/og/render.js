@@ -1014,7 +1014,7 @@ export function lanesElement(payload, size) {
       ),
       text(
         { top: Math.round(g.axisTop + LANES.axis), left: MAP_FRAME.pad, ...mono, gap: 28 },
-        h("div", {}, "Tall: the albums chosen"),
+        h("div", {}, "Tall: albums in the results"),
         h("div", {}, "Short: their other releases"),
         payload.undated > 0 && h("div", {}, `${payload.undated} undated, not shown`),
       ),

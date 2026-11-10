@@ -80,6 +80,11 @@ interface ReleaseRowProps {
     /** Member albums switched on. */
     of: number;
     panel: React.ReactNode;
+    /**
+     * The count shown follows the list's primary sort: people shared when
+     * it's Most shared, links otherwise.
+     */
+    metric?: "links" | "shared";
   };
 }
 
@@ -115,7 +120,8 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
   const shared = people.length;
   const year = releaseYear(release.year);
   const discogsUrl = discogsWebUrl(release.resource_url);
-  const count = stack ? stack.links : shared;
+  const byShared = !stack || stack.metric === "shared";
+  const count = byShared ? shared : stack.links;
   const strong = count > 1;
   // Discogs want + have; null for searches stored before it was kept.
   const popular = popularity(release);
@@ -209,7 +215,7 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
                 strong ? "text-primary-text" : "text-muted-foreground",
               )}
             >
-              {stack ? (
+              {stack && !byShared ? (
                 <>
                   <span className="sr-only md:not-sr-only">links </span>
                   {stack.links}
@@ -222,6 +228,12 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
                 <>
                   {shared}
                   <span className="sr-only md:not-sr-only"> shared</span>
+                  {stack && (
+                    <span className="sr-only">
+                      , linked by {stack.links} of {stack.of} albums in the
+                      stack
+                    </span>
+                  )}
                 </>
               )}
             </span>

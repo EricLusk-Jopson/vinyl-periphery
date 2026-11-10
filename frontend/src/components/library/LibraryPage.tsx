@@ -23,14 +23,14 @@ const focusRing =
 type LibraryTab = "stacks" | "albums";
 const VIEW_STORAGE_KEY = "vinyl-periphery-library-view";
 
-/** The viewer's last tab; Stacks when unknown or unreadable. */
+/** The viewer's last tab; Albums when unknown or unreadable. */
 const readTab = (): LibraryTab => {
   try {
-    const stored = localStorage.getItem(VIEW_STORAGE_KEY);
-    // "flat" is the All view's old name.
-    return stored === "albums" || stored === "flat" ? "albums" : "stacks";
+    return localStorage.getItem(VIEW_STORAGE_KEY) === "stacks"
+      ? "stacks"
+      : "albums";
   } catch {
-    return "stacks";
+    return "albums";
   }
 };
 
@@ -43,7 +43,7 @@ const writeTab = (tab: LibraryTab) => {
 };
 
 /**
- * The library, in two tabs. Albums: every search, kept as it finishes
+ * The library, in two tabs, Albums first. Albums: every search, kept as it finishes
  * until it's deleted from its own page; each card's Stacks button adds it
  * to stacks or takes it out. Stacks: named groups of albums linked by
  * their credits, made with New stack (or from an album's Stacks drawer),
@@ -154,16 +154,16 @@ export const LibraryPage: React.FC = () => {
           <Tabs value={tab} onValueChange={chooseTab}>
             <div className="mb-4 flex flex-col gap-3 md:mb-5 md:flex-row md:items-end md:justify-between">
               <TabsList aria-label="Library">
-                <TabsTrigger value="stacks">
-                  Stacks
-                  <span className="ml-1.5 font-mono text-xs text-faint">
-                    {stacks.length}
-                  </span>
-                </TabsTrigger>
                 <TabsTrigger value="albums">
                   Albums
                   <span className="ml-1.5 font-mono text-xs text-faint">
                     {saved.length}
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger value="stacks">
+                  Stacks
+                  <span className="ml-1.5 font-mono text-xs text-faint">
+                    {stacks.length}
                   </span>
                 </TabsTrigger>
               </TabsList>

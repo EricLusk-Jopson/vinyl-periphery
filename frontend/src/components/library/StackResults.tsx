@@ -435,6 +435,7 @@ export const StackResults: React.FC<StackResultsProps> = ({
                     links: release.links,
                     of,
                     panel: <LinkPanel result={release} meta={meta} />,
+                    metric: sort === "shared" ? "shared" : "links",
                   }}
                   existing={
                     found

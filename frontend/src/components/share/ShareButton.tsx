@@ -2,6 +2,7 @@ import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   Download,
   ImageIcon,
+  ImagePlus,
   Loader2,
   RefreshCw,
   RotateCcw,
@@ -26,8 +27,6 @@ import { useLikes } from "@/hooks/useLikes";
 import { useHidden } from "@/hooks/useHidden";
 import { useCoverArt } from "@/hooks/useCoverArt";
 import { track, trackStackFilter } from "@/lib/analytics";
-import { activeFilterCount } from "@/lib/filters";
-import { requestFilters } from "@/lib/filterRequest";
 import {
   SEARCH_TOGGLES,
   setToggle,
@@ -39,7 +38,6 @@ import {
   setStates,
   stackAlbumChips,
   StackFilterState,
-  stackFilterCount,
 } from "@/lib/stackFilters";
 import { ScoredRelease, SortKey } from "@/lib/results";
 import {
@@ -146,18 +144,18 @@ interface ShareButtonProps {
   };
 }
 
-/** A stack's layouts: the ring of album overlap, people, a transit map. */
+/** A stack's pictures: people, a transit map, the ring of album overlap. */
 const STACK_LAYOUTS: { id: ShareLayout; label: string }[] = [
-  { id: "map", label: "Map" },
   { id: "lanes", label: "People" },
   { id: "transit", label: "Transit" },
+  { id: "map", label: "Map" },
 ];
 
 const LAYOUTS: { id: ShareLayout; label: string }[] = [
-  { id: "map", label: "Map" },
-  { id: "card", label: "Results" },
   { id: "lanes", label: "People" },
   { id: "transit", label: "Transit" },
+  { id: "map", label: "Map" },
+  { id: "card", label: "Results" },
 ];
 
 /** A segmented choice, as radios. */
@@ -693,17 +691,6 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
         : [],
     [stackFilters, selection],
   );
-  const activeFilters = selection
-    ? activeFilterCount(liveSearch)
-    : stackFilters
-      ? stackFilterCount(stackFilters.filters)
-      : 0;
-  // Closes the sheet, then opens the page's filters (the draft stays).
-  const moreFilters = () => {
-    track("share_more_filters", { stack: !selection });
-    setOpen(false);
-    setTimeout(requestFilters, 0);
-  };
 
   // The one action: Make image until there is one, Regenerate while the
   // draft differs from it, then Share or Download for the image on screen.
@@ -759,8 +746,11 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
         onClick={() => setOpen(true)}
         className={pageAction}
       >
-        <Share2 className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-        Share
+        <ImagePlus
+          className="h-4 w-4 text-muted-foreground"
+          aria-hidden="true"
+        />
+        Create visual
       </button>
 
       <Sheet open={open} onOpenChange={setOpen}>
@@ -775,10 +765,11 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
         >
           <div className="flex flex-col gap-1.5 pr-8">
             <SheetTitle className="text-left text-lg font-semibold">
-              Share an image
+              Create a visual
             </SheetTitle>
             <SheetDescription className="text-left text-sm text-muted-foreground">
-              Five steps, then Make image. Nothing is made until you ask.
+              Turn these albums into a picture: choose one, set it up, then Make
+              image. Download or share it from here.
             </SheetDescription>
           </div>
 
@@ -1011,21 +1002,6 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                       />
                     </div>
                   )}
-                  <button
-                    type="button"
-                    onClick={moreFilters}
-                    className={cn(
-                      "inline-flex min-h-11 items-center gap-2 self-start rounded-md text-sm font-medium text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground",
-                      focusRing,
-                    )}
-                  >
-                    More filters
-                    {activeFilters > 0 && (
-                      <span className="font-mono text-xs no-underline">
-                        · {activeFilters} active
-                      </span>
-                    )}
-                  </button>
                 </section>
               </Step>
 
@@ -1056,7 +1032,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
 
               <Step
                 n={4}
-                title="Look"
+                title="Appearance"
                 note={
                   lookSwitches === 0
                     ? "Nothing to change for this picture."

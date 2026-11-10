@@ -191,86 +191,105 @@ export async function listContributorReleases(
   signal?: AbortSignal
 ): Promise<Map<string, EnrichedRelease>> {
   const releaseMap = new Map<string, EnrichedRelease>();
-
   const contributors = Object.values(contributorSet.contributors);
-  let currentContributor = 0;
-  for (const contributor of contributors) {
+
+  // Two passes: every contributor's first page, then everyone's further
+  // pages. The first pages say how many more there are, so the count of
+  // calls (and the time left) is known early instead of growing late.
+  // Pages come newest first, DISCOGRAPHY_PAGE_SIZE at a time, up to the
+  // cap (so the oldest credits are the ones a cap drops).
+  const reads = contributors.map((contributor) => ({
+    contributor,
+    pagesToRead: 1,
+    pagesRead: 0,
+    totalItems: 0,
+    failed: false,
+  }));
+  // Calls known so far: one first page each, plus the further pages the
+  // first pages have announced.
+  let callsKnown = contributors.length;
+  let callsMade = 0;
+  const progress = () =>
+    callbacks?.onProgress?.({
+      id: "releases",
+      label: "Discographies",
+      current: callsMade + 1,
+      total: callsKnown,
+    });
+
+  const readPage = async (read: (typeof reads)[number], page: number) => {
+    const { contributor } = read;
     throwIfAborted(signal);
-    const progress = (extraCalls: number) =>
-      callbacks?.onProgress?.({
-        id: "releases",
-        label: "Discographies",
-        current: currentContributor + 1,
-        total: contributors.length,
-        extraCalls,
-      });
-    progress(0);
-
-    // Every page, newest first, DISCOGRAPHY_PAGE_SIZE at a time, up to the
-    // cap (so the oldest credits are the ones a cap drops). Nearly
-    // everyone fits in the first page; the first page says how many more.
-    let pagesToRead = 1;
-    let pagesRead = 0;
-    let totalItems = 0;
+    progress();
     try {
-      for (let page = 1; page <= pagesToRead; page++) {
-        throwIfAborted(signal);
-        console.log(
-          `Fetching releases for contributor: ${contributor.name} (${contributor.id}), page ${page}`
+      console.log(
+        `Fetching releases for contributor: ${contributor.name} (${contributor.id}), page ${page}`
+      );
+      const response = await fetch(discographyUrl(contributor.id, page), {
+        signal,
+      });
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch releases for artist ${contributor.id}, page ${page}`
         );
-        const response = await fetch(
-          discographyUrl(contributor.id, page),
-          { signal }
-        );
+      }
+      const data: {
+        releases: DiscographyItem[];
+        pagination: { pages: number; items: number };
+      } = await response.json();
 
-        if (!response.ok) {
-          throw new Error(
-            `Failed to fetch releases for artist ${contributor.id}, page ${page}`
-          );
-        }
-
-        const data: {
-          releases: DiscographyItem[];
-          pagination: { pages: number; items: number };
-        } = await response.json();
-
-        // Keyed by "master:N" / "release:N"; the same album from several
-        // contributors becomes one entry.
-        for (const item of data.releases ?? []) {
-          addRelease(releaseMap, toEnrichedRelease(item, contributor.id));
-        }
-        pagesRead = page;
-
-        if (page === 1) {
-          pagesToRead = discographyPagesToRead(data.pagination);
-          totalItems = data.pagination?.items ?? data.releases?.length ?? 0;
-        }
-        progress(pagesToRead - page);
-        await sleep(REQUEST_DELAY_MS, signal);
+      // Keyed by "master:N" / "release:N"; the same album from several
+      // contributors becomes one entry.
+      for (const item of data.releases ?? []) {
+        addRelease(releaseMap, toEnrichedRelease(item, contributor.id));
+      }
+      read.pagesRead = page;
+      if (page === 1) {
+        read.pagesToRead = discographyPagesToRead(data.pagination);
+        read.totalItems = data.pagination?.items ?? data.releases?.length ?? 0;
+        callsKnown += read.pagesToRead - 1;
       }
     } catch (error) {
-      // Cancelling stops the search; other failures keep the pages read.
+      // Cancelling stops the search; other failures keep the pages read
+      // and skip the person's remaining pages.
       throwIfAborted(signal);
-      console.error(
-        `Error processing releases for ${contributor.name}:`,
-        error
-      );
+      console.error(`Error processing releases for ${contributor.name}:`, error);
+      read.failed = true;
+      // The pages after this one won't be read.
+      if (page > 1) callsKnown -= read.pagesToRead - page;
     }
+    callsMade++;
+    await sleep(REQUEST_DELAY_MS, signal);
+  };
 
-    if (pagesRead > 0) {
-      const read = {
-        pages: pagesRead,
-        capped: pagesToRead < Math.ceil(totalItems / DISCOGRAPHY_PAGE_SIZE),
-      };
-      // Kept on the contributor, so the swimlanes can mark a lane that
-      // lost its oldest items.
-      contributorSet.contributors[contributor.id] = {
-        ...contributor,
-        discography: { items: totalItems, ...read },
-      };
-      callbacks?.onContributorChecked?.(contributor.name, totalItems, read);
+  const finish = (read: (typeof reads)[number]) => {
+    const { contributor, pagesRead, pagesToRead, totalItems } = read;
+    if (pagesRead === 0) return;
+    const coverage = {
+      pages: pagesRead,
+      capped: pagesToRead < Math.ceil(totalItems / DISCOGRAPHY_PAGE_SIZE),
+    };
+    // Kept on the contributor, so the swimlanes can mark a lane that lost
+    // its oldest items.
+    contributorSet.contributors[contributor.id] = {
+      ...contributor,
+      discography: { items: totalItems, ...coverage },
+    };
+    callbacks?.onContributorChecked?.(contributor.name, totalItems, coverage);
+  };
+
+  // Pass one: first pages. Someone with no more to read is done.
+  for (const read of reads) {
+    await readPage(read, 1);
+    if (read.failed || read.pagesToRead <= 1) finish(read);
+  }
+  // Pass two: the further pages, person by person.
+  for (const read of reads) {
+    if (read.failed || read.pagesToRead <= 1) continue;
+    for (let page = 2; page <= read.pagesToRead && !read.failed; page++) {
+      await readPage(read, page);
     }
-    currentContributor++;
+    finish(read);
   }
 
   return releaseMap;

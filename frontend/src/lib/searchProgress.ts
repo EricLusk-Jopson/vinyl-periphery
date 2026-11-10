@@ -50,9 +50,10 @@ export const trickleCeiling = (stage: SearchStage | null): number => {
 
 /**
  * Seconds left, from the calls still to make times the pause after each.
- * Only the discography stage has a known number of calls (one per
- * contributor, plus further pages once a contributor's first page says how
- * many); the earlier stages fetch band members on the fly.
+ * Only the discography stage counts calls: one first page per contributor,
+ * then the further pages those first pages announce (read in a second
+ * pass, so the total settles once every first page is in); the earlier
+ * stages fetch band members on the fly.
  * `current` is the call under way, so it still counts as remaining.
  */
 export const secondsLeft = (
@@ -60,9 +61,7 @@ export const secondsLeft = (
   delayMs: number,
 ): number | null => {
   if (!stage || stage.id !== "releases" || stage.total <= 0) return null;
-  // Plus any further pages already known for the contributor under way.
-  const remaining =
-    Math.max(0, stage.total - stage.current + 1) + (stage.extraCalls ?? 0);
+  const remaining = Math.max(0, stage.total - stage.current + 1);
   return (remaining * delayMs) / 1000;
 };
 

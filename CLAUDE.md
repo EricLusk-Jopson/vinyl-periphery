@@ -339,7 +339,10 @@ switch both run from `main`, so keep `backend/server.js` and
 
 - Contributor discographies are read 500 items a page, newest first
   (`discographyUrl`: `sort=year&sort_order=desc`), up to
-  `MAX_DISCOGRAPHY_PAGES` (4, so 2,000 items) per person. The few people
+  `MAX_DISCOGRAPHY_PAGES` (4, so 2,000 items) per person. The search reads
+  everyone's first page, then the further pages those announced
+  (`listContributorReleases`), so the progress counts calls and its time
+  left settles after the first pass. The few people
   past the cap lose their oldest credits (`discographies_capped` on
   `search_completed` counts them). Discogs's default order grouped items
   by role first, which cost the latest Appearance credits instead.

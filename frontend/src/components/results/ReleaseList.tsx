@@ -40,6 +40,9 @@ import {
   SelectValue,
 } from "../ui/select";
 import { ReleaseRow } from "./ReleaseRow";
+import { useTip } from "@/hooks/useTip";
+import { StackDrawer } from "../library/StackDrawer";
+import { searchFromNote } from "@/lib/stacks";
 import { ResultSearch } from "./ResultSearch";
 
 const PAGE_SIZE = 20;
@@ -67,6 +70,10 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
   toolbarAction,
 }) => {
   const { searches, updateFilterState } = useCache();
+  // Once, in the first row opened: how stacks grow.
+  const tip = useTip("search-from-result");
+  // A search already in the library, being moved into this stack.
+  const [stacking, setStacking] = useState<SearchCache | null>(null);
   const likes = useLikes();
   const hidden = useHidden();
   const { toast } = useToast();
@@ -144,6 +151,10 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
     SORT_OPTIONS.find((option) => option.value === sort) ?? SORT_OPTIONS[0];
   const shown = sorted.slice(0, visible);
   const hasAnyReleases = Object.keys(search.releases).length > 0;
+
+  // What searching from a row does: joins this search's stack, or starts one.
+  const searchNote = searchFromNote();
+  const tipText = `Search from this album, here or in any row’s ⋯ menu, to follow its credits: ${searchNote}.`;
 
   const searchFrom = (release: ScoredRelease) => {
     setPendingKey(release.key);
@@ -289,9 +300,17 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
                         state: { from: "home" },
                         onOpen: () =>
                           track("search_jumped", { from: "result" }),
+                        // Its stacks: add it to any it links to.
+                        onStack: () => setStacking(found),
+                        stackAction: "Add to stacks…",
                       }
                     : undefined;
                 })()}
+                tip={
+                  tip.show
+                    ? { text: tipText, onDismiss: tip.dismiss }
+                    : undefined
+                }
                 people={people}
                 searchedAlbum={search.searchParams.album}
                 open={openKey === release.key}
@@ -383,6 +402,14 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
             {total.toLocaleString("en-US")}
           </span>
         </div>
+      )}
+      {stacking && (
+        <StackDrawer
+          search={searches[stacking.searchId] ?? stacking}
+          open
+          onOpenChange={(open) => !open && setStacking(null)}
+          from="results"
+        />
       )}
     </section>
   );

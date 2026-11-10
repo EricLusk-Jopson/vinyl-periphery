@@ -1,6 +1,7 @@
 import { EnrichedRelease } from "@/api/types";
 import { SearchCache } from "@/contexts/cache/types";
 import {
+  withoutUncreditedMembers,
   addRelease,
   contributionsOf,
   migrateReleases,
@@ -372,5 +373,72 @@ describe("discographyPagesToRead", () => {
     expect(discographyPagesToRead(undefined)).toBe(1);
     expect(discographyPagesToRead({ pages: 0 })).toBe(1);
     expect(discographyPagesToRead({})).toBe(1);
+  });
+});
+
+describe("withoutUncreditedMembers", () => {
+  const person = (
+    id: number,
+    sources: Array<"credits" | "artist" | "member">,
+    roles: string[],
+  ) => ({ id, name: `P${id}`, sources, roles, resourceUrl: "" });
+  const release = (key: string, ids: number[]) =>
+    ({
+      key,
+      contributorIds: ids,
+      appearances: Object.fromEntries(ids.map((id) => [id, { role: "Main" }])),
+    }) as unknown as EnrichedRelease;
+  const make = (contributors: ReturnType<typeof person>[]): SearchCache =>
+    ({
+      searchId: "s",
+      searchParams: { artist: "Band", album: "Album" },
+      target: { type: "master", id: 1, key: "master:1" },
+      contributors: Object.fromEntries(contributors.map((c) => [c.id, c])),
+      roles: { Guitar: true, "Band Member": true },
+      releases: {
+        "master:1": release("master:1", [1, 2]),
+        // Only the former drummer links these.
+        "master:2": release("master:2", [3]),
+        "master:3": release("master:3", [2, 3]),
+      },
+      filterState: {
+        contributors: { 1: true, 2: true, 3: true },
+        roles: { Guitar: true, "Band Member": true },
+        excludeMainArtist: false,
+        collaborationsOnly: false,
+        excludeVarious: false,
+        required: { contributors: [3], roles: ["Band Member"] },
+      },
+      thumb: "",
+    }) as unknown as SearchCache;
+
+  it("drops members the credits don't name, with what only they linked", () => {
+    const search = make([
+      person(1, ["artist"], ["Main Artist"]),
+      person(2, ["credits", "member"], ["Guitar", "Band Member"]),
+      person(3, ["member"], ["Band Member"]),
+    ]);
+    const next = withoutUncreditedMembers(search);
+    expect(Object.keys(next.contributors).map(Number)).toEqual([1, 2]);
+    expect(next.contributors[2].roles).toEqual(["Guitar"]);
+    expect(Object.keys(next.releases).sort()).toEqual(["master:1", "master:3"]);
+    expect(next.releases["master:3"].contributorIds).toEqual([2]);
+    expect(Object.keys(next.releases["master:3"].appearances ?? {})).toEqual([
+      "2",
+    ]);
+    expect(next.roles).toEqual({ Guitar: true });
+    expect(next.filterState.contributors).toEqual({ 1: true, 2: true });
+    expect(next.filterState.roles).toEqual({ Guitar: true });
+    expect(next.filterState.required).toEqual({ contributors: [], roles: [] });
+    // Run on load: a cleaned search stays the same object.
+    expect(withoutUncreditedMembers(next)).toBe(next);
+  });
+
+  it("keeps Band Members when the album has no credits: the fallback", () => {
+    const search = make([
+      person(1, ["artist"], ["Main Artist"]),
+      person(3, ["member"], ["Band Member"]),
+    ]);
+    expect(withoutUncreditedMembers(search)).toBe(search);
   });
 });

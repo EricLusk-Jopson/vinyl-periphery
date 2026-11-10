@@ -854,7 +854,36 @@ export function stackElement(payload, size, art) {
 }
 
 /** Swimlanes' frame inside the graph box: names left, tracks right. */
-const LANES = { name: 300, gap: 24, labelRow: 22, axis: 34, legend: 34, maxRow: 96 };
+const LANES = { name: 300, gap: 24, labelRow: 22, axis: 34, legend: 0, maxRow: 96 };
+/** Marks closer than this (px) are drawn as one. */
+const LANE_TICK_GAP = 5;
+/** Each album in a year adds this much (px) to that year's mark. */
+const LANE_TICK_PER_ALBUM = 1;
+
+/**
+ * One lane's marks: a mark per year with albums, its count the albums that
+ * year; marks closer than LANE_TICK_GAP become one (counts summed, at the
+ * first year), red when any year in it is a searched or stacked album's.
+ */
+export const laneMarks = (lane, x, albumYears) => {
+  const counts = new Map();
+  for (const [year, n] of [...lane.solid, ...lane.faint]) {
+    counts.set(year, (counts.get(year) ?? 0) + n);
+  }
+  const marks = [];
+  for (const year of [...counts.keys()].sort((a, b) => a - b)) {
+    const count = counts.get(year);
+    const album = albumYears.has(year);
+    const last = marks[marks.length - 1];
+    if (last && x(year) - x(last.year) < LANE_TICK_GAP) {
+      last.count += count;
+      last.album = last.album || album;
+      continue;
+    }
+    marks.push({ year, count, album });
+  }
+  return marks;
+};
 /** Album labels over the lanes: mono 16px, about this wide a character. */
 const LANE_LABEL = { size: 16, char: 9.7, chars: 30, gap: 14 };
 
@@ -910,39 +939,41 @@ export function lanesElement(payload, size) {
   const { top, ...box } = mapBox(payload, size);
   const g = lanesGeometry(payload, box);
   const mid = (i) => g.laneTop(i) + g.row / 2;
-  const tick = Math.min(30, g.row * 0.34);
+  // A mark's height: 1px more per album that year, from a base, up to
+  // most of the row, so every row keeps its height.
+  const base = Math.min(18, g.row * 0.25);
+  const tallest = g.row * 0.8;
+  const height = (count) => Math.min(tallest, base + (count - 1) * LANE_TICK_PER_ALBUM);
+  const albumYears = new Set(payload.albums.map((a) => a.year));
   const lines = [];
+  const marks = payload.lanes.map((lane) => laneMarks(lane, g.x, albumYears));
   payload.lanes.forEach((lane, i) => {
-    const years = [...lane.solid, ...lane.faint].map(([y]) => y);
-    const first = Math.min(...years);
-    const last = Math.max(...years);
+    if (marks[i].length === 0) return;
+    const first = marks[i][0].year;
+    const last = marks[i][marks[i].length - 1].year;
     // Before a cut-short lane's first year: not read, dashed.
     if (lane.partial && first > payload.from) {
       lines.push({ x1: g.left, x2: g.x(first), y1: mid(i), y2: mid(i), stroke: C.border, strokeWidth: 6, strokeDasharray: "3 5" });
     }
     lines.push({ x1: g.x(first), x2: g.x(last), y1: mid(i), y2: mid(i), stroke: C.border, strokeWidth: 2 });
-    // Their other releases: short marks, the same colour as the tall.
-    for (const [year] of lane.faint) {
-      lines.push({ x1: g.x(year), x2: g.x(year), y1: mid(i) - tick * 0.5, y2: mid(i) + tick * 0.5, stroke: C.muted, strokeWidth: 2 });
-    }
   });
-  // The album lines, all alike, over the short marks and under the tall.
-  for (const album of payload.albums) {
-    lines.push({
-      x1: g.x(album.year),
-      x2: g.x(album.year),
-      y1: g.top - 6,
-      y2: g.laneTop(payload.lanes.length),
-      stroke: C.primary,
-      strokeWidth: 3,
-    });
-  }
+  // The searched album's year (or each stack album's) is the person's own
+  // mark in red, not a line across the lanes.
   payload.lanes.forEach((lane, i) => {
-    for (const [year, count] of lane.solid) {
-      const reach = tick + Math.min(10, 3 * count);
-      lines.push({ x1: g.x(year), x2: g.x(year), y1: mid(i) - reach, y2: mid(i) + reach, stroke: C.muted, strokeWidth: 3 });
+    for (const mark of marks[i]) {
+      const half = height(mark.count) / 2;
+      lines.push({
+        x1: g.x(mark.year),
+        x2: g.x(mark.year),
+        y1: mid(i) - half,
+        y2: mid(i) + half,
+        stroke: mark.album ? C.primary : C.muted,
+        strokeWidth: 3,
+      });
     }
   });
+  // How many albums each person has in the years drawn.
+  const albumsOf = (lane) => [...lane.solid, ...lane.faint].reduce((n, [, c]) => n + c, 0);
   const text = (style, ...children) => h("div", { position: "absolute", ...style }, ...children);
   const mono = { fontFamily: "IBM Plex Mono", fontSize: 16, color: C.faint };
 
@@ -1005,18 +1036,12 @@ export function lanesElement(payload, size) {
           h(
             "div",
             { ...mono, fontSize: 15 },
-            `${lane.results} ${lane.results === 1 ? "album" : "albums"} here${lane.partial ? " · oldest not read" : ""}`,
+            `${albumsOf(lane)} ${albumsOf(lane) === 1 ? "album" : "albums"}${lane.partial ? " · oldest not read" : ""}`,
           ),
         ),
       ),
       ...laneAxis(payload.from, payload.to).map((year) =>
         text({ top: Math.round(g.axisTop), left: Math.round(g.x(year) - 24), width: 48, justifyContent: "center", ...mono }, String(year)),
-      ),
-      text(
-        { top: Math.round(g.axisTop + LANES.axis), left: MAP_FRAME.pad, ...mono, gap: 28 },
-        h("div", {}, "Tall: the albums chosen"),
-        h("div", {}, "Short: their other releases"),
-        payload.undated > 0 && h("div", {}, `${payload.undated} undated, not shown`),
       ),
     ),
     mapHeader("People around", payload, size),
@@ -1038,7 +1063,7 @@ const STATION_LIST = { width: 340, gap: 24, row: 42, compactRow: 27 };
 
 /** The transit map fitted to the box over its legend: scale and offset. */
 export function transitGeometry(payload, { width, height }) {
-  const rows = Math.ceil(payload.lines.length / legendColumns(payload.lines.length)) + (payload.others ? 1 : 0);
+  const rows = Math.ceil(payload.lines.length / legendColumns(payload.lines.length));
   const legend = rows * TRANSIT_LEGEND.row + 12;
   // A numbered map leaves a column on the right for its station list.
   const list = payload.legend ? STATION_LIST.width : 0;
@@ -1250,12 +1275,6 @@ export function transitElement(payload, size) {
             h("div", { fontSize: 19, color: C.foreground }, shorten(line.name, three ? 22 : 32)),
           );
         }),
-        payload.others > 0 &&
-          h(
-            "div",
-            { width: "100%", fontFamily: "IBM Plex Mono", fontSize: 16, color: C.faint, height: TRANSIT_LEGEND.row - 8, alignItems: "center" },
-            `+ ${payload.others} more on two or more albums`,
-          ),
       ),
     ),
     mapHeader("Transit map from", payload, size),

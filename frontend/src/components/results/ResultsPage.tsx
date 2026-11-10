@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo } from "react";
 import { Link, Navigate, useLocation, useParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
 import { SearchParams, SearchTarget } from "@/api/types";
 import { KnownAlbum } from "@/hooks/useSearchRun";
 import { useCache } from "@/contexts/cache/CacheContext";
@@ -18,7 +17,7 @@ import { FilterFrame } from "../filters/FilterFrame";
 import { AlbumHeader } from "./AlbumHeader";
 import { ReleaseList } from "./ReleaseList";
 import { useResultsSort } from "@/hooks/useResultsSort";
-import { useResultsBack } from "@/hooks/useResultsBack";
+import { PageBack } from "../layout/PageBack";
 
 interface ResultsPageProps {
   onSearchFrom: (params: SearchParams, known: KnownAlbum) => void;
@@ -66,7 +65,6 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
     ? (matchingSearchIds(searches, params, target)[0] ?? "")
     : "";
   const search = searches[searchId];
-  const back = useResultsBack();
   const order = useResultsSort();
 
   // Keep the cache's active search in step with the URL.
@@ -80,48 +78,39 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
     // A saved search may still be loading from IndexedDB.
     if (!savedSearchesLoaded) return null;
     return (
-      <div className="mx-auto flex max-w-[640px] flex-col items-center gap-3 px-4 py-20 text-center">
-        <p className="text-sm text-muted-foreground">{params.artist}</p>
-        <h1 className="font-display text-[30px] font-normal leading-none md:text-[34px]">
-          {params.album}
-        </h1>
-        <p className="mt-2 text-muted-foreground">
-          This search isn't on this device yet. Running it reads everyone
-          credited on the album and their other work, which takes about a
-          minute.
-        </p>
-        <div className="mt-2 flex flex-wrap justify-center gap-3">
-          <button
-            type="button"
-            onClick={() => onRunSearch(params, target)}
-            disabled={isSearching}
-            className={primaryButton}
-          >
-            {isSearching ? "Search in progress" : "Run this search"}
-          </button>
-          <Link to={HOME_PATH} className={secondaryButton}>
-            New search
-          </Link>
+      <>
+        <PageBack />
+        <div className="mx-auto flex max-w-[640px] flex-col items-center gap-3 px-4 py-20 text-center">
+          <p className="text-sm text-muted-foreground">{params.artist}</p>
+          <h1 className="font-display text-[30px] font-normal leading-none md:text-[34px]">
+            {params.album}
+          </h1>
+          <p className="mt-2 text-muted-foreground">
+            This search isn't on this device yet. Running it reads everyone
+            credited on the album and their other work, which takes about a
+            minute.
+          </p>
+          <div className="mt-2 flex flex-wrap justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => onRunSearch(params, target)}
+              disabled={isSearching}
+              className={primaryButton}
+            >
+              {isSearching ? "Search in progress" : "Run this search"}
+            </button>
+            <Link to={HOME_PATH} className={secondaryButton}>
+              New search
+            </Link>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
     <div key={searchId} className="duration-200 animate-in fade-in">
-      {/* On phones the back link sits in the header instead. */}
-      <div className="mx-auto hidden max-w-[1280px] px-2 md:block md:px-4">
-        <Link
-          to={back.to}
-          className={cn(
-            "inline-flex h-11 items-center gap-2 rounded-lg px-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
-            focusRing,
-          )}
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          {back.label}
-        </Link>
-      </div>
+      <PageBack />
       <AlbumHeader search={search} order={order} />
       <div className="mx-auto max-w-[1280px] px-4 pb-12 md:px-6 lg:flex lg:pt-8 lg:items-start lg:gap-8 lg:pb-24">
         <aside

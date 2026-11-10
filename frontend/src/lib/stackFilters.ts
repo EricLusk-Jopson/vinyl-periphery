@@ -445,7 +445,7 @@ export const setStates = <K extends string | number>(
 };
 
 /**
- * "Apply each search's filters": the stack's filters from its members'.
+ * "Match each album's own filters": the stack's filters from its members'.
  * A person or role is off when every member that has them has them off;
  * "must include" is everything any member requires; a switch is on when
  * every member has it on. Albums all on.

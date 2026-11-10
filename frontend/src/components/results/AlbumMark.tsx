@@ -1,5 +1,16 @@
 import React, { useState } from "react";
-import { EyeOff, Heart, MoreHorizontal } from "lucide-react";
+import { Link } from "react-router-dom";
+import {
+  ArrowRight,
+  Eye,
+  EyeOff,
+  Heart,
+  HeartOff,
+  Layers,
+  Loader2,
+  MoreHorizontal,
+  Search,
+} from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -10,6 +21,11 @@ import { cn } from "@/lib/utils";
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
 
+const itemClass = cn(
+  "flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60",
+  focusRing,
+);
+
 interface AlbumMarkProps {
   title: string;
   liked: boolean;
@@ -17,15 +33,34 @@ interface AlbumMarkProps {
   hidden: boolean;
   onLike: (liked: boolean) => void;
   onHide: (hidden: boolean) => void;
+  /** Searches from this album (joins this page's stack). */
+  onSearchFrom: () => void;
+  /** A search is under way: no other can start. */
+  searching: boolean;
+  /** This row started the search under way. */
+  searchingFromHere: boolean;
+  /**
+   * This album's own search, when it's already been run: the menu opens
+   * it instead, and offers Stack it when it's outside this stack.
+   */
+  existing?: {
+    to: string;
+    state: unknown;
+    onOpen: () => void;
+    onStack?: () => void;
+    /** The label for `onStack`: "Add to stacks…", "Add to this stack". */
+    stackAction?: string;
+  };
 }
 
 type Mark = "none" | "liked" | "hidden";
 
 /**
- * One quiet slot at the end of a result row, instead of a heart and an eye
- * side by side. Unmarked, it's "⋯", opening Like and Hide. Liked, it's a
- * filled heart; hidden, a crossed-out eye; tapping either takes the mark
- * off. The icons cross-fade in place, so the row never shifts.
+ * One quiet slot at the end of a result row. It shows the album's mark
+ * ("⋯" for none, a filled heart when liked, a crossed-out eye when
+ * hidden) and always opens the row's menu: Search from this album (or
+ * Open your search, and Stack it), then Like or Unlike, Hide or Show
+ * again. The icons cross-fade in place, so the row never shifts.
  */
 export const AlbumMark: React.FC<AlbumMarkProps> = ({
   title,
@@ -33,16 +68,20 @@ export const AlbumMark: React.FC<AlbumMarkProps> = ({
   hidden,
   onLike,
   onHide,
+  onSearchFrom,
+  searching,
+  searchingFromHere,
+  existing,
 }) => {
   const mark: Mark = hidden ? "hidden" : liked ? "liked" : "none";
   const [menuOpen, setMenuOpen] = useState(false);
 
   const label =
     mark === "liked"
-      ? `Unlike ${title}`
+      ? `${title}: liked. More`
       : mark === "hidden"
-        ? `Show ${title} again`
-        : `Like or hide ${title}`;
+        ? `${title}: hidden. More`
+        : `More for ${title}`;
 
   const icon = (shown: Mark, child: React.ReactNode) => (
     <span
@@ -62,20 +101,12 @@ export const AlbumMark: React.FC<AlbumMarkProps> = ({
   };
 
   return (
-    <Popover
-      // Only the "⋯" opens the menu; a heart or an eye is a toggle.
-      open={menuOpen && mark === "none"}
-      onOpenChange={(next) => setMenuOpen(next && mark === "none")}
-    >
+    <Popover open={menuOpen} onOpenChange={setMenuOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
           aria-label={label}
           title={label}
-          onClick={() => {
-            if (mark === "liked") onLike(false);
-            if (mark === "hidden") onHide(false);
-          }}
           className={cn(
             // No fill of its own: hover and press change the icon only.
             "group/mark relative flex h-11 w-11 shrink-0 items-center justify-center rounded-lg md:mr-1",
@@ -95,37 +126,105 @@ export const AlbumMark: React.FC<AlbumMarkProps> = ({
           </span>
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-44 p-1">
-        <div role="menu" aria-label={`${title}`} className="flex flex-col">
+      <PopoverContent align="end" className="w-60 p-1">
+        <div role="menu" aria-label={title} className="flex flex-col">
+          {existing ? (
+            <>
+              <Link
+                to={existing.to}
+                state={existing.state}
+                role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false);
+                  existing.onOpen();
+                }}
+                className={itemClass}
+              >
+                <ArrowRight
+                  className="h-4 w-4 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                Open your search
+              </Link>
+              {existing.onStack && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => choose(existing.onStack!)}
+                  className={itemClass}
+                >
+                  <Layers
+                    className="h-4 w-4 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  {existing.stackAction ?? "Stack it…"}
+                </button>
+              )}
+            </>
+          ) : (
+            <button
+              type="button"
+              role="menuitem"
+              disabled={searching}
+              onClick={() => choose(onSearchFrom)}
+              className={itemClass}
+            >
+              {searchingFromHere ? (
+                <Loader2
+                  className="h-4 w-4 animate-spin text-muted-foreground"
+                  aria-hidden="true"
+                />
+              ) : (
+                <Search
+                  className="h-4 w-4 text-muted-foreground"
+                  aria-hidden="true"
+                />
+              )}
+              {searchingFromHere
+                ? "Finding the album"
+                : "Search from this album"}
+            </button>
+          )}
+          <div className="my-1 border-t" role="separator" />
+          {mark !== "hidden" && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => choose(() => onLike(!liked))}
+              className={itemClass}
+            >
+              {liked ? (
+                <HeartOff
+                  className="h-4 w-4 text-muted-foreground"
+                  aria-hidden="true"
+                />
+              ) : (
+                <Heart
+                  className="h-4 w-4 text-muted-foreground"
+                  aria-hidden="true"
+                />
+              )}
+              {liked ? "Unlike" : "Like"}
+            </button>
+          )}
           <button
             type="button"
             role="menuitem"
-            onClick={() => choose(() => onLike(true))}
-            className={cn(
-              "flex min-h-11 items-center gap-3 rounded-lg px-3 text-left text-sm text-foreground transition-colors hover:bg-secondary",
-              focusRing,
-            )}
+            onClick={() => choose(() => onHide(!hidden))}
+            className={itemClass}
           >
-            <Heart
-              className="h-4 w-4 text-muted-foreground"
-              aria-hidden="true"
-            />
-            Like
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => choose(() => onHide(true))}
-            className={cn(
-              "flex min-h-11 items-center gap-3 rounded-lg px-3 text-left text-sm text-foreground transition-colors hover:bg-secondary",
-              focusRing,
+            {hidden ? (
+              <Eye
+                className="h-4 w-4 text-muted-foreground"
+                aria-hidden="true"
+              />
+            ) : (
+              <EyeOff
+                className="h-4 w-4 text-muted-foreground"
+                aria-hidden="true"
+              />
             )}
-          >
-            <EyeOff
-              className="h-4 w-4 text-muted-foreground"
-              aria-hidden="true"
-            />
-            Hide
+            {hidden ? "Show again" : "Hide"}
           </button>
         </div>
       </PopoverContent>

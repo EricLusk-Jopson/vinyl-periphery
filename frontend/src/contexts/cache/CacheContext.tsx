@@ -30,9 +30,14 @@ import { useHidden } from "@/hooks/useHidden";
 import {
   detachedLineage,
   lineageForNewSearch,
-  lineageOf,
   SearchOrigin,
 } from "@/lib/lineage";
+import {
+  defaultStackName,
+  memberFor,
+  newStackId,
+  StackRecord,
+} from "@/lib/stackRecords";
 import { coverResolver } from "@/api/coverArt";
 import {
   enforceRequired,
@@ -105,28 +110,26 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  // A stack's Results filters go once it's fewer than two searches
-  // (deleted, destacked or moved): ids of stacks of two or more.
-  const liveStacks = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const id of state.savedSearchIds) {
-      const search = state.searches[id];
-      if (!search) continue;
-      const stackId = lineageOf(search).stackId;
-      counts.set(stackId, (counts.get(stackId) ?? 0) + 1);
-    }
-    return Array.from(counts)
-      .filter(([, n]) => n > 1)
-      .map(([id]) => id)
-      .sort()
-      .join("\n");
-  }, [state.savedSearchIds, state.searches]);
+  // Stacks are records of their own (see lib/stackRecords).
+  const [stacks, setStacks] = React.useState<StackRecord[]>([]);
+  const stacksRef = useRef(stacks);
+  stacksRef.current = stacks;
+  // Results filters of stacks that are gone (deleted elsewhere, or before
+  // stacks were records) are dropped once the stacks have loaded.
+  const stackIds = useMemo(
+    () =>
+      stacks
+        .map((s) => s.id)
+        .sort()
+        .join("\n"),
+    [stacks],
+  );
   useEffect(() => {
     if (!savedSearchesLoaded) return;
-    db.pruneStackFilters(new Set(liveStacks.split("\n"))).catch(() => {
+    db.pruneStackFilters(new Set(stackIds.split("\n"))).catch(() => {
       // Storage blocked: stale filters are harmless.
     });
-  }, [liveStacks, savedSearchesLoaded]);
+  }, [stackIds, savedSearchesLoaded]);
 
   // Load the library from IndexedDB on mount, after moving in any searches
   // an earlier version left in sessionStorage.
@@ -141,6 +144,7 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
           .map((s) => ({ ...s, savedAt: s.savedAt ?? Date.now() }));
         for (const search of moved) await db.saveSearch(search);
         const saved = [...stored, ...moved];
+        setStacks(await db.getAllStacks());
         setState((prev) => ({
           ...prev,
           searches: {
@@ -186,7 +190,7 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
       thumb: string,
       target?: SearchTarget | null,
       origin?: SearchOrigin,
-      lineageOverride?: SearchLineage
+      lineageOverride?: SearchLineage,
     ): string => {
       const searchId = `${params.artist}-${params.album}-${Date.now()}`;
 
@@ -200,15 +204,18 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
           contributor.roles.forEach((role) => {
             roles[role] = true;
           });
-        }
+        },
       );
 
       // Every contributor on; only the default roles (musicians, other).
       const filterState = {
-        contributors: Object.keys(contributors).reduce((acc, id) => {
-          acc[Number(id)] = true;
-          return acc;
-        }, {} as Record<number, boolean>),
+        contributors: Object.keys(contributors).reduce(
+          (acc, id) => {
+            acc[Number(id)] = true;
+            return acc;
+          },
+          {} as Record<number, boolean>,
+        ),
         roles: defaultRoleStates(Object.keys(roles)),
         excludeMainArtist: true,
         collaborationsOnly: true,
@@ -222,23 +229,25 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
       const replaced = matchingSearchIds(
         stateRef.current.searches,
         params,
-        target
+        target,
       );
       // A repeat run keeps the trail it was on; a search from a result row
       // continues its parent's; anything else starts one.
       const parent = origin
         ? stateRef.current.searches[origin.parentSearchId]
         : undefined;
-      const lineage = lineageOverride ?? lineageForNewSearch({
-        searchId,
-        replaced: replaced.map((id) => stateRef.current.searches[id]),
-        parent,
-        origin,
-        parentThumb:
-          parent?.thumb ||
-          (parent?.target && coverResolver.get(parent.target.key)) ||
-          "",
-      });
+      const lineage =
+        lineageOverride ??
+        lineageForNewSearch({
+          searchId,
+          replaced: replaced.map((id) => stateRef.current.searches[id]),
+          parent,
+          origin,
+          parentThumb:
+            parent?.thumb ||
+            (parent?.target && coverResolver.get(parent.target.key)) ||
+            "",
+        });
       const newSearch: SearchCache = {
         searchId,
         searchParams: params,
@@ -293,7 +302,7 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
 
       return searchId;
     },
-    []
+    [],
   );
 
   const saveSearch = useCallback(
@@ -325,32 +334,49 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
         throw error;
       }
     },
-    []
+    [],
   );
 
-  /**
-   * Breaks a stack up: every saved search in it stays saved, each on a trail
-   * of its own. Returns how many.
-   */
-  const disbandStack = useCallback(async (stackId: string) => {
-    const members = Object.values(stateRef.current.searches).filter(
-      (s) =>
-        stateRef.current.savedSearchIds.has(s.searchId) &&
-        lineageOf(s).stackId === stackId
+  /** A new stack of these albums (the first is its start), kept. */
+  const createStack = useCallback(
+    async (name: string, albums: SearchCache[]): Promise<StackRecord> => {
+      const now = Date.now();
+      const members = albums.map((a) => memberFor(a, now));
+      const record: StackRecord = {
+        id: newStackId(),
+        name: name.trim() || defaultStackName(members),
+        members,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await db.putStack(record);
+      setStacks((prev) => [record, ...prev]);
+      return record;
+    },
+    [],
+  );
+
+  /** Writes a stack again (renamed, albums added or taken out). */
+  const updateStack = useCallback(async (record: StackRecord) => {
+    const next = { ...record, updatedAt: Date.now() };
+    await db.putStack(next);
+    setStacks((prev) => prev.map((s) => (s.id === next.id ? next : s)));
+  }, []);
+
+  /** Deletes a stack and its filters. Its albums stay in the library. */
+  const deleteStack = useCallback(async (id: string) => {
+    await db.deleteStack(id);
+    setStacks((prev) => prev.filter((s) => s.id !== id));
+  }, []);
+
+  /** Puts a deleted stack back (undo); its filters start afresh. */
+  const restoreStack = useCallback(async (record: StackRecord) => {
+    await db.putStack(record);
+    setStacks((prev) =>
+      [record, ...prev.filter((s) => s.id !== record.id)].sort(
+        (a, b) => b.createdAt - a.createdAt,
+      ),
     );
-    const loose = members.map((s) => ({
-      ...s,
-      lineage: detachedLineage(s.searchId),
-    }));
-    for (const search of loose) await db.saveSearch(search);
-    setState((prev) => {
-      const searches = { ...prev.searches };
-      loose.forEach((s) => {
-        searches[s.searchId] = s;
-      });
-      return { ...prev, searches };
-    });
-    return loose.length;
   }, []);
 
   /** Puts a deleted search back (undo). */
@@ -388,12 +414,12 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
           const search = stateRef.current.searches[searchId];
           if (!search) return;
           db.saveSearch(search).catch((error) =>
-            console.error("Failed to keep the filters:", error)
+            console.error("Failed to keep the filters:", error),
           );
-        }, FILTER_SAVE_DELAY_MS)
+        }, FILTER_SAVE_DELAY_MS),
       );
     },
-    []
+    [],
   );
 
   const getActiveSearch = useCallback((): SearchCache | null => {
@@ -428,7 +454,11 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
     clearActiveSearch,
     addSearch,
     saveSearch,
-    disbandStack,
+    stacks,
+    createStack,
+    updateStack,
+    deleteStack,
+    restoreStack,
     restoreSearch,
     updateFilterState,
     getActiveSearch,
@@ -465,7 +495,7 @@ export const useSearchFilters = (searchId: string) => {
         },
       });
     },
-    [search, searchId, updateFilterState]
+    [search, searchId, updateFilterState],
   );
 
   const toggleRole = useCallback(
@@ -479,59 +509,77 @@ export const useSearchFilters = (searchId: string) => {
         },
       });
     },
-    [search, searchId, updateFilterState]
+    [search, searchId, updateFilterState],
   );
 
   const resetAllFilters = useCallback(() => {
     if (!search) return;
     updateFilterState(searchId, {
-      contributors: Object.keys(search.contributors).reduce((acc, id) => {
-        acc[Number(id)] = true;
-        return acc;
-      }, {} as Record<number, boolean>),
-      roles: Object.keys(search.roles).reduce((acc, role) => {
-        acc[role] = true;
-        return acc;
-      }, {} as Record<string, boolean>),
+      contributors: Object.keys(search.contributors).reduce(
+        (acc, id) => {
+          acc[Number(id)] = true;
+          return acc;
+        },
+        {} as Record<number, boolean>,
+      ),
+      roles: Object.keys(search.roles).reduce(
+        (acc, role) => {
+          acc[role] = true;
+          return acc;
+        },
+        {} as Record<string, boolean>,
+      ),
     });
   }, [search, searchId, updateFilterState]);
 
   const excludeAllRoles = useCallback(() => {
     if (!search) return;
     updateFilterState(searchId, {
-      contributors: Object.keys(search.contributors).reduce((acc, id) => {
-        acc[Number(id)] = true;
-        return acc;
-      }, {} as Record<number, boolean>),
-      roles: Object.keys(search.roles).reduce((acc, role) => {
-        acc[role] = false;
-        return acc;
-      }, {} as Record<string, boolean>),
+      contributors: Object.keys(search.contributors).reduce(
+        (acc, id) => {
+          acc[Number(id)] = true;
+          return acc;
+        },
+        {} as Record<number, boolean>,
+      ),
+      roles: Object.keys(search.roles).reduce(
+        (acc, role) => {
+          acc[role] = false;
+          return acc;
+        },
+        {} as Record<string, boolean>,
+      ),
     });
   }, [search, searchId, updateFilterState]);
 
   const excludeAllContributors = useCallback(() => {
     if (!search) return;
     updateFilterState(searchId, {
-      contributors: Object.keys(search.contributors).reduce((acc, id) => {
-        acc[Number(id)] = false;
-        return acc;
-      }, {} as Record<number, boolean>),
-      roles: Object.keys(search.roles).reduce((acc, role) => {
-        acc[role] = true;
-        return acc;
-      }, {} as Record<string, boolean>),
+      contributors: Object.keys(search.contributors).reduce(
+        (acc, id) => {
+          acc[Number(id)] = false;
+          return acc;
+        },
+        {} as Record<number, boolean>,
+      ),
+      roles: Object.keys(search.roles).reduce(
+        (acc, role) => {
+          acc[role] = true;
+          return acc;
+        },
+        {} as Record<string, boolean>,
+      ),
     });
   }, [search, searchId, updateFilterState]);
 
   // Who counts, worked out once per filter change from the credits.
   const counted = useMemo(
     () => (search ? countedContributors(search) : new Set<number>()),
-    [search]
+    [search],
   );
   const isContributorActive = useCallback(
     (contributorId: number): boolean => counted.has(contributorId),
-    [counted]
+    [counted],
   );
 
   const isRoleActive = useCallback(
@@ -539,7 +587,7 @@ export const useSearchFilters = (searchId: string) => {
       if (!search) return false;
       return search.filterState.roles[roleName] ?? false;
     },
-    [search]
+    [search],
   );
 
   const isContributorDisabled = useCallback(
@@ -554,7 +602,7 @@ export const useSearchFilters = (searchId: string) => {
         return false;
       return !contributor.roles.some((role) => search.filterState.roles[role]);
     },
-    [search]
+    [search],
   );
 
   const isRoleDisabled = useCallback(
@@ -570,20 +618,20 @@ export const useSearchFilters = (searchId: string) => {
         );
       });
     },
-    [search]
+    [search],
   );
 
   const areAllRolesInactive = useCallback((): boolean => {
     if (!search) return true;
     return Object.keys(search.roles).every(
-      (role) => !search.filterState.roles[role]
+      (role) => !search.filterState.roles[role],
     );
   }, [search]);
 
   const areAllContributorsInactive = useCallback((): boolean => {
     if (!search) return true;
     return Object.keys(search.contributors).every(
-      (id) => !search.filterState.contributors[Number(id)]
+      (id) => !search.filterState.contributors[Number(id)],
     );
   }, [search]);
 
@@ -660,12 +708,12 @@ export const useFilteredAndScoredReleases = (searchId: string) => {
       .map((release) => {
         // Deduplicate contributors
         const uniqueContributorIds = Array.from(
-          new Set(release.contributorIds)
+          new Set(release.contributorIds),
         );
 
         // Get active contributors for this release
         const activeContributors = uniqueContributorIds.filter((id) =>
-          isContributorActive(id)
+          isContributorActive(id),
         );
 
         // Skip if no active contributors
@@ -703,7 +751,7 @@ export const useFilteredAndScoredReleases = (searchId: string) => {
           {
             contributors: search.contributors,
             isContributorActive,
-          }
+          },
         );
 
         return {
@@ -714,7 +762,7 @@ export const useFilteredAndScoredReleases = (searchId: string) => {
         };
       })
       .filter(
-        (release): release is NonNullable<typeof release> => release !== null
+        (release): release is NonNullable<typeof release> => release !== null,
       )
       .sort((a, b) => b.score * b.confidence - a.score * a.confidence);
 

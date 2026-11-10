@@ -33,7 +33,7 @@ interface StackFilterPanelProps {
   filters: StackFilterState;
   update: (updates: Partial<StackFilterState>) => void;
   replace: (filters: StackFilterState) => void;
-  /** "Apply each search's filters": the stack's from its members'. */
+  /** "Match each album's own filters": the stack's from its members'. */
   onApplyMembers: () => void;
   /** The sidebar has its own heading and Reset; the frame has them on top. */
   variant: "sidebar" | "frame";
@@ -111,16 +111,25 @@ export const StackFilterPanel: React.FC<StackFilterPanelProps> = ({
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={onApplyMembers}
-        className={cn(
-          "-mt-2 inline-flex min-h-11 items-center self-start rounded-md text-sm font-medium text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground lg:min-h-8",
-          focusRing,
-        )}
-      >
-        Apply each search's filters
-      </button>
+      <div className="-mt-2 flex flex-col gap-0.5">
+        <button
+          type="button"
+          onClick={onApplyMembers}
+          title="Set these filters from the ones you chose on each album's own results page"
+          aria-describedby={`${id}-match-note`}
+          className={cn(
+            "inline-flex min-h-11 items-center self-start rounded-md text-sm font-medium text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground lg:min-h-8",
+            focusRing,
+          )}
+        >
+          Match each album's own filters
+        </button>
+        <p id={`${id}-match-note`} className="text-xs text-faint">
+          Uses the filters you set on each album's results page: people and
+          roles off there go off here, and what you required there is required
+          here.
+        </p>
+      </div>
 
       <div className="flex flex-col lg:gap-1">
         {STACK_TOGGLES.map((t) => (

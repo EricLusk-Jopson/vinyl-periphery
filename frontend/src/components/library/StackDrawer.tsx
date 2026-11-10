@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { Plus } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -9,39 +10,33 @@ import {
 import { useCache } from "@/contexts/cache/CacheContext";
 import { SearchCache } from "@/contexts/cache/types";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { useLibraryStacks } from "@/hooks/useLibraryStacks";
+import { useToast } from "@/hooks/use-toast";
 import { track } from "@/lib/analytics";
 import { stackPath } from "@/lib/routes";
-import {
-  fitLinkText,
-  LibraryStack,
-  savedInStack,
-  StackFit,
-  stackIdOf,
-  stackLabel,
-  stackLayout,
-  stackRoot,
-  stacksThisFits,
-} from "@/lib/stacks";
+import { memberFor } from "@/lib/stackRecords";
+import { fitLinkText, stackOptionsFor, stackRoot } from "@/lib/stacks";
 import { cn } from "@/lib/utils";
 import { dialogButton } from "../common/buttons";
-import { LayersOff } from "../common/icons";
-import { SearchCover } from "../search/SearchCover";
 import { StackRootCover } from "./StackCard";
+import { StackEditor } from "./StackEditor";
+import { useRemoveFromStack } from "./useStackRemoval";
 
 interface StackDrawerProps {
   search: SearchCache;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Where it was opened, for analytics. */
-  from?: "results" | "library";
+  from?: "results" | "library" | "stack";
 }
 
 /**
- * Stack: every place a search could sit, in one list. First where it is
- * now (its stack, marked Current); then every stack it fits, and every
- * search on its own it could follow to start one, each with Switch; then,
- * below a rule, Standalone, with Destack when it's in a stack. A bottom
- * sheet on phones, a side panel from md.
+ * Stacks, for one album: every stack, with Remove for those holding it and
+ * Add for those it links to (an album there has it among its results, or
+ * the other way round). Stacks it doesn't link to are listed, greyed, so
+ * it's clear why they can't take it. "New stack with this album" opens the
+ * stack editor with it as the start. An album can be in any number of
+ * stacks. A bottom sheet on phones, a side panel from md.
  */
 export const StackDrawer: React.FC<StackDrawerProps> = ({
   search,
@@ -49,194 +44,158 @@ export const StackDrawer: React.FC<StackDrawerProps> = ({
   onOpenChange,
   from = "results",
 }) => {
-  const { searches, savedSearchIds, saveSearch } = useCache();
+  const { updateStack } = useCache();
+  const { toast } = useToast();
   const wide = useMediaQuery("(min-width: 768px)");
-  const [busy, setBusy] = useState(false);
-
-  // The stack it's in now (two or more searches).
-  const current = useMemo((): LibraryStack | null => {
-    const stackId = stackIdOf(search);
-    const members = savedInStack(searches, savedSearchIds, stackId);
-    return members.length > 1 ? { kind: "stack", stackId, members } : null;
-  }, [search, searches, savedSearchIds]);
-  const fits = useMemo(
-    () => stacksThisFits(search, searches, savedSearchIds, { singles: true }),
-    [search, searches, savedSearchIds],
+  const stacks = useLibraryStacks();
+  const options = useMemo(
+    () => stackOptionsFor(search, stacks),
+    [search, stacks],
   );
-  const currentStep = current
-    ? (stackLayout(current).levels.get(search.searchId) ?? 0)
-    : 0;
-  const run = async (action: () => Promise<void>) => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      await action();
-      onOpenChange(false);
-    } catch (error) {
-      console.error("Failed to change the stack:", error);
-    } finally {
-      setBusy(false);
-    }
+  const { remove, dialog } = useRemoveFromStack();
+  const [creating, setCreating] = useState(false);
+  const name = search.searchParams.album;
+  const holding = options.filter((o) => o.join.member).length;
+
+  const add = async (option: (typeof options)[number]) => {
+    const { stack } = option;
+    await updateStack({
+      ...stack.record,
+      members: [...stack.record.members, memberFor(search)],
+    });
+    track("stack_album_added", { from, members: stack.members.length + 1 });
+    toast({
+      title: "Added",
+      description: `${name} is in ${stack.record.name}.`,
+    });
   };
 
-  const addToStack = (fit: StackFit) =>
-    run(async () => {
-      await saveSearch(search.searchId, { lineage: fit.lineage });
-      track("stack_saved", {
-        members: fit.stack.members.length + 1,
-        depth: fit.lineage.depth,
-        joined: true,
-        from,
-        new_stack: fit.kind === "single",
-        ...(current ? { moved: true } : {}),
-      });
-    });
-
-  // Out of its stack: a trail of its own, still in the library.
-  const removeFromStack = () =>
-    run(async () => {
-      await saveSearch(search.searchId, { withoutLineage: true });
-      track("search_unstacked", {
-        from,
-        members: (current?.members.length ?? 1) - 1,
-        depth: currentStep,
-      });
-    });
-
-  const name = search.searchParams.album;
-  const row = "flex min-h-[60px] items-center gap-3 px-3 py-2";
-  const currentTag = (
-    <span className="shrink-0 rounded-full bg-secondary px-2.5 py-1 font-mono text-xs text-foreground">
-      Current
-    </span>
-  );
-  const button = (label: string, onClick: () => void, sr: string) => (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={busy}
-      className={cn(dialogButton.secondary, "shrink-0 px-3")}
-    >
-      {label}
-      <span className="sr-only"> {sr}</span>
-    </button>
-  );
+  const row = "flex min-h-[64px] items-center gap-3 px-3 py-2";
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side={wide ? "right" : "bottom"}
-        className={cn(
-          "flex flex-col gap-5 bg-background p-5 md:w-[420px] md:max-w-[420px] md:p-6",
-          !wide && "max-h-[85vh] overflow-y-auto rounded-t-xl",
-        )}
-      >
-        <div className="flex flex-col gap-1.5 pr-8">
-          <SheetTitle className="text-left text-lg font-semibold">
-            Stack
-          </SheetTitle>
-          <SheetDescription className="text-left text-sm text-muted-foreground">
-            {current
-              ? `${name} is in ${stackLabel(current)}.`
-              : `${name} is on its own.`}{" "}
-            {fits.length > 0
-              ? "Switch it to any stack whose albums have it in their results."
-              : "No other album in your library has it in its results."}
-          </SheetDescription>
-        </div>
-
-        <ul
-          aria-label="Stacks"
-          className="flex flex-col divide-y rounded-lg border bg-surface"
+    <>
+      <Sheet open={open && !creating} onOpenChange={onOpenChange}>
+        <SheetContent
+          side={wide ? "right" : "bottom"}
+          className={cn(
+            "flex flex-col gap-5 overflow-y-auto bg-background p-5 md:w-[440px] md:max-w-[440px] md:p-6",
+            !wide && "max-h-[85vh] rounded-t-xl",
+          )}
         >
-          {current && (
-            <li className={row}>
-              <StackRootCover
-                root={stackRoot(current)}
-                className="h-10 w-10 rounded-[3px] text-xs"
-              />
-              <span className="flex min-w-0 flex-1 flex-col">
-                <Link
-                  to={stackPath(current.stackId)}
-                  onClick={() => onOpenChange(false)}
-                  className="truncate text-sm font-medium underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
-                >
-                  {stackLabel(current)}
-                </Link>
-                <span className="truncate font-mono text-xs text-faint">
-                  {currentStep === 0 ? "Its start" : `Step ${currentStep}`} ·{" "}
-                  {current.members.length} searches
-                </span>
-              </span>
-              {currentTag}
-            </li>
-          )}
-          {fits.map((fit) => {
-            const single = fit.kind === "single";
-            const label = single
-              ? fit.parent.searchParams.album
-              : stackLabel(fit.stack);
-            return (
-              <li key={fit.stack.stackId} className={row}>
-                {single ? (
-                  <SearchCover
-                    search={fit.parent}
-                    className="h-10 w-10 rounded-[3px] text-xs"
-                  />
-                ) : (
-                  <StackRootCover
-                    root={stackRoot(fit.stack)}
-                    className="h-10 w-10 rounded-[3px] text-xs"
-                  />
-                )}
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-sm font-medium">{label}</span>
-                  <span className="truncate text-xs text-muted-foreground">
-                    {single
-                      ? "New stack, after this album"
-                      : `After ${fit.parent.searchParams.album}`}
-                  </span>
-                  {fit.via.length > 0 && (
-                    <span className="truncate font-mono text-xs text-faint">
-                      {fitLinkText(fit)}
-                    </span>
-                  )}
-                </span>
-                {button(
-                  "Switch",
-                  () => addToStack(fit),
-                  single ? `to a new stack after ${label}` : `to ${label}`,
-                )}
-              </li>
-            );
-          })}
-        </ul>
-
-        <div className="flex flex-col gap-2 border-t pt-5">
-          <div className={cn(row, "rounded-lg border bg-surface")}>
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[3px] bg-secondary text-muted-foreground">
-              <LayersOff className="h-5 w-5" aria-hidden="true" />
-            </span>
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate text-sm font-medium">Standalone</span>
-              <span className="truncate text-xs text-muted-foreground">
-                On its own, in no stack
-              </span>
-            </span>
-            {current
-              ? button("Destack", removeFromStack, `${name}`)
-              : currentTag}
+          <div className="flex flex-col gap-1.5 pr-8">
+            <SheetTitle className="text-left text-lg font-semibold">
+              Stacks
+            </SheetTitle>
+            <SheetDescription className="text-left text-sm text-muted-foreground">
+              {holding > 0
+                ? `${name} is in ${holding} ${holding === 1 ? "stack" : "stacks"}.`
+                : `${name} isn't in a stack yet.`}{" "}
+              It can go in any stack it links to: someone credited on it worked
+              on an album already there.
+            </SheetDescription>
           </div>
-          {current && (
-            <p className="text-[13px] text-faint">
-              It stays in your library.{" "}
-              {current.members.length === 2
-                ? "The other search is left on its own too, so the stack goes."
-                : "The rest of the stack stays as it is."}
-            </p>
+
+          {options.length > 0 && (
+            <ul
+              aria-label="Stacks"
+              className="flex flex-col divide-y rounded-lg border bg-surface"
+            >
+              {options.map((option) => {
+                const { stack, join } = option;
+                const off = !join.member && !join.ok;
+                return (
+                  <li
+                    key={stack.stackId}
+                    className={cn(row, off && "opacity-60")}
+                  >
+                    <StackRootCover
+                      root={stackRoot(stack)}
+                      className="h-10 w-10 rounded-[3px] text-xs"
+                    />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <Link
+                        to={stackPath(stack.stackId)}
+                        onClick={() => onOpenChange(false)}
+                        className="truncate text-sm font-medium underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                      >
+                        {stack.record.name}
+                      </Link>
+                      <span className="truncate text-xs text-muted-foreground">
+                        {join.member
+                          ? "In this stack"
+                          : join.ok && join.via
+                            ? `Links to ${join.via.searchParams.album}`
+                            : join.ok
+                              ? "An empty stack: it would be the start"
+                              : "Doesn't link to any album here yet"}
+                      </span>
+                      {join.ok && join.via && join.people.length > 0 && (
+                        <span className="truncate font-mono text-xs text-faint">
+                          {fitLinkText({ parent: join.via, via: join.people })}
+                        </span>
+                      )}
+                    </span>
+                    {join.member ? (
+                      <button
+                        type="button"
+                        onClick={() => remove(stack, search, from)}
+                        className={cn(dialogButton.secondary, "shrink-0 px-3")}
+                      >
+                        Remove
+                        <span className="sr-only">
+                          {" "}
+                          {name} from {stack.record.name}
+                        </span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => void add(option)}
+                        disabled={off}
+                        aria-disabled={off}
+                        className={cn(
+                          dialogButton.secondary,
+                          "shrink-0 px-3 disabled:cursor-not-allowed",
+                        )}
+                      >
+                        Add
+                        <span className="sr-only">
+                          {" "}
+                          {name} to {stack.record.name}
+                          {off && ": it doesn't link to any album there"}
+                        </span>
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           )}
-        </div>
-      </SheetContent>
-    </Sheet>
+
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className={cn(dialogButton.secondary, "gap-2 self-start")}
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            New stack with this album
+          </button>
+        </SheetContent>
+      </Sheet>
+      {dialog}
+      {creating && (
+        <StackEditor
+          open
+          initial={[search]}
+          onOpenChange={(next) => {
+            if (!next) setCreating(false);
+          }}
+          onSaved={() => {
+            setCreating(false);
+            onOpenChange(false);
+          }}
+        />
+      )}
+    </>
   );
 };

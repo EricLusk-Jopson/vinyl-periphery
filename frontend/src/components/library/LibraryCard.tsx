@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React from "react";
 import { Link } from "react-router-dom";
-import { Layers, Trash2 } from "lucide-react";
+import { Layers } from "lucide-react";
 import { SearchCache } from "@/contexts/cache/types";
 import { ResultFrom, resultPath } from "@/lib/routes";
 import { searchStartedAt, timeAgo } from "@/lib/searches";
@@ -19,36 +19,23 @@ interface LibraryCardProps {
   note?: string;
   /** The note in full, for screen readers, when the visible one is cut short. */
   noteLabel?: string;
-  onDelete: () => Promise<void>;
-  /**
-   * Put this search into a stack, move it, or take it out. Given only when it's on its own and
-   * fits somewhere.
-   */
+  /** Opens its Stacks drawer: add it to stacks, or take it out of them. */
   onStack?: () => void;
 }
 
-/** One search: cover, album, artist, counts, with Stack and Delete. */
+/**
+ * One album in the library: cover, album, artist, counts, and its Stacks
+ * button. Albums are deleted only from their own results page.
+ */
 export const LibraryCard: React.FC<LibraryCardProps> = ({
   search,
   from,
   note,
   noteLabel,
-  onDelete,
   onStack,
 }) => {
-  const [busy, setBusy] = useState(false);
   const { artist, album } = search.searchParams;
   const albums = Object.keys(search.releases).length;
-
-  const run = (action: () => Promise<void>) => async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      await action();
-    } finally {
-      setBusy(false);
-    }
-  };
 
   return (
     <li className="flex min-w-0 items-center gap-1 rounded-[10px] border bg-surface pr-2 transition-colors hover:border-border-strong">
@@ -93,8 +80,8 @@ export const LibraryCard: React.FC<LibraryCardProps> = ({
         <button
           type="button"
           onClick={onStack}
-          disabled={busy}
-          aria-label={`Add ${album} to a stack`}
+          aria-label={`Stacks for ${album}`}
+          title="Stacks"
           className={cn(
             iconButton,
             "text-muted-foreground hover:text-foreground",
@@ -103,18 +90,6 @@ export const LibraryCard: React.FC<LibraryCardProps> = ({
           <Layers className="h-[18px] w-[18px]" aria-hidden="true" />
         </button>
       )}
-      <button
-        type="button"
-        onClick={run(onDelete)}
-        disabled={busy}
-        aria-label={`Delete ${album}`}
-        className={cn(
-          iconButton,
-          "text-muted-foreground hover:text-foreground",
-        )}
-      >
-        <Trash2 className="h-[18px] w-[18px]" aria-hidden="true" />
-      </button>
     </li>
   );
 };

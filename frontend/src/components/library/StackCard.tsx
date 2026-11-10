@@ -1,10 +1,9 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Layers } from "lucide-react";
-import { LayersOff } from "../common/icons";
 import { useCoverArt } from "@/hooks/useCoverArt";
 import { stackPath } from "@/lib/routes";
-import { searchStartedAt, timeAgo, usableImageUrl } from "@/lib/searches";
+import { timeAgo, usableImageUrl } from "@/lib/searches";
 import {
   LibraryStack,
   StackRoot,
@@ -15,7 +14,6 @@ import {
 import { cn } from "@/lib/utils";
 import { AlbumCover } from "../search/AlbumCover";
 import { SearchCover } from "../search/SearchCover";
-import { iconButton } from "../common/buttons";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
@@ -44,23 +42,16 @@ export const StackRootCover: React.FC<{
 
 interface StackCardProps {
   stack: LibraryStack;
-  onDisband: () => void;
 }
 
 /**
- * The searches in one stack, as one card: the root's cover and name,
- * "+ n" for the rest. Offset edges behind it mark it as a stack. Opens the
- * stack's page; Destack keeps its searches, each on its own.
+ * One stack as a card: its start's cover, its name, how many albums and
+ * how deep. Offset edges behind it mark it as a stack. Opens the stack's
+ * page, where it's edited or deleted.
  */
-export const StackCard: React.FC<StackCardProps> = ({
-  stack,
-  onDisband,
-}) => {
+export const StackCard: React.FC<StackCardProps> = ({ stack }) => {
   const root = stackRoot(stack);
   const deepest = stackDepth(stack);
-  const latest = Math.max(
-    ...stack.members.map((m) => searchStartedAt(m.searchId)),
-  );
   const count = stack.members.length;
 
   return (
@@ -74,7 +65,7 @@ export const StackCard: React.FC<StackCardProps> = ({
         aria-hidden="true"
         className="absolute inset-0 bottom-1 left-1 right-1 top-1 rounded-[10px] border bg-surface"
       />
-      <div className="relative flex min-w-0 items-center gap-1 rounded-[10px] border border-border-strong bg-surface pr-2 transition-colors hover:border-border-emphasis">
+      <div className="relative flex min-w-0 items-center gap-1 rounded-[10px] border border-border-strong bg-surface transition-colors hover:border-border-emphasis">
         <Link
           to={stackPath(stack.stackId)}
           data-library-open
@@ -101,22 +92,13 @@ export const StackCard: React.FC<StackCardProps> = ({
               {root.artist}
             </span>
             <span className="font-mono text-xs text-faint">
-              {count} searches · {deepest} {deepest === 1 ? "step" : "steps"}{" "}
-              deep · {timeAgo(latest)}
+              {count} {count === 1 ? "album" : "albums"}
+              {count > 1 &&
+                ` · ${deepest} ${deepest === 1 ? "step" : "steps"} deep`}{" "}
+              · {timeAgo(stack.record.updatedAt)}
             </span>
           </span>
         </Link>
-        <button
-          type="button"
-          onClick={onDisband}
-          aria-label={`Destack the ${root.title} stack`}
-          className={cn(
-            iconButton,
-            "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <LayersOff className="h-[18px] w-[18px]" aria-hidden="true" />
-        </button>
       </div>
     </li>
   );

@@ -7,6 +7,11 @@ import {
   searchSwimlanes,
   stackSwimlanes,
   topLanes,
+  chooseLanes,
+  rankLanes,
+  withinYears,
+  Lane,
+  Swimlanes,
 } from "./swimlanes";
 
 const person = (
@@ -55,7 +60,10 @@ const releases = [
   release(16, "2001", [2]),
 ];
 const input = {
-  people: [drummer, producer, singer].map((c) => ({ id: c.id, contributor: c })),
+  people: [drummer, producer, singer].map((c) => ({
+    id: c.id,
+    contributor: c,
+  })),
   releases,
   results: [
     { key: "master:10", activeContributors: [1] },
@@ -185,7 +193,11 @@ describe("searchSwimlanes and stackSwimlanes", () => {
     const a = search(12, [drummer, producer], releases);
     // b lists album 16 itself (2001); a lists it nowhere, and lists album
     // 12 with a different year than b does: each album's own search wins.
-    const b = search(16, [producer], [release(16, "2001", [2]), release(12, "1990", [2])]);
+    const b = search(
+      16,
+      [producer],
+      [release(16, "2001", [2]), release(12, "1990", [2])],
+    );
     const counted = new Map([
       ["master:12", new Set([1, 2])],
       ["master:16", new Set([2])],
@@ -200,5 +212,54 @@ describe("searchSwimlanes and stackSwimlanes", () => {
     // Album 12 is on the producer's discography through the second search.
     const producerLane = lanes.lanes.find((l) => l.id === 2)!;
     expect(producerLane.ticks.find((t) => t.year === 1985)?.others).toBe(1);
+  });
+});
+
+describe("chooseLanes and withinYears", () => {
+  const lane = (id: number, results: number, years: number[]): Lane => ({
+    id,
+    name: `P${id}`,
+    group: "session",
+    ticks: years.map((year) => ({ year, results: [`k${year}`], others: 1 })),
+    results,
+    dated: years.length * 2,
+    undated: 0,
+    first: years[0] ?? null,
+    partial: false,
+  });
+  const all: Swimlanes = {
+    lanes: [lane(1, 5, [1990, 2000]), lane(2, 3, [1995]), lane(3, 1, [2010])],
+    from: 1990,
+    to: 2010,
+    albums: [
+      { key: "a", title: "A", year: 1995 },
+      { key: "b", title: "B", year: 2010 },
+    ],
+    undated: 0,
+  };
+
+  it("takes the most linked, less those taken out, plus those added", () => {
+    const ids = (s: Swimlanes) => s.lanes.map((l) => l.id);
+    expect(ids(chooseLanes(all, 2, { added: [], removed: [] }))).toEqual([
+      1, 2,
+    ]);
+    expect(ids(chooseLanes(all, 2, { added: [], removed: [1] }))).toEqual([
+      2, 3,
+    ]);
+    expect(ids(chooseLanes(all, 1, { added: [3], removed: [] }))).toEqual([3]);
+    expect(ids(chooseLanes(all, 2, { added: [3], removed: [] }))).toEqual([
+      1, 3,
+    ]);
+    expect(rankLanes(all.lanes).map((l) => l.id)).toEqual([1, 2, 3]);
+  });
+
+  it("keeps only the years asked for, on the axis too", () => {
+    const clipped = withinYears(all, { from: 1992, to: 2005 });
+    expect([clipped.from, clipped.to]).toEqual([1992, 2005]);
+    expect(clipped.albums.map((a) => a.key)).toEqual(["a"]);
+    expect(clipped.lanes[0].ticks.map((t) => t.year)).toEqual([2000]);
+    expect(clipped.lanes[2].ticks).toEqual([]);
+    expect(withinYears(all, { from: null, to: null })).toBe(all);
+    expect(withinYears(all, { from: 2000, to: null }).to).toBe(2010);
   });
 });

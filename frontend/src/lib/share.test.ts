@@ -5,13 +5,13 @@ import {
   cardPayload,
   mapHasAlbums,
   stackMapPayload,
-  stackCaption,
   albumMapPayload,
   countOptions,
-  lineOptions,
+  peopleOptions,
+  ShareDraft,
   canDrawLines,
+  imageCaption,
   withView,
-  selectionCaption,
   buildPayload,
   defaultDraft,
   draftChange,
@@ -75,7 +75,7 @@ describe("cardPayload", () => {
       a: { t: "Unmap", r: "Unmap Artist", i: `g:${MBID}` },
     });
     if (payload.l !== "card") throw new Error();
-    expect(payload.x).toHaveLength(5);
+    expect(payload.x).toHaveLength(8);
     expect(payload.x[0]).toEqual({
       t: "Album 0",
       r: "Someone",
@@ -129,7 +129,7 @@ describe("stackMapPayload", () => {
       centre,
       nodes,
       (key) => (key === "master:1" ? cover("release-group") : null),
-      stackCaption(nodes),
+      "A caption.",
     );
     if (payload.l !== "stack") throw new Error();
     expect(payload.c).toMatchObject({ t: "Unmap", i: `g:${MBID}` });
@@ -146,16 +146,7 @@ describe("stackMapPayload", () => {
       "Album 6",
       "Album 7",
     ]);
-    expect(payload.d).toBe("2 albums stacked · 3 around them");
-    expect(
-      stackCaption(
-        nodes,
-        { sort: "popular", then: "newest", likesFirst: true },
-        "1 removed",
-      ),
-    ).toBe(
-      "2 albums stacked · 3 around them, by Popular, then Newest · Likes first · 1 removed",
-    );
+    expect(payload.d).toBe("A caption.");
     expect(mapHasAlbums(payload)).toBe(true);
   });
 });
@@ -202,8 +193,7 @@ describe("buildPayload and the draft", () => {
   });
 
   it("draws the chosen layout and count, captioned, as the view says", () => {
-    const draft = { ...defaultDraft(), chosen: "card" as const };
-    draft.counts = { ...draft.counts, card: 3 };
+    const draft = { ...defaultDraft(), chosen: "card" as const, count: 3 };
     const payload = buildPayload(draft, data());
     if (payload.l !== "card") throw new Error();
     expect(payload.x).toHaveLength(3);
@@ -213,7 +203,7 @@ describe("buildPayload and the draft", () => {
       "Album 11",
       "Album 12",
     ]);
-    expect(payload.d).toBe("Top 3 by Shared");
+    expect(payload.d).toBe("The 3 albums sharing the most people with Unmap.");
     const bare = buildPayload(
       { ...draft, view: { ...draft.view, covers: false } },
       data(),
@@ -222,8 +212,7 @@ describe("buildPayload and the draft", () => {
   });
 
   it("plans what the controls need: shown, available, covers to find", () => {
-    const draft = defaultDraft();
-    draft.counts = { ...draft.counts, map: 6 };
+    const draft = { ...defaultDraft(), count: 6 };
     const plan = planShare(draft, data({ "master:11": { at: 0 } }));
     expect(plan.layout).toBe("map");
     expect(plan.shown).toHaveLength(6);
@@ -253,14 +242,10 @@ describe("buildPayload and the draft", () => {
     art = { "master:11": cover("release-group") };
     expect(draftChange(buildPayload(draft, data()), committed)).toBe("covers");
     // A control changed.
-    const fewer = { ...draft, counts: { ...draft.counts, map: 6 } };
-    expect(draftChange(buildPayload(fewer, data()), committed)).toBe(
-      "changed",
-    );
+    const fewer = { ...draft, count: 6 };
+    expect(draftChange(buildPayload(fewer, data()), committed)).toBe("changed");
     const lines = { ...draft, view: { ...draft.view, lines: true } };
-    expect(draftChange(buildPayload(lines, data()), committed)).toBe(
-      "changed",
-    );
+    expect(draftChange(buildPayload(lines, data()), committed)).toBe("changed");
     // Nothing made yet, or nothing to compare: nothing to apply.
     expect(draftChange(buildPayload(draft, data()), null)).toBe("same");
     expect(draftChange(null, committed)).toBe("same");
@@ -287,23 +272,55 @@ describe("buildPayload and the draft", () => {
     if (payload.l !== "lanes") throw new Error();
     expect(payload.c.t).toBe("Unmap");
     // Session (drums) before production; every result is solid.
-    expect(payload.n.map((n) => n.n)).toEqual(["Justin Vernon", "Brian Joseph"]);
+    expect(payload.n.map((n) => n.n)).toEqual([
+      "Justin Vernon",
+      "Brian Joseph",
+    ]);
     expect(payload.n[0].c).toBe(8);
     expect(payload.n[0].s.reduce((sum, [, n]) => sum + n, 0)).toBe(8);
     expect(payload.y).toEqual([2000, 2007]);
-    // The same albums as the map and list: chosen the same way.
-    expect(payload.d).toBe("Top 8 by Shared · 2 people");
-    // Fewer albums chosen: fewer tall marks.
-    const six = buildPayload(
-      { ...draft, counts: { ...draft.counts, lanes: 6 } },
+    expect(payload.d).toBe(
+      "2 people from Unmap's credits and the albums they worked on, 2000–2007.",
+    );
+    // Tall marks are every result on the page, whatever the album count.
+    const four = buildPayload({ ...draft, count: 4 }, people);
+    if (four.l !== "lanes") throw new Error();
+    expect(four.n[0].s.reduce((sum, [, n]) => sum + n, 0)).toBe(8);
+    // Who can be drawn, most linked first, and the years they span.
+    expect(plan.peopleCandidates?.map((l) => l.name)).toEqual([
+      "Justin Vernon",
+      "Brian Joseph",
+    ]);
+    expect(plan.laneYears).toEqual({ from: 2000, to: 2007 });
+    // Years bound the axis and the marks.
+    const bounded = buildPayload(
+      { ...draft, years: { from: 2002, to: 2005 } },
       people,
     );
-    if (six.l !== "lanes") throw new Error();
-    expect(six.n[0].s.reduce((sum, [, n]) => sum + n, 0)).toBe(6);
-    expect(six.d).toBe("Top 6 by Shared · 2 people");
+    if (bounded.l !== "lanes") throw new Error();
+    expect(bounded.y).toEqual([2002, 2005]);
+    expect(bounded.n[0].s.every(([year]) => year >= 2002 && year <= 2005)).toBe(
+      true,
+    );
+    expect(bounded.d).toBe(
+      "2 people from Unmap's credits and the albums they worked on, 2002–2005.",
+    );
+    // People taken out or added by hand.
+    const one = buildPayload(
+      { ...draft, peoplePicks: { added: [], removed: [1] } },
+      people,
+    );
+    if (one.l !== "lanes") throw new Error();
+    expect(one.n.map((n) => n.n)).toEqual(["Brian Joseph"]);
+    expect(one.d).toBe(
+      "1 person from Unmap's credits and the albums they worked on, 2000–2007.",
+    );
     // Covers off changes nothing on swimlanes.
     expect(
-      buildPayload({ ...draft, view: { ...draft.view, covers: false } }, people),
+      buildPayload(
+        { ...draft, view: { ...draft.view, covers: false } },
+        people,
+      ),
     ).toEqual(payload);
   });
 
@@ -311,7 +328,7 @@ describe("buildPayload and the draft", () => {
     const draft = {
       ...defaultDraft(),
       chosen: "transit" as const,
-      counts: { ...defaultDraft().counts, transit: 4 },
+      count: 4,
     };
     const plan = planShare(draft, withPeople());
     expect(plan.layout).toBe("transit");
@@ -328,62 +345,105 @@ describe("buildPayload and the draft", () => {
       "Brian Joseph",
       "Justin Vernon",
     ]);
-    expect(payload.d).toBe("Top 4 by Shared · 2 people as lines");
-    expect(plan.transitPeople).toBe(2);
-    // The Lines count: one person drawn, the other counted.
-    const one = { ...draft, transitLines: 1 };
+    expect(payload.d).toBe(
+      "How 2 people from Unmap's credits run through 4 albums.",
+    );
+    expect(plan.peopleAvailable).toBe(2);
+    // The People count: one person drawn, and no one left out is listed.
+    const one = { ...draft, people: 1 };
     const fewer = buildPayload(one, withPeople(), planShare(one, withPeople()));
     if (fewer.l !== "transit") throw new Error();
     expect(fewer.n).toHaveLength(1);
-    expect(fewer.o).toBe(1);
+    expect(fewer.o).toBeUndefined();
+    // Picked by hand, as on the People image.
+    const picked = { ...draft, peoplePicks: { added: [], removed: [1] } };
+    const swapped = buildPayload(
+      picked,
+      withPeople(),
+      planShare(picked, withPeople()),
+    );
+    if (swapped.l !== "transit") throw new Error();
+    expect(swapped.n.map((n) => n.n)).toEqual(["Brian Joseph"]);
+    expect(planShare(draft, withPeople()).peopleCandidates?.length).toBe(2);
   });
 
   it("ignores a change that doesn't alter the image", () => {
     const draft = defaultDraft();
     const committed = serialisePayload(buildPayload(draft, data()));
-    // The card's count changes nothing while the map is shown.
-    const card = { ...draft, counts: { ...draft.counts, card: 3 } };
-    expect(draftChange(buildPayload(card, data()), committed)).toBe("same");
+    // The people count changes nothing while the map is shown.
+    const people = { ...draft, people: 3 };
+    expect(draftChange(buildPayload(people, data()), committed)).toBe("same");
+  });
+
+  it("draws up to 24 on the map, the top 12 of them elsewhere", () => {
+    const many = Array.from({ length: 30 }, (_, i) => ({
+      key: `master:${100 + i}`,
+      title: `Album ${100 + i}`,
+      artist: "Someone",
+      year: String(1990 + i),
+      contributorIds: [1],
+      activeContributors: [1],
+      score: 1,
+      confidence: 1,
+    })) as unknown as ScoredRelease[];
+    const d = { ...data(), releases: many } as ShareData;
+    const draft = { ...defaultDraft(), count: 24 };
+    const keys = (chosen: ShareDraft["chosen"]) =>
+      planShare({ ...draft, chosen }, d).shown.map((r) => r.key);
+    expect(keys("map")).toHaveLength(24);
+    expect(keys("card")).toEqual(keys("map").slice(0, 12));
+  });
+
+  it("draws the same albums whichever the layout", () => {
+    const draft = { ...defaultDraft(), count: 4 };
+    const keys = (chosen: ShareDraft["chosen"]) =>
+      planShare({ ...draft, chosen }, withPeople()).shown.map((r) => r.key);
+    expect(keys("card")).toHaveLength(4);
+    expect(keys("map")).toEqual(keys("card"));
+    expect(keys("lanes")).toEqual(keys("card"));
+    expect(keys("transit")).toEqual(keys("card"));
   });
 });
 
-describe("selectionCaption", () => {
-  const filtered = () => {
-    const s = search(1, "Unmap", [
-      [1, "Justin Vernon"],
-      [2, "Brian Joseph (2)"],
-      [3, "Chris Rosenau"],
-    ]);
-    s.roles = { Vocals: true, Engineer: true };
-    s.filterState = {
-      contributors: { 1: true, 2: true, 3: true },
-      roles: { Vocals: true, Engineer: true },
-      excludeMainArtist: true,
-      collaborationsOnly: false,
-      excludeVarious: false,
-    };
-    return s;
+describe("imageCaption", () => {
+  const base = {
+    subject: "Unmap",
+    albums: 12,
+    sort: "shared",
+    rolesHidden: false,
   };
 
-  it("names the sorts, and nothing else at the reset state", () => {
-    expect(selectionCaption(filtered(), 12, "shared", null)).toBe(
-      "Top 12 by Shared",
+  it("says what each picture shows in one sentence", () => {
+    expect(imageCaption({ ...base, layout: "map" })).toBe(
+      "The 12 albums sharing the most people with Unmap.",
     );
-    expect(selectionCaption(filtered(), 5, "shared", "newest")).toBe(
-      "Top 5 by Shared, then Newest",
+    expect(imageCaption({ ...base, layout: "card", sort: "popular" })).toBe(
+      "The 12 most popular albums connected to Unmap.",
     );
+    expect(
+      imageCaption({
+        ...base,
+        layout: "lanes",
+        people: 8,
+        years: { from: 1990, to: 2010 },
+      }),
+    ).toBe(
+      "8 people from Unmap's credits and the albums they worked on, 1990–2010.",
+    );
+    expect(
+      imageCaption({ ...base, layout: "transit", people: 1, albums: 6 }),
+    ).toBe("How 1 person from Unmap's credits run through 6 albums.");
   });
 
-  it("names each filter that differs from Reset", () => {
-    const s = filtered();
-    s.filterState.likedOnly = true;
-    s.filterState.collaborationsOnly = true;
-    s.filterState.contributors[3] = false;
-    s.filterState.roles.Engineer = false;
-    s.filterState.required = { contributors: [2], roles: ["Vocals"] };
-    expect(selectionCaption(s, 12, "popular", null)).toBe(
-      "Top 12 by Popular · Liked only · 2+ shared · Must include Brian Joseph, Vocals · 1 person off · 1 role off",
-    );
+  it("says once that some roles are hidden, and nothing about other filters", () => {
+    expect(
+      imageCaption({
+        ...base,
+        layout: "map",
+        sort: "links",
+        rolesHidden: true,
+      }),
+    ).toBe("The 12 albums most linked to Unmap, with some roles hidden.");
   });
 });
 
@@ -428,48 +488,58 @@ describe("albumMapPayload", () => {
   });
 });
 
-describe("lineOptions", () => {
+describe("peopleOptions", () => {
   const labels = (o: { label: string }[]) => o.map((c) => c.label);
 
-  it("offers up to twelve lines, ending with All when fewer people", () => {
-    expect(labels(lineOptions(20))).toEqual(["3", "6", "9", "12"]);
-    expect(labels(lineOptions(12))).toEqual(["3", "6", "9", "All 12"]);
-    expect(labels(lineOptions(7))).toEqual(["3", "6", "All 7"]);
+  it("offers up to twelve people, ending with All when fewer", () => {
+    expect(labels(peopleOptions(20))).toEqual(["3", "6", "9", "12"]);
+    expect(labels(peopleOptions(12))).toEqual(["3", "6", "9", "All 12"]);
+    expect(labels(peopleOptions(7))).toEqual(["3", "6", "All 7"]);
   });
 
   it("offers nothing with three people or fewer", () => {
-    expect(lineOptions(3)).toEqual([]);
-    expect(lineOptions(0)).toEqual([]);
+    expect(peopleOptions(3)).toEqual([]);
+    expect(peopleOptions(0)).toEqual([]);
   });
 });
 
 describe("countOptions", () => {
   const labels = (o: { label: string }[]) => o.map((c) => c.label);
 
-  it("offers every count when there are plenty of albums", () => {
-    expect(labels(countOptions("map", 40))).toEqual(["6", "12", "18", "24"]);
-    expect(labels(countOptions("card", 30))).toEqual(["3", "5", "8", "10"]);
+  it("offers up to 24 for the map and 12 for the others", () => {
+    expect(labels(countOptions(40))).toEqual(["4", "6", "8", "12", "18", "24"]);
+    expect(labels(countOptions(40, Infinity, 12))).toEqual([
+      "4",
+      "6",
+      "8",
+      "12",
+    ]);
   });
 
   it("ends with All when fewer albums match than the largest count", () => {
-    expect(countOptions("map", 15)).toEqual([
+    expect(countOptions(9)).toEqual([
+      { count: 4, label: "4" },
       { count: 6, label: "6" },
-      { count: 12, label: "12" },
-      { count: 15, label: "All 15" },
+      { count: 8, label: "8" },
+      { count: 9, label: "All 9" },
     ]);
-    expect(labels(countOptions("map", 24))).toEqual([
+    expect(labels(countOptions(12, Infinity, 12))).toEqual([
+      "4",
       "6",
-      "12",
-      "18",
-      "All 24",
+      "8",
+      "All 12",
     ]);
-    expect(labels(countOptions("card", 4))).toEqual(["3", "All 4"]);
+    expect(labels(countOptions(5))).toEqual(["4", "All 5"]);
+  });
+
+  it("stops at what a crowded stack map can draw", () => {
+    expect(labels(countOptions(40, 9))).toEqual(["4", "6", "8", "9"]);
   });
 
   it("offers nothing when there's nothing to choose", () => {
-    expect(countOptions("card", 3)).toEqual([]);
-    expect(countOptions("map", 1)).toEqual([]);
-    expect(countOptions("map", 0)).toEqual([]);
+    expect(countOptions(4)).toEqual([]);
+    expect(countOptions(1)).toEqual([]);
+    expect(countOptions(0)).toEqual([]);
   });
 });
 
@@ -597,6 +667,26 @@ describe("stack People and Transit", () => {
     coverFor: () => null,
   });
 
+  it("draws the Results tab's albums in the page's order", () => {
+    const page = {
+      ...data(),
+      results: [scored(6, "2008", [2]), scored(5, "2004", [1])],
+      pageOrder: "Links, then Popular",
+    } as ShareData;
+    const plan = planShare(defaultDraft(), page);
+    // Not re-sorted by the draft's own sort.
+    expect(plan.shown.map((r) => r.key)).toEqual(["master:6", "master:5"]);
+    expect(plan.caption).toBe("The 2 albums most linked to Unmap.");
+    // Named by the stack, with roles switched off said once.
+    expect(
+      planShare(defaultDraft(), {
+        ...page,
+        name: "My trail",
+        rolesHidden: true,
+      } as ShareData).caption,
+    ).toBe("The 2 albums most linked to My trail, with some roles hidden.");
+  });
+
   it("draws every stack album as a line on the swimlanes, alike", () => {
     const draft = { ...defaultDraft(), chosen: "lanes" as const };
     const payload = buildPayload(draft, data());
@@ -607,7 +697,7 @@ describe("stack People and Transit", () => {
     ]);
     expect(payload.c.t).toBe("Unmap");
     expect(payload.d).toBe(
-      "2 albums stacked · 2 around them, by Shared · Likes first · 2 people",
+      "2 people from Unmap's credits and the albums they worked on, 2000–2011.",
     );
   });
 
@@ -625,7 +715,10 @@ describe("stack People and Transit", () => {
     ]);
     // Justin Vernon: both stack albums and Album 5; Brian Joseph: Unmap
     // and Album 6.
-    expect(payload.n.map((n) => n.n)).toEqual(["Justin Vernon", "Brian Joseph"]);
+    expect(payload.n.map((n) => n.n)).toEqual([
+      "Justin Vernon",
+      "Brian Joseph",
+    ]);
   });
 
   it("falls back to the map when nothing links two stations", () => {

@@ -13,7 +13,11 @@ import {
   ReleaseMutationParams,
   SearchMutationParams,
 } from "./types";
-import { addContributorToSet } from "./contributorSet";
+import {
+  addBandMembers,
+  addContributorToSet,
+  releaseHasCredits,
+} from "./contributorSet";
 import {
   addRelease,
   DiscographyItem,
@@ -73,6 +77,10 @@ async function listReleaseContributors(
 
   // Track processed artist IDs to avoid duplicate fetches
   const processedArtistIds = new Set<number>();
+  // Bands' members (every member they've had), applied once all releases
+  // are read: only as a fallback when none of them lists any credits.
+  const members: RawArtist[] = [];
+  let credited = false;
 
   let currentRelease = 0;
   for (const release of selectedReleases) {
@@ -91,6 +99,8 @@ async function listReleaseContributors(
         { signal }
       );
       const releaseData = await response.json();
+
+      if (releaseHasCredits(releaseData)) credited = true;
 
       // Process main artists
       if (releaseData.artists) {
@@ -135,15 +145,8 @@ async function listReleaseContributors(
             );
             const memberData = await memberResponse.json();
 
-            if (memberData.members) {
-              memberData.members.forEach((member: RawArtist) => {
-                addContributorToSet(
-                  internalSet,
-                  member,
-                  "member",
-                  "Band Member"
-                );
-              });
+            if (Array.isArray(memberData.members)) {
+              members.push(...memberData.members);
             }
             await sleep(REQUEST_DELAY_MS, signal);
           }
@@ -158,6 +161,8 @@ async function listReleaseContributors(
     }
     currentRelease++;
   }
+
+  addBandMembers(internalSet, members, credited);
 
   // Convert internal Map/Set structure to expected Record format
   return {

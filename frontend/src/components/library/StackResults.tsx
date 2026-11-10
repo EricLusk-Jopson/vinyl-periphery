@@ -2,6 +2,10 @@ import React, { useEffect, useId, useMemo, useState } from "react";
 import { ChevronLeft, SlidersHorizontal } from "lucide-react";
 import { SearchParams } from "@/api/types";
 import { SearchCache } from "@/contexts/cache/types";
+import { useTip } from "@/hooks/useTip";
+import { outsideStack, searchFromNote } from "@/lib/stacks";
+import { memberFor } from "@/lib/stackRecords";
+import { useLibraryStacks } from "@/hooks/useLibraryStacks";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { KnownAlbum } from "@/hooks/useSearchRun";
 import { useCoverArt } from "@/hooks/useCoverArt";
@@ -147,7 +151,25 @@ export const StackResults: React.FC<StackResultsProps> = ({
   onSearchFrom,
   isSearching,
 }) => {
-  const { searches } = useCache();
+  const { searches, updateStack } = useCache();
+  // This stack: albums already searched can be added straight in (a result
+  // of the stack links to it by definition).
+  const stack = useLibraryStacks().find((s) => s.stackId === stackId);
+  const addToStack = async (found: SearchCache) => {
+    if (!stack) return;
+    await updateStack({
+      ...stack.record,
+      members: [...stack.record.members, memberFor(found)],
+    });
+    track("stack_album_added", { from: "results" });
+    toast({
+      title: "Added to the stack",
+      description: `${found.searchParams.album} is in ${stack.record.name}.`,
+    });
+  };
+  // Once, in the first row opened: how to follow a result.
+  const tip = useTip("search-from-result");
+  const tipText = `Search from this album, here or in any row’s ⋯ menu, to follow its credits: ${searchFromNote()}.`;
   const likes = useLikes();
   const hidden = useHidden();
   const { toast } = useToast();
@@ -413,6 +435,7 @@ export const StackResults: React.FC<StackResultsProps> = ({
                     links: release.links,
                     of,
                     panel: <LinkPanel result={release} meta={meta} />,
+                    metric: sort === "shared" ? "shared" : "links",
                   }}
                   existing={
                     found
@@ -421,7 +444,18 @@ export const StackResults: React.FC<StackResultsProps> = ({
                           state: { from: "stack", stackId },
                           onOpen: () =>
                             track("search_jumped", { from: "result" }),
+                          ...(stack && outsideStack(found, stack)
+                            ? {
+                                onStack: () => void addToStack(found),
+                                stackAction: "Add to this stack",
+                              }
+                            : {}),
                         }
+                      : undefined
+                  }
+                  tip={
+                    tip.show
+                      ? { text: tipText, onDismiss: tip.dismiss }
                       : undefined
                   }
                   open={openKey === release.key}

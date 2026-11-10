@@ -13,6 +13,10 @@ const STEPS = [
     title: "Explore a web of music",
     body: "We return the credited contributors' discographies, ranked by overlap with your search. The more credits they share, the higher they rank. You can explore now music beyond marketing and algorithms.",
   },
+  {
+    title: "Follow the credits",
+    body: "Found something intriguing? Run a new search on any album in the results and add it to a stack. Stacks can contain any amount of linked albums.",
+  },
 ];
 
 export const HowItWorks: React.FC = () => (
@@ -28,7 +32,7 @@ export const HowItWorks: React.FC = () => (
     >
       How it works
     </h2>
-    <ol className="grid border-t md:grid-cols-3">
+    <ol className="grid border-t md:grid-cols-2 lg:grid-cols-4">
       {STEPS.map((step, i) => (
         <li
           key={step.title}

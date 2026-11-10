@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import {
   ArrowRight,
   ArrowUpRight,
+  Lightbulb,
   Loader2,
   RotateCw,
   Users,
@@ -40,7 +41,20 @@ interface ReleaseRowProps {
    * This album's results, when it's already been searched (this session or
    * saved): shown instead of "Search from this album".
    */
-  existing?: { to: string; state: unknown; onOpen: () => void };
+  existing?: {
+    to: string;
+    state: unknown;
+    onOpen: () => void;
+    /** Puts that search in this page's stack (the Stack drawer). */
+    onStack?: () => void;
+    /** The label for `onStack`: "Add to stacks…", "Add to this stack". */
+    stackAction?: string;
+  };
+  /**
+   * A one-time tip in the open row on searching from a result, until the
+   * user dismisses it.
+   */
+  tip?: { text: string; onDismiss: () => void };
   /** Called when the Discogs link is followed. */
   onOpenDiscogs?: () => void;
   /** A search is under way; true for this row if it started it. */
@@ -66,6 +80,11 @@ interface ReleaseRowProps {
     /** Member albums switched on. */
     of: number;
     panel: React.ReactNode;
+    /**
+     * The count shown follows the list's primary sort: people shared when
+     * it's Most shared, links otherwise.
+     */
+    metric?: "links" | "shared";
   };
 }
 
@@ -87,6 +106,7 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
   onToggle,
   onSearchFrom,
   existing,
+  tip,
   onOpenDiscogs,
   searching,
   searchingFromHere,
@@ -100,7 +120,8 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
   const shared = people.length;
   const year = releaseYear(release.year);
   const discogsUrl = discogsWebUrl(release.resource_url);
-  const count = stack ? stack.links : shared;
+  const byShared = !stack || stack.metric === "shared";
+  const count = byShared ? shared : stack.links;
   const strong = count > 1;
   // Discogs want + have; null for searches stored before it was kept.
   const popular = popularity(release);
@@ -194,7 +215,7 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
                 strong ? "text-primary-text" : "text-muted-foreground",
               )}
             >
-              {stack ? (
+              {stack && !byShared ? (
                 <>
                   <span className="sr-only md:not-sr-only">links </span>
                   {stack.links}
@@ -207,6 +228,12 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
                 <>
                   {shared}
                   <span className="sr-only md:not-sr-only"> shared</span>
+                  {stack && (
+                    <span className="sr-only">
+                      , linked by {stack.links} of {stack.of} albums in the
+                      stack
+                    </span>
+                  )}
                 </>
               )}
             </span>
@@ -236,6 +263,10 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
           hidden={hidden}
           onLike={onLike}
           onHide={onHide}
+          onSearchFrom={onSearchFrom}
+          searching={searching}
+          searchingFromHere={searchingFromHere}
+          existing={existing}
         />
       </div>
 
@@ -316,6 +347,30 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
             </div>
           </>
         )}
+        {open && tip && !existing && (
+          <div
+            role="note"
+            className="flex items-start gap-3 rounded-lg border bg-surface px-3 py-2.5"
+          >
+            <Lightbulb
+              className="mt-0.5 h-4 w-4 shrink-0 text-primary-text"
+              aria-hidden="true"
+            />
+            <p className="flex-1 text-[13px] text-muted-foreground">
+              {tip.text}
+            </p>
+            <button
+              type="button"
+              onClick={tip.onDismiss}
+              className={cn(
+                "-my-2 inline-flex min-h-11 shrink-0 items-center rounded-sm px-1 text-[13px] font-medium text-foreground transition-colors hover:text-primary-text",
+                focusRing,
+              )}
+            >
+              Got it
+            </button>
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
           {discogsUrl && (
             <a
@@ -346,7 +401,20 @@ export const ReleaseRow: React.FC<ReleaseRowProps> = ({
               Open your search
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
-          ) : (
+          ) : null}
+          {existing?.onStack && (
+            <button
+              type="button"
+              onClick={existing.onStack}
+              className={cn(
+                "inline-flex min-h-11 items-center gap-2 rounded-sm text-foreground transition-colors hover:text-primary-text",
+                focusRing,
+              )}
+            >
+              {existing.stackAction ?? "Stack it…"}
+            </button>
+          )}
+          {!existing && (
             <button
               type="button"
               onClick={onSearchFrom}

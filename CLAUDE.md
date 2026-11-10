@@ -56,7 +56,10 @@ ranks albums by how many of those people worked on them.
     that floor (`stackMapCapacity`, "Up to N for this stack"). Lines run
     edge to edge from results to the stack albums they link, muted and
     thicker for more people shared (`w`); none between the stack's own
-    albums. A stack's sheet draws the Results tab's filtered results in
+    albums. A stack's images are titled with the stack's name (payload
+    `st`, eyebrow "Stack", the subtitle naming the picture and its start
+    album: "People from Unmap"); the centre album keeps its own title. A
+    stack's sheet draws the Results tab's filtered results in
     that tab's order (likes first if switched) and takes albums out or
     adds them. Typing "no
     boilerplate" in the sheet's album search unlocks a switch that drops

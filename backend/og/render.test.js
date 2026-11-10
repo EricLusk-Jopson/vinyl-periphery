@@ -560,3 +560,28 @@ test("lane marks: one per year with its count, close ones merged, album years re
   assert.deepEqual(tight[0], { year: 2000, count: 6, album: true });
   assert.equal(tight.length, 3);
 });
+
+test("an image titled with a stack's name keeps its centre album", async () => {
+  const lanes = parsePayload({
+    v: 1,
+    l: "lanes",
+    st: "My trail",
+    c: { t: "Unmap", r: "Volcano Choir", i: "" },
+    y: [2000, 2010],
+    k: [{ t: "Unmap", y: 2009 }],
+    n: [{ n: "Justin Vernon", c: 1, s: [[2009, 1]], f: [[2005, 2]] }],
+  });
+  assert.equal(lanes.title, "My trail");
+  assert.equal(lanes.centre.t, "Unmap");
+  assert.ok(isPng(await renderPng(lanes, IMAGE_SIZE, new Map())));
+  assert.equal(parsePayload({ ...lanesRaw(), st: "" })?.title, undefined);
+});
+
+const lanesRaw = () => ({
+  v: 1,
+  l: "lanes",
+  c: { t: "Unmap", r: "", i: "" },
+  y: [2000, 2010],
+  k: [],
+  n: [{ n: "A", c: 1, s: [[2001, 1]], f: [] }],
+});

@@ -82,7 +82,13 @@ interface ShareAlbum {
   i: ArtId;
 }
 
-export type SharePayload =
+/**
+ * What a share image draws. Any layout may carry `st`, the image's title
+ * in place of the centre album's: a stack's name.
+ */
+export type SharePayload = SharePayloadBody & { st?: string };
+
+type SharePayloadBody =
   | {
       v: 1;
       l: "card";
@@ -1117,7 +1123,11 @@ export const buildPayload = (
                 plan.caption,
                 plan.shown.length,
               );
-  return withView(drawn, draft.view);
+  const viewed = withView(drawn, draft.view);
+  // A stack's image is titled with the stack's name.
+  return data.kind === "stack" && data.name
+    ? { ...viewed, st: data.name }
+    : viewed;
 };
 
 /** The swimlanes share image: the lanes as drawn, ticks by year. */

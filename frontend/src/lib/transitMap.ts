@@ -19,7 +19,8 @@
  *   close, few crossings, no two legs running along each other, legs not
  *   too long, and a gentle preference for one overall direction of flow.
  * Legs are 0/45/90°: straight, or one straight run and one diagonal.
- * Lines sharing a leg run side by side, in a fixed order by person id.
+ * Lines sharing a leg run side by side (see `bundleOrder`), and so do
+ * legs that share a stretch of track (see `trackSlots`).
  * Each label takes the first spot around its station that overlaps no
  * other label or station (then the fewest lines); if any still overlaps,
  * the grid spreads out and tries again. Pure and deterministic.
@@ -373,6 +374,7 @@ const SCORE = {
   uTurn: 600,
   sameWayOut: 200,
   closeWayOut: 40,
+  /** Two different legs on one track: the lines would hide each other. */
   overlap: 70,
   crossing: 45,
   bend: 6,
@@ -913,6 +915,82 @@ export const bundleOrder = (net: Network, st: GridState): number[][] => {
 };
 
 /**
+ * Each line's place across its leg, in gaps from the middle (positive: to
+ * the leg's left as it runs a -> b, the way `offsetPath` moves), for each
+ * leg's lines in `bundles` order.
+ *
+ * Lines on one leg sit side by side. So do legs that share a stretch of
+ * track (two legs leaving a station the same way, say, which the score
+ * makes rare but the grid can't always avoid): they're drawn as one
+ * bundle there, so neither hides the other. Each leg takes the side it
+ * turns off to, so they part without crossing.
+ */
+const trackSlots = (net: Network, st: GridState, bundles: number[][]): number[][] => {
+  const routes = net.legs.map((leg, k) => legRoute(st.at[leg.a], st.at[leg.b], st.late[k]));
+  const centred = (n: number) => Array.from({ length: n }, (_, i) => i - (n - 1) / 2);
+  const slots = bundles.map((b) => centred(b.length));
+  // Legs sharing track, grouped, each with the stretch first found.
+  const group = net.legs.map((_, k) => k);
+  const root = (k: number): number => (group[k] === k ? k : (group[k] = root(group[k])));
+  const shared = new Map<number, { p: Point; q: Point }>();
+  for (let i = 0; i < routes.length; i++) {
+    for (let j = i + 1; j < routes.length; j++) {
+      for (let a = 1; a < routes[i].length; a++) {
+        for (let b = 1; b < routes[j].length; b++) {
+          const [p, q] = [routes[i][a - 1], routes[i][a]];
+          if (!segmentsOverlap(p, q, routes[j][b - 1], routes[j][b])) continue;
+          const [ri, rj] = [root(i), root(j)];
+          if (ri !== rj) {
+            group[rj] = ri;
+            if (!shared.has(ri)) shared.set(ri, shared.get(rj) ?? { p, q });
+          }
+        }
+      }
+    }
+  }
+  const members = new Map<number, number[]>();
+  net.legs.forEach((_, k) => {
+    const r = root(k);
+    members.set(r, [...(members.get(r) ?? []), k]);
+  });
+  for (const [r, legs] of members) {
+    if (legs.length < 2) continue;
+    const { p, q } = shared.get(r)!;
+    const along = minus(q, p);
+    const cross = (v: Point) => along.x * v.y - along.y * v.x;
+    const placed = legs.map((k) => {
+      const route = routes[k];
+      // Which way the leg runs the shared line (its part on that line, or
+      // else the whole leg), and where it lies off it.
+      const onLine = route.findIndex(
+        (pt, i) => i > 0 && cross(minus(pt, p)) === 0 && cross(minus(route[i - 1], p)) === 0,
+      );
+      const step =
+        onLine > 0
+          ? minus(route[onLine], route[onLine - 1])
+          : minus(route[route.length - 1], route[0]);
+      const same = along.x * step.x + along.y * step.y >= 0;
+      const off = route
+        .map((pt) => cross(minus(pt, p)))
+        .reduce((x, y) => (Math.abs(y) > Math.abs(x) ? y : x), 0);
+      return { k, same, side: Math.sign(off) };
+    });
+    placed.sort((a, b) => a.side - b.side || a.k - b.k);
+    const total = placed.reduce((n, { k }) => n + bundles[k].length, 0);
+    let next = 0;
+    for (const { k, same } of placed) {
+      const n = bundles[k].length;
+      // Slots across the whole bundle, in the shared line's direction.
+      const across = centred(n).map((c) => next + (n - 1) / 2 + c - (total - 1) / 2);
+      // A leg running the other way sees left and right swapped.
+      slots[k] = bundles[k].map((_, i) => (same ? across[i] : -across[n - 1 - i]));
+      next += n;
+    }
+  }
+  return slots;
+};
+
+/**
  * The grid layout drawn at `cell` pixels a step, with its labels: beside
  * the stations, or (`legend`) as numbers in them, the titles in a legend.
  */
@@ -927,9 +1005,9 @@ const drawAt = (
   const points = st.at.map(px);
   // Lines sharing a leg, side by side in the order that keeps each one
   // on the side it joined from (see `bundleOrder`).
-  const bundles = bundleOrder(net, st).map((order) =>
-    order.map((l) => net.lines[l].id),
-  );
+  const orders = bundleOrder(net, st);
+  const slots = trackSlots(net, st, orders);
+  const bundles = orders.map((o) => o.map((l) => net.lines[l].id));
   const spreadAt = new Map<number, number>();
   const lines: TransitLine[] = net.lines.map((line, colour) => ({
     id: line.id,
@@ -937,8 +1015,7 @@ const drawAt = (
     colour,
     stations: line.stations,
     legs: net.runs[colour].map(({ leg, forward }) => {
-      const bundle = bundles[leg];
-      const slot = bundle.indexOf(line.id) - (bundle.length - 1) / 2;
+      const slot = slots[leg][bundles[leg].indexOf(line.id)];
       const { a, b } = net.legs[leg];
       for (const end of [a, b]) {
         spreadAt.set(end, Math.max(spreadAt.get(end) ?? 0, Math.abs(slot) * TRANSIT.gap));

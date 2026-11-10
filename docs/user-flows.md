@@ -163,6 +163,10 @@ and #113.
 
   Then Make image, Regenerate after changes, and Share or Download. Reset
   image settings restores the sheet's defaults.
+- **The People picture** works differently: its steps are Picture, Years
+  (From and To), People (how many, who's drawn with Remove, and a search to
+  add anyone) and Appearance. Tall marks are every result on the page, so
+  there's no album count, page filters box or album fine-tune.
 - **Events:** `share_regenerated` (`first` on Make image),
   `share_created`, `share_completed`, `share_reset`,
   `share_more_filters`, `covers_requested`, `covers_found`.

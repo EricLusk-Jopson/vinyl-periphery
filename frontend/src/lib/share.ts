@@ -14,7 +14,14 @@ import {
   searchSwimlanes,
   stackSwimlanes,
   Swimlanes,
-  topLanes,
+  Lane,
+  LaneEdits,
+  NO_LANE_EDITS,
+  YearBounds,
+  ALL_YEARS,
+  chooseLanes,
+  rankLanes,
+  withinYears,
 } from "./swimlanes";
 import {
   resetFilterState,
@@ -643,12 +650,18 @@ export interface ShareDraft {
   stackOrder: StackOrder;
   /** People the People and Transit images draw (lanes or lines). */
   people: number;
+  /** People added to or taken out of the People image by hand. */
+  lanePeople: LaneEdits;
+  /** The years the People image covers. */
+  years: YearBounds;
 }
 
 export const defaultDraft = (): ShareDraft => ({
   chosen: "map",
   count: SHARE_COUNT.start,
   people: PEOPLE_COUNT.start,
+  lanePeople: NO_LANE_EDITS,
+  years: ALL_YEARS,
   edits: NO_EDITS,
   view: DEFAULT_VIEW,
   stackOrder: { sort: "shared", then: null, likesFirst: true },
@@ -765,6 +778,10 @@ export interface SharePlan {
    * or more stations), for the People count.
    */
   peopleAvailable?: number;
+  /** The People image: everyone it could draw, most linked first. */
+  laneCandidates?: Lane[];
+  /** The People image: the years its people's careers span. */
+  laneYears?: { from: number; to: number };
   /** Albums to find covers for: everything the image may draw. */
   wanted: string[];
   /** The caption the image will carry. */
@@ -833,7 +850,8 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
         edits,
       );
     const mapReady = pickFor("map").length > 0;
-    const allLanes = searchSwimlanes(search, counted, pickFor("lanes"));
+    // The People image's tall marks are every result on the page.
+    const allLanes = searchSwimlanes(search, counted, ranked);
     const transitInput = searchTransit(search, pickFor("transit"), counted);
     const lanesReady = allLanes.lanes.length > 0;
     const transitReady = transitInput.people.some(
@@ -851,8 +869,7 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
         ? "map"
         : "card";
     const shown = pickFor(layout);
-    const lanes =
-      layout === "lanes" ? topLanes(allLanes, draft.people) : undefined;
+    const lanes = layout === "lanes" ? peopleLanes(allLanes, draft) : undefined;
     const transit =
       layout === "transit"
         ? shareTransitMap(
@@ -860,15 +877,22 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
             draft.view.legend,
           )
         : undefined;
-    const caption = [
-      selectionCaption(search, shown.length, selection.sort, selection.then),
-      editsCaption(edits),
-      lanes ? peopleCount(lanes.lanes.length, "") : "",
-      transit ? peopleCount(transit.lines.length, " as lines") : "",
-    ]
-      .filter(Boolean)
-      .join(" · ");
+    const caption = lanes
+      ? lanesCaption(lanes, draft)
+      : [
+          selectionCaption(
+            search,
+            shown.length,
+            selection.sort,
+            selection.then,
+          ),
+          editsCaption(edits),
+          transit ? peopleCount(transit.lines.length, " as lines") : "",
+        ]
+          .filter(Boolean)
+          .join(" · ");
     return {
+      ...laneExtras(layout, allLanes),
       layout,
       edits,
       shown,
@@ -943,7 +967,8 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
   // map can draw with covers big enough to read and what the layout takes.
   const pickFor = (l: ShareLayout) =>
     pick(Math.min(draft.count, capacity, LAYOUT_MOST[l]));
-  const allLanes = stackSwimlanes(members, counted, pickFor("lanes"));
+  // The People image's tall marks are every result on the Results tab.
+  const allLanes = stackSwimlanes(members, counted, list);
   const transitInput = stackTransit(members, counted, pickFor("transit"));
   const lanesReady = allLanes.lanes.length > 0;
   const transitReady = transitInput.people.some((p) => p.stations.length >= 2);
@@ -964,8 +989,7 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
           shown.map((r) => r.key),
         )
       : [];
-  const lanes =
-    layout === "lanes" ? topLanes(allLanes, draft.people) : undefined;
+  const lanes = layout === "lanes" ? peopleLanes(allLanes, draft) : undefined;
   const transit =
     layout === "transit"
       ? shareTransitMap(
@@ -994,21 +1018,53 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
       draft.view.covers && layout === "map"
         ? [centre.key, ...stackNodes.slice(1).map((n) => n.key)]
         : [],
-    caption: [
-      stackSelectionCaption(
-        stacked,
-        shown.length,
-        stackOrder,
-        editsCaption(edits),
-        data.pageOrder,
-      ),
-      lanes ? peopleCount(lanes.lanes.length, "") : "",
-      transit ? peopleCount(transit.lines.length, " as lines") : "",
-    ]
-      .filter(Boolean)
-      .join(" · "),
+    ...laneExtras(layout, allLanes),
+    caption: lanes
+      ? lanesCaption(lanes, draft)
+      : [
+          stackSelectionCaption(
+            stacked,
+            shown.length,
+            stackOrder,
+            editsCaption(edits),
+            data.pageOrder,
+          ),
+          transit ? peopleCount(transit.lines.length, " as lines") : "",
+        ]
+          .filter(Boolean)
+          .join(" · "),
   };
 };
+
+/** The People image's lanes: the people chosen, between the years set. */
+const peopleLanes = (all: Swimlanes, draft: ShareDraft): Swimlanes =>
+  withinYears(
+    chooseLanes(all, draft.people, draft.lanePeople ?? NO_LANE_EDITS),
+    draft.years ?? ALL_YEARS,
+  );
+
+/** The People image's caption: its people, and its years when bounded. */
+const lanesCaption = (lanes: Swimlanes, draft: ShareDraft): string => {
+  const edits = draft.lanePeople ?? NO_LANE_EDITS;
+  const picked = edits.added.length + edits.removed.length;
+  const years = draft.years ?? ALL_YEARS;
+  return [
+    peopleCount(lanes.lanes.length, ""),
+    years.from !== null || years.to !== null ? `${lanes.from}–${lanes.to}` : "",
+    picked > 0 ? "picked by hand" : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+};
+
+/** For the People step: who could be drawn, and the years they span. */
+const laneExtras = (layout: ShareLayout, all: Swimlanes) =>
+  layout === "lanes"
+    ? {
+        laneCandidates: rankLanes(all.lanes),
+        laneYears: { from: all.from, to: all.to },
+      }
+    : {};
 
 /** "8 people", "1 person as lines". */
 const peopleCount = (n: number, suffix: string) =>

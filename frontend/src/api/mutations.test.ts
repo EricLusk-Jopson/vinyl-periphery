@@ -61,29 +61,47 @@ describe("listContributorReleases", () => {
     return result;
   };
 
-  it("reads every page, newest first, 500 at a time", async () => {
-    const fetchMock = serve({ 1: 3, 2: 1 });
+  it("reads everyone's first page, then the further pages", async () => {
+    const fetchMock = serve({ 1: 3, 2: 1, 3: 2 });
     global.fetch = fetchMock;
     const checked = jest.fn();
-    const releases = await run([1, 2], checked);
+    const releases = await run([1, 2, 3], checked);
     expect(
-      fetchMock.mock.calls.map((c) => new URL(String(c[0])).search),
-    ).toEqual([
+      fetchMock.mock.calls.map((c) => {
+        const u = new URL(String(c[0]));
+        return `${u.pathname.split("/")[2]}:${u.searchParams.get("page")}`;
+      }),
+    ).toEqual(["1:1", "2:1", "3:1", "1:2", "1:3", "3:2"]);
+    expect(new URL(String(fetchMock.mock.calls[0][0])).search).toBe(
       "?sort=year&sort_order=desc&per_page=500&page=1",
-      "?sort=year&sort_order=desc&per_page=500&page=2",
-      "?sort=year&sort_order=desc&per_page=500&page=3",
-      "?sort=year&sort_order=desc&per_page=500&page=1",
-    ]);
+    );
     expect([...releases.keys()]).toEqual([
       "master:101",
+      "master:201",
+      "master:301",
       "master:102",
       "master:103",
-      "master:201",
+      "master:302",
+    ]);
+    // Person 2 is done after the first pass; the others after the second.
+    expect(checked.mock.calls.map((c) => c[0])).toEqual([
+      "Person 2",
+      "Person 1",
+      "Person 3",
     ]);
     expect(checked).toHaveBeenCalledWith("Person 1", 1500, {
       pages: 3,
       capped: false,
     });
+  });
+
+  it("counts calls, the total growing as first pages announce more", async () => {
+    global.fetch = serve({ 1: 3, 2: 1, 3: 2 });
+    const progress = jest.fn();
+    await run([1, 2, 3], jest.fn(), progress);
+    expect(
+      progress.mock.calls.map((c) => `${c[0].current}/${c[0].total}`),
+    ).toEqual(["1/3", "2/5", "3/5", "4/6", "5/6", "6/6"]);
   });
 
   it("stops at the page cap and says so", async () => {
@@ -95,9 +113,8 @@ describe("listContributorReleases", () => {
       pages: 4,
       capped: true,
     });
-    // After the first page, progress knows 3 more calls are coming.
-    expect(progress.mock.calls.map((c) => c[0].extraCalls)).toEqual([
-      0, 3, 2, 1, 0,
+    expect(progress.mock.calls.map((c) => c[0].total)).toEqual([
+      1, 4, 4, 4,
     ]);
   });
 
@@ -129,5 +146,16 @@ describe("listContributorReleases", () => {
       pages: 1,
       capped: false,
     });
+  });
+
+  it("drops a person's remaining pages from the total when one fails", async () => {
+    global.fetch = serve({ 1: 4, 2: 1 }, 2);
+    jest.spyOn(console, "error").mockImplementation(() => {});
+    const progress = jest.fn();
+    await run([1, 2], jest.fn(), progress);
+    // 1:1, 2:1, then 1:2 fails and 1:3, 1:4 are never asked for.
+    expect(
+      progress.mock.calls.map((c) => `${c[0].current}/${c[0].total}`),
+    ).toEqual(["1/2", "2/5", "3/5"]);
   });
 });

@@ -118,12 +118,3 @@ export const editsWithoutHidden = (
   edits.added.some((key) => hidden[key])
     ? { ...edits, added: edits.added.filter((key) => !hidden[key]) }
     : edits;
-
-/** The edits, in words for the caption: "2 removed · 1 added". */
-export const editsCaption = (edits: ShareEdits): string =>
-  [
-    edits.removed.length > 0 ? `${edits.removed.length} removed` : "",
-    edits.added.length > 0 ? `${edits.added.length} added` : "",
-  ]
-    .filter(Boolean)
-    .join(" · ");

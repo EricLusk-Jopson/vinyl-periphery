@@ -854,7 +854,9 @@ export function stackElement(payload, size, art) {
 }
 
 /** Swimlanes' frame inside the graph box: names left, tracks right. */
-const LANES = { name: 300, gap: 24, labelRow: 22, axis: 34, legend: 34, maxRow: 96 };
+const LANES = { name: 300, gap: 24, labelRow: 22, axis: 34, legend: 0, maxRow: 96 };
+/** Marks closer than this (px) are drawn as one. */
+const LANE_TICK_GAP = 5;
 /** Album labels over the lanes: mono 16px, about this wide a character. */
 const LANE_LABEL = { size: 16, char: 9.7, chars: 30, gap: 14 };
 
@@ -910,23 +912,32 @@ export function lanesElement(payload, size) {
   const { top, ...box } = mapBox(payload, size);
   const g = lanesGeometry(payload, box);
   const mid = (i) => g.laneTop(i) + g.row / 2;
-  const tick = Math.min(30, g.row * 0.34);
+  const tick = Math.min(26, g.row * 0.3);
   const lines = [];
+  // Every album each person worked on in the years drawn, one mark per
+  // year, all alike; marks closer than LANE_TICK_GAP are drawn as one.
+  const yearsOf = (lane) =>
+    Array.from(new Set([...lane.solid, ...lane.faint].map(([y]) => y))).sort((a, b) => a - b);
+  const thinned = (years) => {
+    const kept = [];
+    for (const year of years) {
+      if (kept.length && g.x(year) - g.x(kept[kept.length - 1]) < LANE_TICK_GAP) continue;
+      kept.push(year);
+    }
+    return kept;
+  };
   payload.lanes.forEach((lane, i) => {
-    const years = [...lane.solid, ...lane.faint].map(([y]) => y);
-    const first = Math.min(...years);
-    const last = Math.max(...years);
+    const years = yearsOf(lane);
+    if (years.length === 0) return;
+    const first = years[0];
+    const last = years[years.length - 1];
     // Before a cut-short lane's first year: not read, dashed.
     if (lane.partial && first > payload.from) {
       lines.push({ x1: g.left, x2: g.x(first), y1: mid(i), y2: mid(i), stroke: C.border, strokeWidth: 6, strokeDasharray: "3 5" });
     }
     lines.push({ x1: g.x(first), x2: g.x(last), y1: mid(i), y2: mid(i), stroke: C.border, strokeWidth: 2 });
-    // Their other releases: short marks, the same colour as the tall.
-    for (const [year] of lane.faint) {
-      lines.push({ x1: g.x(year), x2: g.x(year), y1: mid(i) - tick * 0.5, y2: mid(i) + tick * 0.5, stroke: C.muted, strokeWidth: 2 });
-    }
   });
-  // The album lines, all alike, over the short marks and under the tall.
+  // The album lines, all alike, under the marks.
   for (const album of payload.albums) {
     lines.push({
       x1: g.x(album.year),
@@ -938,11 +949,12 @@ export function lanesElement(payload, size) {
     });
   }
   payload.lanes.forEach((lane, i) => {
-    for (const [year, count] of lane.solid) {
-      const reach = tick + Math.min(10, 3 * count);
-      lines.push({ x1: g.x(year), x2: g.x(year), y1: mid(i) - reach, y2: mid(i) + reach, stroke: C.muted, strokeWidth: 3 });
+    for (const year of thinned(yearsOf(lane))) {
+      lines.push({ x1: g.x(year), x2: g.x(year), y1: mid(i) - tick * 0.5, y2: mid(i) + tick * 0.5, stroke: C.muted, strokeWidth: 3 });
     }
   });
+  // How many albums each person has in the years drawn.
+  const albumsOf = (lane) => [...lane.solid, ...lane.faint].reduce((n, [, c]) => n + c, 0);
   const text = (style, ...children) => h("div", { position: "absolute", ...style }, ...children);
   const mono = { fontFamily: "IBM Plex Mono", fontSize: 16, color: C.faint };
 
@@ -1005,18 +1017,12 @@ export function lanesElement(payload, size) {
           h(
             "div",
             { ...mono, fontSize: 15 },
-            `${lane.results} ${lane.results === 1 ? "album" : "albums"} here${lane.partial ? " · oldest not read" : ""}`,
+            `${albumsOf(lane)} ${albumsOf(lane) === 1 ? "album" : "albums"}${lane.partial ? " · oldest not read" : ""}`,
           ),
         ),
       ),
       ...laneAxis(payload.from, payload.to).map((year) =>
         text({ top: Math.round(g.axisTop), left: Math.round(g.x(year) - 24), width: 48, justifyContent: "center", ...mono }, String(year)),
-      ),
-      text(
-        { top: Math.round(g.axisTop + LANES.axis), left: MAP_FRAME.pad, ...mono, gap: 28 },
-        h("div", {}, "Tall: albums in the results"),
-        h("div", {}, "Short: their other releases"),
-        payload.undated > 0 && h("div", {}, `${payload.undated} undated, not shown`),
       ),
     ),
     mapHeader("People around", payload, size),
@@ -1038,7 +1044,7 @@ const STATION_LIST = { width: 340, gap: 24, row: 42, compactRow: 27 };
 
 /** The transit map fitted to the box over its legend: scale and offset. */
 export function transitGeometry(payload, { width, height }) {
-  const rows = Math.ceil(payload.lines.length / legendColumns(payload.lines.length)) + (payload.others ? 1 : 0);
+  const rows = Math.ceil(payload.lines.length / legendColumns(payload.lines.length));
   const legend = rows * TRANSIT_LEGEND.row + 12;
   // A numbered map leaves a column on the right for its station list.
   const list = payload.legend ? STATION_LIST.width : 0;
@@ -1250,12 +1256,6 @@ export function transitElement(payload, size) {
             h("div", { fontSize: 19, color: C.foreground }, shorten(line.name, three ? 22 : 32)),
           );
         }),
-        payload.others > 0 &&
-          h(
-            "div",
-            { width: "100%", fontFamily: "IBM Plex Mono", fontSize: 16, color: C.faint, height: TRANSIT_LEGEND.row - 8, alignItems: "center" },
-            `+ ${payload.others} more on two or more albums`,
-          ),
       ),
     ),
     mapHeader("Transit map from", payload, size),

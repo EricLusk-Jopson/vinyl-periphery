@@ -5,14 +5,13 @@ import {
   cardPayload,
   mapHasAlbums,
   stackMapPayload,
-  stackCaption,
   albumMapPayload,
   countOptions,
   peopleOptions,
   ShareDraft,
   canDrawLines,
+  imageCaption,
   withView,
-  selectionCaption,
   buildPayload,
   defaultDraft,
   draftChange,
@@ -130,7 +129,7 @@ describe("stackMapPayload", () => {
       centre,
       nodes,
       (key) => (key === "master:1" ? cover("release-group") : null),
-      stackCaption(nodes),
+      "A caption.",
     );
     if (payload.l !== "stack") throw new Error();
     expect(payload.c).toMatchObject({ t: "Unmap", i: `g:${MBID}` });
@@ -147,16 +146,7 @@ describe("stackMapPayload", () => {
       "Album 6",
       "Album 7",
     ]);
-    expect(payload.d).toBe("2 albums stacked · 3 around them");
-    expect(
-      stackCaption(
-        nodes,
-        { sort: "popular", then: "newest", likesFirst: true },
-        "1 removed",
-      ),
-    ).toBe(
-      "2 albums stacked · 3 around them, by Popular, then Newest · Likes first · 1 removed",
-    );
+    expect(payload.d).toBe("A caption.");
     expect(mapHasAlbums(payload)).toBe(true);
   });
 });
@@ -213,7 +203,7 @@ describe("buildPayload and the draft", () => {
       "Album 11",
       "Album 12",
     ]);
-    expect(payload.d).toBe("Top 3 by Shared");
+    expect(payload.d).toBe("The 3 albums sharing the most people with Unmap.");
     const bare = buildPayload(
       { ...draft, view: { ...draft.view, covers: false } },
       data(),
@@ -289,13 +279,15 @@ describe("buildPayload and the draft", () => {
     expect(payload.n[0].c).toBe(8);
     expect(payload.n[0].s.reduce((sum, [, n]) => sum + n, 0)).toBe(8);
     expect(payload.y).toEqual([2000, 2007]);
-    expect(payload.d).toBe("2 people");
+    expect(payload.d).toBe(
+      "2 people from Unmap's credits and the albums they worked on, 2000–2007.",
+    );
     // Tall marks are every result on the page, whatever the album count.
     const four = buildPayload({ ...draft, count: 4 }, people);
     if (four.l !== "lanes") throw new Error();
     expect(four.n[0].s.reduce((sum, [, n]) => sum + n, 0)).toBe(8);
     // Who can be drawn, most linked first, and the years they span.
-    expect(plan.laneCandidates?.map((l) => l.name)).toEqual([
+    expect(plan.peopleCandidates?.map((l) => l.name)).toEqual([
       "Justin Vernon",
       "Brian Joseph",
     ]);
@@ -310,15 +302,19 @@ describe("buildPayload and the draft", () => {
     expect(bounded.n[0].s.every(([year]) => year >= 2002 && year <= 2005)).toBe(
       true,
     );
-    expect(bounded.d).toBe("2 people · 2002–2005");
+    expect(bounded.d).toBe(
+      "2 people from Unmap's credits and the albums they worked on, 2002–2005.",
+    );
     // People taken out or added by hand.
     const one = buildPayload(
-      { ...draft, lanePeople: { added: [], removed: [1] } },
+      { ...draft, peoplePicks: { added: [], removed: [1] } },
       people,
     );
     if (one.l !== "lanes") throw new Error();
     expect(one.n.map((n) => n.n)).toEqual(["Brian Joseph"]);
-    expect(one.d).toBe("1 person · picked by hand");
+    expect(one.d).toBe(
+      "1 person from Unmap's credits and the albums they worked on, 2000–2007.",
+    );
     // Covers off changes nothing on swimlanes.
     expect(
       buildPayload(
@@ -349,14 +345,26 @@ describe("buildPayload and the draft", () => {
       "Brian Joseph",
       "Justin Vernon",
     ]);
-    expect(payload.d).toBe("Top 4 by Shared · 2 people as lines");
+    expect(payload.d).toBe(
+      "How 2 people from Unmap's credits run through 4 albums.",
+    );
     expect(plan.peopleAvailable).toBe(2);
-    // The People count: one person drawn, the other counted.
+    // The People count: one person drawn, and no one left out is listed.
     const one = { ...draft, people: 1 };
     const fewer = buildPayload(one, withPeople(), planShare(one, withPeople()));
     if (fewer.l !== "transit") throw new Error();
     expect(fewer.n).toHaveLength(1);
-    expect(fewer.o).toBe(1);
+    expect(fewer.o).toBeUndefined();
+    // Picked by hand, as on the People image.
+    const picked = { ...draft, peoplePicks: { added: [], removed: [1] } };
+    const swapped = buildPayload(
+      picked,
+      withPeople(),
+      planShare(picked, withPeople()),
+    );
+    if (swapped.l !== "transit") throw new Error();
+    expect(swapped.n.map((n) => n.n)).toEqual(["Brian Joseph"]);
+    expect(planShare(draft, withPeople()).peopleCandidates?.length).toBe(2);
   });
 
   it("ignores a change that doesn't alter the image", () => {
@@ -397,43 +405,45 @@ describe("buildPayload and the draft", () => {
   });
 });
 
-describe("selectionCaption", () => {
-  const filtered = () => {
-    const s = search(1, "Unmap", [
-      [1, "Justin Vernon"],
-      [2, "Brian Joseph (2)"],
-      [3, "Chris Rosenau"],
-    ]);
-    s.roles = { Vocals: true, Engineer: true };
-    s.filterState = {
-      contributors: { 1: true, 2: true, 3: true },
-      roles: { Vocals: true, Engineer: true },
-      excludeMainArtist: true,
-      collaborationsOnly: false,
-      excludeVarious: false,
-    };
-    return s;
+describe("imageCaption", () => {
+  const base = {
+    subject: "Unmap",
+    albums: 12,
+    sort: "shared",
+    rolesHidden: false,
   };
 
-  it("names the sorts, and nothing else at the reset state", () => {
-    expect(selectionCaption(filtered(), 12, "shared", null)).toBe(
-      "Top 12 by Shared",
+  it("says what each picture shows in one sentence", () => {
+    expect(imageCaption({ ...base, layout: "map" })).toBe(
+      "The 12 albums sharing the most people with Unmap.",
     );
-    expect(selectionCaption(filtered(), 5, "shared", "newest")).toBe(
-      "Top 5 by Shared, then Newest",
+    expect(imageCaption({ ...base, layout: "card", sort: "popular" })).toBe(
+      "The 12 most popular albums connected to Unmap.",
     );
+    expect(
+      imageCaption({
+        ...base,
+        layout: "lanes",
+        people: 8,
+        years: { from: 1990, to: 2010 },
+      }),
+    ).toBe(
+      "8 people from Unmap's credits and the albums they worked on, 1990–2010.",
+    );
+    expect(
+      imageCaption({ ...base, layout: "transit", people: 1, albums: 6 }),
+    ).toBe("How 1 person from Unmap's credits run through 6 albums.");
   });
 
-  it("names each filter that differs from Reset", () => {
-    const s = filtered();
-    s.filterState.likedOnly = true;
-    s.filterState.collaborationsOnly = true;
-    s.filterState.contributors[3] = false;
-    s.filterState.roles.Engineer = false;
-    s.filterState.required = { contributors: [2], roles: ["Vocals"] };
-    expect(selectionCaption(s, 12, "popular", null)).toBe(
-      "Top 12 by Popular · Liked only · 2+ shared · Must include Brian Joseph, Vocals · 1 person off · 1 role off",
-    );
+  it("says once that some roles are hidden, and nothing about other filters", () => {
+    expect(
+      imageCaption({
+        ...base,
+        layout: "map",
+        sort: "links",
+        rolesHidden: true,
+      }),
+    ).toBe("The 12 albums most linked to Unmap, with some roles hidden.");
   });
 });
 
@@ -666,7 +676,15 @@ describe("stack People and Transit", () => {
     const plan = planShare(defaultDraft(), page);
     // Not re-sorted by the draft's own sort.
     expect(plan.shown.map((r) => r.key)).toEqual(["master:6", "master:5"]);
-    expect(plan.caption).toContain("by Links, then Popular");
+    expect(plan.caption).toBe("The 2 albums most linked to Unmap.");
+    // Named by the stack, with roles switched off said once.
+    expect(
+      planShare(defaultDraft(), {
+        ...page,
+        name: "My trail",
+        rolesHidden: true,
+      } as ShareData).caption,
+    ).toBe("The 2 albums most linked to My trail, with some roles hidden.");
   });
 
   it("draws every stack album as a line on the swimlanes, alike", () => {
@@ -678,7 +696,9 @@ describe("stack People and Transit", () => {
       { t: "Bon Iver", y: 2011 },
     ]);
     expect(payload.c.t).toBe("Unmap");
-    expect(payload.d).toBe("2 people");
+    expect(payload.d).toBe(
+      "2 people from Unmap's credits and the albums they worked on, 2000–2011.",
+    );
   });
 
   it("draws the stack's albums and the chosen results as stations", () => {

@@ -1158,8 +1158,7 @@ export const legendColumns = (lines: number): number => (lines > 6 ? 3 : 2);
 
 export const shareScale = (map: TransitMap): number => {
   const rows =
-    Math.ceil(map.lines.length / legendColumns(map.lines.length)) +
-    (map.others.length > 0 ? 1 : 0);
+    Math.ceil(map.lines.length / legendColumns(map.lines.length));
   const height = TRANSIT_SHARE_BOX.height - rows * TRANSIT_SHARE_BOX.legendRow - 12;
   // A legend map shares the width with its column of station titles.
   const width = map.legend

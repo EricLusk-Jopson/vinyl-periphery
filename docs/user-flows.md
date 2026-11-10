@@ -165,8 +165,10 @@ and #113.
   image settings restores the sheet's defaults.
 - **The People picture** works differently: its steps are Picture, Years
   (From and To), People (how many, who's drawn with Remove, and a search to
-  add anyone) and Appearance. Tall marks are every result on the page, so
-  there's no album count, page filters box or album fine-tune.
+  add anyone) and Appearance. It marks every album each person worked on
+  in those years, so there's no album count, page filters box or album
+  fine-tune. Transit's People step has the same picker.
+- **Captions** are one sentence on what the image shows.
 - **Events:** `share_regenerated` (`first` on Make image),
   `share_created`, `share_completed`, `share_reset`,
   `share_more_filters`, `covers_requested`, `covers_found`.

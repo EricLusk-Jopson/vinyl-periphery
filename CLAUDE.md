@@ -30,10 +30,12 @@ ranks albums by how many of those people worked on them.
     at most; built by `buildPayload` in `frontend/src/lib/share.ts`): a
     map, laid out by the client,
     a list of top results, swimlanes (`lanes`) or a transit map
-    (`transit`), all of the same chosen albums. For one search, the
-    map and the list draw its top results
-    as filtered and sorted on the page, with a line saying how they were
-    chosen; the map groups people around the circle by role category
+    (`transit`), all of the same chosen albums. Every image's caption is
+    one short sentence on what it shows (`imageCaption`: "The 12 albums
+    sharing the most people with Unmap, with some roles hidden."); filters,
+    likes and hides aren't named, only whether some roles are off. For one
+    search, the map and the list draw its top results as filtered and
+    sorted on the page; the map groups people around the circle by role category
     (`frontend/src/lib/albumMap.ts`). The share sheet can take albums out
     or add any result; adding a hidden one switches its people on in the
     filters (`frontend/src/lib/shareSelection.ts`). Two toggles: album
@@ -179,10 +181,11 @@ ranks albums by how many of those people worked on them.
       who counts and links one of the page's results (all of them, as
       filtered there: the album count doesn't apply), the top
       `ShareDraft.people` by albums plus those added and less those taken
-      out by hand (`chooseLanes`, `ShareDraft.lanePeople`); ticks by year,
-      tall for the results and short for their other releases, the same
-      colour, between the sheet's From and To years when set
-      (`withinYears`, `ShareDraft.years`). Its sheet steps are Picture,
+      out by hand (`chooseLanes`, `pickIds`, `ShareDraft.peoplePicks`); one
+      even mark per year for every album they worked on, between the
+      sheet's From and To years when set (`withinYears`,
+      `ShareDraft.years`), marks closer than `LANE_TICK_GAP` drawn as one;
+      no key. Its sheet steps are Picture,
       Years, People (count, then who's drawn with Remove and a search to
       add anyone: `PeopleControls`) and Appearance: no page filters box and
       no album fine-tune. A red line, labelled, at the searched
@@ -194,7 +197,9 @@ ranks albums by how many of those people worked on them.
       album (or the stack's albums, those switched on) and the albums
       chosen are stations (`searchTransit`, `stackTransit`); the people who
       count on two or more are lines (as many as the sheet's People
-      count, 3 to 12: `ShareDraft.people`, `peopleOptions`), each running through its
+      count, 3 to 12, picked by hand like the People image's with the same
+      `PeoplePicker`: `transitPeople`; only those drawn are named, so the
+      image lists no one left out), each running through its
       stations in its own year order. No time axis: stations go where the
       lines read best, found by a seeded simulated annealing on a grid
       (`SCORE`): no turn over 90° anywhere; bends at 45°, right angles

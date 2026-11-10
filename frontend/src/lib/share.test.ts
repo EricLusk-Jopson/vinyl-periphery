@@ -253,13 +253,9 @@ describe("buildPayload and the draft", () => {
     expect(draftChange(buildPayload(draft, data()), committed)).toBe("covers");
     // A control changed.
     const fewer = { ...draft, count: 6 };
-    expect(draftChange(buildPayload(fewer, data()), committed)).toBe(
-      "changed",
-    );
+    expect(draftChange(buildPayload(fewer, data()), committed)).toBe("changed");
     const lines = { ...draft, view: { ...draft.view, lines: true } };
-    expect(draftChange(buildPayload(lines, data()), committed)).toBe(
-      "changed",
-    );
+    expect(draftChange(buildPayload(lines, data()), committed)).toBe("changed");
     // Nothing made yet, or nothing to compare: nothing to apply.
     expect(draftChange(buildPayload(draft, data()), null)).toBe("same");
     expect(draftChange(null, committed)).toBe("same");
@@ -286,23 +282,49 @@ describe("buildPayload and the draft", () => {
     if (payload.l !== "lanes") throw new Error();
     expect(payload.c.t).toBe("Unmap");
     // Session (drums) before production; every result is solid.
-    expect(payload.n.map((n) => n.n)).toEqual(["Justin Vernon", "Brian Joseph"]);
+    expect(payload.n.map((n) => n.n)).toEqual([
+      "Justin Vernon",
+      "Brian Joseph",
+    ]);
     expect(payload.n[0].c).toBe(8);
     expect(payload.n[0].s.reduce((sum, [, n]) => sum + n, 0)).toBe(8);
     expect(payload.y).toEqual([2000, 2007]);
-    // The same albums as the map and list: chosen the same way.
-    expect(payload.d).toBe("Top 8 by Shared · 2 people");
-    // Fewer albums chosen: fewer tall marks.
-    const six = buildPayload(
-      { ...draft, count: 6 },
+    expect(payload.d).toBe("2 people");
+    // Tall marks are every result on the page, whatever the album count.
+    const four = buildPayload({ ...draft, count: 4 }, people);
+    if (four.l !== "lanes") throw new Error();
+    expect(four.n[0].s.reduce((sum, [, n]) => sum + n, 0)).toBe(8);
+    // Who can be drawn, most linked first, and the years they span.
+    expect(plan.laneCandidates?.map((l) => l.name)).toEqual([
+      "Justin Vernon",
+      "Brian Joseph",
+    ]);
+    expect(plan.laneYears).toEqual({ from: 2000, to: 2007 });
+    // Years bound the axis and the marks.
+    const bounded = buildPayload(
+      { ...draft, years: { from: 2002, to: 2005 } },
       people,
     );
-    if (six.l !== "lanes") throw new Error();
-    expect(six.n[0].s.reduce((sum, [, n]) => sum + n, 0)).toBe(6);
-    expect(six.d).toBe("Top 6 by Shared · 2 people");
+    if (bounded.l !== "lanes") throw new Error();
+    expect(bounded.y).toEqual([2002, 2005]);
+    expect(bounded.n[0].s.every(([year]) => year >= 2002 && year <= 2005)).toBe(
+      true,
+    );
+    expect(bounded.d).toBe("2 people · 2002–2005");
+    // People taken out or added by hand.
+    const one = buildPayload(
+      { ...draft, lanePeople: { added: [], removed: [1] } },
+      people,
+    );
+    if (one.l !== "lanes") throw new Error();
+    expect(one.n.map((n) => n.n)).toEqual(["Brian Joseph"]);
+    expect(one.d).toBe("1 person · picked by hand");
     // Covers off changes nothing on swimlanes.
     expect(
-      buildPayload({ ...draft, view: { ...draft.view, covers: false } }, people),
+      buildPayload(
+        { ...draft, view: { ...draft.view, covers: false } },
+        people,
+      ),
     ).toEqual(payload);
   });
 
@@ -656,9 +678,7 @@ describe("stack People and Transit", () => {
       { t: "Bon Iver", y: 2011 },
     ]);
     expect(payload.c.t).toBe("Unmap");
-    expect(payload.d).toBe(
-      "2 albums stacked · 2 around them, by Shared · Likes first · 2 people",
-    );
+    expect(payload.d).toBe("2 people");
   });
 
   it("draws the stack's albums and the chosen results as stations", () => {
@@ -675,7 +695,10 @@ describe("stack People and Transit", () => {
     ]);
     // Justin Vernon: both stack albums and Album 5; Brian Joseph: Unmap
     // and Album 6.
-    expect(payload.n.map((n) => n.n)).toEqual(["Justin Vernon", "Brian Joseph"]);
+    expect(payload.n.map((n) => n.n)).toEqual([
+      "Justin Vernon",
+      "Brian Joseph",
+    ]);
   });
 
   it("falls back to the map when nothing links two stations", () => {

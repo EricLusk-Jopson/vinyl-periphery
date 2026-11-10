@@ -72,8 +72,8 @@ ranks albums by how many of those people worked on them.
     the others the top 12 of them, `LAYOUT_MOST`; and a "From this page" box
     with the page's own sort, `PageSort`, and filter switches), 3 People
     (one count for People and Transit, `ShareDraft.people`, 3 to 12; a
-    note on who the map and list draw), 4 Look (how it's drawn), 5
-    Fine-tune (the albums in the image). "Reset image settings" puts the
+    note on who the map and list draw), 4 Appearance (how it's drawn), 5
+    Fine-tune (the albums in the image). Step 4 is titled Appearance. "Reset image settings" puts the
     draft back to its defaults, keeping the picture and the page's own
     settings (`share_reset`). A stack's image keeps
     its Results tab's order (`pageOrder`), liked albums first if switched. The preview is that image's blob, which is also the file
@@ -85,9 +85,9 @@ ranks albums by how many of those people worked on them.
     switches (`src/lib/filterToggles.ts`: one list per mode, used by the
     filter panels too) and, for a stack, its albums (one switched off
     leaves the ring, `stackMembersOn`). They change the page's own filter
-    state, not a copy, so the image is always of the page. "More filters"
-    closes the sheet and opens the page's filters (`requestFilters`,
-    `useFilterRequest`; a stack page moves to its Results tab). Old `/s?…&to=…` links (from when
+    state, not a copy, so the image is always of the page. The sheet opens
+    from "Create visual" on results and stack pages (`ShareButton`);
+    pictures are offered in the order People, Transit, Map, Results. Old `/s?…&to=…` links (from when
     shares carried one) redirect client-side to `to` (`legacyShareTarget`).
 - `backend/server.js`: Express server that mounts the same handlers, for
   local development (and Heroku until the move to Vercel is finished). In
@@ -176,10 +176,16 @@ ranks albums by how many of those people worked on them.
     one count and edits (`planShare`; a stack caps every layout at what
     its map can draw). No covers on either.
     - People (`src/lib/swimlanes.ts`, `lanes` payload): a lane per person
-      who counts and links an album chosen, the top `ShareDraft.people`
-      by albums; ticks by
-      year, tall for the chosen albums and short for their other
-      releases, the same colour. A red line, labelled, at the searched
+      who counts and links one of the page's results (all of them, as
+      filtered there: the album count doesn't apply), the top
+      `ShareDraft.people` by albums plus those added and less those taken
+      out by hand (`chooseLanes`, `ShareDraft.lanePeople`); ticks by year,
+      tall for the results and short for their other releases, the same
+      colour, between the sheet's From and To years when set
+      (`withinYears`, `ShareDraft.years`). Its sheet steps are Picture,
+      Years, People (count, then who's drawn with Remove and a search to
+      add anyone: `PeopleControls`) and Appearance: no page filters box and
+      no album fine-tune. A red line, labelled, at the searched
       album's year, or at every stack album's, all alike. Lanes sort by
       primary group, then first year; undated items are counted, not
       drawn; lanes the page cap cut short are dashed before their first
@@ -231,8 +237,8 @@ ranks albums by how many of those people worked on them.
     linked to the start". Deleting a stack (its page, with Undo) never
     deletes its albums; albums are deleted only from their own results
     page, and a deleted album stays in its stacks ghosted, with Search to
-    run it again. The library has two tabs, Stacks (New stack) and Albums
-    (`LibraryPage`). `StackEditor` makes and edits a stack: name, albums
+    run it again. The library has two tabs, Albums (first, the default)
+    and Stacks (New stack) (`LibraryPage`). `StackEditor` makes and edits a stack: name, albums
     in order with Remove, and the library to add from, albums that don't
     link yet greyed out with a note. An album's Stacks drawer
     (`StackDrawer`: results page header, library and stack cards) lists
@@ -247,7 +253,10 @@ ranks albums by how many of those people worked on them.
     map's `stackResults` is built on it). `src/lib/stackFilters.ts` filters
     it by credit, with member albums as a filter too (off, or required in "must include"),
     and scores links (member albums linking a result with someone who
-    counts) and shared; default sort links, then shared, then Popular.
+    counts) and shared; default sort links, then shared, then Popular. Each
+    row's count follows the primary sort: people shared under Most shared,
+    links otherwise. "Match each album's own filters" sets the stack's
+    filters from its albums' (`filtersFromMembers`), with a line saying so.
     Filters are stored per stack id in IndexedDB (`stack-filters`, DB v3,
     `useStackFilters`), start with every chip on, and go with the stack.
     Share draws the filtered results.

@@ -102,7 +102,7 @@ To test locally, put both Vinyl Periphery variables in `.env` and run
 | `stack_saved` | No longer sent (stacks became records): a search is switched to a stack it fits, or to a new stack after a search on its own, with Switch in the Stack drawer | `members` (searches in the stack afterwards), `depth` (along its trail), `from`: results or library, `joined`: true, `new_stack`: true when it starts a stack, `moved`: true when it left another stack |
 | `stack_opened` | A stack's page is opened | `members`, `ghosts` (deleted steps shown) |
 | `stack_view_changed` | A stack page switches tab | `view`: results or albums |
-| `stack_filters_applied` | "Apply each search's filters" on a stack's Results tab: the stack's filters taken from its searches' | `members` |
+| `stack_filters_applied` | "Match each album's own filters" on a stack's Results tab: the stack's filters taken from its searches' | `members` |
 | `stack_disbanded` | No longer sent (stacks became records): a stack is destacked (Destack, on its card or page) after confirming: its searches stay, each on its own | `members` |
 | `search_unstacked` | No longer sent (stacks became records): a search is taken out of its stack with Destack in the Stack drawer (results page, library card or stack page); it stays in the library, on its own | `from`: results or library, `members` (searches left in the stack), `depth` (its step in the stack) |
 | `search_jumped` | An existing search is opened instead of running a new one | `from`: result (a result row) or form (the search bar) |
@@ -112,7 +112,7 @@ To test locally, put both Vinyl Periphery variables in `.env` and run
 | `share_completed` | The share sheet finished or the image downloaded | `layout`, `method`: share or download (link: from before Copy link was removed) |
 | `share_regenerated` | Make image or Regenerate is pressed in the share sheet (nothing is made on open) | `layout`: map, card, lanes or transit; `stack` (from a stack page); `first` (Make image: no image yet this session) |
 | `share_reset` | Reset image settings is pressed in the share sheet (the page's sort and filters are left alone) | `layout`; `stack` (from a stack page) |
-| `share_more_filters` | "More filters" in the share sheet: the sheet closes and the page's filters open | `stack` (from a stack page) |
+| `share_more_filters` | No longer sent (the sheet has no More filters now): "More filters" in the share sheet: the sheet closes and the page's filters open | `stack` (from a stack page) |
 | `covers_requested` | "Find missing covers" is pressed: covers MusicBrainz doesn't have, asked of Discogs | `missing` (albums asked for), `where`: sheet (share sheet), results or stack (a Results list) |
 | `covers_found` | A "Find missing covers" run ends (done, cancelled, or stopped by Discogs) | `found` (covers found), `none` (albums Discogs has no image for), `busy`: true when Discogs (or the server, keeping room for search) said not now |
 | `chip_details` | A contributor or role chip's details open (who did what) | `kind`: contributor or role, `via`: hover (a mouse resting a second), hold (a press held a second) or key (context menu key, Shift+F10 or right click) |

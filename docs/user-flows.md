@@ -92,8 +92,8 @@ and #113.
 ## 5. Library
 
 - **Starts at:** Library in the header, "View library" on Home.
-- **Steps:** two tabs, **Stacks** (the default, with **New stack**) and
-  **Albums** (every search, newest first). One search box filters the tab
+- **Steps:** two tabs, **Albums** (first and the default: every search,
+  newest first) and **Stacks** (with **New stack**). One search box filters the tab
   on screen: albums by title or artist, stacks by name or any album in
   them. An album card notes the stack it's in ("In My trail", "In 3
   stacks"), opens its results, and its Stacks button opens its Stacks
@@ -153,7 +153,7 @@ and #113.
 
 ## 9. Sharing an image
 
-- **Starts at:** Share on a results page or a stack page.
+- **Starts at:** Create visual on a results page or a stack page.
 - **Steps (since #112, #113):**
   1. Picture.
   2. Albums: one count, plus the page's sort and filters.
@@ -163,6 +163,10 @@ and #113.
 
   Then Make image, Regenerate after changes, and Share or Download. Reset
   image settings restores the sheet's defaults.
+- **The People picture** works differently: its steps are Picture, Years
+  (From and To), People (how many, who's drawn with Remove, and a search to
+  add anyone) and Appearance. Tall marks are every result on the page, so
+  there's no album count, page filters box or album fine-tune.
 - **Events:** `share_regenerated` (`first` on Make image),
   `share_created`, `share_completed`, `share_reset`,
   `share_more_filters`, `covers_requested`, `covers_found`.

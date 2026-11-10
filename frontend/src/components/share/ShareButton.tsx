@@ -2,6 +2,7 @@ import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   Download,
   ImageIcon,
+  ImagePlus,
   Loader2,
   RefreshCw,
   RotateCcw,
@@ -26,8 +27,6 @@ import { useLikes } from "@/hooks/useLikes";
 import { useHidden } from "@/hooks/useHidden";
 import { useCoverArt } from "@/hooks/useCoverArt";
 import { track, trackStackFilter } from "@/lib/analytics";
-import { activeFilterCount } from "@/lib/filters";
-import { requestFilters } from "@/lib/filterRequest";
 import {
   SEARCH_TOGGLES,
   setToggle,
@@ -39,7 +38,6 @@ import {
   setStates,
   stackAlbumChips,
   StackFilterState,
-  stackFilterCount,
 } from "@/lib/stackFilters";
 import { ScoredRelease, SortKey } from "@/lib/results";
 import {
@@ -77,6 +75,8 @@ import {
   SelectValue,
 } from "../ui/select";
 import { ShareAlbums } from "./ShareAlbums";
+import { LanePeoplePicker, YearRange } from "./PeopleControls";
+import { ALL_YEARS, NO_LANE_EDITS } from "@/lib/swimlanes";
 import { FindCovers } from "../common/FindCovers";
 import { StackAlbumList } from "../library/StackAlbumList";
 import { Switch } from "../filters/Switch";
@@ -146,18 +146,18 @@ interface ShareButtonProps {
   };
 }
 
-/** A stack's layouts: the ring of album overlap, people, a transit map. */
+/** A stack's pictures: people, a transit map, the ring of album overlap. */
 const STACK_LAYOUTS: { id: ShareLayout; label: string }[] = [
-  { id: "map", label: "Map" },
   { id: "lanes", label: "People" },
   { id: "transit", label: "Transit" },
+  { id: "map", label: "Map" },
 ];
 
 const LAYOUTS: { id: ShareLayout; label: string }[] = [
-  { id: "map", label: "Map" },
-  { id: "card", label: "Results" },
   { id: "lanes", label: "People" },
   { id: "transit", label: "Transit" },
+  { id: "map", label: "Map" },
+  { id: "card", label: "Results" },
 ];
 
 /** A segmented choice, as radios. */
@@ -286,7 +286,7 @@ const layoutNote = (layout: ShareLayout, album: string | null): string =>
   layout === "transit"
     ? "Albums as stations and people as lines, each running through its albums in year order."
     : layout === "lanes"
-      ? `Each person's career by year: tall marks for these albums, and a red line for ${album ?? "each of the stack's albums"}.`
+      ? `Each person's career by year: tall marks for the page's results, and a red line for ${album ?? "each of the stack's albums"}.`
       : layout === "card"
         ? "A list of the albums, with how many people each shares."
         : album
@@ -298,7 +298,7 @@ const peopleNote = (layout: ShareLayout, search: boolean): string =>
   layout === "transit"
     ? "A line each for people on two or more of these albums, most albums first; the rest are counted under the map."
     : layout === "lanes"
-      ? "A lane each for the people on the most of these albums."
+      ? "A lane each for the people on the most of the page's results, as filtered there. Take anyone out, or find someone to add."
       : layout === "card"
         ? "Each row says how many people it shares; no names."
         : search
@@ -693,17 +693,6 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
         : [],
     [stackFilters, selection],
   );
-  const activeFilters = selection
-    ? activeFilterCount(liveSearch)
-    : stackFilters
-      ? stackFilterCount(stackFilters.filters)
-      : 0;
-  // Closes the sheet, then opens the page's filters (the draft stays).
-  const moreFilters = () => {
-    track("share_more_filters", { stack: !selection });
-    setOpen(false);
-    setTimeout(requestFilters, 0);
-  };
 
   // The one action: Make image until there is one, Regenerate while the
   // draft differs from it, then Share or Download for the image on screen.
@@ -759,8 +748,11 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
         onClick={() => setOpen(true)}
         className={pageAction}
       >
-        <Share2 className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-        Share
+        <ImagePlus
+          className="h-4 w-4 text-muted-foreground"
+          aria-hidden="true"
+        />
+        Create visual
       </button>
 
       <Sheet open={open} onOpenChange={setOpen}>
@@ -775,10 +767,11 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
         >
           <div className="flex flex-col gap-1.5 pr-8">
             <SheetTitle className="text-left text-lg font-semibold">
-              Share an image
+              Create a visual
             </SheetTitle>
             <SheetDescription className="text-left text-sm text-muted-foreground">
-              Five steps, then Make image. Nothing is made until you ask.
+              Turn these albums into a picture: choose one, set it up, then Make
+              image. Download or share it from here.
             </SheetDescription>
           </div>
 
@@ -899,135 +892,134 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                 )}
               </Step>
 
-              <Step
-                n={2}
-                title="Albums"
-                note={`The top of ${selection ? "this page's" : "the Results tab's"} list, in its order and through its filters. Every picture draws the same albums: the map up to 24, the others the top 12. Hidden albums never go in.`}
-              >
-                {countChoices.length > 0 && (
-                  <Segmented
-                    label="How many"
-                    value={String(shownCount)}
-                    options={countChoices.map((c) => ({
-                      id: String(c.count),
-                      label: c.label,
-                    }))}
-                    onChange={(value) =>
-                      setDraft((d) => ({ ...d, count: Number(value) }))
-                    }
-                  />
-                )}
-                {countAbove && (
-                  <p className="text-[13px] text-muted-foreground">
-                    This picture draws up to {LAYOUT_MOST[layout]}: the top{" "}
-                    {LAYOUT_MOST[layout]} of your {draft.count}. The map draws
-                    all {draft.count}.
-                  </p>
-                )}
-                {plan?.cap !== undefined && (
-                  <p className="text-[13px] text-muted-foreground">
-                    Up to {plan.cap} for this stack, so the map's covers stay
-                    big enough to read
-                  </p>
-                )}
-                {!mapReady && (
-                  <p className="text-[13px] text-muted-foreground">
-                    {selection
-                      ? "No albums match these filters."
-                      : "Stack another album to share a map."}
-                  </p>
-                )}
-                {/* The page's own sort and filters: changing one here
-                    changes the page, and the page's changes show here. */}
-                <section
-                  aria-label="From this page"
-                  className="flex flex-col gap-2 rounded-lg border p-4"
+              {layout === "lanes" && plan?.laneYears ? (
+                <Step
+                  n={2}
+                  title="Years"
+                  note="The years the people's careers are drawn over. Leave a box empty for the start or end of their careers."
                 >
-                  <SectionHeading
-                    title="From this page"
-                    note="Shared with the page: changing these changes its results too."
+                  <YearRange
+                    years={draft.years ?? ALL_YEARS}
+                    span={plan.laneYears}
+                    onChange={(years) => setDraft((d) => ({ ...d, years }))}
                   />
-                  <PageSortControls order={order} />
-                  <div className="flex flex-col">
-                    {selection && liveSearch
-                      ? SEARCH_TOGGLES.filter((t) => t.inSheet).map((t) => {
-                          const on = toggleOn(liveSearch.filterState, t.key);
-                          return (
-                            <Switch
-                              key={t.key}
-                              label={t.label(liveSearch.searchParams.artist)}
-                              checked={on}
-                              onChange={() => {
-                                track("filter_changed", {
-                                  filter: t.event,
-                                  on: !on,
-                                  from: "share",
-                                });
-                                updateFilterState(
-                                  liveSearch.searchId,
-                                  setToggle(t.key, !on),
-                                );
-                              }}
-                            />
-                          );
-                        })
-                      : stackFilters &&
-                        STACK_TOGGLES.filter((t) => t.inSheet).map((t) => {
-                          const on = toggleOn(stackFilters.filters, t.key);
-                          return (
-                            <Switch
-                              key={t.key}
-                              label={t.label("")}
-                              checked={on}
-                              onChange={() => {
-                                trackStackFilter(t.event, !on, {
-                                  from: "share",
-                                });
-                                stackFilters.update(setToggle(t.key, !on));
-                              }}
-                            />
-                          );
-                        })}
-                  </div>
-                  {stackAlbums.length > 1 && stackFilters && (
-                    <div className="mt-3 flex flex-col gap-2">
-                      <span className="text-sm font-medium text-foreground">
-                        Albums on the map
-                      </span>
-                      <StackAlbumList
-                        albums={stackAlbums}
-                        onToggle={(album) => {
-                          trackStackFilter("album", !album.included, {
-                            from: "share",
-                          });
-                          stackFilters.update({
-                            albums: setStates(
-                              stackFilters.filters.albums,
-                              [album.key],
-                              !album.included,
-                            ),
-                          });
-                        }}
-                      />
-                    </div>
+                </Step>
+              ) : (
+                <Step
+                  n={2}
+                  title="Albums"
+                  note={`The top of ${selection ? "this page's" : "the Results tab's"} list, in its order and through its filters. Every picture draws the same albums: the map up to 24, the others the top 12. Hidden albums never go in.`}
+                >
+                  {countChoices.length > 0 && (
+                    <Segmented
+                      label="How many"
+                      value={String(shownCount)}
+                      options={countChoices.map((c) => ({
+                        id: String(c.count),
+                        label: c.label,
+                      }))}
+                      onChange={(value) =>
+                        setDraft((d) => ({ ...d, count: Number(value) }))
+                      }
+                    />
                   )}
-                  <button
-                    type="button"
-                    onClick={moreFilters}
-                    className={cn(
-                      "inline-flex min-h-11 items-center gap-2 self-start rounded-md text-sm font-medium text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground",
-                      focusRing,
-                    )}
+                  {countAbove && (
+                    <p className="text-[13px] text-muted-foreground">
+                      This picture draws up to {LAYOUT_MOST[layout]}: the top{" "}
+                      {LAYOUT_MOST[layout]} of your {draft.count}. The map draws
+                      all {draft.count}.
+                    </p>
+                  )}
+                  {plan?.cap !== undefined && (
+                    <p className="text-[13px] text-muted-foreground">
+                      Up to {plan.cap} for this stack, so the map's covers stay
+                      big enough to read
+                    </p>
+                  )}
+                  {!mapReady && (
+                    <p className="text-[13px] text-muted-foreground">
+                      {selection
+                        ? "No albums match these filters."
+                        : "Stack another album to share a map."}
+                    </p>
+                  )}
+                  {/* The page's own sort and filters: changing one here
+                    changes the page, and the page's changes show here. */}
+                  <section
+                    aria-label="From this page"
+                    className="flex flex-col gap-2 rounded-lg border p-4"
                   >
-                    More filters
-                    {activeFilters > 0 && (
-                      <span className="font-mono text-xs no-underline">
-                        · {activeFilters} active
-                      </span>
+                    <SectionHeading
+                      title="From this page"
+                      note="Shared with the page: changing these changes its results too."
+                    />
+                    <PageSortControls order={order} />
+                    <div className="flex flex-col">
+                      {selection && liveSearch
+                        ? SEARCH_TOGGLES.filter((t) => t.inSheet).map((t) => {
+                            const on = toggleOn(liveSearch.filterState, t.key);
+                            return (
+                              <Switch
+                                key={t.key}
+                                label={t.label(liveSearch.searchParams.artist)}
+                                checked={on}
+                                onChange={() => {
+                                  track("filter_changed", {
+                                    filter: t.event,
+                                    on: !on,
+                                    from: "share",
+                                  });
+                                  updateFilterState(
+                                    liveSearch.searchId,
+                                    setToggle(t.key, !on),
+                                  );
+                                }}
+                              />
+                            );
+                          })
+                        : stackFilters &&
+                          STACK_TOGGLES.filter((t) => t.inSheet).map((t) => {
+                            const on = toggleOn(stackFilters.filters, t.key);
+                            return (
+                              <Switch
+                                key={t.key}
+                                label={t.label("")}
+                                checked={on}
+                                onChange={() => {
+                                  trackStackFilter(t.event, !on, {
+                                    from: "share",
+                                  });
+                                  stackFilters.update(setToggle(t.key, !on));
+                                }}
+                              />
+                            );
+                          })}
+                    </div>
+                    {stackAlbums.length > 1 && stackFilters && (
+                      <div className="mt-3 flex flex-col gap-2">
+                        <span className="text-sm font-medium text-foreground">
+                          Albums on the map
+                        </span>
+                        <StackAlbumList
+                          albums={stackAlbums}
+                          onToggle={(album) => {
+                            trackStackFilter("album", !album.included, {
+                              from: "share",
+                            });
+                            stackFilters.update({
+                              albums: setStates(
+                                stackFilters.filters.albums,
+                                [album.key],
+                                !album.included,
+                              ),
+                            });
+                          }}
+                        />
+                      </div>
                     )}
-                  </button>
-                </section>
-              </Step>
+                  </section>
+                </Step>
+              )}
 
               <Step
                 n={3}
@@ -1052,11 +1044,21 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                       }
                     />
                   )}
+                {layout === "lanes" && plan?.lanes && plan.laneCandidates && (
+                  <LanePeoplePicker
+                    shown={plan.lanes.lanes}
+                    candidates={plan.laneCandidates}
+                    edits={draft.lanePeople ?? NO_LANE_EDITS}
+                    onChange={(lanePeople) =>
+                      setDraft((d) => ({ ...d, lanePeople }))
+                    }
+                  />
+                )}
               </Step>
 
               <Step
                 n={4}
-                title="Look"
+                title="Appearance"
                 note={
                   lookSwitches === 0
                     ? "Nothing to change for this picture."
@@ -1113,7 +1115,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                 )}
               </Step>
 
-              {(selection || mapReady) && (
+              {(selection || mapReady) && layout !== "lanes" && (
                 <Step
                   n={5}
                   title="Fine-tune"

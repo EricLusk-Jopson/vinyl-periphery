@@ -13,6 +13,7 @@ import {
   imageCaption,
   withView,
   buildPayload,
+  defaultSubtitle,
   defaultDraft,
   draftChange,
   planShare,
@@ -209,6 +210,23 @@ describe("buildPayload and the draft", () => {
       data(),
     );
     expect(bare).toMatchObject({ l: "card", nc: 1 });
+  });
+
+  it("takes the subtitle and caption from the draft when set", () => {
+    const draft = defaultDraft();
+    expect(buildPayload(draft, data())).not.toHaveProperty("sub");
+    const edited = buildPayload(
+      { ...draft, text: { subtitle: "  Live credits  ", caption: "Mine." } },
+      data(),
+    );
+    expect(edited).toMatchObject({ sub: "Live credits", d: "Mine." });
+    const cleared = buildPayload(
+      { ...draft, text: { subtitle: "", caption: "" } },
+      data(),
+    );
+    expect(cleared).toMatchObject({ sub: "" });
+    expect(cleared).not.toHaveProperty("d");
+    expect(defaultSubtitle(data())).toBe("Unmap Artist");
   });
 
   it("plans what the controls need: shown, available, covers to find", () => {

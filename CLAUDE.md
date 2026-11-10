@@ -57,8 +57,11 @@ ranks albums by how many of those people worked on them.
     edge to edge from results to the stack albums they link, muted and
     thicker for more people shared (`w`); none between the stack's own
     albums. A stack's images are titled with the stack's name (payload
-    `st`, eyebrow "Stack", the subtitle naming the picture and its start
-    album: "People from Unmap"); the centre album keeps its own title. A
+    `st`; the eyebrow still names the picture, "Transit map", and there's
+    no subtitle unless written); the centre album keeps its own title.
+    Appearance also edits the image's subtitle (payload `sub`; a search's
+    defaults to its artist) and caption (`d`), each cleared to leave it
+    off, with "Use the default" (`ShareDraft.text`, `ImageText`). A
     stack's sheet draws the Results tab's filtered results in
     that tab's order (likes first if switched) and takes albums out or
     adds them. Typing "no

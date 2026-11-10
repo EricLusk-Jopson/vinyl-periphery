@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { laneMarks, artIds, cardSizes, edgeToEdge, transitGeometry, laneAxis, lanesGeometry, stackElement, fitTileText, initials, mapElement, mapGeometry, mapLayout, MAP_DOT, MAP_DOT_CLEAR, nameLines, renderPng, shorten, stackGeometry } from "./render.js";
+import { laneMarks, artIds, cardSizes, edgeToEdge, transitGeometry, laneAxis, lanesGeometry, stackElement, fitTileText, initials, mapElement, mapGeometry, mapLayout, MAP_DOT, MAP_DOT_CLEAR, nameLines, renderPng, shorten, stackGeometry, subtitleOf } from "./render.js";
 
 import { artSettled, fetchArt, loadArt } from "./art.js";
 import { IMAGE_SIZE, parsePayload } from "./payload.js";
@@ -584,4 +584,14 @@ const lanesRaw = () => ({
   y: [2000, 2010],
   k: [],
   n: [{ n: "A", c: 1, s: [[2001, 1]], f: [] }],
+});
+
+test("a stack's subtitle is none unless set; a search's is its artist", () => {
+  assert.equal(subtitleOf({}, "Black Midi"), "Black Midi");
+  assert.equal(subtitleOf({ title: "Windmill" }, "Black Midi"), "");
+  assert.equal(subtitleOf({ title: "Windmill", subtitle: "Live" }, "x"), "Live");
+  assert.equal(subtitleOf({ subtitle: "" }, "Black Midi"), "");
+  const raw = { v: 1, l: "map", c: { t: "x" }, n: [{ t: "A", l: [0] }], p: [{ n: "P", a: 0 }] };
+  assert.equal(parsePayload({ ...raw, st: "Windmill", sub: "" }).subtitle, "");
+  assert.equal(parsePayload(raw).subtitle, undefined);
 });

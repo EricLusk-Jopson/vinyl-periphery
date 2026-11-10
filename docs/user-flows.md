@@ -158,7 +158,7 @@ and #113.
   1. Picture.
   2. Albums: one count, plus the page's sort and filters.
   3. People.
-  4. Look.
+  4. Appearance (including the subtitle and caption).
   5. Fine-tune.
 
   Then Make image, Regenerate after changes, and Share or Download. Reset
@@ -168,7 +168,9 @@ and #113.
   add anyone) and Appearance. It marks every album each person worked on
   in those years, so there's no album count, page filters box or album
   fine-tune. Transit's People step has the same picker.
-- **Captions** are one sentence on what the image shows.
+- **Captions** are one sentence on what the image shows. Appearance can
+  rewrite the subtitle and caption, or clear them. A stack's image is
+  titled with the stack's name, under the picture's type ("Transit map").
 - **Events:** `share_regenerated` (`first` on Make image),
   `share_created`, `share_completed`, `share_reset`,
   `share_more_filters`, `covers_requested`, `covers_found`.

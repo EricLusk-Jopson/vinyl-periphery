@@ -49,6 +49,7 @@ import {
   countOptions,
   peopleOptions,
   defaultDraft,
+  defaultSubtitle,
   LAYOUT_MOST,
   canDrawLines,
   draftChange,
@@ -76,6 +77,7 @@ import {
 } from "../ui/select";
 import { ShareAlbums } from "./ShareAlbums";
 import { PeoplePicker, YearRange } from "./PeopleControls";
+import { ImageText } from "./ImageText";
 import { ALL_YEARS, NO_LANE_EDITS } from "@/lib/swimlanes";
 import { FindCovers } from "../common/FindCovers";
 import { StackAlbumList } from "../library/StackAlbumList";
@@ -1070,11 +1072,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
               <Step
                 n={4}
                 title="Appearance"
-                note={
-                  lookSwitches === 0
-                    ? "Nothing to change for this picture."
-                    : undefined
-                }
+                note="How it's drawn, and the words under its title. Clear a line to leave it off."
               >
                 {lookSwitches > 0 && (
                   <div className="flex flex-col">
@@ -1123,6 +1121,16 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                       />
                     )}
                   </div>
+                )}
+                {data && plan && (
+                  <ImageText
+                    text={draft.text ?? {}}
+                    defaults={{
+                      subtitle: defaultSubtitle(data),
+                      caption: plan.caption ?? "",
+                    }}
+                    onChange={(text) => setDraft((d) => ({ ...d, text }))}
+                  />
                 )}
               </Step>
 

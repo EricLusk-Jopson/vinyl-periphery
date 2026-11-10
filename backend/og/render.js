@@ -197,7 +197,8 @@ export function cardElement(payload, size, art) {
             lineHeight: 1,
             color: C.foreground,
           }),
-          line(album.r, { fontSize: 32, color: C.muted }),
+          subtitleOf(payload, album.r) &&
+            line(subtitleOf(payload, album.r), { fontSize: 32, color: C.muted }),
         ),
       ),
       caption(payload.caption, 20),
@@ -569,15 +570,23 @@ const mapBox = (payload, size) => {
   };
 };
 
-/** A map's header: eyebrow, the centre album, and the caption (two lines at most). */
-/** Under a stack's title, what the picture is, from its start album. */
-const LABEL_NOUN = {
-  "Connections around": "Map from",
-  "Stacked from": "Map from",
-  "People around": "People from",
-  "Transit map from": "Transit map from",
+/** A stack's eyebrow for each picture: what it is, the title being the stack's. */
+const STACK_LABEL = {
+  "Connections around": "Map",
+  "Stacked from": "Stack map",
+  "People around": "People",
+  "Transit map from": "Transit map",
 };
 
+/**
+ * The line under the title: the payload's own subtitle when it has one
+ * ("" for none), else the album's artist; a stack's image has none unless
+ * one was written.
+ */
+export const subtitleOf = (payload, artist) =>
+  payload.subtitle !== undefined ? payload.subtitle : payload.title ? "" : artist;
+
+/** A map's header: eyebrow, the title, its subtitle, and the caption (two lines at most). */
 const mapHeader = (label, payload, size) =>
   h(
     "div",
@@ -589,19 +598,15 @@ const mapHeader = (label, payload, size) =>
       flexDirection: "column",
       gap: 4,
     },
-    eyebrow(payload.title ? "Stack" : label, 0.7),
+    eyebrow(payload.title ? (STACK_LABEL[label] ?? label) : label, 0.7),
     line(payload.title || payload.centre.t, {
       fontFamily: "Bebas Neue",
       fontSize: 56,
       lineHeight: 1,
       color: C.foreground,
     }),
-    line(
-      payload.title
-        ? `${LABEL_NOUN[label] ?? "From"} ${payload.centre.t}`
-        : payload.centre.r,
-      { fontSize: 22, color: C.muted },
-    ),
+    subtitleOf(payload, payload.centre.r) &&
+      line(subtitleOf(payload, payload.centre.r), { fontSize: 22, color: C.muted }),
     payload.caption &&
       h(
         "div",

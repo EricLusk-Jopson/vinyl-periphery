@@ -122,13 +122,21 @@ export function readBody(body) {
 
 /**
  * The payload, cleaned and clipped, or null when it's missing, malformed,
- * or has nothing to draw. `st`, when given, is the image's title (a stack's
+ * or has nothing to draw. `sub`, when given, is the line under the title
+ * ("" for none). `st`, when given, is the image's title (a stack's
  * name) in place of the centre album's.
  */
 export function parsePayload(raw) {
   const parsed = parseLayout(raw);
-  const title = parsed ? text(raw.st, MAX_TITLE) : "";
-  return parsed && title ? { ...parsed, title } : parsed;
+  if (!parsed) return parsed;
+  const title = text(raw.st, MAX_TITLE);
+  // `sub`: the line under the title as written ("" for none).
+  const subtitle = typeof raw.sub === "string" ? text(raw.sub, MAX_TITLE) : undefined;
+  return {
+    ...parsed,
+    ...(title ? { title } : {}),
+    ...(subtitle !== undefined ? { subtitle } : {}),
+  };
 }
 
 function parseLayout(raw) {

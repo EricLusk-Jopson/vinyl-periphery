@@ -86,7 +86,7 @@ interface ShareAlbum {
  * What a share image draws. Any layout may carry `st`, the image's title
  * in place of the centre album's: a stack's name.
  */
-export type SharePayload = SharePayloadBody & { st?: string };
+export type SharePayload = SharePayloadBody & { st?: string; sub?: string };
 
 type SharePayloadBody =
   | {
@@ -570,6 +570,11 @@ export interface ShareDraft {
   peoplePicks: LaneEdits;
   /** The years the People image covers. */
   years: YearBounds;
+  /**
+   * The image's words as written in the sheet: the line under the title
+   * and the caption. Unset, the defaults; "" for none.
+   */
+  text?: { subtitle?: string; caption?: string };
 }
 
 export const defaultDraft = (): ShareDraft => ({
@@ -1125,10 +1130,30 @@ export const buildPayload = (
               );
   const viewed = withView(drawn, draft.view);
   // A stack's image is titled with the stack's name.
-  return data.kind === "stack" && data.name
-    ? { ...viewed, st: data.name }
-    : viewed;
+  const titled =
+    data.kind === "stack" && data.name ? { ...viewed, st: data.name } : viewed;
+  return withText(titled, draft.text);
 };
+
+/** The sheet's own subtitle and caption over the defaults ("" for none). */
+const withText = (
+  payload: SharePayload,
+  text: ShareDraft["text"],
+): SharePayload => {
+  if (!text) return payload;
+  const next: SharePayload = { ...payload };
+  if (text.subtitle !== undefined) next.sub = text.subtitle.trim();
+  if (text.caption !== undefined) {
+    const caption = text.caption.trim();
+    if (caption) next.d = caption;
+    else delete next.d;
+  }
+  return next;
+};
+
+/** The line under an image's title, by default: the artist; a stack, none. */
+export const defaultSubtitle = (data: ShareData): string =>
+  data.kind === "stack" ? "" : data.search.searchParams.artist;
 
 /** The swimlanes share image: the lanes as drawn, ticks by year. */
 export const lanesPayload = (

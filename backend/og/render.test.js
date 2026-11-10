@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { artIds, cardSizes, edgeToEdge, transitGeometry, laneAxis, lanesGeometry, stackElement, fitTileText, initials, mapElement, mapGeometry, mapLayout, MAP_DOT, MAP_DOT_CLEAR, nameLines, renderPng, shorten, stackGeometry } from "./render.js";
+import { laneMarks, artIds, cardSizes, edgeToEdge, transitGeometry, laneAxis, lanesGeometry, stackElement, fitTileText, initials, mapElement, mapGeometry, mapLayout, MAP_DOT, MAP_DOT_CLEAR, nameLines, renderPng, shorten, stackGeometry } from "./render.js";
 
 import { artSettled, fetchArt, loadArt } from "./art.js";
 import { IMAGE_SIZE, parsePayload } from "./payload.js";
@@ -543,4 +543,20 @@ test("numbered transit maps list their stations beside the map", async () => {
   // A station without a number: labels, not a legend.
   const unnumbered = parsePayload({ ...raw, s: [station("Virgins", 0, 300), station("Aurora", 1, 20)] });
   assert.equal(unnumbered.legend, false);
+});
+
+test("lane marks: one per year with its count, close ones merged, album years red", () => {
+  const lane = { solid: [[2000, 2], [2010, 1]], faint: [[2000, 3], [2001, 1], [2020, 4]] };
+  // 10px a year: none closer than 5px.
+  const wide = laneMarks(lane, (y) => y * 10, new Set([2010]));
+  assert.deepEqual(wide, [
+    { year: 2000, count: 5, album: false },
+    { year: 2001, count: 1, album: false },
+    { year: 2010, count: 1, album: true },
+    { year: 2020, count: 4, album: false },
+  ]);
+  // 3px a year: 2001 joins 2000.
+  const tight = laneMarks(lane, (y) => y * 3, new Set([2001]));
+  assert.deepEqual(tight[0], { year: 2000, count: 6, album: true });
+  assert.equal(tight.length, 3);
 });

@@ -1,7 +1,6 @@
 import { SearchCache } from "@/contexts/cache/types";
 import { ScoredRelease } from "./results";
 import {
-  editsCaption,
   editsWithoutHidden,
   withoutHidden,
   filtersToInclude,
@@ -128,15 +127,6 @@ describe("scoredFor", () => {
     expect(scoredFor(search, "master:14")?.activeContributors).toEqual([]);
     search.filterState.contributors[3] = true;
     expect(scoredFor(search, "master:14")?.activeContributors).toEqual([3]);
-  });
-});
-
-describe("editsCaption", () => {
-  it("says what was changed, if anything", () => {
-    expect(editsCaption(NO_EDITS)).toBe("");
-    expect(editsCaption({ removed: ["a", "b"], added: ["c"] })).toBe(
-      "2 removed · 1 added",
-    );
   });
 });
 

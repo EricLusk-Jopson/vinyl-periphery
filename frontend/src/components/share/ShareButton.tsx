@@ -75,7 +75,7 @@ import {
   SelectValue,
 } from "../ui/select";
 import { ShareAlbums } from "./ShareAlbums";
-import { LanePeoplePicker, YearRange } from "./PeopleControls";
+import { PeoplePicker, YearRange } from "./PeopleControls";
 import { ALL_YEARS, NO_LANE_EDITS } from "@/lib/swimlanes";
 import { FindCovers } from "../common/FindCovers";
 import { StackAlbumList } from "../library/StackAlbumList";
@@ -106,6 +106,8 @@ interface ShareButtonProps {
    */
   map: {
     centre: MapCentre;
+    /** A stack's name, for the image's caption. */
+    name?: string;
     members: SearchCache[];
     levels?: Map<string, number>;
     /**
@@ -296,7 +298,7 @@ const layoutNote = (layout: ShareLayout, album: string | null): string =>
 /** Who the picture draws, under step 3. */
 const peopleNote = (layout: ShareLayout, search: boolean): string =>
   layout === "transit"
-    ? "A line each for people on two or more of these albums, most albums first; the rest are counted under the map."
+    ? "A line each for people on two or more of these albums, most albums first. Take anyone out, or find someone to add."
     : layout === "lanes"
       ? "A lane each for the people on the most of the page's results, as filtered there. Take anyone out, or find someone to add."
       : layout === "card"
@@ -396,6 +398,10 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
           results: map.results,
           counted: map.counted,
           pageOrder,
+          name: map.name,
+          rolesHidden: Object.values(stackFilters?.filters.roles ?? {}).some(
+            (on) => !on,
+          ),
           albumsOff: Object.entries(stackFilters?.filters.albums ?? {})
             .filter(([, on]) => !on)
             .map(([key]) => key),
@@ -1044,16 +1050,21 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                       }
                     />
                   )}
-                {layout === "lanes" && plan?.lanes && plan.laneCandidates && (
-                  <LanePeoplePicker
-                    shown={plan.lanes.lanes}
-                    candidates={plan.laneCandidates}
-                    edits={draft.lanePeople ?? NO_LANE_EDITS}
-                    onChange={(lanePeople) =>
-                      setDraft((d) => ({ ...d, lanePeople }))
-                    }
-                  />
-                )}
+                {(layout === "lanes" || layout === "transit") &&
+                  plan?.peopleCandidates && (
+                    <PeoplePicker
+                      shownIds={
+                        layout === "lanes"
+                          ? (plan.lanes?.lanes.map((l) => l.id) ?? [])
+                          : (plan.transit?.lines.map((l) => l.id) ?? [])
+                      }
+                      candidates={plan.peopleCandidates}
+                      edits={draft.peoplePicks ?? NO_LANE_EDITS}
+                      onChange={(peoplePicks) =>
+                        setDraft((d) => ({ ...d, peoplePicks }))
+                      }
+                    />
+                  )}
               </Step>
 
               <Step

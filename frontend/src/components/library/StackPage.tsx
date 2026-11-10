@@ -300,6 +300,7 @@ export const StackPage: React.FC<StackPageProps> = ({
                     artist: root.artist,
                     thumb: root.thumb,
                   },
+                  name: stack.record.name,
                   members,
                   levels: shareLevels,
                   results,

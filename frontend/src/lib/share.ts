@@ -1,37 +1,31 @@
 import { SearchCache } from "@/contexts/cache/types";
 import { Likes } from "@/services/likes";
 import { ALBUM_MAP_PEOPLE, layoutAlbumMap } from "./albumMap";
-import { countedContributors, requiredFilters } from "./filters";
+import { countedContributors } from "./filters";
 import { albumKeyOf } from "./credits";
 import {
   searchTransit,
   shareTransitMap,
   MAX_LINES,
   stackTransit,
+  TransitInput,
   TransitMap,
 } from "./transitMap";
 import {
   searchSwimlanes,
   stackSwimlanes,
   Swimlanes,
-  Lane,
   LaneEdits,
   NO_LANE_EDITS,
   YearBounds,
   ALL_YEARS,
   chooseLanes,
+  pickIds,
   rankLanes,
   withinYears,
 } from "./swimlanes";
+import { ScoredRelease, SortKey, sortReleases } from "./results";
 import {
-  resetFilterState,
-  ScoredRelease,
-  SORT_OPTIONS,
-  SortKey,
-  sortReleases,
-} from "./results";
-import {
-  editsCaption,
   editsWithoutHidden,
   NO_EDITS,
   ShareEdits,
@@ -327,58 +321,6 @@ export const cardPayload = (
   ...(caption ? { d: caption } : {}),
 });
 
-const sortName = (key: SortKey) =>
-  SORT_OPTIONS.find((o) => o.value === key)?.short ?? key;
-
-/**
- * How a share's albums were chosen, in a line for the image: "Top 12 by
- * Shared, then Newest · Liked only · 2 people off". Only filters that differ
- * from Reset are named.
- */
-export const selectionCaption = (
-  search: SearchCache,
-  count: number,
-  sort: SortKey,
-  then: SortKey | null,
-): string => {
-  const { filterState } = search;
-  const base = resetFilterState(search);
-  const parts = [
-    `Top ${count} by ${sortName(sort)}${then ? `, then ${sortName(then)}` : ""}`,
-  ];
-  if (filterState.likedOnly) parts.push("Liked only");
-  if (filterState.collaborationsOnly) parts.push("2+ shared");
-  if (filterState.excludeVarious) parts.push("No Various Artists");
-  if (filterState.excludeMainArtist !== base.excludeMainArtist) {
-    parts.push(`With ${search.searchParams.artist}'s own`);
-  }
-  const required = requiredFilters(filterState);
-  const names = [
-    ...required.contributors.map((id) =>
-      defaultContributorDisplayPipeline(search.contributors[id]?.name ?? ""),
-    ),
-    ...required.roles,
-  ].filter(Boolean);
-  if (names.length > 0) {
-    parts.push(
-      `Must include ${names.slice(0, 2).join(", ")}${
-        names.length > 2 ? ` +${names.length - 2}` : ""
-      }`,
-    );
-  }
-  const off = (states: Record<string | number, boolean>) =>
-    Object.values(states).filter((on) => !on).length;
-  const peopleOff = off(filterState.contributors);
-  const rolesOff = off(filterState.roles);
-  if (peopleOff > 0) {
-    parts.push(`${peopleOff} ${peopleOff === 1 ? "person" : "people"} off`);
-  }
-  if (rolesOff > 0) {
-    parts.push(`${rolesOff} ${rolesOff === 1 ? "role" : "roles"} off`);
-  }
-  return parts.join(" · ");
-};
-
 /**
  * Share map for one search: its album in the middle and `shown` (its top
  * results, as filtered and sorted) around it. See `albumMap.ts`.
@@ -547,41 +489,6 @@ export const stackMapPayload = (
   };
 };
 
-/** What a stack map shows, in a line: "4 albums stacked · 12 around them". */
-export const stackCaption = (
-  nodes: StackNode[],
-  order?: { sort: SortKey; then: SortKey | null; likesFirst: boolean },
-  edits?: string,
-): string => {
-  const stacked = nodes.filter((n) => n.member).length;
-  return stackSelectionCaption(stacked, nodes.length - stacked, order, edits);
-};
-
-/** How a stack's albums were chosen, for any of its images. */
-export const stackSelectionCaption = (
-  stacked: number,
-  around: number,
-  order?: { sort: SortKey; then: SortKey | null; likesFirst: boolean },
-  edits?: string,
-  /** The page's order, named ("Links, then Popular"), over `order`'s. */
-  pageOrder?: string,
-): string => {
-  const by =
-    order && around > 0
-      ? pageOrder
-        ? `, by ${pageOrder}`
-        : `, by ${sortName(order.sort)}${order.then ? `, then ${sortName(order.then)}` : ""}`
-      : "";
-  return [
-    `${stacked} ${stacked === 1 ? "album" : "albums"} stacked`,
-    around > 0 ? `${around} around them${by}` : "",
-    order?.likesFirst && around > 0 ? "Likes first" : "",
-    edits ?? "",
-  ]
-    .filter(Boolean)
-    .join(" · ");
-};
-
 /** Whether a map would have anything around its centre. */
 export const mapHasAlbums = (payload: SharePayload): boolean =>
   (payload.l === "map" || payload.l === "stack") && payload.n.length > 0;
@@ -650,8 +557,11 @@ export interface ShareDraft {
   stackOrder: StackOrder;
   /** People the People and Transit images draw (lanes or lines). */
   people: number;
-  /** People added to or taken out of the People image by hand. */
-  lanePeople: LaneEdits;
+  /**
+   * People added to or taken out by hand, for the People and Transit
+   * images alike.
+   */
+  peoplePicks: LaneEdits;
   /** The years the People image covers. */
   years: YearBounds;
 }
@@ -660,7 +570,7 @@ export const defaultDraft = (): ShareDraft => ({
   chosen: "map",
   count: SHARE_COUNT.start,
   people: PEOPLE_COUNT.start,
-  lanePeople: NO_LANE_EDITS,
+  peoplePicks: NO_LANE_EDITS,
   years: ALL_YEARS,
   edits: NO_EDITS,
   view: DEFAULT_VIEW,
@@ -687,6 +597,10 @@ export type ShareData = {
       kind: "stack";
       /** The stack's root search, for names and contributors. */
       search: SearchCache;
+      /** The stack's name, for the caption. */
+      name?: string;
+      /** Some roles are switched off in the stack's filters. */
+      rolesHidden?: boolean;
       centre: MapCentre;
       members: SearchCache[];
       levels: Map<string, number>;
@@ -778,8 +692,11 @@ export interface SharePlan {
    * or more stations), for the People count.
    */
   peopleAvailable?: number;
-  /** The People image: everyone it could draw, most linked first. */
-  laneCandidates?: Lane[];
+  /**
+   * The People or Transit image: everyone it could draw, most linked
+   * first, for picking by hand.
+   */
+  peopleCandidates?: PersonCandidate[];
   /** The People image: the years its people's careers span. */
   laneYears?: { from: number; to: number };
   /** Albums to find covers for: everything the image may draw. */
@@ -788,20 +705,121 @@ export interface SharePlan {
   caption?: string;
 }
 
+/** Someone a People or Transit image could draw, for the picker. */
+export interface PersonCandidate {
+  id: number;
+  name: string;
+  /** How much they link: "On 12 of the results", "On 4 of these albums". */
+  detail: string;
+}
+
+const onAlbums = (n: number, of: string) => `On ${n} of ${of}`;
+
 /**
- * People the layout could draw: every lane, or everyone on two or more
- * stations. None for the map and the list.
+ * Transit's people: those on two or more stations, most stations first,
+ * then picked like the People image's (`pickIds`). Only those picked go
+ * in, so the map lists no one left out.
  */
-const peopleAvailable = (
-  layout: ShareLayout,
-  lanes: Swimlanes,
-  transit?: TransitMap,
-): number | undefined =>
-  layout === "lanes"
-    ? lanes.lanes.length
-    : transit
-      ? transit.lines.length + transit.others.length
-      : undefined;
+const transitPeople = (
+  input: Omit<TransitInput, "orientation">,
+  draft: ShareDraft,
+): {
+  input: Omit<TransitInput, "orientation">;
+  candidates: PersonCandidate[];
+} => {
+  const stops = new Set(input.stops.map((s) => s.key));
+  const ranked = input.people
+    .map((p) => ({
+      p,
+      n: new Set(p.stations.filter((k) => stops.has(k))).size,
+    }))
+    .filter(({ n }) => n >= 2)
+    .sort((a, b) => b.n - a.n || a.p.name.localeCompare(b.p.name));
+  const keep = pickIds(
+    ranked.map(({ p }) => p.id),
+    draft.people,
+    draft.peoplePicks ?? NO_LANE_EDITS,
+  );
+  const chosen = ranked.filter(({ p }) => keep.has(p.id)).map(({ p }) => p);
+  return {
+    input: { ...input, people: chosen, lines: chosen.length },
+    candidates: ranked.map(({ p, n }) => ({
+      id: p.id,
+      name: defaultContributorDisplayPipeline(p.name),
+      detail: onAlbums(n, "these albums"),
+    })),
+  };
+};
+
+/** "most linked to", by the page's primary sort, for the caption. */
+const albumsBy = (sort: string, n: number, subject: string): string => {
+  const albums = n === 1 ? "album" : "albums";
+  switch (sort) {
+    case "links":
+      return `The ${n} ${albums} most linked to ${subject}`;
+    case "shared":
+      return `The ${n} ${albums} sharing the most people with ${subject}`;
+    case "popular":
+      return `The ${n} most popular ${albums} connected to ${subject}`;
+    case "newest":
+      return `The ${n} newest ${albums} connected to ${subject}`;
+    case "oldest":
+      return `The ${n} oldest ${albums} connected to ${subject}`;
+    default:
+      return `${n} ${albums} connected to ${subject}`;
+  }
+};
+
+/**
+ * The image's caption: one short sentence on what it shows. "The 12
+ * albums sharing the most people with Unmap, with some roles hidden."
+ * "8 people from Unmap's credits and the albums they worked on,
+ * 1990–2010." Filters, likes and hides aren't named; only whether some
+ * roles are switched off.
+ */
+export const imageCaption = (input: {
+  layout: ShareLayout;
+  /** The album searched, or the stack's name. */
+  subject: string;
+  /** Albums drawn (map, list, transit). */
+  albums: number;
+  /** The primary sort's key ("shared", "links", ...). */
+  sort: string;
+  /** People drawn (People, Transit). */
+  people?: number;
+  years?: { from: number; to: number };
+  rolesHidden: boolean;
+}): string => {
+  const {
+    layout,
+    subject,
+    albums,
+    sort,
+    people = 0,
+    years,
+    rolesHidden,
+  } = input;
+  const who = `${people} ${people === 1 ? "person" : "people"} from ${subject}'s credits`;
+  const sentence =
+    layout === "lanes"
+      ? `${who} and the albums they worked on${years ? `, ${years.from}–${years.to}` : ""}`
+      : layout === "transit"
+        ? `How ${who} run through ${albums} ${albums === 1 ? "album" : "albums"}`
+        : albumsBy(sort, albums, subject);
+  return `${sentence}${rolesHidden ? ", with some roles hidden" : ""}.`;
+};
+
+/** The sort's key from the page's order name ("Links, then Popular"). */
+const sortKeyOf = (name: string | undefined): string => {
+  const first = (name ?? "").split(",")[0].trim().toLowerCase();
+  return first === "shared" ||
+    first === "links" ||
+    first === "popular" ||
+    first === "newest" ||
+    first === "oldest"
+    ? first
+    : "other";
+};
 
 /** A sort the page offers: menu label and the short name on the button. */
 export interface SortOption {
@@ -870,36 +888,28 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
         : "card";
     const shown = pickFor(layout);
     const lanes = layout === "lanes" ? peopleLanes(allLanes, draft) : undefined;
+    const picked = transitPeople(transitInput, draft);
     const transit =
       layout === "transit"
-        ? shareTransitMap(
-            { ...transitInput, lines: draft.people },
-            draft.view.legend,
-          )
+        ? shareTransitMap(picked.input, draft.view.legend)
         : undefined;
-    const caption = lanes
-      ? lanesCaption(lanes, draft)
-      : [
-          selectionCaption(
-            search,
-            shown.length,
-            selection.sort,
-            selection.then,
-          ),
-          editsCaption(edits),
-          transit ? peopleCount(transit.lines.length, " as lines") : "",
-        ]
-          .filter(Boolean)
-          .join(" · ");
+    const caption = imageCaption({
+      layout,
+      subject: search.searchParams.album,
+      albums: shown.length,
+      sort: selection.sort,
+      people: lanes?.lanes.length ?? transit?.lines.length,
+      years: lanes ? { from: lanes.from, to: lanes.to } : undefined,
+      rolesHidden: Object.values(search.filterState.roles).some((on) => !on),
+    });
     return {
-      ...laneExtras(layout, allLanes),
+      ...peopleExtras(layout, allLanes, picked.candidates),
       layout,
       edits,
       shown,
       mapReady,
       lanesReady,
       transitReady,
-      peopleAvailable: peopleAvailable(layout, allLanes, transit),
       available: available(ranked, edits),
       pickerSearch: search,
       visibleKeys: new Set(ranked.map((r) => r.key)),
@@ -990,19 +1000,16 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
         )
       : [];
   const lanes = layout === "lanes" ? peopleLanes(allLanes, draft) : undefined;
+  const picked = transitPeople(transitInput, draft);
   const transit =
     layout === "transit"
-      ? shareTransitMap(
-          { ...transitInput, lines: draft.people },
-          draft.view.legend,
-        )
+      ? shareTransitMap(picked.input, draft.view.legend)
       : undefined;
   const stacked = new Set(members.map(albumKeyOf)).size;
   return {
     layout,
     lanesReady,
     transitReady,
-    peopleAvailable: peopleAvailable(layout, allLanes, transit),
     edits,
     shown,
     mapReady: stacked > 1 || shown.length > 0,
@@ -1018,57 +1025,51 @@ export const planShare = (draft: ShareDraft, data: ShareData): SharePlan => {
       draft.view.covers && layout === "map"
         ? [centre.key, ...stackNodes.slice(1).map((n) => n.key)]
         : [],
-    ...laneExtras(layout, allLanes),
-    caption: lanes
-      ? lanesCaption(lanes, draft)
-      : [
-          stackSelectionCaption(
-            stacked,
-            shown.length,
-            stackOrder,
-            editsCaption(edits),
-            data.pageOrder,
-          ),
-          transit ? peopleCount(transit.lines.length, " as lines") : "",
-        ]
-          .filter(Boolean)
-          .join(" · "),
+    ...peopleExtras(layout, allLanes, picked.candidates),
+    caption: imageCaption({
+      layout,
+      subject: data.name || centre.title,
+      albums: shown.length,
+      sort: data.pageOrder ? sortKeyOf(data.pageOrder) : stackOrder.sort,
+      people: lanes?.lanes.length ?? transit?.lines.length,
+      years: lanes ? { from: lanes.from, to: lanes.to } : undefined,
+      rolesHidden: Boolean(data.rolesHidden),
+    }),
   };
 };
 
 /** The People image's lanes: the people chosen, between the years set. */
 const peopleLanes = (all: Swimlanes, draft: ShareDraft): Swimlanes =>
   withinYears(
-    chooseLanes(all, draft.people, draft.lanePeople ?? NO_LANE_EDITS),
+    chooseLanes(all, draft.people, draft.peoplePicks ?? NO_LANE_EDITS),
     draft.years ?? ALL_YEARS,
   );
 
-/** The People image's caption: its people, and its years when bounded. */
-const lanesCaption = (lanes: Swimlanes, draft: ShareDraft): string => {
-  const edits = draft.lanePeople ?? NO_LANE_EDITS;
-  const picked = edits.added.length + edits.removed.length;
-  const years = draft.years ?? ALL_YEARS;
-  return [
-    peopleCount(lanes.lanes.length, ""),
-    years.from !== null || years.to !== null ? `${lanes.from}–${lanes.to}` : "",
-    picked > 0 ? "picked by hand" : "",
-  ]
-    .filter(Boolean)
-    .join(" · ");
-};
-
-/** For the People step: who could be drawn, and the years they span. */
-const laneExtras = (layout: ShareLayout, all: Swimlanes) =>
+/**
+ * For the People step: who the People or Transit image could draw (for
+ * the count and the picker), and, for People, the years they span.
+ */
+const peopleExtras = (
+  layout: ShareLayout,
+  all: Swimlanes,
+  transitCandidates: PersonCandidate[],
+) =>
   layout === "lanes"
     ? {
-        laneCandidates: rankLanes(all.lanes),
+        peopleAvailable: all.lanes.length,
+        peopleCandidates: rankLanes(all.lanes).map((l) => ({
+          id: l.id,
+          name: l.name,
+          detail: onAlbums(l.results, "the results"),
+        })),
         laneYears: { from: all.from, to: all.to },
       }
-    : {};
-
-/** "8 people", "1 person as lines". */
-const peopleCount = (n: number, suffix: string) =>
-  `${n} ${n === 1 ? "person" : "people"}${suffix}`;
+    : layout === "transit"
+      ? {
+          peopleAvailable: transitCandidates.length,
+          peopleCandidates: transitCandidates,
+        }
+      : {};
 
 const available = (pool: ScoredRelease[], edits: ShareEdits) =>
   new Set([
@@ -1173,7 +1174,6 @@ export const transitPayload = (
     c: l.colour,
     g: l.legs.map((leg) => leg.map((p) => [p.x, p.y] as [number, number])),
   })),
-  ...(map.others.length > 0 ? { o: map.others.length } : {}),
   ...(map.legend ? { sl: 1 as const } : {}),
   ...(caption ? { d: caption } : {}),
 });

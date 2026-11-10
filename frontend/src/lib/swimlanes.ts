@@ -206,15 +206,34 @@ export const chooseLanes = (
   count: number,
   edits: LaneEdits,
 ): Swimlanes => {
-  const removed = new Set(edits.removed);
-  const added = new Set(edits.added.filter((id) => !removed.has(id)));
-  const present = new Set(all.lanes.map((l) => l.id));
-  const keep = new Set([...added].filter((id) => present.has(id)));
-  for (const lane of rankLanes(all.lanes)) {
-    if (keep.size >= count) break;
-    if (!removed.has(lane.id)) keep.add(lane.id);
-  }
+  const keep = pickIds(
+    rankLanes(all.lanes).map((l) => l.id),
+    count,
+    edits,
+  );
   return { ...all, lanes: all.lanes.filter((l) => keep.has(l.id)) };
+};
+
+/**
+ * Who a picture draws, from everyone it could (`ranked`, most linked
+ * first): those added by hand, then the rest in rank, less those taken
+ * out, up to `count` (more when more were added).
+ */
+export const pickIds = (
+  ranked: number[],
+  count: number,
+  edits: LaneEdits,
+): Set<number> => {
+  const removed = new Set(edits.removed);
+  const present = new Set(ranked);
+  const keep = new Set(
+    edits.added.filter((id) => !removed.has(id) && present.has(id)),
+  );
+  for (const id of ranked) {
+    if (keep.size >= count) break;
+    if (!removed.has(id)) keep.add(id);
+  }
+  return keep;
 };
 
 /**

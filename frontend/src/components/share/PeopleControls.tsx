@@ -1,7 +1,8 @@
 import React, { useId, useMemo, useState } from "react";
 import { Plus, Search, X } from "lucide-react";
 import { matchesName } from "@/lib/filters";
-import { Lane, LaneEdits, YearBounds } from "@/lib/swimlanes";
+import { LaneEdits, YearBounds } from "@/lib/swimlanes";
+import { PersonCandidate } from "@/lib/share";
 import { cn } from "@/lib/utils";
 
 const focusRing =
@@ -95,42 +96,72 @@ export const YearRange: React.FC<{
 };
 
 /**
- * The People image's people: those drawn, each with Remove, and a search
- * of everyone else it could draw, each with Add. Added people always go
- * in; the rest are the most linked, up to the count.
+ * The People or Transit image's people: those drawn, each with Remove,
+ * and a search of everyone else it could draw, each with Add. Added people
+ * always go in; the rest are the most linked, up to the count.
  */
-export const LanePeoplePicker: React.FC<{
-  /** Drawn now. */
-  shown: Lane[];
+export const PeoplePicker: React.FC<{
+  /** Who's drawn now. */
+  shownIds: number[];
   /** Everyone it could draw, most linked first. */
-  candidates: Lane[];
+  candidates: PersonCandidate[];
   edits: LaneEdits;
   onChange: (edits: LaneEdits) => void;
-}> = ({ shown, candidates, edits, onChange }) => {
+}> = ({ shownIds, candidates, edits, onChange }) => {
   const id = useId();
   const [query, setQuery] = useState("");
-  const shownIds = useMemo(() => new Set(shown.map((l) => l.id)), [shown]);
+  const shownSet = useMemo(() => new Set(shownIds), [shownIds]);
+  const shown = useMemo(
+    () => candidates.filter((c) => shownSet.has(c.id)),
+    [candidates, shownSet],
+  );
   const others = useMemo(
     () =>
       candidates
-        .filter((l) => !shownIds.has(l.id))
-        .filter((l) => !query.trim() || matchesName(l.name, query))
+        .filter((c) => !shownSet.has(c.id))
+        .filter((c) => !query.trim() || matchesName(c.name, query))
         .slice(0, 8),
-    [candidates, shownIds, query],
+    [candidates, shownSet, query],
   );
-  const remove = (lane: Lane) =>
+  const remove = (person: PersonCandidate) =>
     onChange({
-      added: edits.added.filter((x) => x !== lane.id),
-      removed: [...edits.removed.filter((x) => x !== lane.id), lane.id],
+      added: edits.added.filter((x) => x !== person.id),
+      removed: [...edits.removed.filter((x) => x !== person.id), person.id],
     });
-  const add = (lane: Lane) =>
+  const add = (person: PersonCandidate) =>
     onChange({
-      added: [...edits.added.filter((x) => x !== lane.id), lane.id],
-      removed: edits.removed.filter((x) => x !== lane.id),
+      added: [...edits.added.filter((x) => x !== person.id), person.id],
+      removed: edits.removed.filter((x) => x !== person.id),
     });
-  const albums = (lane: Lane) =>
-    `${lane.results} ${lane.results === 1 ? "album" : "albums"} here`;
   const picked = edits.added.length + edits.removed.length;
+  const row = (person: PersonCandidate, action: React.ReactNode) => (
+    <li key={person.id} className="flex min-h-[52px] items-center gap-3 pl-3">
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-sm font-medium">{person.name}</span>
+        <span className="truncate text-xs text-muted-foreground">
+          {person.detail}
+        </span>
+      </span>
+      {action}
+    </li>
+  );
+  const iconButton = (
+    label: string,
+    onClick: () => void,
+    icon: React.ReactNode,
+  ) => (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      className={cn(
+        "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
+        focusRing,
+      )}
+    >
+      {icon}
+    </button>
+  );
 
   return (
     <div className="flex flex-col gap-2">
@@ -138,30 +169,16 @@ export const LanePeoplePicker: React.FC<{
         Drawn · {shown.length}
       </span>
       <ul className="flex flex-col divide-y rounded-lg border bg-surface">
-        {shown.map((lane) => (
-          <li
-            key={lane.id}
-            className="flex min-h-[52px] items-center gap-3 pl-3"
-          >
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate text-sm font-medium">{lane.name}</span>
-              <span className="truncate text-xs text-muted-foreground">
-                {albums(lane)}
-              </span>
-            </span>
-            <button
-              type="button"
-              onClick={() => remove(lane)}
-              aria-label={`Take ${lane.name} out`}
-              className={cn(
-                "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
-                focusRing,
-              )}
-            >
-              <X className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </li>
-        ))}
+        {shown.map((person) =>
+          row(
+            person,
+            iconButton(
+              `Take ${person.name} out`,
+              () => remove(person),
+              <X className="h-4 w-4" aria-hidden="true" />,
+            ),
+          ),
+        )}
       </ul>
       <label htmlFor={`${id}-find`} className="relative mt-1">
         <span className="sr-only">Find someone to add</span>
@@ -183,32 +200,16 @@ export const LanePeoplePicker: React.FC<{
       </label>
       {others.length > 0 ? (
         <ul className="flex flex-col divide-y rounded-lg border bg-surface">
-          {others.map((lane) => (
-            <li
-              key={lane.id}
-              className="flex min-h-[52px] items-center gap-3 pl-3"
-            >
-              <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-sm font-medium">
-                  {lane.name}
-                </span>
-                <span className="truncate text-xs text-muted-foreground">
-                  {albums(lane)}
-                </span>
-              </span>
-              <button
-                type="button"
-                onClick={() => add(lane)}
-                aria-label={`Add ${lane.name}`}
-                className={cn(
-                  "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-secondary",
-                  focusRing,
-                )}
-              >
-                <Plus className="h-4 w-4" aria-hidden="true" />
-              </button>
-            </li>
-          ))}
+          {others.map((person) =>
+            row(
+              person,
+              iconButton(
+                `Add ${person.name}`,
+                () => add(person),
+                <Plus className="h-4 w-4 text-foreground" aria-hidden="true" />,
+              ),
+            ),
+          )}
         </ul>
       ) : (
         <p className="text-[13px] text-faint">

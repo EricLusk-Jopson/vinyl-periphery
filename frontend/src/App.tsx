@@ -16,6 +16,7 @@ import { StackPage } from "./components/library/StackPage";
 import { ChoiceDialog } from "./components/common/ChoiceDialog";
 import { dialogButton } from "./components/common/buttons";
 import { LibraryPage } from "./components/library/LibraryPage";
+import { NoTrackPage } from "./components/privacy/NoTrackPage";
 import {
   LegacyResultsRedirect,
   ResultsPage,
@@ -282,6 +283,8 @@ const App: React.FC = () => {
               <Navigate to={legacyShareTarget(location.search)} replace />
             }
           />
+          {/* Turns usage events off for this browser; not linked. */}
+          <Route path="/no-track" element={<NoTrackPage />} />
           <Route path="*" element={<Navigate to={HOME_PATH} replace />} />
         </Routes>
       </main>

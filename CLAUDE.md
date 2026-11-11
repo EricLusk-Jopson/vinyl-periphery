@@ -24,7 +24,9 @@ ranks albums by how many of those people worked on them.
     `ART_RESERVE` (20; per instance, best effort) and passes Discogs's 429
     on. The CDN caches answers (30 days for a cover, a day for none).
   - `event.js`: `POST /api/event` validates analytics events and forwards
-    them to the Google Sheet. See `docs/analytics.md`.
+    them to the Google Sheet. See `docs/analytics.md`. The client sends
+    nothing from a browser with the `vp_no_track` cookie, set and cleared
+    at `/no-track` (`NoTrackPage`, not linked), for the owner's own visits.
   - `og.js`: `POST /api/og` renders a square share image (1080x1080)
     (`@vercel/og`) from a JSON payload body (`backend/og/payload.js`, 32 KB
     at most; built by `buildPayload` in `frontend/src/lib/share.ts`): a

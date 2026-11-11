@@ -1,6 +1,8 @@
 import {
   buildPayload,
   isOptedOut,
+  hasNoTrackCookie,
+  noTrackCookie,
   joinWithin,
   pageName,
   secondsSince,
@@ -105,5 +107,35 @@ describe("track", () => {
       configurable: true,
     });
     expect(() => track("page_view")).not.toThrow();
+  });
+});
+
+describe("the no-tracking cookie", () => {
+  it("is found among other cookies, only when set to 1", () => {
+    expect(hasNoTrackCookie("a=b; vp_no_track=1; c=d")).toBe(true);
+    expect(hasNoTrackCookie("vp_no_track=1")).toBe(true);
+    expect(hasNoTrackCookie("vp_no_track=")).toBe(false);
+    expect(hasNoTrackCookie("xvp_no_track=1")).toBe(false);
+    expect(hasNoTrackCookie("")).toBe(false);
+  });
+
+  it("stops every event while set", () => {
+    const beacon = jest.fn(() => true);
+    Object.defineProperty(navigator, "sendBeacon", { value: beacon, configurable: true });
+    document.cookie = noTrackCookie(true, false);
+    track("page_view");
+    expect(beacon).not.toHaveBeenCalled();
+    document.cookie = noTrackCookie(false, false);
+    track("page_view");
+    expect(beacon).toHaveBeenCalledTimes(1);
+  });
+
+  it("is set for 400 days on the whole site, and cleared at once", () => {
+    expect(noTrackCookie(true, true)).toBe(
+      "vp_no_track=1; Path=/; Max-Age=34560000; SameSite=Lax; Secure",
+    );
+    expect(noTrackCookie(false, false)).toBe(
+      "vp_no_track=; Path=/; Max-Age=0; SameSite=Lax",
+    );
   });
 });

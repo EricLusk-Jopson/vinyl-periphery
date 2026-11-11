@@ -29,6 +29,7 @@ export type AnalyticsEvent =
   | "stack_created"
   | "stack_edited"
   | "stack_deleted"
+  | "albums_deleted"
   | "stack_album_added"
   | "stack_album_removed"
   | "result_liked"

@@ -128,6 +128,10 @@ export interface CacheContextValue extends CacheState {
   getActiveSearch: () => SearchCache | null;
   /** Deletes a search from the library. */
   deleteSearch: (searchId: string) => Promise<void>;
+  /** Deletes several searches from the library at once. */
+  deleteSearches: (searchIds: string[]) => Promise<void>;
+  /** Puts deleted searches back (Undo). */
+  restoreSearches: (searches: SearchCache[]) => Promise<void>;
   /** Writes a search again, e.g. with new lineage (see SaveOptions). */
   saveSearch: (searchId: string, options?: SaveOptions) => Promise<void>;
   /** Every stack (records, newest first). */

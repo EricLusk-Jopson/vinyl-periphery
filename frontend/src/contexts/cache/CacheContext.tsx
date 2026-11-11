@@ -446,6 +446,56 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   }, []);
 
+  /** Deletes several searches from the library, in one update. */
+  const deleteSearches = useCallback(async (searchIds: string[]) => {
+    const gone = new Set<string>();
+    for (const searchId of searchIds) {
+      clearTimeout(filterSaves.current.get(searchId));
+      filterSaves.current.delete(searchId);
+      try {
+        await db.deleteSavedSearch(searchId);
+        gone.add(searchId);
+      } catch (error) {
+        console.error(`Failed to delete search ${searchId}:`, error);
+      }
+    }
+    setState((prev) => {
+      const searches = { ...prev.searches };
+      const savedSearchIds = new Set(prev.savedSearchIds);
+      for (const searchId of gone) {
+        delete searches[searchId];
+        savedSearchIds.delete(searchId);
+      }
+      return {
+        searches,
+        activeSearchId:
+          prev.activeSearchId && gone.has(prev.activeSearchId)
+            ? null
+            : prev.activeSearchId,
+        savedSearchIds,
+      };
+    });
+    if (gone.size < searchIds.length) {
+      throw new Error(`Deleted ${gone.size} of ${searchIds.length} searches`);
+    }
+  }, []);
+
+  /** Puts deleted searches back, in one update. */
+  const restoreSearches = useCallback(async (list: SearchCache[]) => {
+    for (const search of list) await db.saveSearch(search);
+    setState((prev) => ({
+      ...prev,
+      searches: {
+        ...prev.searches,
+        ...Object.fromEntries(list.map((s) => [s.searchId, s])),
+      },
+      savedSearchIds: new Set([
+        ...prev.savedSearchIds,
+        ...list.map((s) => s.searchId),
+      ]),
+    }));
+  }, []);
+
   const value: CacheContextValue = {
     ...state,
     savedSearchesLoaded,
@@ -463,6 +513,8 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
     updateFilterState,
     getActiveSearch,
     deleteSearch,
+    deleteSearches,
+    restoreSearches,
   };
 
   return (

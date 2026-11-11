@@ -98,10 +98,14 @@ and #113.
   them. An album card notes the stack it's in ("In My trail", "In 3
   stacks"), opens its results, and its Stacks button opens its Stacks
   drawer (flow 7). A stack card opens the stack's page.
-- **Deleting:** albums are deleted only from their own results page (with
-  Undo); stacks only from their own page.
+- **Deleting:** an album from its own results page, or several at once
+  from the Albums tab: **Select** turns the cards into check boxes, a bar
+  at the bottom counts them (Select all, Cancel, Delete; Escape cancels)
+  and notes any in stacks, which stay there greyed out. Delete shows a
+  toast with Undo. Stacks are deleted only from their own page.
 - **Events:** `library_view_toggled` (`view`: stacks or albums),
-  `library_searched` (`tab`), `stack_opened`, `page_view`.
+  `library_searched` (`tab`), `albums_deleted` (`count`, `inStacks`),
+  `stack_opened`, `page_view`.
 
 ## 6. Searching from a result
 

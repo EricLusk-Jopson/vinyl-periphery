@@ -255,9 +255,12 @@ ranks albums by how many of those people worked on them.
     Taking one out that strands others (`strandedBy`: no link back to
     the start) asks first (`useStackRemoval`); they stay, under "Not
     linked to the start". Deleting a stack (its page, with Undo) never
-    deletes its albums; albums are deleted only from their own results
-    page, and a deleted album stays in its stacks ghosted, with Search to
-    run it again. The library has two tabs, Albums (first, the default)
+    deletes its albums; albums are deleted from their own results page,
+    or several at once with Select on the library's Albums tab (cards
+    become check boxes; a bar at the bottom has Select all, Cancel and
+    Delete, then a toast with Undo: `src/lib/librarySelection.ts`,
+    `deleteSearches`, `restoreSearches`). A deleted album stays in its
+    stacks ghosted, with Search to run it again. The library has two tabs, Albums (first, the default)
     and Stacks (New stack) (`LibraryPage`). `StackEditor` makes and edits a stack: name, albums
     in order with Remove, and the library to add from, albums that don't
     link yet greyed out with a note. An album's Stacks drawer

@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search } from "lucide-react";
+import { CheckSquare, Plus, Search, Trash2 } from "lucide-react";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { SearchCache } from "@/contexts/cache/types";
 import { useLibraryStacks } from "@/hooks/useLibraryStacks";
@@ -8,6 +8,16 @@ import { HOME_PATH } from "@/lib/routes";
 import { recentSearches } from "@/lib/searches";
 import { searchLibrary, searchStacks, stacksWith } from "@/lib/stacks";
 import { track } from "@/lib/analytics";
+import {
+  allSelected,
+  deletedToast,
+  selectionLabel,
+  stackedNote,
+  toggleAll,
+  toggled,
+} from "@/lib/librarySelection";
+import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "../ui/toast";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { LibraryCard } from "./LibraryCard";
@@ -15,7 +25,7 @@ import { LIBRARY_GRID } from "./grid";
 import { StackDrawer } from "./StackDrawer";
 import { StackCard } from "./StackCard";
 import { StackEditor } from "./StackEditor";
-import { pageAction } from "../common/buttons";
+import { dialogButton, pageAction } from "../common/buttons";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
@@ -44,13 +54,16 @@ const writeTab = (tab: LibraryTab) => {
 
 /**
  * The library, in two tabs, Albums first. Albums: every search, kept as it finishes
- * until it's deleted from its own page; each card's Stacks button adds it
- * to stacks or takes it out. Stacks: named groups of albums linked by
+ * until it's deleted (from its own page, or several at once with Select
+ * here, with Undo); each card's Stacks button adds it to stacks or takes
+ * it out. Stacks: named groups of albums linked by
  * their credits, made with New stack (or from an album's Stacks drawer),
  * edited and deleted on their own pages. One search box filters both.
  */
 export const LibraryPage: React.FC = () => {
-  const { searches, savedSearchesLoaded } = useCache();
+  const { searches, savedSearchesLoaded, deleteSearches, restoreSearches } =
+    useCache();
+  const { toast } = useToast();
   const id = useId();
   const stacks = useLibraryStacks();
   const [tab, setTab] = useState<LibraryTab>(readTab);
@@ -58,6 +71,9 @@ export const LibraryPage: React.FC = () => {
   const [creating, setCreating] = useState(false);
   // The album whose Stacks drawer is open.
   const [stacking, setStacking] = useState<SearchCache | null>(null);
+  // Choosing albums to delete: null when not, else the chosen search ids.
+  const [selected, setSelected] = useState<Set<string> | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const saved = useMemo(
     () => recentSearches(searches, Number.POSITIVE_INFINITY),
@@ -85,9 +101,56 @@ export const LibraryPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, [searching, query, albums.length, shownStacks.length, tab]);
 
+  // Albums deleted elsewhere leave the selection; Escape ends it.
+  const selecting = selected !== null;
+  const chosen = useMemo(
+    () =>
+      selected ? saved.filter((search) => selected.has(search.searchId)) : [],
+    [selected, saved],
+  );
+  useEffect(() => {
+    if (!selecting) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelected(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selecting]);
+  const shownIds = albums.map((search) => search.searchId);
+  const inStacks = chosen.filter(
+    (s) => stacksWith(s, stacks).length > 0,
+  ).length;
+
+  const deleteChosen = async () => {
+    if (deleting || chosen.length === 0) return;
+    setDeleting(true);
+    const gone = chosen;
+    try {
+      await deleteSearches(gone.map((s) => s.searchId));
+    } catch (error) {
+      console.error("Failed to delete albums:", error);
+    } finally {
+      setDeleting(false);
+    }
+    setSelected(null);
+    track("albums_deleted", { count: gone.length, inStacks });
+    toast({
+      ...deletedToast(gone.map((s) => s.searchParams.album)),
+      action: (
+        <ToastAction
+          altText="Undo delete"
+          onClick={() => void restoreSearches(gone)}
+        >
+          Undo
+        </ToastAction>
+      ),
+    });
+  };
+
   const chooseTab = (next: string) => {
     const value: LibraryTab = next === "albums" ? "albums" : "stacks";
     if (value === tab) return;
+    setSelected(null);
     setTab(value);
     writeTab(value);
     track("library_view_toggled", { view: value });
@@ -124,7 +187,13 @@ export const LibraryPage: React.FC = () => {
   if (!savedSearchesLoaded) return null;
 
   return (
-    <div className="mx-auto w-full max-w-[1200px] px-4 pb-24 pt-8 md:px-6 md:pt-14">
+    <div
+      className={cn(
+        "mx-auto w-full max-w-[1200px] px-4 pt-8 md:px-6 md:pt-14",
+        // Room for the selection bar over the last cards.
+        selecting ? "pb-48" : "pb-24",
+      )}
+    >
       <h1
         tabIndex={-1}
         className="font-display text-[30px] font-normal leading-none tracking-[0.3px] focus:outline-none md:text-[56px] md:tracking-[0.5px]"
@@ -222,7 +291,42 @@ export const LibraryPage: React.FC = () => {
               )}
             </TabsContent>
 
-            <TabsContent value="albums">
+            <TabsContent value="albums" className="flex flex-col gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="max-w-xl text-sm text-muted-foreground">
+                  {selecting
+                    ? "Choose the albums to delete."
+                    : "Every album you've searched."}
+                </p>
+                {selecting ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelected((current) =>
+                        toggleAll(current ?? new Set(), shownIds),
+                      )
+                    }
+                    disabled={shownIds.length === 0}
+                    className={pageAction}
+                  >
+                    {allSelected(selected, shownIds)
+                      ? "Select none"
+                      : "Select all"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setSelected(new Set())}
+                    className={pageAction}
+                  >
+                    <CheckSquare
+                      className="h-4 w-4 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                    Select
+                  </button>
+                )}
+              </div>
               {albums.length === 0 ? (
                 nothing("albums")
               ) : (
@@ -234,6 +338,20 @@ export const LibraryPage: React.FC = () => {
                       from={{ from: "library" }}
                       note={stackNote(search)}
                       onStack={() => setStacking(search)}
+                      select={
+                        selected
+                          ? {
+                              selected: selected.has(search.searchId),
+                              onToggle: () =>
+                                setSelected((current) =>
+                                  toggled(
+                                    current ?? new Set(),
+                                    search.searchId,
+                                  ),
+                                ),
+                            }
+                          : undefined
+                      }
                     />
                   ))}
                 </ul>
@@ -243,6 +361,48 @@ export const LibraryPage: React.FC = () => {
         )}
       </div>
 
+      {selecting && tab === "albums" && !empty && (
+        <div
+          role="region"
+          aria-label="Selected albums"
+          className="fixed inset-x-0 bottom-0 z-40 border-t border-border-strong bg-background/95 backdrop-blur"
+        >
+          <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-2 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 md:px-6">
+            <div className="flex items-center gap-2">
+              <p
+                aria-live="polite"
+                className="min-w-0 flex-1 truncate text-[15px] font-medium"
+              >
+                {selectionLabel(chosen.length)}
+              </p>
+              <button
+                type="button"
+                onClick={() => setSelected(null)}
+                className={dialogButton.secondary}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void deleteChosen()}
+                disabled={chosen.length === 0 || deleting}
+                className={cn(dialogButton.primary, "gap-2")}
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+                Delete
+                {chosen.length > 0 && (
+                  <span className="sr-only"> {chosen.length} albums</span>
+                )}
+              </button>
+            </div>
+            {stackedNote(inStacks) && (
+              <p className="text-[13px] text-muted-foreground">
+                {stackedNote(inStacks)}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
       {stacking && (
         <StackDrawer
           search={searches[stacking.searchId] ?? stacking}

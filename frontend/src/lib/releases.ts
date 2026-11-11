@@ -11,6 +11,7 @@ import {
 } from "@/api/limits";
 import { Appearance, EnrichedRelease, ReleaseType } from "@/api/types";
 import { SearchCache } from "@/contexts/cache/types";
+import { withoutArtistNumber } from "./transformers/transformers";
 
 /**
  * Turning discography items into results: one entry per Discogs master or
@@ -78,7 +79,7 @@ export const toEnrichedRelease = (
     title: item.title ?? "",
     year:
       item.year === undefined || item.year === null ? "" : String(item.year),
-    artist: item.artist ?? "",
+    artist: withoutArtistNumber(item.artist ?? ""),
     thumb: item.thumb ?? "",
     resource_url: item.resource_url ?? "",
     contributorIds: [contributorId],
@@ -305,7 +306,7 @@ export const migrateReleases = (
       ...(masterId ? { masterId } : {}),
       title: raw.title ?? "",
       year: raw.year === undefined ? "" : String(raw.year),
-      artist: raw.artist ?? "",
+      artist: withoutArtistNumber(raw.artist ?? ""),
       thumb: raw.thumb ?? "",
       resource_url: raw.resource_url ?? "",
       contributorIds: Array.from(new Set(raw.contributorIds ?? [])),
@@ -320,9 +321,36 @@ export const migrateReleases = (
 /** A stored search with its releases migrated (see `migrateReleases`). */
 export const migrateSearch = (search: SearchCache): SearchCache => {
   const releases = migrateReleases(search.releases ?? {});
-  return withoutUncreditedMembers(
-    releases === search.releases ? search : { ...search, releases },
+  return withoutArtistNumbers(
+    withoutUncreditedMembers(
+      releases === search.releases ? search : { ...search, releases },
+    ),
   );
+};
+
+/**
+ * A search with Discogs's disambiguation numbers taken off its artist
+ * names ("Squid (29)": see `withoutArtistNumber`), for searches stored
+ * before they were taken off as read. The same object when there's
+ * nothing to change.
+ */
+export const withoutArtistNumbers = (search: SearchCache): SearchCache => {
+  const artist = withoutArtistNumber(search.searchParams?.artist ?? "");
+  let releases: SearchCache["releases"] | null = null;
+  for (const [key, release] of Object.entries(search.releases ?? {})) {
+    const clean = withoutArtistNumber(release.artist ?? "");
+    if (clean === release.artist) continue;
+    releases ??= { ...search.releases };
+    releases[key] = { ...release, artist: clean };
+  }
+  if (!releases && artist === (search.searchParams?.artist ?? "")) return search;
+  return {
+    ...search,
+    ...(search.searchParams && artist !== search.searchParams.artist
+      ? { searchParams: { ...search.searchParams, artist } }
+      : {}),
+    ...(releases ? { releases } : {}),
+  };
 };
 
 /**

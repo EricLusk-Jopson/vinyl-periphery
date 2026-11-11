@@ -50,3 +50,11 @@ export const removeDuplicates = (strs: string[]): string[] =>
 
 export const separateBySpace = (strs: string[]): string[] =>
   strs.map((str, idx) => (idx > 0 ? " " + str : str));
+
+/**
+ * An artist name without Discogs's disambiguation numbers: "Squid (29)" is
+ * "Squid", and "Pom (2) & Squid (29)" is "Pom & Squid". Only a number in
+ * brackets after a space goes, so "(Hed) P.E." and "Sunn O)))" stay.
+ */
+export const withoutArtistNumber: SingleStringTransformer = (str) =>
+  str.replace(/ \(\d+\)(?=$|[\s,&/*+])/g, "");

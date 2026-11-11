@@ -157,7 +157,10 @@ ranks albums by how many of those people worked on them.
   - `src/lib/releases.ts`: discography items to results. Each result has a
     `type` and a `key` (`"master:N"` / `"release:N"`); `SearchCache.releases`
     is keyed by `key`. Searches stored before keys existed are migrated as
-    they load (`migrateSearch`).
+    they load (`migrateSearch`). Artist names lose Discogs's
+    disambiguation numbers ("Squid (29)" is "Squid", `withoutArtistNumber`)
+    as discographies are read; older searches and stacks are cleaned as
+    they load (`withoutArtistNumbers`, `withoutMemberNumbers`).
   - Likes and hides: each result row ends in one slot (`AlbumMark`): "⋯",
     a filled heart when liked or a crossed-out eye when hidden; it always
     opens the row's menu (Search from this album, Like or Unlike, Hide or

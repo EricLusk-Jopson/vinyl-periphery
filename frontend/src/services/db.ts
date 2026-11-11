@@ -1,6 +1,10 @@
 // src/services/db.ts
 import { SearchCache } from "@/contexts/cache/types";
-import { StackRecord, stacksFromLineage } from "@/lib/stackRecords";
+import {
+  StackRecord,
+  stacksFromLineage,
+  withoutMemberNumbers,
+} from "@/lib/stackRecords";
 
 const DB_NAME = "vinyl-periphery";
 // v2: index on lineage.stackId, for library stacks. Records from v1 have no
@@ -222,9 +226,9 @@ class DatabaseService {
       request.onerror = () => reject(request.error);
       request.onsuccess = () =>
         resolve(
-          (request.result as StackRecord[]).sort(
-            (a, b) => b.createdAt - a.createdAt,
-          ),
+          (request.result as StackRecord[])
+            .map(withoutMemberNumbers)
+            .sort((a, b) => b.createdAt - a.createdAt),
         );
     });
   }

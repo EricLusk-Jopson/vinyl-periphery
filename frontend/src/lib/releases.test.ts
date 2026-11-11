@@ -1,7 +1,9 @@
 import { EnrichedRelease } from "@/api/types";
 import { SearchCache } from "@/contexts/cache/types";
+import { withoutArtistNumber } from "./transformers/transformers";
 import {
   withoutUncreditedMembers,
+  withoutArtistNumbers,
   addRelease,
   contributionsOf,
   migrateReleases,
@@ -440,5 +442,42 @@ describe("withoutUncreditedMembers", () => {
       person(3, ["member"], ["Band Member"]),
     ]);
     expect(withoutUncreditedMembers(search)).toBe(search);
+  });
+});
+
+describe("artist numbers", () => {
+  it("takes Discogs's disambiguation numbers off artist names", () => {
+    expect(withoutArtistNumber("Squid (29)")).toBe("Squid");
+    expect(withoutArtistNumber("Pom (2) & Squid (29)")).toBe("Pom & Squid");
+    expect(withoutArtistNumber("Pom (2), Squid (29)")).toBe("Pom, Squid");
+    expect(withoutArtistNumber("Squid (29)*")).toBe("Squid*");
+    // Names with brackets of their own stay.
+    expect(withoutArtistNumber("(Hed) P.E.")).toBe("(Hed) P.E.");
+    expect(withoutArtistNumber("Sunn O)))")).toBe("Sunn O)))");
+    expect(withoutArtistNumber("Area (UK)")).toBe("Area (UK)");
+    expect(withoutArtistNumber("1990s")).toBe("1990s");
+  });
+
+  it("reads results without them", () => {
+    expect(
+      toEnrichedRelease({ ...master, artist: "Squid (29)" }, 1).artist,
+    ).toBe("Squid");
+  });
+
+  it("cleans stored searches, the same object when clean", () => {
+    const search = {
+      searchId: "s",
+      searchParams: { artist: "Squid (29)", album: "Cowards" },
+      releases: {
+        "master:1": { key: "master:1", type: "master", artist: "Squid (29)" },
+        "master:2": { key: "master:2", type: "master", artist: "Black Midi" },
+      },
+    } as unknown as SearchCache;
+    const clean = withoutArtistNumbers(search);
+    expect(clean.searchParams.artist).toBe("Squid");
+    expect(clean.releases["master:1"].artist).toBe("Squid");
+    expect(clean.releases["master:2"]).toBe(search.releases["master:2"]);
+    expect(withoutArtistNumbers(clean)).toBe(clean);
+    expect(migrateSearch(search).searchParams.artist).toBe("Squid");
   });
 });

@@ -13,9 +13,14 @@ browser  track()  ──sendBeacon──▶  /api/event  ──POST + VP token�
 - `/api/event` checks the event against an allowlist, cleans the fields, adds
   the timestamp and user agent, and forwards it. It answers 204 even if the
   sheet is down. Analytics never affects the app.
-- No cookies or storage. The session id is random, kept in memory, and
-  changes on every page load. No IP addresses are stored. Nothing is sent if
-  the browser signals Global Privacy Control or Do Not Track.
+- No storage. The session id is random, kept in memory, and changes on
+  every page load. No IP addresses are stored. Nothing is sent if the
+  browser signals Global Privacy Control or Do Not Track.
+- Your own visits: open `/no-track` (not linked anywhere) and press "Stop
+  counting this browser". It sets a first-party cookie, `vp_no_track=1`,
+  for 400 days, and nothing is sent from that browser while it's there.
+  The same page turns it back off. It's per browser: set it on each
+  device, and again after clearing cookies.
 
 ## Setup
 
@@ -97,6 +102,7 @@ To test locally, put both Vinyl Periphery variables in `.env` and run
 | `stack_created` | New stack is made (Make stack in the stack editor) | `members` |
 | `stack_edited` | A stack's edits are saved (Save in the stack editor) | `members`, `renamed` |
 | `stack_deleted` | A stack is deleted after confirming; its albums stay | `members` |
+| `albums_deleted` | Albums are deleted with Select on the library's Albums tab | `count`, `inStacks` (how many were in a stack) |
 | `stack_album_added` | An album is added to a stack from its Stacks drawer, or with "Add to this stack" on a stack's Results tab | `from`: results, library, stack; `members` (afterwards) |
 | `stack_album_removed` | An album is taken out of a stack from its Stacks drawer (after the warning, when it strands others) | `from`, `members` (afterwards) |
 | `stack_saved` | No longer sent (stacks became records): a search is switched to a stack it fits, or to a new stack after a search on its own, with Switch in the Stack drawer | `members` (searches in the stack afterwards), `depth` (along its trail), `from`: results or library, `joined`: true, `new_stack`: true when it starts a stack, `moved`: true when it left another stack |

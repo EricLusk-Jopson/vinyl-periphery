@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Layers } from "lucide-react";
+import { Check, Layers } from "lucide-react";
 import { SearchCache } from "@/contexts/cache/types";
 import { ResultFrom, resultPath } from "@/lib/routes";
 import { searchStartedAt, timeAgo } from "@/lib/searches";
@@ -21,11 +21,17 @@ interface LibraryCardProps {
   noteLabel?: string;
   /** Opens its Stacks drawer: add it to stacks, or take it out of them. */
   onStack?: () => void;
+  /**
+   * Choosing albums to delete: the card toggles its selection instead of
+   * opening, and shows a check box.
+   */
+  select?: { selected: boolean; onToggle: () => void };
 }
 
 /**
  * One album in the library: cover, album, artist, counts, and its Stacks
- * button. Albums are deleted only from their own results page.
+ * button. Deleted from its own results page, or with Select on the
+ * library's Albums tab, where the card becomes a check box.
  */
 export const LibraryCard: React.FC<LibraryCardProps> = ({
   search,
@@ -33,9 +39,73 @@ export const LibraryCard: React.FC<LibraryCardProps> = ({
   note,
   noteLabel,
   onStack,
+  select,
 }) => {
   const { artist, album } = search.searchParams;
   const albums = Object.keys(search.releases).length;
+
+  const content = (
+    <>
+      <SearchCover
+        search={search}
+        className="h-12 w-12 rounded-[3px] text-xs lg:h-16 lg:w-16 lg:rounded lg:text-sm"
+      />
+      <span className="flex min-w-0 flex-col gap-0.5 md:gap-1">
+        <span className="truncate text-[15px] font-semibold md:text-base">
+          {album}
+        </span>
+        <span className="truncate text-[13px] text-muted-foreground md:text-sm">
+          {artist}
+        </span>
+        <span className="font-mono text-xs text-faint">
+          {albums.toLocaleString("en-US")} {albums === 1 ? "album" : "albums"} ·{" "}
+          {timeAgo(searchStartedAt(search.searchId))}
+        </span>
+        {note && (
+          <span
+            className="line-clamp-2 break-words font-mono text-xs text-muted-foreground"
+            aria-hidden={noteLabel ? true : undefined}
+          >
+            {note}
+          </span>
+        )}
+        {noteLabel && <span className="sr-only">{noteLabel}</span>}
+      </span>
+    </>
+  );
+
+  if (select) {
+    const { selected, onToggle } = select;
+    return (
+      <li>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-pressed={selected}
+          className={cn(
+            "flex w-full min-w-0 items-center gap-3 rounded-[10px] border p-2.5 text-left transition-colors lg:gap-4 lg:p-3.5",
+            selected
+              ? "border-border-emphasis bg-secondary"
+              : "bg-surface hover:border-border-strong",
+            focusRing,
+          )}
+        >
+          <span
+            aria-hidden="true"
+            className={cn(
+              "flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2",
+              selected
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border-emphasis",
+            )}
+          >
+            {selected && <Check className="h-4 w-4" strokeWidth={3} />}
+          </span>
+          {content}
+        </button>
+      </li>
+    );
+  }
 
   return (
     <li className="flex min-w-0 items-center gap-1 rounded-[10px] border bg-surface pr-2 transition-colors hover:border-border-strong">
@@ -48,31 +118,7 @@ export const LibraryCard: React.FC<LibraryCardProps> = ({
           focusRing,
         )}
       >
-        <SearchCover
-          search={search}
-          className="h-12 w-12 rounded-[3px] text-xs lg:h-16 lg:w-16 lg:rounded lg:text-sm"
-        />
-        <span className="flex min-w-0 flex-col gap-0.5 md:gap-1">
-          <span className="truncate text-[15px] font-semibold md:text-base">
-            {album}
-          </span>
-          <span className="truncate text-[13px] text-muted-foreground md:text-sm">
-            {artist}
-          </span>
-          <span className="font-mono text-xs text-faint">
-            {albums.toLocaleString("en-US")} {albums === 1 ? "album" : "albums"}{" "}
-            · {timeAgo(searchStartedAt(search.searchId))}
-          </span>
-          {note && (
-            <span
-              className="line-clamp-2 break-words font-mono text-xs text-muted-foreground"
-              aria-hidden={noteLabel ? true : undefined}
-            >
-              {note}
-            </span>
-          )}
-          {noteLabel && <span className="sr-only">{noteLabel}</span>}
-        </span>
+        {content}
       </Link>
       {/* Always visible, not only on hover, so touch and keyboard users
           can reach them. */}

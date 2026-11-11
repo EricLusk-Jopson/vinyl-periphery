@@ -24,7 +24,9 @@ ranks albums by how many of those people worked on them.
     `ART_RESERVE` (20; per instance, best effort) and passes Discogs's 429
     on. The CDN caches answers (30 days for a cover, a day for none).
   - `event.js`: `POST /api/event` validates analytics events and forwards
-    them to the Google Sheet. See `docs/analytics.md`.
+    them to the Google Sheet. See `docs/analytics.md`. The client sends
+    nothing from a browser with the `vp_no_track` cookie, set and cleared
+    at `/no-track` (`NoTrackPage`, not linked), for the owner's own visits.
   - `og.js`: `POST /api/og` renders a square share image (1080x1080)
     (`@vercel/og`) from a JSON payload body (`backend/og/payload.js`, 32 KB
     at most; built by `buildPayload` in `frontend/src/lib/share.ts`): a
@@ -157,7 +159,10 @@ ranks albums by how many of those people worked on them.
   - `src/lib/releases.ts`: discography items to results. Each result has a
     `type` and a `key` (`"master:N"` / `"release:N"`); `SearchCache.releases`
     is keyed by `key`. Searches stored before keys existed are migrated as
-    they load (`migrateSearch`).
+    they load (`migrateSearch`). Artist names lose Discogs's
+    disambiguation numbers ("Squid (29)" is "Squid", `withoutArtistNumber`)
+    as discographies are read; older searches and stacks are cleaned as
+    they load (`withoutArtistNumbers`, `withoutMemberNumbers`).
   - Likes and hides: each result row ends in one slot (`AlbumMark`): "⋯",
     a filled heart when liked or a crossed-out eye when hidden; it always
     opens the row's menu (Search from this album, Like or Unlike, Hide or
@@ -252,9 +257,12 @@ ranks albums by how many of those people worked on them.
     Taking one out that strands others (`strandedBy`: no link back to
     the start) asks first (`useStackRemoval`); they stay, under "Not
     linked to the start". Deleting a stack (its page, with Undo) never
-    deletes its albums; albums are deleted only from their own results
-    page, and a deleted album stays in its stacks ghosted, with Search to
-    run it again. The library has two tabs, Albums (first, the default)
+    deletes its albums; albums are deleted from their own results page,
+    or several at once with Select on the library's Albums tab (cards
+    become check boxes; a bar at the bottom has Select all, Cancel and
+    Delete, then a toast with Undo: `src/lib/librarySelection.ts`,
+    `deleteSearches`, `restoreSearches`). A deleted album stays in its
+    stacks ghosted, with Search to run it again. The library has two tabs, Albums (first, the default)
     and Stacks (New stack) (`LibraryPage`). `StackEditor` makes and edits a stack: name, albums
     in order with Remove, and the library to add from, albums that don't
     link yet greyed out with a note. An album's Stacks drawer

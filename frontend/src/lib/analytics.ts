@@ -1,9 +1,11 @@
 /**
  * Anonymous usage events, sent to /api/event and on to a Google Sheet.
  *
- * No cookies or storage: the session id lives in memory and changes on every
- * page load. Nothing is sent when the browser signals Global Privacy Control
- * or Do Not Track. Sending never throws and never blocks the UI.
+ * No storage: the session id lives in memory and changes on every page
+ * load. Nothing is sent when the browser signals Global Privacy Control or
+ * Do Not Track, or carries the no-tracking cookie (`NO_TRACK_COOKIE`, set
+ * and cleared at `/no-track`, for the site's own visits). Sending never
+ * throws and never blocks the UI.
  */
 
 /** Keep in sync with EVENTS in backend/handlers/event.js. */
@@ -29,6 +31,7 @@ export type AnalyticsEvent =
   | "stack_created"
   | "stack_edited"
   | "stack_deleted"
+  | "albums_deleted"
   | "stack_album_added"
   | "stack_album_removed"
   | "result_liked"
@@ -109,6 +112,45 @@ interface PrivacySignals {
 export const isOptedOut = (signals: PrivacySignals): boolean =>
   signals.globalPrivacyControl === true || signals.doNotTrack === "1";
 
+/** The cookie that stops this browser's events: set at `/no-track`. */
+export const NO_TRACK_COOKIE = "vp_no_track";
+/** How long it lasts: 400 days, the most browsers keep a cookie. */
+const NO_TRACK_DAYS = 400;
+
+/** Whether a `document.cookie` string carries the no-tracking cookie. */
+export const hasNoTrackCookie = (cookies: string): boolean =>
+  cookies
+    .split(";")
+    .some((c) => c.trim() === `${NO_TRACK_COOKIE}=1`);
+
+/** The `document.cookie` assignment that sets (or clears) it. */
+export const noTrackCookie = (on: boolean, secure: boolean): string =>
+  [
+    `${NO_TRACK_COOKIE}=${on ? "1" : ""}`,
+    "Path=/",
+    `Max-Age=${on ? NO_TRACK_DAYS * 24 * 60 * 60 : 0}`,
+    "SameSite=Lax",
+    ...(secure ? ["Secure"] : []),
+  ].join("; ");
+
+/** Whether this browser has the no-tracking cookie. */
+export const isTrackingOff = (): boolean => {
+  try {
+    return hasNoTrackCookie(document.cookie);
+  } catch {
+    return false;
+  }
+};
+
+/** Sets or clears the no-tracking cookie for this browser. */
+export const setTrackingOff = (off: boolean): void => {
+  try {
+    document.cookie = noTrackCookie(off, window.location.protocol === "https:");
+  } catch {
+    // Cookies blocked: there's nothing to set, and nothing to clear.
+  }
+};
+
 export const buildPayload = (
   event: AnalyticsEvent,
   properties: EventProperties,
@@ -119,6 +161,7 @@ export function track(event: AnalyticsEvent, properties: EventProperties = {}): 
   try {
     if (typeof window === "undefined") return;
     if (isOptedOut(navigator as Navigator & PrivacySignals)) return;
+    if (isTrackingOff()) return;
 
     const body = JSON.stringify(
       buildPayload(event, properties, {

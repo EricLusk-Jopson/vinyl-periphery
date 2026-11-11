@@ -5,6 +5,7 @@ import {
   defaultStackName,
   holds,
   memberFor,
+  withoutMemberNumbers,
   resolveMember,
   savedByAlbum,
   stacksFromLineage,
@@ -123,5 +124,24 @@ describe("stacksFromLineage", () => {
       updatedAt: 99,
     });
     expect(records[0].members.map((m) => m.title)).toEqual(["Seed", "B", "C"]);
+  });
+});
+
+describe("withoutMemberNumbers", () => {
+  it("takes Discogs's numbers off members' artists, the same record when clean", () => {
+    const member = { searchId: "a", targetKey: "master:1", title: "Cowards", thumb: "", addedAt: 1 };
+    const record = {
+      id: "stack-1",
+      name: "Squid",
+      createdAt: 1,
+      members: [
+        { ...member, artist: "Squid (29)" },
+        { ...member, searchId: "b", targetKey: "master:2", artist: "Black Midi" },
+      ],
+    } as unknown as StackRecord;
+    const clean = withoutMemberNumbers(record);
+    expect(clean.members.map((m) => m.artist)).toEqual(["Squid", "Black Midi"]);
+    expect(clean.members[1]).toBe(record.members[1]);
+    expect(withoutMemberNumbers(clean)).toBe(clean);
   });
 });

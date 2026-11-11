@@ -1,6 +1,7 @@
 import { SearchCache } from "@/contexts/cache/types";
 import { lineageOf } from "./lineage";
 import { searchStartedAt } from "./searches";
+import { withoutArtistNumber } from "./transformers/transformers";
 
 /**
  * Stacks as records of their own: a name and the albums in it, kept in
@@ -49,7 +50,7 @@ export const memberFor = (
   searchId: search.searchId,
   targetKey: search.target?.key ?? "",
   title: search.searchParams.album,
-  artist: search.searchParams.artist,
+  artist: withoutArtistNumber(search.searchParams.artist),
   thumb: search.thumb ?? "",
   addedAt: now,
 });
@@ -247,4 +248,19 @@ export const stacksFromLineage = (
     });
   }
   return records.sort((a, b) => b.createdAt - a.createdAt);
+};
+
+/**
+ * A stored stack with Discogs's disambiguation numbers taken off its
+ * albums' artists ("Squid (29)"). The same object when there's nothing to
+ * change.
+ */
+export const withoutMemberNumbers = (record: StackRecord): StackRecord => {
+  const members = record.members.map((m) => {
+    const artist = withoutArtistNumber(m.artist ?? "");
+    return artist === m.artist ? m : { ...m, artist };
+  });
+  return members.every((m, i) => m === record.members[i])
+    ? record
+    : { ...record, members };
 };

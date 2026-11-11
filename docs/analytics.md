@@ -13,9 +13,14 @@ browser  track()  ──sendBeacon──▶  /api/event  ──POST + VP token�
 - `/api/event` checks the event against an allowlist, cleans the fields, adds
   the timestamp and user agent, and forwards it. It answers 204 even if the
   sheet is down. Analytics never affects the app.
-- No cookies or storage. The session id is random, kept in memory, and
-  changes on every page load. No IP addresses are stored. Nothing is sent if
-  the browser signals Global Privacy Control or Do Not Track.
+- No storage. The session id is random, kept in memory, and changes on
+  every page load. No IP addresses are stored. Nothing is sent if the
+  browser signals Global Privacy Control or Do Not Track.
+- Your own visits: open `/no-track` (not linked anywhere) and press "Stop
+  counting this browser". It sets a first-party cookie, `vp_no_track=1`,
+  for 400 days, and nothing is sent from that browser while it's there.
+  The same page turns it back off. It's per browser: set it on each
+  device, and again after clearing cookies.
 
 ## Setup
 

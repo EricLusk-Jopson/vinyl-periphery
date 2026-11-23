@@ -7,6 +7,9 @@ import {
   canJoin,
   holds,
   JoinCheck,
+  artistAlbums,
+  artistMemberFor,
+  isArtistMember,
   linkPeople,
   memberKey,
   resolveMember,
@@ -31,6 +34,17 @@ export interface LibraryStack {
   members: SearchCache[];
   /** Its albums deleted from the library since (shown ghosted). */
   missing: StackMember[];
+  /**
+   * The artist it starts from, if any: its albums (all of them, on or
+   * off) come first in `members`, every one at step 0.
+   */
+  artist?: StackArtist;
+}
+
+export interface StackArtist {
+  member: StackMember;
+  /** The artist's albums in the library, oldest first. */
+  albums: SearchCache[];
 }
 
 /** A stack record with its albums found in the library. */
@@ -41,7 +55,19 @@ export const libraryStack = (
   const members: SearchCache[] = [];
   const missing: StackMember[] = [];
   const seen = new Set<string>();
-  for (const member of record.members) {
+  let artist: StackArtist | undefined;
+  for (const [i, member] of record.members.entries()) {
+    if (isArtistMember(member)) {
+      // Only the start can be an artist (for now).
+      if (i !== 0) continue;
+      const albums = artistAlbums(member.targetKey, byAlbum);
+      artist = { member, albums };
+      for (const search of albums) {
+        seen.add(search.searchId);
+        members.push(search);
+      }
+      continue;
+    }
     const search = resolveMember(member, byAlbum);
     if (!search) missing.push(member);
     else if (!seen.has(search.searchId)) {
@@ -49,8 +75,19 @@ export const libraryStack = (
       members.push(search);
     }
   }
-  return { kind: "stack", stackId: record.id, record, members, missing };
+  return {
+    kind: "stack",
+    stackId: record.id,
+    record,
+    members,
+    missing,
+    ...(artist ? { artist } : {}),
+  };
 };
+
+/** How many albums a stack starts with at step 0: its artist's, or one. */
+export const startCount = (stack: Pick<LibraryStack, "artist">): number =>
+  stack.artist ? Math.max(1, stack.artist.albums.length) : 1;
 
 /** Every stack, with its albums found in the library. */
 export const libraryStacks = (
@@ -74,6 +111,17 @@ export interface StackRoot {
 
 /** Where a stack starts: its first album, saved or as last known. */
 export const stackRoot = (stack: LibraryStack): StackRoot => {
+  if (stack.artist) {
+    const search = stack.artist.albums[stack.artist.albums.length - 1];
+    return {
+      searchId: search?.searchId ?? "",
+      title: stack.artist.member.title,
+      artist: stack.artist.member.title,
+      thumb: search?.thumb ?? stack.artist.member.thumb,
+      targetKey: search?.target?.key ?? "",
+      search,
+    };
+  }
   const first = stack.record.members[0];
   const search =
     first &&
@@ -152,7 +200,7 @@ export interface StackParent {
  * (removing an album can leave them so, after a warning).
  */
 export const stackLayout = (stack: LibraryStack): StackLayout => {
-  const steps = stepsFromStart(stack.members);
+  const steps = stepsFromStart(stack.members, startCount(stack));
   const levels = new Map(
     stack.members.map((m) => [
       m.searchId,
@@ -318,6 +366,28 @@ export const stackOptionsFor = (
     );
 };
 
+/**
+ * The badge on an album's Stacks button: "add" when it's in no stack yet
+ * but could go in one (it links to an album there), else null.
+ */
+export const stackBadge = (
+  search: SearchCache,
+  stacks: LibraryStack[],
+): "add" | null => {
+  let canAdd = false;
+  for (const stack of stacks) {
+    if (holds(stack.record, search)) return null;
+    if (!canAdd && stack.members.length > 0) {
+      canAdd = canJoin(search, stack.members).ok;
+    }
+  }
+  return canAdd ? "add" : null;
+};
+
+/** The badge, said: for the Stacks button's accessible name. */
+export const stackBadgeLabel = (badge?: "add" | null): string =>
+  badge ? " (not in a stack yet: it can join one)" : "";
+
 /** The stacks holding this album. */
 export const stacksWith = (
   search: SearchCache,
@@ -375,3 +445,92 @@ export const searchStacks = (
       );
 
 export { memberKey };
+
+// Artists -----------------------------------------------------------------
+
+/**
+ * An artist in the library: every album searched whose main artist it is,
+ * grouped on its own (nothing to make or keep: a new search by them joins
+ * as it finishes). Read like a stack starting from the artist, every
+ * album at step 0.
+ */
+export interface LibraryArtist {
+  kind: "artist";
+  /** "artist:squid": the route and its Results filters' key. */
+  artistId: string;
+  name: string;
+  /** Oldest first. */
+  albums: SearchCache[];
+  /** When an album of theirs was last searched. */
+  updatedAt: number;
+}
+
+/** Every artist with an album in the library, latest searched first. */
+export const libraryArtists = (
+  searches: Record<string, SearchCache>,
+  savedIds: Set<string>,
+): LibraryArtist[] => {
+  const byAlbum = savedByAlbum(searches, savedIds);
+  const ids = new Map<string, string>();
+  for (const search of byAlbum.values()) {
+    const member = artistMemberFor(search.searchParams.artist);
+    if (!ids.has(member.targetKey)) ids.set(member.targetKey, member.title);
+  }
+  return Array.from(ids, ([artistId, name]) => {
+    const albums = artistAlbums(artistId, byAlbum);
+    return {
+      kind: "artist" as const,
+      artistId,
+      name,
+      albums,
+      updatedAt: Math.max(0, ...albums.map((a) => searchStartedAt(a.searchId))),
+    };
+  })
+    .filter((a) => a.albums.length > 0)
+    .sort((a, b) => b.updatedAt - a.updatedAt || a.name.localeCompare(b.name));
+};
+
+/** An artist read as a stack (for its page): every album at step 0. */
+export const artistStack = (artist: LibraryArtist): LibraryStack => {
+  const latest = artist.albums[artist.albums.length - 1];
+  const member = artistMemberFor(artist.name, latest?.thumb ?? "");
+  return {
+    kind: "stack",
+    stackId: artist.artistId,
+    record: {
+      id: artist.artistId,
+      name: artist.name,
+      members: [member],
+      createdAt: 0,
+      updatedAt: artist.updatedAt,
+    },
+    members: artist.albums,
+    missing: [],
+    artist: { member, albums: artist.albums },
+  };
+};
+
+/** Artists whose name, or one of whose albums, matches. */
+export const searchArtists = (
+  artists: LibraryArtist[],
+  query: string,
+): LibraryArtist[] =>
+  query.trim() === ""
+    ? artists
+    : artists.filter(
+        (a) =>
+          matchesName(a.name, query) ||
+          a.albums.some((s) => matchesName(s.searchParams.album, query)),
+      );
+
+/** Albums switched on, of an artist's: those its filters don't turn off. */
+export const albumsOnOf = (
+  albums: SearchCache[],
+  states: Record<string, boolean>,
+): SearchCache[] => albums.filter((a) => states[albumKeyOf(a)] !== false);
+
+/** "3 of 5 albums on", or "5 albums" when all are. */
+export const activeAlbumsText = (on: number, total: number): string =>
+  on === total
+    ? `${total} ${total === 1 ? "album" : "albums"}`
+    : `${on} of ${total} albums on`;

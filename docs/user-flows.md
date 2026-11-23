@@ -92,18 +92,22 @@ and #113.
 ## 5. Library
 
 - **Starts at:** Library in the header, "View library" on Home.
-- **Steps:** two tabs, **Albums** (first and the default: every search,
-  newest first) and **Stacks** (with **New stack**). One search box filters the tab
-  on screen: albums by title or artist, stacks by name or any album in
-  them. An album card notes the stack it's in ("In My trail", "In 3
-  stacks"), opens its results, and its Stacks button opens its Stacks
-  drawer (flow 7). A stack card opens the stack's page.
+- **Steps:** three tabs, **Albums** (first and the default: every search,
+  newest first), **Artists** (every main artist searched, latest first)
+  and **Stacks** (with **New stack**). One search box filters the tab on
+  screen: albums by title or artist, artists by name or any album of
+  theirs, stacks by name or any album in them. An album card notes the
+  stack it's in ("In My trail", "In 3 stacks"), opens its results, and its
+  Stacks button opens its Stacks drawer (flow 7); the button carries a "+"
+  badge when the album is in no stack but links to one. An artist card
+  (styled like a stack's: name, "3 of 5 albums on") opens the artist's
+  page (flow 8a). A stack card opens the stack's page.
 - **Deleting:** an album from its own results page, or several at once
   from the Albums tab: **Select** turns the cards into check boxes, a bar
   at the bottom counts them (Select all, Cancel, Delete; Escape cancels)
   and notes any in stacks, which stay there greyed out. Delete shows a
   toast with Undo. Stacks are deleted only from their own page.
-- **Events:** `library_view_toggled` (`view`: stacks or albums),
+- **Events:** `library_view_toggled` (`view`: albums, artists or stacks),
   `library_searched` (`tab`), `albums_deleted` (`count`, `inStacks`),
   `stack_opened`, `page_view`.
 
@@ -124,9 +128,12 @@ and #113.
 
 ## 7. Making and filling stacks
 
-- **New stack:** from the Stacks tab, or "New stack with this album" in an
-  album's Stacks drawer. The stack editor asks for a name (the start's
-  title by default) and albums: pick any album to start, then add albums
+- **New stack:** from the Stacks tab, "New stack with this album" in an
+  album's Stacks drawer, or **New stack** on an artist's page (the stack
+  starts from the artist, with that page's albums on or off). The stack
+  editor asks for a name (the start's title by default) and albums: pick
+  any album or artist to start (artists only as the start, for now: every
+  album of theirs, now and searched later, at step 0), then add albums
   that link to one already in. Albums that don't link yet are listed
   greyed, saying "Not linked to the stack yet", with a note above the
   list on the rule; adding others can link them. Make stack opens the
@@ -134,7 +141,9 @@ and #113.
 - **An album's Stacks drawer** (results page header "Add to stack" / "In
   N stacks", library and stack cards): every stack, those holding it with
   Remove, those it links to with Add and what links them, and the rest
-  greyed with why. An album can be in any number of stacks.
+  greyed with why. A stack holding it through its start artist says so,
+  with no Remove (switch it off on the stack's page instead). An album can
+  be in any number of stacks.
 - **Taking an album out** (drawer or editor) that leaves others with no
   link back to the start asks first ("This breaks the stack's links");
   they stay, under "Not linked to the start", until linked again or taken
@@ -148,12 +157,29 @@ and #113.
 - **Albums tab:** the stack's albums by step from the start, each with a
   link line (which album links it, through whom); then any not linked to
   the start; then any deleted from the library (ghosted, with Search to
-  run them again, which puts them back in place).
+  run them again, which puts them back in place). A start artist is one
+  card at the start, with an Albums button to switch their albums on and
+  off for this stack (its filters' Albums group does the same); the card
+  opens the artist's page, which goes back to the stack.
 - **Results tab:** the albums read as one, filtered and sorted.
 - **Events:** `stack_view_changed`, `stack_filters_applied`,
   `stack_edited`, `stack_deleted`, plus the result events.
 - **Friction:** the Results tab has no "Find an album" search, unlike a
   search's results.
+
+## 8a. An artist's page
+
+- **Starts at:** an artist card (library Artists tab, or a stack's start).
+- **What it is:** every album of that main artist in the library, read as
+  one, like a stack whose albums are all at step 0. Nothing to make: each
+  search joins its artist as it finishes.
+- **Header:** Share, **Albums** ("2/3": switch their albums on and off,
+  kept with the artist's Results filters), **New stack** (a stack starting
+  from the artist, for further steps).
+- **Tabs:** Albums (each card opens its results; those switched off say
+  so) and Results (the same as a stack's, with an Albums filter group).
+- **Events:** `artist_opened`, `artist_albums_toggled`,
+  `stack_view_changed` (`artist`: true), plus the result events.
 
 ## 9. Sharing an image
 

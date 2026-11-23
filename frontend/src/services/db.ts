@@ -206,7 +206,10 @@ class DatabaseService {
       const request = store.getAllKeys();
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
-        const gone = (request.result as string[]).filter((id) => !keep.has(id));
+        // Artists' filters ("artist:…") aren't stacks': they stay.
+        const gone = (request.result as string[]).filter(
+          (id) => !keep.has(id) && !id.startsWith("artist:"),
+        );
         gone.forEach((id) => store.delete(id));
         store.transaction.oncomplete = () => resolve(gone);
         store.transaction.onerror = () => reject(store.transaction.error);

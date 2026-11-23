@@ -19,7 +19,7 @@ import { useFilterRequest } from "@/hooks/useFilterRequest";
 import { track, trackStackFilter } from "@/lib/analytics";
 import { MetaAlbum } from "@/lib/metaAlbum";
 import { SortKey, sharedPeople, ScoredRelease } from "@/lib/results";
-import { resultPath } from "@/lib/routes";
+import { ResultFrom, resultPath } from "@/lib/routes";
 import { searchTarget } from "@/lib/searchTarget";
 import {
   defaultStackFilters,
@@ -69,6 +69,8 @@ const quietButton = cn(
 
 interface StackResultsProps {
   stackId: string;
+  /** Where a result's page returns: this stack, or this artist. */
+  from: ResultFrom;
   meta: MetaAlbum;
   /** Member search id -> its step, for where a new search hangs. */
   levels: Map<string, number>;
@@ -142,6 +144,7 @@ const LinkPanel: React.FC<{ result: StackResult; meta: MetaAlbum }> = ({
  */
 export const StackResults: React.FC<StackResultsProps> = ({
   stackId,
+  from,
   meta,
   levels,
   stackFilters,
@@ -441,7 +444,7 @@ export const StackResults: React.FC<StackResultsProps> = ({
                     found
                       ? {
                           to: resultPath(found.searchParams, found.target),
-                          state: { from: "stack", stackId },
+                          state: from,
                           onOpen: () =>
                             track("search_jumped", { from: "result" }),
                           ...(stack && outsideStack(found, stack)

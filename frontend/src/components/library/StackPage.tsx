@@ -5,7 +5,7 @@ import {
   useNavigate,
   useParams,
 } from "react-router-dom";
-import { Pencil, Search, Trash2 } from "lucide-react";
+import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { pageAction } from "../common/buttons";
 import { PageBack } from "../layout/PageBack";
 import { PageHero } from "../layout/PageHero";
@@ -14,7 +14,15 @@ import { useCache } from "@/contexts/cache/CacheContext";
 import { SearchCache } from "@/contexts/cache/types";
 import { KnownAlbum } from "@/hooks/useSearchRun";
 import { track } from "@/lib/analytics";
-import { libraryPath, stackPath, StackView, stackView } from "@/lib/routes";
+import {
+  artistIdFromRoute,
+  artistPath,
+  libraryPath,
+  ResultFrom,
+  stackPath,
+  StackView,
+  stackView,
+} from "@/lib/routes";
 import { ShareButton } from "../share/ShareButton";
 import { PageSort } from "@/lib/share";
 import {
@@ -25,16 +33,24 @@ import {
 import { SortKey } from "@/lib/results";
 import { targetFromKey } from "@/lib/searchTarget";
 import {
+  activeAlbumsText,
+  albumsOnOf,
+  artistStack,
   GhostStep,
+  LibraryStack,
   linkLineLabel,
   linkLineText,
   stackLabel,
   stackLayout,
   stackMembersByDepth,
+  stackBadge,
   stackRoot,
   UNLINKED,
 } from "@/lib/stacks";
 import { useLibraryStacks } from "@/hooks/useLibraryStacks";
+import { useLibraryArtists } from "@/hooks/useLibraryArtists";
+import { ArtistCard } from "./ArtistCard";
+import { ArtistAlbumToggles } from "./ArtistAlbumToggles";
 import { cn } from "@/lib/utils";
 import { StackDrawer } from "./StackDrawer";
 import { DeleteStackConfirm } from "./DeleteStackConfirm";
@@ -132,38 +148,65 @@ const GhostCard: React.FC<{
  * links it to the step before, then any not linked to the start and any
  * deleted from the library (ghosted, with Search); and Results
  * (`?view=results`), the stack's results together. Albums are added and
- * taken out with Edit, or each card's Stacks drawer.
+ * taken out with Edit, or each card's Stacks drawer. A stack starting
+ * from an artist shows them as one card at the start, with their albums
+ * switched on and off there (the stack's own filters).
  */
-export const StackPage: React.FC<StackPageProps> = ({
-  onSearchStep,
-  isSearching,
-}) => {
+export const StackPage: React.FC<StackPageProps> = (props) => {
   const { stackId = "" } = useParams();
+  const { savedSearchesLoaded } = useCache();
+  const found = useLibraryStacks().find((s) => s.stackId === stackId);
+  if (!savedSearchesLoaded) return null;
+  if (!found) return <Navigate to={libraryPath()} replace />;
+  return <StackBody key={stackId} {...props} stack={found} mode="stack" />;
+};
+
+/**
+ * /library/artist/:artist — every album of one main artist in the
+ * library, read as a stack starting from the artist: the same Albums and
+ * Results tabs, every album at step 0. Nothing to keep or edit: a new
+ * search by them joins as it finishes. Its albums are switched on and off
+ * in the header or the filters (its own, kept under the artist's id), and
+ * New stack starts a stack from the artist for further steps.
+ */
+export const ArtistPage: React.FC<StackPageProps> = (props) => {
+  const { artist: param = "" } = useParams();
+  const artistId = artistIdFromRoute(param);
+  const { savedSearchesLoaded } = useCache();
+  const found = useLibraryArtists().find((a) => a.artistId === artistId);
+  const stack = useMemo(() => found && artistStack(found), [found]);
+  if (!savedSearchesLoaded) return null;
+  if (!stack) return <Navigate to={libraryPath()} replace />;
+  return <StackBody key={artistId} {...props} stack={stack} mode="artist" />;
+};
+
+const StackBody: React.FC<
+  StackPageProps & { stack: LibraryStack; mode: "stack" | "artist" }
+> = ({ onSearchStep, isSearching, stack, mode }) => {
+  const stackId = stack.stackId;
+  const artistMode = mode === "artist";
+  const pathFor = (tab: StackView) =>
+    artistMode ? artistPath(stackId, tab) : stackPath(stackId, tab);
+  const from: ResultFrom = artistMode
+    ? { from: "artist", artistId: stackId }
+    : { from: "stack", stackId };
   const navigate = useNavigate();
   const location = useLocation();
   const view = stackView(location.search);
   const headingId = useId();
-  const { searches, savedSearchesLoaded } = useCache();
+  const { searches } = useCache();
   const [confirming, setConfirming] = useState(false);
   const [editing, setEditing] = useState(false);
+  // A new stack starting from this artist.
+  const [creating, setCreating] = useState(false);
   // The member whose Stacks drawer is open.
   const [stacking, setStacking] = useState<SearchCache | null>(null);
 
   const stacks = useLibraryStacks();
-  const found = stacks.find((s) => s.stackId === stackId);
-  const stack = found ?? {
-    kind: "stack" as const,
-    stackId,
-    record: { id: stackId, name: "", members: [], createdAt: 0, updatedAt: 0 },
-    members: [],
-    missing: [],
-  };
   const members = stack.members;
   const { levels, ghosts, parents } = useMemo(
     () => stackLayout(stack),
-    // stack is rebuilt from its record and the library.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [found],
+    [stack],
   );
   // The share map rings albums by step: unlinked ones go one step out.
   const shareLevels = useMemo(() => {
@@ -197,9 +240,7 @@ export const StackPage: React.FC<StackPageProps> = ({
   const hidden = useHidden();
   const meta = useMemo(
     () => metaAlbum(stackMembersByDepth(stack, levels)),
-    // stack is built from members.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [members, levels],
+    [stack, levels],
   );
   const results = useMemo(
     () =>
@@ -216,10 +257,12 @@ export const StackPage: React.FC<StackPageProps> = ({
     () =>
       onFilterRequest(() => {
         if (filtersRequested() && view !== "results") {
-          navigate(stackPath(stackId, "results"), { replace: true });
+          navigate(pathFor("results"), { replace: true });
         }
       }),
-    [view, navigate, stackId],
+    // pathFor follows stackId and mode.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [view, navigate, stackId, mode],
   );
 
   // Who counts on each stack album, for the People and Transit images.
@@ -232,11 +275,24 @@ export const StackPage: React.FC<StackPageProps> = ({
   useEffect(() => {
     if (reported.current || members.length === 0) return;
     reported.current = true;
-    track("stack_opened", { members: members.length, ghosts: ghosts.length });
-  }, [members.length, ghosts.length]);
+    if (artistMode) track("artist_opened", { albums: members.length });
+    else
+      track("stack_opened", {
+        members: members.length,
+        ghosts: ghosts.length,
+        ...(stack.artist ? { artist: true } : {}),
+      });
+  }, [members.length, ghosts.length, artistMode, stack.artist]);
 
-  if (!savedSearchesLoaded) return null;
-  if (!found) return <Navigate to={libraryPath()} replace />;
+  // An artist's albums switched on or off, from the header or a card.
+  const toggleAlbum = (key: string, on: boolean) => {
+    track("artist_albums_toggled", { on, from: mode });
+    stackFilters.update({
+      albums: { ...stackFilters.filters.albums, [key]: on },
+    });
+  };
+  const artistAlbums = stack.artist?.albums ?? [];
+  const artistOn = albumsOnOf(artistAlbums, stackFilters.filters.albums);
 
   const root = stackRoot(stack);
   const sorted = stackMembersByDepth(stack, levels);
@@ -248,6 +304,8 @@ export const StackPage: React.FC<StackPageProps> = ({
     const depth = levels.get(search.searchId) ?? UNLINKED;
     steps.set(depth, [...(steps.get(depth) ?? []), search]);
   }
+  // The artist a stack starts from keeps its card with no albums left.
+  if (stack.artist && !artistMode && !steps.has(0)) steps.set(0, []);
   const sections = Array.from(steps).sort(([a], [b]) =>
     a === UNLINKED ? 1 : b === UNLINKED ? -1 : a - b,
   );
@@ -255,8 +313,11 @@ export const StackPage: React.FC<StackPageProps> = ({
   const changeView = (next: string) => {
     const tab: StackView = next === "results" ? "results" : "albums";
     if (tab === view) return;
-    track("stack_view_changed", { view: tab });
-    navigate(stackPath(stackId, tab), { replace: true });
+    track("stack_view_changed", {
+      view: tab,
+      ...(artistMode ? { artist: true } : {}),
+    });
+    navigate(pathFor(tab), { replace: true });
   };
 
   // A deleted album searched again: the new search is found by its album,
@@ -279,14 +340,22 @@ export const StackPage: React.FC<StackPageProps> = ({
             className="h-16 w-16 rounded-[3px] text-[13px] md:h-[88px] md:w-[88px] md:rounded md:text-base lg:h-28 lg:w-28"
           />
         }
-        eyebrow="Stack"
+        eyebrow={artistMode ? "Artist" : "Stack"}
         title={stackLabel(stack)}
         meta={
-          <>
-            {members.length} {members.length === 1 ? "album" : "albums"} · from{" "}
-            {root.title}
-            {ghosts.length > 0 && ` · ${ghosts.length} deleted`}
-          </>
+          artistMode ? (
+            <>
+              {activeAlbumsText(artistOn.length, artistAlbums.length)} in your
+              library
+            </>
+          ) : (
+            <>
+              {members.length} {members.length === 1 ? "album" : "albums"} ·
+              from {root.title}
+              {stack.artist && " (artist)"}
+              {ghosts.length > 0 && ` · ${ghosts.length} deleted`}
+            </>
+          )
         }
         actions={
           <>
@@ -307,7 +376,7 @@ export const StackPage: React.FC<StackPageProps> = ({
                   counted,
                 }}
                 order={pageSort}
-                draftKey={`stack:${stackId}`}
+                draftKey={`${artistMode ? "artist" : "stack"}:${stackId}`}
                 stackFilters={{
                   filters: stackFilters.filters,
                   update: stackFilters.update,
@@ -315,34 +384,62 @@ export const StackPage: React.FC<StackPageProps> = ({
                 }}
               />
             )}
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              className={pageAction}
-            >
-              <Pencil
-                className="h-4 w-4 text-muted-foreground"
-                aria-hidden="true"
-              />
-              Edit
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirming(true)}
-              className={pageAction}
-            >
-              <Trash2
-                className="h-4 w-4 text-muted-foreground"
-                aria-hidden="true"
-              />
-              Delete stack
-            </button>
+            {artistMode ? (
+              <>
+                {artistAlbums.length > 1 && stackFilters.loaded && (
+                  <ArtistAlbumToggles
+                    artist={stack.record.name}
+                    albums={artistAlbums}
+                    states={stackFilters.filters.albums}
+                    onToggle={toggleAlbum}
+                    className="px-4 text-[15px]"
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={() => setCreating(true)}
+                  className={pageAction}
+                >
+                  <Plus
+                    className="h-4 w-4 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  New stack
+                  <span className="sr-only"> from {stack.record.name}</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  className={pageAction}
+                >
+                  <Pencil
+                    className="h-4 w-4 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirming(true)}
+                  className={pageAction}
+                >
+                  <Trash2
+                    className="h-4 w-4 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  Delete stack
+                </button>
+              </>
+            )}
           </>
         }
       />
       <div className="mx-auto w-full max-w-[1280px] px-4 pb-24 md:px-6">
         <Tabs value={view} onValueChange={changeView} className="mt-4 md:mt-6">
-          <TabsList aria-label="Stack view">
+          <TabsList aria-label={artistMode ? "Artist view" : "Stack view"}>
             <TabsTrigger value="albums">Albums</TabsTrigger>
             <TabsTrigger value="results">Results</TabsTrigger>
           </TabsList>
@@ -351,6 +448,7 @@ export const StackPage: React.FC<StackPageProps> = ({
             {stackFilters.loaded && (
               <StackResults
                 stackId={stackId}
+                from={from}
                 meta={meta}
                 levels={levels}
                 stackFilters={stackFilters}
@@ -377,7 +475,7 @@ export const StackPage: React.FC<StackPageProps> = ({
                   id={`${headingId}-step-${depth}`}
                   className="font-mono text-xs uppercase tracking-[1px] text-muted-foreground"
                 >
-                  {stepLabel(depth)}
+                  {artistMode ? "Albums" : stepLabel(depth)}
                 </h2>
                 {depth === UNLINKED && (
                   <p className="text-[13px] text-muted-foreground">
@@ -387,19 +485,48 @@ export const StackPage: React.FC<StackPageProps> = ({
                   </p>
                 )}
                 <ul className={LIBRARY_GRID}>
-                  {entries.map((search) => {
-                    const links = parents.get(search.searchId) ?? [];
-                    return (
-                      <LibraryCard
-                        key={search.searchId}
-                        search={search}
-                        from={{ from: "stack", stackId }}
-                        note={linkLineText(links) || undefined}
-                        noteLabel={linkLineLabel(links) || undefined}
-                        onStack={() => setStacking(search)}
-                      />
-                    );
-                  })}
+                  {/* A stack starting from an artist: them, as one card. */}
+                  {depth === 0 && stack.artist && !artistMode && (
+                    <ArtistCard
+                      name={stack.artist.member.title}
+                      albums={artistAlbums}
+                      states={stackFilters.filters.albums}
+                      to={artistPath(stack.artist.member.targetKey)}
+                      state={from}
+                      onToggle={stackFilters.loaded ? toggleAlbum : undefined}
+                    />
+                  )}
+                  {entries
+                    .filter(
+                      (search) =>
+                        artistMode ||
+                        depth !== 0 ||
+                        !stack.artist?.albums.includes(search),
+                    )
+                    .map((search) => {
+                      const links = parents.get(search.searchId) ?? [];
+                      const off =
+                        artistMode &&
+                        !artistOn.includes(search) &&
+                        stackFilters.loaded;
+                      return (
+                        <LibraryCard
+                          key={search.searchId}
+                          search={search}
+                          from={from}
+                          note={
+                            off
+                              ? "Switched off here"
+                              : linkLineText(links) || undefined
+                          }
+                          noteLabel={
+                            off ? undefined : linkLineLabel(links) || undefined
+                          }
+                          onStack={() => setStacking(search)}
+                          stackBadge={stackBadge(search, stacks)}
+                        />
+                      );
+                    })}
                 </ul>
               </section>
             ))}
@@ -439,6 +566,14 @@ export const StackPage: React.FC<StackPageProps> = ({
             open
             stack={stack}
             onOpenChange={(open) => !open && setEditing(false)}
+          />
+        )}
+        {creating && stack.artist && (
+          <StackEditor
+            open
+            startArtist={stack.artist.member}
+            initialFilters={{ albums: stackFilters.filters.albums }}
+            onOpenChange={(open) => !open && setCreating(false)}
           />
         )}
 

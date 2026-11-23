@@ -31,6 +31,8 @@ export const EVENTS = new Set([
   "cover_lookup",
   "stack_saved",
   "stack_opened",
+  "artist_opened",
+  "artist_albums_toggled",
   "stack_view_changed",
   "stack_filters_applied",
   "search_unstacked",

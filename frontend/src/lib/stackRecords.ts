@@ -14,11 +14,20 @@ import { withoutArtistNumber } from "./transformers/transformers";
  * Pure, so stacks can be tested on their own.
  */
 
-/** One album in a stack: which search, and enough to show it if deleted. */
+/**
+ * One album in a stack: which search, and enough to show it if deleted.
+ * Or, as the start only, an artist (`kind: "artist"`): every album in the
+ * library by that main artist, now and searched later, at step 0.
+ */
 export interface StackMember {
-  /** The search when it was added; a repeat run is found by `targetKey`. */
+  /** Absent for an album. */
+  kind?: "artist";
+  /** The search when it was added; a repeat run is found by `targetKey`. "" for an artist. */
   searchId: string;
-  /** The Discogs album ("master:N" / "release:N"), or "" for old searches. */
+  /**
+   * The Discogs album ("master:N" / "release:N"), or "" for old searches.
+   * An artist's id ("artist:squid") for an artist.
+   */
   targetKey: string;
   title: string;
   artist: string;
@@ -34,6 +43,42 @@ export interface StackRecord {
   createdAt: number;
   updatedAt: number;
 }
+
+const ARTIST_PREFIX = "artist:";
+
+/** An artist's id from a main artist's name: "artist:squid". */
+export const artistKeyOf = (name: string): string =>
+  `${ARTIST_PREFIX}${withoutArtistNumber(name).trim().toLowerCase().replace(/\s+/g, " ")}`;
+
+/** The artist an album's search belongs to: its main artist. */
+export const artistIdOf = (search: Pick<SearchCache, "searchParams">): string =>
+  artistKeyOf(search.searchParams.artist);
+
+export const isArtistId = (id: string): boolean => id.startsWith(ARTIST_PREFIX);
+
+export const isArtistMember = (member: StackMember): boolean =>
+  member.kind === "artist";
+
+/** An artist as a stack's start. */
+export const artistMemberFor = (
+  name: string,
+  thumb = "",
+  now = Date.now(),
+): StackMember => ({
+  kind: "artist",
+  searchId: "",
+  targetKey: artistKeyOf(name),
+  title: withoutArtistNumber(name).trim(),
+  artist: withoutArtistNumber(name).trim(),
+  thumb,
+  addedAt: now,
+});
+
+/** The artist a stack starts from, if it starts from one. */
+export const startArtist = (record: StackRecord): StackMember | undefined =>
+  record.members[0] && isArtistMember(record.members[0])
+    ? record.members[0]
+    : undefined;
 
 /** An album's node in a stack: its Discogs key, or its search id. */
 export const albumKeyOf = (search: Pick<SearchCache, "searchId" | "target">) =>
@@ -97,8 +142,45 @@ export const resolveMember = (
   member: StackMember,
   byAlbum: Map<string, SearchCache>,
 ): SearchCache | undefined =>
-  (member.targetKey && byAlbum.get(member.targetKey)) ||
-  byAlbum.get(member.searchId);
+  isArtistMember(member)
+    ? undefined
+    : (member.targetKey && byAlbum.get(member.targetKey)) ||
+      byAlbum.get(member.searchId);
+
+/**
+ * An artist's albums in the library: the latest search of each album
+ * whose main artist it is, oldest first.
+ */
+export const artistAlbums = (
+  artistId: string,
+  byAlbum: Map<string, SearchCache>,
+): SearchCache[] => {
+  const seen = new Set<string>();
+  const albums: SearchCache[] = [];
+  for (const search of byAlbum.values()) {
+    if (seen.has(search.searchId) || artistIdOf(search) !== artistId) continue;
+    seen.add(search.searchId);
+    // byAlbum also holds older runs under their search ids: latest only.
+    if (byAlbum.get(albumKeyOf(search)) !== search) continue;
+    albums.push(search);
+  }
+  return albums.sort(
+    (a, b) => searchStartedAt(a.searchId) - searchStartedAt(b.searchId),
+  );
+};
+
+/**
+ * A member's albums in the library: an album's search, or every album of
+ * an artist.
+ */
+export const resolveMembers = (
+  member: StackMember,
+  byAlbum: Map<string, SearchCache>,
+): SearchCache[] => {
+  if (isArtistMember(member)) return artistAlbums(member.targetKey, byAlbum);
+  const search = resolveMember(member, byAlbum);
+  return search ? [search] : [];
+};
 
 /** Who links two albums: credited on one, in the other's results. */
 export const linkPeople = (a: SearchCache, b: SearchCache): number[] =>
@@ -145,14 +227,17 @@ export const canJoin = (
 
 /**
  * Steps from the start: each album's fewest links from the first one
- * still saved. Albums nothing links to the start are left out.
+ * still saved (or the first `starts`, all at step 0: an artist's albums).
+ * Albums nothing links to the start are left out.
  */
-export const stepsFromStart = (albums: SearchCache[]): Map<string, number> => {
+export const stepsFromStart = (
+  albums: SearchCache[],
+  starts = 1,
+): Map<string, number> => {
   const steps = new Map<string, number>();
   if (albums.length === 0) return steps;
-  const start = albums[0];
-  steps.set(albumKeyOf(start), 0);
-  const queue = [start];
+  const queue = albums.slice(0, Math.max(1, starts));
+  for (const start of queue) steps.set(albumKeyOf(start), 0);
   while (queue.length) {
     const at = queue.shift()!;
     for (const other of albums) {
@@ -173,10 +258,14 @@ export const stepsFromStart = (albums: SearchCache[]): Map<string, number> => {
 export const strandedBy = (
   albums: SearchCache[],
   removing: Set<string>,
+  starts = 1,
 ): SearchCache[] => {
-  const before = stepsFromStart(albums);
+  const before = stepsFromStart(albums, starts);
   const left = albums.filter((a) => !removing.has(albumKeyOf(a)));
-  const after = stepsFromStart(left);
+  const leftStarts = albums
+    .slice(0, starts)
+    .filter((a) => !removing.has(albumKeyOf(a))).length;
+  const after = stepsFromStart(left, Math.max(1, leftStarts));
   // Only albums that were linked and no longer are: the change's doing.
   return left.filter(
     (a) => !after.has(albumKeyOf(a)) && before.has(albumKeyOf(a)),
@@ -190,13 +279,21 @@ export const withMembers = (
   now = Date.now(),
 ): StackRecord => ({ ...record, members, updatedAt: now });
 
-/** Whether the stack holds this album. */
+/** Whether the stack holds this album: as an album, or by its artist. */
 export const holds = (record: StackRecord, search: SearchCache): boolean => {
   const key = albumKeyOf(search);
-  return record.members.some(
-    (m) => memberKey(m) === key || m.searchId === search.searchId,
+  return record.members.some((m) =>
+    isArtistMember(m)
+      ? m.targetKey === artistIdOf(search)
+      : memberKey(m) === key || m.searchId === search.searchId,
   );
 };
+
+/** Whether the stack holds this album through the artist it starts from. */
+export const holdsByArtist = (
+  record: StackRecord,
+  search: SearchCache,
+): boolean => startArtist(record)?.targetKey === artistIdOf(search);
 
 /** The stack without this album. */
 export const without = (

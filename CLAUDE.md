@@ -89,7 +89,9 @@ ranks albums by how many of those people worked on them.
     its Results tab's order (`pageOrder`), liked albums first if switched. The preview is that image's blob, which is also the file
     shared or downloaded, with no link. While the draft's payload differs
     from the image's (`draftChange`: covers found since, or anything
-    else), the preview dims and the action is Regenerate. Drafts and the
+    else), the preview dims and the action is Regenerate. While making or
+    sharing, the action button shows a sweep and a running bar
+    (`ButtonBusy`). Drafts and the
     last image are kept per search or stack in memory while the page is
     open (`src/lib/shareDrafts.ts`). The sheet also has the page's filter
     switches (`src/lib/filterToggles.ts`: one list per mode, used by the
@@ -248,6 +250,28 @@ ranks albums by how many of those people worked on them.
     (`defaultRoleStates` in `lib/results.ts`); results start
     sorted Most shared, then Popular (`useResultsSort`).
   - `src/components/ui/`: shadcn primitives. Edit sparingly.
+  - Artists (`LibraryArtist`, `libraryArtists` in `src/lib/stacks.ts`,
+    `useLibraryArtists`) are derived, not stored: every search grouped by
+    main artist (`artistKeyOf`: "artist:squid", Discogs numbers, case and
+    spacing ignored), so a new search joins its artist as it finishes.
+    The library's tabs are Albums, Artists, Stacks. An artist's page
+    (`/library/artist/:artist`, `ArtistPage` in `StackPage.tsx`) is a
+    stack starting from the artist (`artistStack`): the same Albums and
+    Results tabs, every album at step 0. Which of their albums count is
+    the page's stack filters' `albums` (stored under the artist's id;
+    `pruneStackFilters` keeps `artist:` ids), switched from the header
+    (`ArtistAlbumToggles`) or the filters' Albums group. A stack can start
+    from an artist (`StackMember.kind: "artist"`, `targetKey` its id,
+    only as the first member for now): `libraryStack` puts all its albums
+    first (`StackArtist`), `stepsFromStart`/`strandedBy` take them all as
+    step 0 (`startCount`), `holds` counts any album of theirs
+    (`holdsByArtist`: no Remove in the drawer), and the stack page shows
+    them as one `ArtistCard` with its own album switches (the stack's
+    filters). New stack on an artist's page seeds the stack's filters
+    from the artist's (`StackEditor.initialFilters`).
+  - An album's Stacks button carries a "+" badge when it's in no stack
+    but could join one (`stackBadge`, `StackBadgeIcon`: library cards and
+    the results header).
   - Stacks are records of their own (`src/lib/stackRecords.ts`, IndexedDB
     `stacks`, DB v4): a name and its albums (`StackMember`: search id,
     album key, title, artist, art), the first being the start. An album
@@ -262,8 +286,8 @@ ranks albums by how many of those people worked on them.
     become check boxes; a bar at the bottom has Select all, Cancel and
     Delete, then a toast with Undo: `src/lib/librarySelection.ts`,
     `deleteSearches`, `restoreSearches`). A deleted album stays in its
-    stacks ghosted, with Search to run it again. The library has two tabs, Albums (first, the default)
-    and Stacks (New stack) (`LibraryPage`). `StackEditor` makes and edits a stack: name, albums
+    stacks ghosted, with Search to run it again. The library has three tabs, Albums (first, the default),
+    Artists and Stacks (New stack) (`LibraryPage`). `StackEditor` makes and edits a stack: name, albums
     in order with Remove, and the library to add from, albums that don't
     link yet greyed out with a note. An album's Stacks drawer
     (`StackDrawer`: results page header, library and stack cards) lists
@@ -286,7 +310,8 @@ ranks albums by how many of those people worked on them.
     `useStackFilters`), start with every chip on, and go with the stack.
     Share draws the filtered results.
   - Routes (React Router): `/` home, `/library`,
-    `/library/stack/:stackId` (Albums tab; `?view=results` for Results), and
+    `/library/stack/:stackId` (Albums tab; `?view=results` for Results),
+    `/library/artist/:artist` (the same tabs), and
     `/results?artist=…&album=…`, plus `&master=N` or `&release=N` when the
     Discogs album is known. A results page's back link goes where it was
     opened from (a stack or the library); otherwise to its stack when it's

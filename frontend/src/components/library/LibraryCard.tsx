@@ -1,12 +1,14 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Check, Layers } from "lucide-react";
+import { Check } from "lucide-react";
 import { SearchCache } from "@/contexts/cache/types";
 import { ResultFrom, resultPath } from "@/lib/routes";
 import { searchStartedAt, timeAgo } from "@/lib/searches";
 import { cn } from "@/lib/utils";
 import { SearchCover } from "../search/SearchCover";
 import { iconButton } from "../common/buttons";
+import { StackBadgeIcon } from "./StackBadgeIcon";
+import { stackBadgeLabel } from "@/lib/stacks";
 
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
@@ -21,6 +23,8 @@ interface LibraryCardProps {
   noteLabel?: string;
   /** Opens its Stacks drawer: add it to stacks, or take it out of them. */
   onStack?: () => void;
+  /** A badge on the Stacks button: "add" when it's in no stack but could be. */
+  stackBadge?: "add" | null;
   /**
    * Choosing albums to delete: the card toggles its selection instead of
    * opening, and shows a check box.
@@ -39,6 +43,7 @@ export const LibraryCard: React.FC<LibraryCardProps> = ({
   note,
   noteLabel,
   onStack,
+  stackBadge,
   select,
 }) => {
   const { artist, album } = search.searchParams;
@@ -126,14 +131,14 @@ export const LibraryCard: React.FC<LibraryCardProps> = ({
         <button
           type="button"
           onClick={onStack}
-          aria-label={`Stacks for ${album}`}
-          title="Stacks"
+          aria-label={`Stacks for ${album}${stackBadgeLabel(stackBadge)}`}
+          title={stackBadge ? "Stacks: it can join one" : "Stacks"}
           className={cn(
             iconButton,
             "text-muted-foreground hover:text-foreground",
           )}
         >
-          <Layers className="h-[18px] w-[18px]" aria-hidden="true" />
+          <StackBadgeIcon badge={stackBadge} />
         </button>
       )}
     </li>

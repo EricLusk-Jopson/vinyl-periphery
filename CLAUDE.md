@@ -286,8 +286,8 @@ ranks albums by how many of those people worked on them.
     become check boxes; a bar at the bottom has Select all, Cancel and
     Delete, then a toast with Undo: `src/lib/librarySelection.ts`,
     `deleteSearches`, `restoreSearches`). A deleted album stays in its
-    stacks ghosted, with Search to run it again. The library has two tabs, Albums (first, the default)
-    and Stacks (New stack) (`LibraryPage`). `StackEditor` makes and edits a stack: name, albums
+    stacks ghosted, with Search to run it again. The library has three tabs, Albums (first, the default),
+    Artists and Stacks (New stack) (`LibraryPage`). `StackEditor` makes and edits a stack: name, albums
     in order with Remove, and the library to add from, albums that don't
     link yet greyed out with a note. An album's Stacks drawer
     (`StackDrawer`: results page header, library and stack cards) lists

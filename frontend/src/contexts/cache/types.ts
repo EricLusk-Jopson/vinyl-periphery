@@ -1,4 +1,4 @@
-import type { StackRecord } from "@/lib/stackRecords";
+import type { StackMember, StackRecord } from "@/lib/stackRecords";
 import {
   SearchParams,
   SearchTarget,
@@ -137,7 +137,12 @@ export interface CacheContextValue extends CacheState {
   /** Every stack (records, newest first). */
   stacks: StackRecord[];
   /** A new stack of these albums, the first its start. */
-  createStack: (name: string, albums: SearchCache[]) => Promise<StackRecord>;
+  /** `start`: an artist to start from, before the albums. */
+  createStack: (
+    name: string,
+    albums: SearchCache[],
+    start?: StackMember,
+  ) => Promise<StackRecord>;
   /** Writes a stack again: renamed, albums added or taken out. */
   updateStack: (record: StackRecord) => Promise<void>;
   /** Deletes a stack; its albums stay in the library. */

@@ -36,6 +36,7 @@ import {
   defaultStackName,
   memberFor,
   newStackId,
+  StackMember,
   StackRecord,
 } from "@/lib/stackRecords";
 import { coverResolver } from "@/api/coverArt";
@@ -339,9 +340,16 @@ export const CacheProvider: React.FC<{ children: React.ReactNode }> = ({
 
   /** A new stack of these albums (the first is its start), kept. */
   const createStack = useCallback(
-    async (name: string, albums: SearchCache[]): Promise<StackRecord> => {
+    async (
+      name: string,
+      albums: SearchCache[],
+      start?: StackMember,
+    ): Promise<StackRecord> => {
       const now = Date.now();
-      const members = albums.map((a) => memberFor(a, now));
+      const members = [
+        ...(start ? [start] : []),
+        ...albums.map((a) => memberFor(a, now)),
+      ];
       const record: StackRecord = {
         id: newStackId(),
         name: name.trim() || defaultStackName(members),

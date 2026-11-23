@@ -27,6 +27,10 @@ move has no downtime.
 
    For analytics, also add `ANALYTICS_URL` and `ANALYTICS_TOKEN` to
    Production only; see `docs/analytics.md`.
+
+   For clubs, add `CLUBS_DATABASE_URL` and `CLUBS_DATABASE_TOKEN` (see
+   "Clubs database" below). Without them the club endpoints answer 503 and
+   the rest of the site is unaffected.
 4. Deploy. Production deploys come from `main`; every other branch and pull
    request gets its own preview URL.
 
@@ -85,3 +89,20 @@ npm run client   # Vite on :5173, proxies /api to :5000
 ```
 
 `vercel dev` also works and runs the `api/` functions directly.
+
+For clubs locally, add `CLUBS_DATABASE_URL=file:clubs.db` to `.env`: a
+SQLite file in the repo root, ignored by git.
+
+## Clubs database
+
+Clubs live in Turso (`docs/clubs.md`). The tables are created on the first
+request, so there's no migration step.
+
+1. In Turso, create a database (any region near Vercel's functions, for
+   example `aws-us-east-1`). Use a separate database for previews if you
+   don't want preview clubs mixed with real ones.
+2. Copy its URL (`libsql://…turso.io`) and create a token with read and
+   write access.
+3. In Vercel, set `CLUBS_DATABASE_URL` and `CLUBS_DATABASE_TOKEN` for
+   Production (and Preview with the preview database), then redeploy.
+4. On Heroku, set the same two config vars while it still serves the site.

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Layers, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { SearchCache } from "@/contexts/cache/types";
 import { cn } from "@/lib/utils";
@@ -8,11 +8,12 @@ import { PageHero } from "../layout/PageHero";
 import { pageAction } from "../common/buttons";
 import { SearchCover } from "../search/SearchCover";
 import { StackDrawer } from "../library/StackDrawer";
+import { StackBadgeIcon } from "../library/StackBadgeIcon";
 import { ShareButton } from "../share/ShareButton";
 import { PageSort } from "@/lib/share";
 import { SORT_OPTIONS, SortKey, tiebreakOptions } from "@/lib/results";
 import { ResultsSort } from "@/hooks/useResultsSort";
-import { stacksWith } from "@/lib/stacks";
+import { stackBadge, stackBadgeLabel, stacksWith } from "@/lib/stacks";
 import { useLibraryStacks } from "@/hooks/useLibraryStacks";
 import { libraryPath } from "@/lib/routes";
 import { useToast } from "@/hooks/use-toast";
@@ -67,8 +68,10 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search, order }) => {
   const [busy, setBusy] = useState(false);
   const [stacking, setStacking] = useState(false);
   // How many stacks hold this album (it can be in any number).
-  const inStacks = stacksWith(search, useLibraryStacks()).length;
+  const stacks = useLibraryStacks();
+  const inStacks = stacksWith(search, stacks).length;
   const stacked = inStacks > 0;
+  const badge = stacked ? null : stackBadge(search, stacks);
   const { artist, album } = search.searchParams;
   const contributorCount = Object.keys(search.contributors).length;
 
@@ -132,16 +135,16 @@ export const AlbumHeader: React.FC<AlbumHeaderProps> = ({ search, order }) => {
               aria-label={
                 stacked
                   ? `Stacks: in ${inStacks} ${inStacks === 1 ? "stack" : "stacks"}`
-                  : "Stacks: add to a stack"
+                  : `Stacks: add to a stack${stackBadgeLabel(badge)}`
               }
               className={pageAction}
             >
-              <Layers
+              <StackBadgeIcon
+                badge={badge}
                 className={cn(
                   "h-4 w-4",
                   stacked ? "text-primary" : "text-muted-foreground",
                 )}
-                aria-hidden="true"
               />
               <span aria-hidden="true">
                 {stacked

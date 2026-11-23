@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, X } from "lucide-react";
+import { MicVocal, Plus, Search, X } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -11,20 +11,26 @@ import { useCache } from "@/contexts/cache/CacheContext";
 import { SearchCache } from "@/contexts/cache/types";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { track } from "@/lib/analytics";
+import { db } from "@/services/db";
+import { StackFilterState, withStackDefaults } from "@/lib/stackFilters";
+import { useLibraryArtists } from "@/hooks/useLibraryArtists";
 import { stackPath } from "@/lib/routes";
 import { searchStartedAt } from "@/lib/searches";
 import {
   albumKeyOf,
+  artistMemberFor,
   canJoin,
   defaultStackName,
+  isArtistMember,
   memberFor,
   memberKey,
   resolveMember,
+  resolveMembers,
   savedByAlbum,
   StackMember,
   StackRecord,
 } from "@/lib/stackRecords";
-import { LibraryStack, searchLibrary } from "@/lib/stacks";
+import { LibraryStack, searchArtists, searchLibrary } from "@/lib/stacks";
 import { cn } from "@/lib/utils";
 import { dialogButton } from "../common/buttons";
 import { SearchCover } from "../search/SearchCover";
@@ -41,6 +47,10 @@ interface StackEditorProps {
   stack?: LibraryStack;
   /** A new stack's first albums (the first is its start). */
   initial?: SearchCache[];
+  /** A new stack's start: an artist, before any `initial` albums. */
+  startArtist?: StackMember;
+  /** A new stack's Results filters to begin with (an artist's albums on). */
+  initialFilters?: Partial<StackFilterState>;
   /** Called with the stack once it's kept. */
   onSaved?: (record: StackRecord) => void;
 }
@@ -58,6 +68,8 @@ export const StackEditor: React.FC<StackEditorProps> = ({
   onOpenChange,
   stack,
   initial = [],
+  startArtist,
+  initialFilters,
   onSaved,
 }) => {
   const { searches, savedSearchIds, createStack, updateStack } = useCache();
@@ -66,23 +78,35 @@ export const StackEditor: React.FC<StackEditorProps> = ({
   const editing = Boolean(stack);
   const [name, setName] = useState(stack?.record.name ?? "");
   const [members, setMembers] = useState<StackMember[]>(
-    () => stack?.record.members ?? initial.map((s) => memberFor(s)),
+    () =>
+      stack?.record.members ?? [
+        ...(startArtist ? [startArtist] : []),
+        ...initial.map((s) => memberFor(s)),
+      ],
   );
+  const artists = useLibraryArtists();
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
-  const { request, dialog } = useStackRemoval();
+  const { request, requestMany, dialog } = useStackRemoval();
 
   const byAlbum = useMemo(
     () => savedByAlbum(searches, savedSearchIds),
     [searches, savedSearchIds],
   );
-  // The draft's albums still in the library, in order.
+  // The draft's albums still in the library, in order (an artist's all
+  // first, at the start).
   const albums = useMemo(
-    () =>
-      members
-        .map((m) => resolveMember(m, byAlbum))
-        .filter((s): s is SearchCache => Boolean(s)),
+    () => members.flatMap((m) => resolveMembers(m, byAlbum)),
     [members, byAlbum],
+  );
+  const starts =
+    members[0] && isArtistMember(members[0])
+      ? Math.max(1, resolveMembers(members[0], byAlbum).length)
+      : 1;
+  // Artists to start from: only while the draft is empty, for now.
+  const artistCandidates = useMemo(
+    () => (members.length === 0 ? searchArtists(artists, query) : []),
+    [members.length, artists, query],
   );
   const inDraft = useMemo(() => new Set(albums.map(albumKeyOf)), [albums]);
   // The rest of the library: those that link first, then newest.
@@ -115,10 +139,22 @@ export const StackEditor: React.FC<StackEditorProps> = ({
       setMembers((current) =>
         current.filter((m) => memberKey(m) !== memberKey(member)),
       );
+    if (isArtistMember(member)) {
+      // The start: whatever links only through their albums is stranded.
+      const own = resolveMembers(member, byAlbum);
+      requestMany(
+        member.title,
+        new Set(own.map(albumKeyOf)),
+        albums,
+        drop,
+        starts,
+      );
+      return;
+    }
     const search = resolveMember(member, byAlbum);
     // An album deleted from the library goes without a check.
     if (!search) drop();
-    else request(search, albums, drop);
+    else request(search, albums, drop, starts);
   };
 
   const save = async () => {
@@ -135,8 +171,21 @@ export const StackEditor: React.FC<StackEditorProps> = ({
         });
         onSaved?.(record);
       } else {
-        const record = await createStack(finalName, albums);
-        track("stack_created", { members: members.length });
+        const start =
+          members[0] && isArtistMember(members[0]) ? members[0] : undefined;
+        const rest = (start ? members.slice(1) : members)
+          .map((m) => resolveMember(m, byAlbum))
+          .filter((s): s is SearchCache => Boolean(s));
+        const record = await createStack(finalName, rest, start);
+        if (initialFilters) {
+          await db
+            .saveStackFilters(record.id, withStackDefaults(initialFilters))
+            .catch(() => {});
+        }
+        track("stack_created", {
+          members: members.length,
+          ...(start ? { artist: true } : {}),
+        });
         onSaved?.(record);
         navigate(stackPath(record.id));
       }
@@ -148,7 +197,7 @@ export const StackEditor: React.FC<StackEditorProps> = ({
 
   const advisory =
     members.length === 0
-      ? "Start with any album in your library: it's the stack's start."
+      ? "Start with any album or artist in your library: it's the stack's start. An artist brings every album of theirs, now and searched later."
       : "Add albums that link to one already in the stack: someone credited on one worked on the other. Greyed-out albums don't link yet; adding others may link them.";
 
   return (
@@ -199,12 +248,20 @@ export const StackEditor: React.FC<StackEditorProps> = ({
               <ul className="flex flex-col divide-y rounded-lg border bg-surface">
                 {members.map((member, i) => {
                   const search = resolveMember(member, byAlbum);
+                  const artistAlbums = isArtistMember(member)
+                    ? resolveMembers(member, byAlbum)
+                    : null;
                   return (
                     <li
                       key={memberKey(member)}
                       className="flex min-h-[60px] items-center gap-3 px-3 py-2"
                     >
-                      {search ? (
+                      {artistAlbums?.length ? (
+                        <SearchCover
+                          search={artistAlbums[artistAlbums.length - 1]}
+                          className="h-10 w-10 rounded-[3px] text-xs"
+                        />
+                      ) : search ? (
                         <SearchCover
                           search={search}
                           className="h-10 w-10 rounded-[3px] text-xs"
@@ -222,7 +279,11 @@ export const StackEditor: React.FC<StackEditorProps> = ({
                         </span>
                         <span className="truncate text-xs text-muted-foreground">
                           {i === 0 ? "Start · " : ""}
-                          {search ? member.artist : "Deleted from your library"}
+                          {artistAlbums
+                            ? `Artist · ${artistAlbums.length} ${artistAlbums.length === 1 ? "album" : "albums"}`
+                            : search
+                              ? member.artist
+                              : "Deleted from your library"}
                         </span>
                       </span>
                       <button
@@ -266,6 +327,55 @@ export const StackEditor: React.FC<StackEditorProps> = ({
                 )}
               />
             </label>
+            {artistCandidates.length > 0 && (
+              <ul
+                aria-label="Artists"
+                className="flex flex-col divide-y rounded-lg border bg-surface"
+              >
+                {artistCandidates.map((artist) => (
+                  <li
+                    key={artist.artistId}
+                    className="flex min-h-[60px] items-center gap-3 px-3 py-2"
+                  >
+                    <SearchCover
+                      search={artist.albums[artist.albums.length - 1]}
+                      className="h-10 w-10 rounded-[3px] text-xs"
+                    />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
+                        <MicVocal
+                          className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          aria-hidden="true"
+                        />
+                        <span className="truncate">{artist.name}</span>
+                      </span>
+                      <span className="truncate text-xs text-muted-foreground">
+                        Artist · {artist.albums.length}{" "}
+                        {artist.albums.length === 1 ? "album" : "albums"}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setMembers([
+                          artistMemberFor(
+                            artist.name,
+                            artist.albums[artist.albums.length - 1]?.thumb,
+                          ),
+                        ])
+                      }
+                      aria-label={`Start from ${artist.name}`}
+                      className={cn(
+                        "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-secondary",
+                        focusRing,
+                      )}
+                    >
+                      <Plus className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
             {candidates.length === 0 ? (
               <p className="text-[13px] text-faint">
                 {query.trim()

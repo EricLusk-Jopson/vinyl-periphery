@@ -19,7 +19,10 @@ export type StackView = "results" | "albums";
  * One saved stack's page, on a tab. Stack ids contain spaces and hyphens.
  * Albums is the default and has no parameter; Results is `?view=results`.
  */
-export const stackPath = (stackId: string, view: StackView = "albums"): string =>
+export const stackPath = (
+  stackId: string,
+  view: StackView = "albums",
+): string =>
   `${LIBRARY_PATH}/stack/${encodeURIComponent(stackId)}${
     view === "results" ? "?view=results" : ""
   }`;
@@ -27,6 +30,25 @@ export const stackPath = (stackId: string, view: StackView = "albums"): string =
 /** The tab a stack page's query names: Results, or Albums for anything else. */
 export const stackView = (search: string): StackView =>
   new URLSearchParams(search).get("view") === "results" ? "results" : "albums";
+
+/** Route pattern for one artist: every album of theirs in the library. */
+export const ARTIST_ROUTE = `${LIBRARY_PATH}/artist/:artist`;
+
+/**
+ * An artist's page ("artist:squid" is /library/artist/squid), on a tab:
+ * Albums (the default) or Results (`?view=results`), as for a stack.
+ */
+export const artistPath = (
+  artistId: string,
+  view: StackView = "albums",
+): string =>
+  `${LIBRARY_PATH}/artist/${encodeURIComponent(
+    artistId.replace(/^artist:/, ""),
+  )}${view === "results" ? "?view=results" : ""}`;
+
+/** The artist id an artist route's parameter names. */
+export const artistIdFromRoute = (param: string): string =>
+  `artist:${param.trim().toLowerCase()}`;
 
 export const RESULTS_PATH = "/results";
 
@@ -81,7 +103,8 @@ export const legacyResultParams = (searchId: string): SearchParams | null => {
 export type ResultFrom =
   | { from: "home" }
   | { from: "library" }
-  | { from: "stack"; stackId: string };
+  | { from: "stack"; stackId: string }
+  | { from: "artist"; artistId: string };
 
 /**
  * The back link for a result: where it was opened from, when that was a
@@ -93,9 +116,14 @@ export const backLink = (
   state: unknown,
   stackId?: string | null,
 ): { to: string; label: string } => {
-  const from = state as (Partial<ResultFrom> & { stackId?: string }) | null;
+  const from = state as
+    | (Partial<ResultFrom> & { stackId?: string; artistId?: string })
+    | null;
   if (from?.from === "stack" && from.stackId) {
     return { to: stackPath(from.stackId), label: "Back to stack" };
+  }
+  if (from?.from === "artist" && from.artistId) {
+    return { to: artistPath(from.artistId), label: "Back to artist" };
   }
   if (from?.from !== "library" && stackId) {
     return { to: stackPath(stackId), label: "Back to stack" };
@@ -109,18 +137,27 @@ export const backLink = (
  */
 export const pageBackKind = (
   pathname: string,
-): "results" | "stack" | null =>
+): "results" | "stack" | "artist" | null =>
   pathname === RESULTS_PATH
     ? "results"
     : /^\/library\/stack\/[^/]+$/.test(pathname)
       ? "stack"
-      : null;
+      : /^\/library\/artist\/[^/]+$/.test(pathname)
+        ? "artist"
+        : null;
 
 /** Where the user is now, as the state for a result opened from here. */
 export const fromLocation = (location: string): ResultFrom => {
   const pathname = location.split("?")[0];
   const stack = pathname.match(/^\/library\/stack\/([^/]+)$/);
   if (stack) return { from: "stack", stackId: decodeURIComponent(stack[1]) };
+  const artist = pathname.match(/^\/library\/artist\/([^/]+)$/);
+  if (artist) {
+    return {
+      from: "artist",
+      artistId: artistIdFromRoute(decodeURIComponent(artist[1])),
+    };
+  }
   return pathname === LIBRARY_PATH ? { from: "library" } : { from: "home" };
 };
 
@@ -131,5 +168,7 @@ export const fromLocation = (location: string): ResultFrom => {
  */
 export const legacyShareTarget = (search: string): string => {
   const to = new URLSearchParams(search).get("to") ?? "";
-  return /^\/(results\?|library\/stack\/)\S*$/.test(to) ? to : HOME_PATH;
+  return /^\/(results\?|library\/(stack|artist)\/)\S*$/.test(to)
+    ? to
+    : HOME_PATH;
 };

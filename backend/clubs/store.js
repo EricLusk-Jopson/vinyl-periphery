@@ -65,13 +65,13 @@ export async function readClub(db, clubId) {
   const [clubs, members, picks, reactions] = await db.batch(
     [
       { sql: "SELECT * FROM clubs WHERE id = ?", args: [clubId] },
-      { sql: "SELECT * FROM members WHERE club_id = ? ORDER BY joined_at, id", args: [clubId] },
+      { sql: "SELECT * FROM members WHERE club_id = ? ORDER BY joined_at, rowid", args: [clubId] },
       {
-        sql: "SELECT * FROM picks WHERE club_id = ? ORDER BY round, created_at, seq, id",
+        sql: "SELECT * FROM picks WHERE club_id = ? ORDER BY round, created_at, seq, rowid",
         args: [clubId],
       },
       {
-        sql: "SELECT * FROM reactions WHERE club_id = ? ORDER BY created_at, id",
+        sql: "SELECT * FROM reactions WHERE club_id = ? ORDER BY created_at, rowid",
         args: [clubId],
       },
     ],

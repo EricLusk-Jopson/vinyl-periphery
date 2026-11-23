@@ -14,7 +14,7 @@ import { useLibraryStacks } from "@/hooks/useLibraryStacks";
 import { useToast } from "@/hooks/use-toast";
 import { track } from "@/lib/analytics";
 import { stackPath } from "@/lib/routes";
-import { memberFor } from "@/lib/stackRecords";
+import { holdsByArtist, memberFor } from "@/lib/stackRecords";
 import { fitLinkText, stackOptionsFor, stackRoot } from "@/lib/stacks";
 import { cn } from "@/lib/utils";
 import { dialogButton } from "../common/buttons";
@@ -103,6 +103,10 @@ export const StackDrawer: React.FC<StackDrawerProps> = ({
               {options.map((option) => {
                 const { stack, join } = option;
                 const off = !join.member && !join.ok;
+                // In it through the artist it starts from: switched on and
+                // off on the stack's page, not taken out here.
+                const byArtist =
+                  join.member && holdsByArtist(stack.record, search);
                 return (
                   <li
                     key={stack.stackId}
@@ -121,13 +125,15 @@ export const StackDrawer: React.FC<StackDrawerProps> = ({
                         {stack.record.name}
                       </Link>
                       <span className="truncate text-xs text-muted-foreground">
-                        {join.member
-                          ? "In this stack"
-                          : join.ok && join.via
-                            ? `Links to ${join.via.searchParams.album}`
-                            : join.ok
-                              ? "An empty stack: it would be the start"
-                              : "Doesn't link to any album here yet"}
+                        {byArtist
+                          ? `By ${stack.artist?.member.title ?? "its artist"}, the start`
+                          : join.member
+                            ? "In this stack"
+                            : join.ok && join.via
+                              ? `Links to ${join.via.searchParams.album}`
+                              : join.ok
+                                ? "An empty stack: it would be the start"
+                                : "Doesn't link to any album here yet"}
                       </span>
                       {join.ok && join.via && join.people.length > 0 && (
                         <span className="truncate font-mono text-xs text-faint">
@@ -135,7 +141,7 @@ export const StackDrawer: React.FC<StackDrawerProps> = ({
                         </span>
                       )}
                     </span>
-                    {join.member ? (
+                    {byArtist ? null : join.member ? (
                       <button
                         type="button"
                         onClick={() => remove(stack, search, from)}

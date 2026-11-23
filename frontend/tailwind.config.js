@@ -78,9 +78,22 @@ export default {
           "60%": { transform: "translateX(-4px)" },
           "80%": { transform: "translateX(4px)" },
         },
+        // A band of light crossing a busy button, left to right.
+        "button-sweep": {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(300%)" },
+        },
+        // The bar under a busy button, filling back and forth.
+        "button-progress": {
+          "0%": { transform: "translateX(-100%) scaleX(0.3)" },
+          "50%": { transform: "translateX(0%) scaleX(0.6)" },
+          "100%": { transform: "translateX(100%) scaleX(0.3)" },
+        },
       },
       animation: {
         shake: "shake 400ms ease-in-out",
+        "button-sweep": "button-sweep 1.4s ease-in-out infinite",
+        "button-progress": "button-progress 1.2s ease-in-out infinite",
       },
       zIndex: {
         header: "700",

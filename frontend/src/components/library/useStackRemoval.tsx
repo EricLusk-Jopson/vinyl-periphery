@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useCache } from "@/contexts/cache/CacheContext";
 import { SearchCache } from "@/contexts/cache/types";
 import { track } from "@/lib/analytics";
-import { LibraryStack } from "@/lib/stacks";
+import { LibraryStack, startCount } from "@/lib/stacks";
 import {
   albumKeyOf,
   memberKey,
@@ -36,22 +36,39 @@ export const useStackRemoval = () => {
    * Removes `album` from the albums `albums` (a stack's, or a draft's),
    * calling `remove` now or after the warning.
    */
-  const request = (
-    album: Pick<SearchCache, "searchId" | "target" | "searchParams">,
+  const requestMany = (
+    name: string,
+    removing: Set<string>,
     albums: SearchCache[],
     remove: () => void,
+    starts = 1,
   ) => {
-    const stranded = strandedBy(albums, new Set([albumKeyOf(album)]));
+    const stranded = strandedBy(albums, removing, starts);
     if (stranded.length === 0) {
       remove();
       return;
     }
     setPending({
-      name: album.searchParams.album,
+      name,
       stranded: stranded.map((s) => s.searchParams.album),
       confirm: remove,
     });
   };
+
+  /** `starts`: how many of `albums` are at step 0 (a start artist's). */
+  const request = (
+    album: Pick<SearchCache, "searchId" | "target" | "searchParams">,
+    albums: SearchCache[],
+    remove: () => void,
+    starts = 1,
+  ) =>
+    requestMany(
+      album.searchParams.album,
+      new Set([albumKeyOf(album)]),
+      albums,
+      remove,
+      starts,
+    );
 
   const dialog = (
     <ChoiceDialog
@@ -89,7 +106,7 @@ export const useStackRemoval = () => {
     </ChoiceDialog>
   );
 
-  return { request, dialog };
+  return { request, requestMany, dialog };
 };
 
 /** Takes an album out of a stack record and writes it. */
@@ -97,13 +114,18 @@ export const useRemoveFromStack = () => {
   const { updateStack } = useCache();
   const { request, dialog } = useStackRemoval();
   const remove = (stack: LibraryStack, album: SearchCache, from: string) =>
-    request(album, stack.members, () => {
-      const key = albumKeyOf(album);
-      const members: StackMember[] = stack.record.members.filter(
-        (m) => memberKey(m) !== key && m.searchId !== album.searchId,
-      );
-      track("stack_album_removed", { from, members: members.length });
-      void updateStack({ ...stack.record, members });
-    });
+    request(
+      album,
+      stack.members,
+      () => {
+        const key = albumKeyOf(album);
+        const members: StackMember[] = stack.record.members.filter(
+          (m) => memberKey(m) !== key && m.searchId !== album.searchId,
+        );
+        track("stack_album_removed", { from, members: members.length });
+        void updateStack({ ...stack.record, members });
+      },
+      startCount(stack),
+    );
   return { remove, dialog };
 };

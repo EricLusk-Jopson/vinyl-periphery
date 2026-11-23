@@ -12,7 +12,7 @@ import { useCache } from "./contexts/cache/CacheContext";
 import { Header } from "./components/layout/Header";
 import { Footer } from "./components/layout/Footer";
 import { Home } from "./components/home/Home";
-import { StackPage } from "./components/library/StackPage";
+import { ArtistPage, StackPage } from "./components/library/StackPage";
 import { ChoiceDialog } from "./components/common/ChoiceDialog";
 import { dialogButton } from "./components/common/buttons";
 import { LibraryPage } from "./components/library/LibraryPage";
@@ -33,6 +33,7 @@ import {
   HOME_PATH,
   LIBRARY_PATH,
   STACK_ROUTE,
+  ARTIST_ROUTE,
   RESULTS_PATH,
   fromLocation,
   legacyShareTarget,
@@ -249,6 +250,18 @@ const App: React.FC = () => {
             path={STACK_ROUTE}
             element={
               <StackPage
+                onSearchStep={(params, known) => {
+                  setFormValues(params);
+                  handleSearch(params, "result", known);
+                }}
+                isSearching={isSearching}
+              />
+            }
+          />
+          <Route
+            path={ARTIST_ROUTE}
+            element={
+              <ArtistPage
                 onSearchStep={(params, known) => {
                   setFormValues(params);
                   handleSearch(params, "result", known);

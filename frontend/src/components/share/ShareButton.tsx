@@ -67,6 +67,7 @@ import {
   keepShare,
 } from "@/lib/shareDrafts";
 import { cn } from "@/lib/utils";
+import { ButtonBusy } from "../common/ButtonBusy";
 import { dialogButton, pageAction } from "../common/buttons";
 import {
   Select,
@@ -710,8 +711,14 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
       type="button"
       onClick={make}
       disabled={making || !plan}
-      className={cn(dialogButton.primary, "w-full gap-2")}
+      aria-busy={making}
+      className={cn(
+        dialogButton.primary,
+        "relative w-full gap-2 overflow-hidden",
+        making && "disabled:opacity-100",
+      )}
     >
+      <ButtonBusy busy={making} />
       {making ? (
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
       ) : committed ? (
@@ -732,14 +739,28 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
       type="button"
       onClick={() => void shareImage()}
       disabled={busy}
-      className={cn(dialogButton.primary, "w-full gap-2")}
+      aria-busy={busy}
+      className={cn(
+        dialogButton.primary,
+        "relative w-full gap-2 overflow-hidden",
+        busy && "disabled:opacity-100",
+      )}
     >
-      {useShareSheet ? (
+      <ButtonBusy busy={busy} />
+      {busy ? (
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+      ) : useShareSheet ? (
         <Share2 className="h-4 w-4" aria-hidden="true" />
       ) : (
         <Download className="h-4 w-4" aria-hidden="true" />
       )}
-      {useShareSheet ? "Share image" : "Download image"}
+      {busy
+        ? useShareSheet
+          ? "Opening share…"
+          : "Saving…"
+        : useShareSheet
+          ? "Share image"
+          : "Download image"}
     </button>
   );
   const notice =

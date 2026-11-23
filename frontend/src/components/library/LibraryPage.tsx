@@ -6,7 +6,18 @@ import { SearchCache } from "@/contexts/cache/types";
 import { useLibraryStacks } from "@/hooks/useLibraryStacks";
 import { HOME_PATH } from "@/lib/routes";
 import { recentSearches } from "@/lib/searches";
-import { searchLibrary, searchStacks, stacksWith } from "@/lib/stacks";
+import {
+  LibraryArtist,
+  searchArtists,
+  searchLibrary,
+  searchStacks,
+  stackBadge,
+  stacksWith,
+} from "@/lib/stacks";
+import { useLibraryArtists } from "@/hooks/useLibraryArtists";
+import { useStackFilters } from "@/hooks/useStackFilters";
+import { artistPath } from "@/lib/routes";
+import { ArtistCard } from "./ArtistCard";
 import { track } from "@/lib/analytics";
 import {
   allSelected,
@@ -30,18 +41,33 @@ import { dialogButton, pageAction } from "../common/buttons";
 const focusRing =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
 
-type LibraryTab = "stacks" | "albums";
+type LibraryTab = "albums" | "artists" | "stacks";
 const VIEW_STORAGE_KEY = "vinyl-periphery-library-view";
+
+const asTab = (value: string | null): LibraryTab =>
+  value === "stacks" || value === "artists" ? value : "albums";
 
 /** The viewer's last tab; Albums when unknown or unreadable. */
 const readTab = (): LibraryTab => {
   try {
-    return localStorage.getItem(VIEW_STORAGE_KEY) === "stacks"
-      ? "stacks"
-      : "albums";
+    return asTab(localStorage.getItem(VIEW_STORAGE_KEY));
   } catch {
     return "albums";
   }
+};
+
+/** An artist's card in the library: how many albums its own filters keep on. */
+const LibraryArtistCard: React.FC<{ artist: LibraryArtist }> = ({ artist }) => {
+  const { filters } = useStackFilters(artist.artistId);
+  return (
+    <ArtistCard
+      name={artist.name}
+      albums={artist.albums}
+      states={filters.albums}
+      to={artistPath(artist.artistId)}
+      updatedAt={artist.updatedAt}
+    />
+  );
 };
 
 const writeTab = (tab: LibraryTab) => {
@@ -53,12 +79,15 @@ const writeTab = (tab: LibraryTab) => {
 };
 
 /**
- * The library, in two tabs, Albums first. Albums: every search, kept as it finishes
- * until it's deleted (from its own page, or several at once with Select
- * here, with Undo); each card's Stacks button adds it to stacks or takes
- * it out. Stacks: named groups of albums linked by
- * their credits, made with New stack (or from an album's Stacks drawer),
- * edited and deleted on their own pages. One search box filters both.
+ * The library, in three tabs: Albums, Artists, Stacks. Albums: every
+ * search, kept as it finishes until it's deleted (from its own page, or
+ * several at once with Select here, with Undo); each card's Stacks button
+ * adds it to stacks or takes it out (badged when it's in none but could
+ * join one). Artists: every main artist searched, grouping their albums
+ * on its own as searches finish. Stacks: named groups of albums linked by
+ * their credits, made with New stack (or from an album's Stacks drawer or
+ * an artist's page), edited and deleted on their own pages. One search
+ * box filters all three.
  */
 export const LibraryPage: React.FC = () => {
   const { searches, savedSearchesLoaded, deleteSearches, restoreSearches } =
@@ -66,6 +95,7 @@ export const LibraryPage: React.FC = () => {
   const { toast } = useToast();
   const id = useId();
   const stacks = useLibraryStacks();
+  const artists = useLibraryArtists();
   const [tab, setTab] = useState<LibraryTab>(readTab);
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
@@ -85,6 +115,10 @@ export const LibraryPage: React.FC = () => {
     () => searchStacks(stacks, query),
     [stacks, query],
   );
+  const shownArtists = useMemo(
+    () => searchArtists(artists, query),
+    [artists, query],
+  );
 
   // Report a library search once typing pauses; the text isn't sent.
   useEffect(() => {
@@ -92,14 +126,26 @@ export const LibraryPage: React.FC = () => {
     const timer = setTimeout(
       () =>
         track("library_searched", {
-          results: tab === "albums" ? albums.length : shownStacks.length,
+          results:
+            tab === "albums"
+              ? albums.length
+              : tab === "artists"
+                ? shownArtists.length
+                : shownStacks.length,
           length: query.trim().length,
           tab,
         }),
       1000,
     );
     return () => clearTimeout(timer);
-  }, [searching, query, albums.length, shownStacks.length, tab]);
+  }, [
+    searching,
+    query,
+    albums.length,
+    shownStacks.length,
+    shownArtists.length,
+    tab,
+  ]);
 
   // Albums deleted elsewhere leave the selection; Escape ends it.
   const selecting = selected !== null;
@@ -148,7 +194,7 @@ export const LibraryPage: React.FC = () => {
   };
 
   const chooseTab = (next: string) => {
-    const value: LibraryTab = next === "albums" ? "albums" : "stacks";
+    const value = asTab(next);
     if (value === tab) return;
     setSelected(null);
     setTab(value);
@@ -229,6 +275,12 @@ export const LibraryPage: React.FC = () => {
                     {saved.length}
                   </span>
                 </TabsTrigger>
+                <TabsTrigger value="artists">
+                  Artists
+                  <span className="ml-1.5 font-mono text-xs text-faint">
+                    {artists.length}
+                  </span>
+                </TabsTrigger>
                 <TabsTrigger value="stacks">
                   Stacks
                   <span className="ml-1.5 font-mono text-xs text-faint">
@@ -252,7 +304,9 @@ export const LibraryPage: React.FC = () => {
                   placeholder={
                     tab === "stacks"
                       ? "Search stacks and their albums"
-                      : "Search albums and artists"
+                      : tab === "artists"
+                        ? "Search artists and their albums"
+                        : "Search albums and artists"
                   }
                   autoComplete="off"
                   className={cn(
@@ -286,6 +340,23 @@ export const LibraryPage: React.FC = () => {
                 <ul className={LIBRARY_GRID}>
                   {shownStacks.map((stack) => (
                     <StackCard key={stack.stackId} stack={stack} />
+                  ))}
+                </ul>
+              )}
+            </TabsContent>
+
+            <TabsContent value="artists" className="flex flex-col gap-4">
+              <p className="max-w-xl text-sm text-muted-foreground">
+                Every artist you've searched, with all their albums together:
+                each new search joins its artist. Open one for its albums'
+                results as one, or start a stack from it.
+              </p>
+              {shownArtists.length === 0 ? (
+                nothing("artists")
+              ) : (
+                <ul className={LIBRARY_GRID}>
+                  {shownArtists.map((artist) => (
+                    <LibraryArtistCard key={artist.artistId} artist={artist} />
                   ))}
                 </ul>
               )}
@@ -338,6 +409,7 @@ export const LibraryPage: React.FC = () => {
                       from={{ from: "library" }}
                       note={stackNote(search)}
                       onStack={() => setStacking(search)}
+                      stackBadge={stackBadge(search, stacks)}
                       select={
                         selected
                           ? {

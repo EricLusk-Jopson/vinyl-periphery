@@ -9,3 +9,6 @@ node_modules/
 /backend/dist/
 /frontend/build/
 /frontend/dist/
+
+# Local clubs database (CLUBS_DATABASE_URL=file:clubs.db)
+clubs.db*

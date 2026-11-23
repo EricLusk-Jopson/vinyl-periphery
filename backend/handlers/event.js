@@ -1,4 +1,6 @@
-import { allowMethods } from "./http.js";
+import { allowMethods, sameSite } from "./http.js";
+
+export { sameSite };
 
 /**
  * POST /api/event
@@ -122,22 +124,6 @@ export function sanitizeEvent(body) {
         ? data.sessionId
         : "",
   };
-}
-
-/**
- * Rejects posts from other sites. Browsers send Origin on POST; anything
- * without one (curl, bots) gets through, so this stops casual embedding,
- * not determined abuse.
- */
-export function sameSite(headers) {
-  const origin = headers?.origin;
-  if (!origin) return true;
-  try {
-    const host = String(headers.host || "").split(":")[0];
-    return new URL(origin).hostname === host;
-  } catch {
-    return false;
-  }
 }
 
 /** Posts the row to the Apps Script web app. */

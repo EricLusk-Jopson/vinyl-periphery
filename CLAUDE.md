@@ -101,6 +101,20 @@ ranks albums by how many of those people worked on them.
     from "Create visual" on results and stack pages (`ShareButton`);
     pictures are offered in the order People, Transit, Map, Results. Old `/s?…&to=…` links (from when
     shares carried one) redirect client-side to `to` (`legacyShareTarget`).
+  - Clubs (`features/music-clubs.md`, `docs/clubs.md`): the app's first
+    server-side store of user content, in Turso (`backend/clubs/`:
+    `schema.js`, `db.js` from `CLUBS_DATABASE_URL`/`CLUBS_DATABASE_TOKEN`,
+    503 without them; `validate.js`, `store.js`, `rateLimit.js`, `route.js`).
+    `clubs.js` (`GET ?id=` reads a club with members, picks and reactions;
+    `POST` creates one with its admin; `PATCH` for the admin),
+    `club-members.js` (join with a new name, or choose one for a new token),
+    `club-picks.js` (a round of picks; edit and delete for the picker and
+    admin), `club-reactions.js` (official when from the pick's listener).
+    The club id is the invite; writes carry `Authorization: Bearer` with a
+    member token (stored hashed). Honour system: anyone with the id can
+    choose any name. Writes are rate-limited per club and per address in the
+    database (`write_counts`). Tests run on an in-memory libSQL database
+    (`memoryDb`).
 - `backend/server.js`: Express server that mounts the same handlers, for
   local development (and Heroku until the move to Vercel is finished). In
   production mode it also serves `frontend/dist`.
